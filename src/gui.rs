@@ -7,14 +7,16 @@ use std::path::PathBuf;
 pub fn run_gui() {
     let app = GuiApp::default();
     let native_options = eframe::NativeOptions::default();
-    eframe::run_native(
+    if let Err(e) = eframe::run_native(
         "NyaMark GUI",
         native_options,
         Box::new(|cc| {
             configure_fonts(&cc.egui_ctx);
             Box::new(app)
         }),
-    );
+    ) {
+        eprintln!("Failed to start GUI: {e}");
+    }
 }
 
 struct GuiApp {
@@ -70,11 +72,9 @@ impl GuiApp {
         }
     }
     fn save_file(&mut self) {
-        let target = if let Some(p) = &self.file_path { p.clone() } else {
-            if let Some(path) = FileDialog::new().set_file_name("note.md").save_file() {
-                path
-            } else { return; }
-        };
+        let target = if let Some(p) = &self.file_path { p.clone() }
+        else if let Some(path) = FileDialog::new().set_file_name("note.md").save_file() { path }
+        else { return; };
         if let Err(e) = fs::write(&target, &self.markdown) {
             self.status_message = format!("Save failed: {e}");
         } else {
@@ -93,11 +93,10 @@ impl GuiApp {
         }
     }
     fn maybe_autosave(&mut self, now: f64) {
-        if self.autosave && self.dirty && self.file_path.is_some() {
-            if now - self.last_edit_time > 1.5 { // 简单节流：最后编辑 1.5s 后保存
-                self.save_file();
-                self.status_message = "Autosaved".into();
-            }
+        if self.autosave && self.dirty && self.file_path.is_some()
+            && (now - self.last_edit_time > 1.5) { // 简单节流：最后编辑 1.5s 后保存
+            self.save_file();
+            self.status_message = "Autosaved".into();
         }
     }
 }
@@ -277,7 +276,7 @@ impl EframeApp for GuiApp {
                             let indent = (h.level.saturating_sub(1) as f32) * 8.0;
                             ui.horizontal(|ui| {
                                 ui.add_space(indent);
-                                ui.selectable_label(false, &h.text);
+                                let _ = ui.selectable_label(false, &h.text); // clickable handling TODO
                             });
                         }
                     });
@@ -287,22 +286,18 @@ impl EframeApp for GuiApp {
         // Central: simple horizontal layout that auto-resizes with window
         egui::CentralPanel::default().show(ctx, |ui| {
             let full_w = ui.available_width();
-            // Minimum desired widths
             let min_editor = 150.0;
             let min_preview = 150.0;
-            // Fallback when window is too narrow for both minimums
-            let (mut editor_w, mut preview_w);
-            if full_w < (min_editor + min_preview + 8.0) {
-                // Split roughly half/half, avoid negatives
-                editor_w = (full_w * 0.5).max(60.0);
-                preview_w = (full_w - editor_w - 4.0).max(40.0);
+            let (editor_w, preview_w) = if full_w < (min_editor + min_preview + 8.0) {
+                let e = (full_w * 0.5).max(60.0);
+                let p = (full_w - e - 4.0).max(40.0);
+                (e, p)
             } else {
-                // Normal adaptive sizing with safe clamp (max >= min guaranteed now)
                 let max_editor = full_w - min_preview;
-                editor_w = (full_w * self.editor_ratio).clamp(min_editor, max_editor);
-                preview_w = (full_w - editor_w - 4.0).max(min_preview);
-            }
-            // Recompute ratio so window resize keeps proportional feeling
+                let e = (full_w * self.editor_ratio).clamp(min_editor, max_editor);
+                let p = (full_w - e - 4.0).max(min_preview);
+                (e, p)
+            };
             if full_w > 0.0 { self.editor_ratio = (editor_w / full_w).clamp(0.1, 0.9); }
             ui.horizontal(|ui| {
                 // Editor
