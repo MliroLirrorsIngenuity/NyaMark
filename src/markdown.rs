@@ -1,4 +1,4 @@
-use pulldown_cmark::{Parser, html, Event, Tag, HeadingLevel};
+use pulldown_cmark::{html, Event, HeadingLevel, Parser, Tag};
 
 #[derive(Debug, Clone)]
 pub struct Heading {
@@ -25,19 +25,33 @@ fn preprocess_math(src: &str) -> String {
                 // 块级
                 i += 2;
                 let start = i;
-                while i + 1 < chars.len() && !(chars[i] == '$' && chars[i + 1] == '$') { i += 1; }
+                while i + 1 < chars.len() && !(chars[i] == '$' && chars[i + 1] == '$') {
+                    i += 1;
+                }
                 let content = chars[start..i].iter().collect::<String>();
-                out.push_str(&format!("\n<div class=\"math-block\">{}</div>\n", content.trim()));
-                if i + 1 < chars.len() { i += 2; } // 跳过结尾$$
+                out.push_str(&format!(
+                    "\n<div class=\"math-block\">{}</div>\n",
+                    content.trim()
+                ));
+                if i + 1 < chars.len() {
+                    i += 2;
+                } // 跳过结尾$$
                 continue;
             } else {
                 // 内联
                 i += 1;
                 let start = i;
-                while i < chars.len() && chars[i] != '$' { i += 1; }
+                while i < chars.len() && chars[i] != '$' {
+                    i += 1;
+                }
                 let content = chars[start..i].iter().collect::<String>();
-                out.push_str(&format!("<span class=\"math-inline\">{}</span>", content.trim()));
-                if i < chars.len() { i += 1; } // 跳过结尾$
+                out.push_str(&format!(
+                    "<span class=\"math-inline\">{}</span>",
+                    content.trim()
+                ));
+                if i < chars.len() {
+                    i += 1;
+                } // 跳过结尾$
                 continue;
             }
         }
@@ -84,7 +98,10 @@ pub fn parse_markdown(md: &str) -> ParsedMarkdown {
     // Render events back to HTML
     let mut html_output = String::new();
     html::push_html(&mut html_output, events.into_iter());
-    ParsedMarkdown { html: html_output, headings }
+    ParsedMarkdown {
+        html: html_output,
+        headings,
+    }
 }
 
 pub fn markdown_to_html(md: &str) -> String {

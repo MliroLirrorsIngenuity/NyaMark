@@ -12,10 +12,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Run as CLI: convert input.md to output.html
-    Cli {
-        input: String,
-        output: String,
-    },
+    Cli { input: String, output: String },
     /// Run GUI editor
     Gui,
 }
