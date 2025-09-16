@@ -54,3 +54,4 @@ coverage/
 
 # Cargo fuzz / other tools
 fuzz/
+deny.toml
