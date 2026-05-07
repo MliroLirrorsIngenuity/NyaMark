@@ -1,5 +1,6 @@
 use tauri::command;
 use crate::file;
+use crate::settings;
 
 #[command]
 pub fn read_markdown(path: String) -> Result<String, String> {
@@ -53,4 +54,17 @@ pub fn format_markdown_reference(
 ) -> Result<String, String> {
     file::format_markdown_reference(document_path.as_deref(), &asset_path)
         .map_err(|e| e.to_string())
+}
+
+#[command]
+pub fn load_settings(app: tauri::AppHandle) -> Result<settings::Settings, String> {
+    settings::load_settings(&app).map_err(|e| e.to_string())
+}
+
+#[command]
+pub fn save_settings(
+    app: tauri::AppHandle,
+    settings: settings::Settings,
+) -> Result<(), String> {
+    settings::save_settings(&app, &settings).map_err(|e| e.to_string())
 }

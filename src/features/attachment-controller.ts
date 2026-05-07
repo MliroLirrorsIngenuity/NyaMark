@@ -11,7 +11,7 @@ import {
 import { openMarkdownInNewWindow } from '../bridge/ipc/files';
 import { listenWindowFileDrop } from '../bridge/ipc/windows';
 import { openDirectoryDialog } from '../bridge/ipc/files';
-import { loadSettings, updateSettings, subscribeSettings } from '../state/settings';
+import { getSettings, updateSettings, subscribeSettings } from '../state/settings';
 import { ImagePolicyDialog } from '../ui/image-policy-dialog';
 import {
   basename,
@@ -35,7 +35,7 @@ type AttachmentControllerOptions = {
 export class AttachmentController {
   private readonly options: AttachmentControllerOptions;
   private readonly imagePolicyDialog = new ImagePolicyDialog();
-  private imageSettings = loadSettings().attachments;
+  private imageSettings = getSettings().attachments;
   private unsubscribeSettings: (() => void) | null = null;
 
   constructor(options: AttachmentControllerOptions) {
@@ -268,7 +268,7 @@ export class AttachmentController {
         customCopyDirectory: choice.customDirectory ?? this.imageSettings.customCopyDirectory,
       };
       this.imageSettings = next;
-      updateSettings({ attachments: next });
+      void updateSettings({ attachments: next });
     }
 
     return policyToInsertRule(choice.policy, choice.customDirectory ?? this.imageSettings.customCopyDirectory);

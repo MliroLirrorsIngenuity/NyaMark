@@ -2,6 +2,7 @@ pub mod commands;
 pub mod file;
 #[cfg(target_os = "macos")]
 pub mod menu;
+pub mod settings;
 pub mod sessions;
 pub mod windows;
 
@@ -114,6 +115,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::read_markdown,
+            commands::load_settings,
+            commands::save_settings,
             save_markdown,
             commands::materialize_attachment,
             commands::store_attachment_in_directory,

@@ -2108,6 +2108,7 @@ version = "1.0.0-beta.1"
 dependencies = [
  "anyhow",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

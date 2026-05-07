@@ -2,6 +2,10 @@ import {
   type ImageSettings,
   defaultImageSettings,
 } from './image-settings';
+import {
+  loadPersistedSettings,
+  savePersistedSettings,
+} from '../bridge/ipc/settings';
 
 export type AppearanceSettings = {
   fontSize: number;
@@ -20,7 +24,6 @@ export type Settings = {
   attachments: ImageSettings;
 };
 
-const STORAGE_KEY = 'nyamark-settings';
 const SETTINGS_EVENT = 'nyamark:settingschange';
 
 export const defaultSettings: Settings = {
@@ -36,7 +39,8 @@ export const defaultSettings: Settings = {
   attachments: defaultImageSettings,
 };
 
-let cached: Settings | null = null;
+let cached: Settings = structuredClone(defaultSettings);
+let hydrated = false;
 
 function applyAppearance(appearance: AppearanceSettings) {
   const root = document.documentElement.style;
@@ -45,61 +49,56 @@ function applyAppearance(appearance: AppearanceSettings) {
   root.setProperty('--ny-editor-readable-max', `${appearance.readableMaxWidth}px`);
 }
 
-export function loadSettings(): Settings {
-  if (cached) return cached;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<Settings>;
-      cached = {
-        appearance: { ...defaultSettings.appearance, ...(parsed.appearance ?? {}) },
-        save: { ...defaultSettings.save, ...(parsed.save ?? {}) },
-        attachments: { ...defaultSettings.attachments, ...(parsed.attachments ?? {}) },
-      };
-      applyAppearance(cached.appearance);
-      return cached;
-    }
-  } catch (error) {
-    console.error('Failed to load settings:', error);
-  }
+function normalizeSettings(parsed: Partial<Settings> | null | undefined): Settings {
+  return {
+    appearance: { ...defaultSettings.appearance, ...(parsed?.appearance ?? {}) },
+    save: { ...defaultSettings.save, ...(parsed?.save ?? {}) },
+    attachments: { ...defaultSettings.attachments, ...(parsed?.attachments ?? {}) },
+  };
+}
 
-  // Backwards compat: if a legacy image-settings entry exists, fold it in.
-  try {
-    const legacy = localStorage.getItem('nyamark-image-settings');
-    if (legacy) {
-      const parsed = JSON.parse(legacy) as Partial<ImageSettings>;
-      cached = {
-        ...defaultSettings,
-        attachments: { ...defaultSettings.attachments, ...parsed },
-      };
-      saveSettings(cached);
-      applyAppearance(cached.appearance);
-      return cached;
-    }
-  } catch (error) {
-    console.error('Failed to migrate legacy image-settings:', error);
-  }
-
-  cached = defaultSettings;
+export function getSettings(): Settings {
   applyAppearance(cached.appearance);
   return cached;
 }
 
-export function saveSettings(next: Settings) {
+export async function hydrateSettings(): Promise<Settings> {
+  if (hydrated) return getSettings();
+  try {
+    cached = normalizeSettings(await loadPersistedSettings());
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+    cached = structuredClone(defaultSettings);
+  }
+
+  hydrated = true;
+  applyAppearance(cached.appearance);
+  return cached;
+}
+
+export async function saveSettings(next: Settings) {
+  const previous = cached;
   cached = next;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   applyAppearance(next.appearance);
+  hydrated = true;
+  try {
+    await savePersistedSettings(next);
+  } catch (error) {
+    cached = previous;
+    applyAppearance(previous.appearance);
+    throw error;
+  }
   window.dispatchEvent(new CustomEvent<Settings>(SETTINGS_EVENT, { detail: next }));
 }
 
-export function updateSettings(partial: Partial<Settings>) {
-  const current = loadSettings();
+export async function updateSettings(partial: Partial<Settings>) {
+  const current = getSettings();
   const merged: Settings = {
     appearance: { ...current.appearance, ...(partial.appearance ?? {}) },
     save: { ...current.save, ...(partial.save ?? {}) },
     attachments: { ...current.attachments, ...(partial.attachments ?? {}) },
   };
-  saveSettings(merged);
+  await saveSettings(merged);
 }
 
 export function subscribeSettings(listener: (settings: Settings) => void): () => void {
@@ -108,10 +107,10 @@ export function subscribeSettings(listener: (settings: Settings) => void): () =>
     listener(detail);
   };
   window.addEventListener(SETTINGS_EVENT, handler);
-  listener(loadSettings());
+  listener(getSettings());
   return () => window.removeEventListener(SETTINGS_EVENT, handler);
 }
 
-export function resetSettings() {
-  saveSettings(defaultSettings);
+export async function resetSettings() {
+  await saveSettings(structuredClone(defaultSettings));
 }

@@ -10,7 +10,7 @@ import { FileController } from './features/file-controller';
 import { MenuController } from './features/menu-controller';
 import { ShortcutController } from './features/shortcut-controller';
 import { store } from './state/store';
-import { loadSettings } from './state/settings';
+import { hydrateSettings } from './state/settings';
 import { OutlinePanel } from './ui/outline';
 import { SearchPanel } from './ui/search';
 import { renderAppShell, registerShellStyles } from './ui/shell';
@@ -31,7 +31,7 @@ export class App {
 
   async init() {
     registerShellStyles();
-    loadSettings();
+    await hydrateSettings();
 
     const appRoot = document.getElementById('app');
     if (!appRoot) {

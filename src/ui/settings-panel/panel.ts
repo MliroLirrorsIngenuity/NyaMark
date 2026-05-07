@@ -1,5 +1,5 @@
 import {
-  loadSettings,
+  getSettings,
   saveSettings,
   resetSettings,
   type Settings,
@@ -198,7 +198,7 @@ export class SettingsPanel {
     document.body.appendChild(overlay);
     this.overlay = overlay;
 
-    let working: Settings = structuredClone(loadSettings());
+    let working: Settings = structuredClone(getSettings());
 
     const dialog = document.createElement('div');
     dialog.className = 'ny-settings-dialog';
@@ -267,12 +267,12 @@ export class SettingsPanel {
     });
 
     cancel.addEventListener('click', close);
-    ok.addEventListener('click', () => {
-      saveSettings(working);
+    ok.addEventListener('click', async () => {
+      await saveSettings(working);
       close();
     });
-    reset.addEventListener('click', () => {
-      resetSettings();
+    reset.addEventListener('click', async () => {
+      await resetSettings();
       close();
     });
   }
