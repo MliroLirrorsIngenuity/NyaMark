@@ -20,19 +20,29 @@ const css = `
   max-width: 100% !important;
   margin: 0 auto !important;
   padding: 0 !important;
-  font-family: var(--ny-font-sans);
-  color: var(--ny-editor-text-primary);
-  font-size: 14px;
-  line-height: 1.52;
+}
+
+.ny-editor-root .milkdown .ProseMirror {
+  font-family: var(--ny-font-sans) !important;
+  color: var(--ny-editor-text-primary) !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
   letter-spacing: -0.01em;
 }
 
-.ny-editor-root .milkdown .editor h1,
-.ny-editor-root .milkdown .editor h2,
-.ny-editor-root .milkdown .editor h3,
-.ny-editor-root .milkdown .editor h4,
-.ny-editor-root .milkdown .editor h5,
-.ny-editor-root .milkdown .editor h6 {
+.ny-editor-root .milkdown .ProseMirror p,
+.ny-editor-root .milkdown .ProseMirror li,
+.ny-editor-root .milkdown .ProseMirror blockquote {
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror h1,
+.ny-editor-root .milkdown .ProseMirror h2,
+.ny-editor-root .milkdown .ProseMirror h3,
+.ny-editor-root .milkdown .ProseMirror h4,
+.ny-editor-root .milkdown .ProseMirror h5,
+.ny-editor-root .milkdown .ProseMirror h6 {
   font-family: var(--ny-font-sans);
   font-weight: 760;
   letter-spacing: -0.045em;
@@ -40,36 +50,28 @@ const css = `
   scroll-margin-top: 100px !important;
 }
 
-.ny-editor-root .milkdown .editor h1 {
-  font-size: 24px !important;
+.ny-editor-root .milkdown .ProseMirror h1 {
+  font-size: 1.72em !important;
   line-height: 1.12 !important;
   margin: 0.62em 0 0.22em !important;
 }
 
-.ny-editor-root .milkdown .editor h2 {
-  font-size: 20px !important;
+.ny-editor-root .milkdown .ProseMirror h2 {
+  font-size: 1.43em !important;
   line-height: 1.16 !important;
   margin: 0.72em 0 0.2em !important;
 }
 
-.ny-editor-root .milkdown .editor h3 {
-  font-size: 17px !important;
+.ny-editor-root .milkdown .ProseMirror h3 {
+  font-size: 1.22em !important;
   line-height: 1.2 !important;
   margin: 0.68em 0 0.18em !important;
 }
 
-.ny-editor-root .milkdown .editor h4 {
-  font-size: 15px !important;
+.ny-editor-root .milkdown .ProseMirror h4 {
+  font-size: 1.08em !important;
   line-height: 1.2 !important;
   margin: 0.62em 0 0.16em !important;
-}
-
-.ny-editor-root .milkdown .editor p,
-.ny-editor-root .milkdown .editor li,
-.ny-editor-root .milkdown .editor blockquote {
-  font-family: var(--ny-font-sans);
-  font-size: 14px !important;
-  line-height: 1.52 !important;
 }
 
 .ny-editor-root .milkdown .editor p,

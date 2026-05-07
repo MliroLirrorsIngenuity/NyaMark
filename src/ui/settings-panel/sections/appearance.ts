@@ -1,8 +1,11 @@
-import type { AppearanceSettings } from '../../../state/settings';
+import {
+  sanitizeAppearanceSettings,
+  type AppearanceSettings,
+} from '../../../state/settings';
 
 export function renderAppearanceSection(
   current: AppearanceSettings,
-  onChange: (next: AppearanceSettings) => void
+  onChange: (next: AppearanceSettings, mode: 'input' | 'commit') => void
 ): HTMLElement {
   const section = document.createElement('section');
   section.className = 'ny-settings__section';
@@ -15,7 +18,7 @@ export function renderAppearanceSection(
       </label>
       <label class="ny-settings__field">
         <span>Line height</span>
-        <input type="number" min="1.2" max="2.2" step="0.05" data-key="lineHeight" />
+        <input type="number" min="1.2" max="2.2" step="0.01" data-key="lineHeight" />
       </label>
       <label class="ny-settings__field">
         <span>Readable width (px)</span>
@@ -27,14 +30,55 @@ export function renderAppearanceSection(
   const inputs = section.querySelectorAll<HTMLInputElement>('input[data-key]');
   inputs.forEach((input) => {
     const key = input.dataset.key as keyof AppearanceSettings;
+    const field = input.closest('.ny-settings__field') as HTMLElement | null;
+    const hint = document.createElement('span');
+    hint.className = 'ny-settings__field-hint';
+    field?.appendChild(hint);
     input.value = String(current[key]);
-    input.addEventListener('change', () => {
-      const value = Number(input.value);
-      if (!Number.isFinite(value)) return;
-      const next = { ...current, [key]: value } as AppearanceSettings;
-      onChange(next);
+
+    const syncValidity = () => {
+      const invalid = Boolean(input.value) && !input.validity.valid;
+      field?.toggleAttribute('data-invalid', invalid);
+      if (!invalid) {
+        hint.textContent = '';
+        return;
+      }
+      hint.textContent = `${input.min} - ${input.max}`;
+    };
+
+    const commit = (raw: number) => {
+      const next = sanitizeAppearanceSettings({ ...current, [key]: raw });
+      input.value = String(next[key]);
+      onChange(next, 'commit');
       Object.assign(current, next);
+      syncValidity();
+    };
+
+    input.addEventListener('input', () => {
+      syncValidity();
+      if (!input.value || !input.validity.valid) return;
+      const raw = Number(input.value);
+      if (!Number.isFinite(raw)) return;
+      const next = sanitizeAppearanceSettings({ ...current, [key]: raw });
+      onChange(next, 'input');
     });
+
+    input.addEventListener('change', () => {
+      if (!input.value || !input.validity.valid) {
+        input.value = String(current[key]);
+        syncValidity();
+        return;
+      }
+      const raw = Number(input.value);
+      if (!Number.isFinite(raw)) {
+        input.value = String(current[key]);
+        syncValidity();
+        return;
+      }
+      commit(raw);
+    });
+
+    syncValidity();
   });
 
   return section;

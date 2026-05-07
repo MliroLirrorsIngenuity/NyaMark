@@ -1,5 +1,6 @@
 import type { EditorAttachment } from '../editor/editor';
 import {
+  type AttachmentReferenceOptions,
   copyLocalAttachment,
   formatMarkdownReference,
   resolveDocumentAssetPath,
@@ -170,16 +171,25 @@ export class AttachmentController {
       if (insertRule.mode === 'copy') {
         const filePath = this.options.getDocumentPath();
         if (!filePath) {
-          const href = await formatMarkdownReference(null, path);
+          const href = await formatMarkdownReference(null, path, this.getReferenceOptions());
           return { kind, href, label };
         }
 
-        const stored = await copyLocalAttachment(filePath, path, insertRule.targetDir);
+        const stored = await copyLocalAttachment(
+          filePath,
+          path,
+          insertRule.targetDir,
+          this.getReferenceOptions()
+        );
         return { kind, href: stored.markdownPath, label };
       }
     }
 
-    const href = await formatMarkdownReference(this.options.getDocumentPath(), path);
+    const href = await formatMarkdownReference(
+      this.options.getDocumentPath(),
+      path,
+      this.getReferenceOptions()
+    );
     return { kind, href, label };
   }
 
@@ -220,7 +230,8 @@ export class AttachmentController {
       filePath,
       insertRule.targetDir,
       file.name || defaultPastedImageName(file),
-      bytes
+      bytes,
+      this.getReferenceOptions()
     );
 
     return {
@@ -278,6 +289,14 @@ export class AttachmentController {
     if (attachments.length === 0) return;
     this.options.insertAttachments(attachments);
     this.options.onAttachmentsInserted();
+  }
+
+  private getReferenceOptions(): AttachmentReferenceOptions {
+    return {
+      preferRelativePath: this.imageSettings.preferRelativePath,
+      ensureDotSlash: this.imageSettings.ensureDotSlash,
+      escapePath: this.imageSettings.escapePath,
+    };
   }
 
   private async readFileAsDataUrl(file: File) {

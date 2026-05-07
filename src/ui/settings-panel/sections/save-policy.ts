@@ -31,14 +31,49 @@ export function renderSaveSection(
     });
   }
   if (interval) {
+    const field = interval.closest('.ny-settings__field') as HTMLElement | null;
+    const hint = document.createElement('span');
+    hint.className = 'ny-settings__field-hint';
+    field?.appendChild(hint);
     interval.value = String(current.autoSaveIntervalMs);
-    interval.addEventListener('change', () => {
-      const value = Number(interval.value);
-      if (!Number.isFinite(value)) return;
+
+    const syncValidity = () => {
+      const invalid = Boolean(interval.value) && !interval.validity.valid;
+      field?.toggleAttribute('data-invalid', invalid);
+      hint.textContent = invalid ? `${interval.min} - ${interval.max}` : '';
+    };
+
+    const commit = (value: number) => {
       const next = { ...current, autoSaveIntervalMs: value };
       onChange(next);
       Object.assign(current, next);
+      syncValidity();
+    };
+
+    interval.addEventListener('input', () => {
+      syncValidity();
+      if (!interval.value || !interval.validity.valid) return;
+      const value = Number(interval.value);
+      if (!Number.isFinite(value)) return;
+      commit(value);
     });
+
+    interval.addEventListener('change', () => {
+      if (!interval.value || !interval.validity.valid) {
+        interval.value = String(current.autoSaveIntervalMs);
+        syncValidity();
+        return;
+      }
+      const value = Number(interval.value);
+      if (!Number.isFinite(value)) {
+        interval.value = String(current.autoSaveIntervalMs);
+        syncValidity();
+        return;
+      }
+      commit(value);
+    });
+
+    syncValidity();
   }
 
   return section;

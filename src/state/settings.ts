@@ -42,6 +42,33 @@ export const defaultSettings: Settings = {
 let cached: Settings = structuredClone(defaultSettings);
 let hydrated = false;
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function sanitizeAppearanceSettings(appearance: Partial<AppearanceSettings> | undefined): AppearanceSettings {
+  return {
+    fontSize: clamp(Number(appearance?.fontSize ?? defaultSettings.appearance.fontSize), 11, 22),
+    lineHeight: clamp(Number(appearance?.lineHeight ?? defaultSettings.appearance.lineHeight), 1.2, 2.2),
+    readableMaxWidth: clamp(
+      Number(appearance?.readableMaxWidth ?? defaultSettings.appearance.readableMaxWidth),
+      520,
+      1100
+    ),
+  };
+}
+
+function sanitizeSaveSettings(save: Partial<SaveSettings> | undefined): SaveSettings {
+  return {
+    autoSave: Boolean(save?.autoSave),
+    autoSaveIntervalMs: clamp(
+      Number(save?.autoSaveIntervalMs ?? defaultSettings.save.autoSaveIntervalMs),
+      500,
+      60000
+    ),
+  };
+}
+
 function applyAppearance(appearance: AppearanceSettings) {
   const root = document.documentElement.style;
   root.setProperty('--ny-editor-font-size', `${appearance.fontSize}px`);
@@ -49,10 +76,14 @@ function applyAppearance(appearance: AppearanceSettings) {
   root.setProperty('--ny-editor-readable-max', `${appearance.readableMaxWidth}px`);
 }
 
+export function previewAppearance(appearance: AppearanceSettings) {
+  applyAppearance(sanitizeAppearanceSettings(appearance));
+}
+
 function normalizeSettings(parsed: Partial<Settings> | null | undefined): Settings {
   return {
-    appearance: { ...defaultSettings.appearance, ...(parsed?.appearance ?? {}) },
-    save: { ...defaultSettings.save, ...(parsed?.save ?? {}) },
+    appearance: sanitizeAppearanceSettings(parsed?.appearance),
+    save: sanitizeSaveSettings(parsed?.save),
     attachments: { ...defaultSettings.attachments, ...(parsed?.attachments ?? {}) },
   };
 }
@@ -78,17 +109,17 @@ export async function hydrateSettings(): Promise<Settings> {
 
 export async function saveSettings(next: Settings) {
   const previous = cached;
-  cached = next;
-  applyAppearance(next.appearance);
+  cached = normalizeSettings(next);
+  applyAppearance(cached.appearance);
   hydrated = true;
   try {
-    await savePersistedSettings(next);
+    await savePersistedSettings(cached);
   } catch (error) {
     cached = previous;
     applyAppearance(previous.appearance);
     throw error;
   }
-  window.dispatchEvent(new CustomEvent<Settings>(SETTINGS_EVENT, { detail: next }));
+  window.dispatchEvent(new CustomEvent<Settings>(SETTINGS_EVENT, { detail: cached }));
 }
 
 export async function updateSettings(partial: Partial<Settings>) {

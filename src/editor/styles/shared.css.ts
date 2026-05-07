@@ -47,7 +47,8 @@ const css = `
   --ny-editor-preview-text: #1f2937;
   color: var(--ny-editor-text-primary);
   font-family: var(--ny-font-sans);
-  font-size: 14px;
+  font-size: var(--ny-editor-font-size, 14px);
+  line-height: var(--ny-editor-line-height, 1.52);
 }
 
 :root[data-theme="dark"] .ny-editor-root .milkdown {

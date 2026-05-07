@@ -1,7 +1,7 @@
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use anyhow::{Result, Context};
-use serde::Serialize;
 
 #[derive(Serialize)]
 pub struct StoredAttachment {
@@ -9,14 +9,20 @@ pub struct StoredAttachment {
     pub absolute_path: String,
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownReferenceOptions {
+    pub prefer_relative_path: bool,
+    pub ensure_dot_slash: bool,
+    pub escape_path: bool,
+}
+
 pub fn read_file_content<P: AsRef<Path>>(path: P) -> Result<String> {
-    fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read file: {:?}", path.as_ref()))
+    fs::read_to_string(&path).with_context(|| format!("Failed to read file: {:?}", path.as_ref()))
 }
 
 pub fn save_file_content<P: AsRef<Path>>(path: P, content: &str) -> Result<()> {
-    fs::write(&path, content)
-        .with_context(|| format!("Failed to write file: {:?}", path.as_ref()))
+    fs::write(&path, content).with_context(|| format!("Failed to write file: {:?}", path.as_ref()))
 }
 
 pub fn materialize_attachment<P: AsRef<Path>>(
@@ -58,9 +64,8 @@ pub fn materialize_draft_attachment<P: AsRef<Path>>(
         .with_context(|| format!("Failed to create draft asset directory: {draft_dir:?}"))?;
 
     let target_path = write_attachment_file(draft_dir, file_name, bytes)?;
-    let absolute_path = normalize_markdown_path(
-        &fs::canonicalize(&target_path).unwrap_or(target_path)
-    );
+    let absolute_path =
+        normalize_markdown_path(&fs::canonicalize(&target_path).unwrap_or(target_path));
 
     Ok(StoredAttachment {
         markdown_path: absolute_path.clone(),
@@ -73,6 +78,7 @@ pub fn store_attachment_in_directory<P: AsRef<Path>>(
     target_dir: &str,
     file_name: &str,
     bytes: &[u8],
+    options: &MarkdownReferenceOptions,
 ) -> Result<StoredAttachment> {
     let document_path = document_path.as_ref();
     let storage_dir = resolve_storage_dir(document_path, target_dir)?;
@@ -80,13 +86,14 @@ pub fn store_attachment_in_directory<P: AsRef<Path>>(
         .with_context(|| format!("Failed to create target directory: {storage_dir:?}"))?;
 
     let target_path = write_attachment_file(&storage_dir, file_name, bytes)?;
-    build_stored_attachment(document_path, &target_path)
+    build_stored_attachment(document_path, &target_path, options)
 }
 
 pub fn copy_local_attachment<P: AsRef<Path>>(
     document_path: P,
     source_path: &str,
     target_dir: &str,
+    options: &MarkdownReferenceOptions,
 ) -> Result<StoredAttachment> {
     let document_path = document_path.as_ref();
     let source_path = Path::new(source_path);
@@ -100,29 +107,28 @@ pub fn copy_local_attachment<P: AsRef<Path>>(
         .filter(|name| !name.is_empty())
         .unwrap_or("attachment");
     let target_path = unique_file_path(&storage_dir, &sanitize_file_name(file_name));
-    fs::copy(source_path, &target_path)
-        .with_context(|| format!("Failed to copy attachment from {source_path:?} to {target_path:?}"))?;
+    fs::copy(source_path, &target_path).with_context(|| {
+        format!("Failed to copy attachment from {source_path:?} to {target_path:?}")
+    })?;
 
-    build_stored_attachment(document_path, &target_path)
+    build_stored_attachment(document_path, &target_path, options)
 }
 
 pub fn format_markdown_reference(
     document_path: Option<&str>,
     asset_path: &str,
+    options: &MarkdownReferenceOptions,
 ) -> Result<String> {
     let asset_path = asset_path.trim();
     if asset_path.is_empty() || looks_like_external_resource(asset_path) {
-      return Ok(asset_path.to_string());
+        return Ok(asset_path.to_string());
     }
 
-    let candidate = PathBuf::from(asset_path);
+    let candidate = PathBuf::from(unescape_markdown_path(asset_path));
     let normalized = fs::canonicalize(&candidate).unwrap_or(candidate);
-    let document_dir = document_path
-        .map(Path::new)
-        .map(document_dir)
-        .transpose()?;
+    let document_dir = document_path.map(Path::new).map(document_dir).transpose()?;
 
-    Ok(markdown_reference(document_dir, &normalized))
+    Ok(markdown_reference(document_dir, &normalized, options))
 }
 
 pub fn resolve_document_asset_path(
@@ -134,7 +140,7 @@ pub fn resolve_document_asset_path(
         return Ok(None);
     }
 
-    let candidate = PathBuf::from(asset_path);
+    let candidate = PathBuf::from(unescape_markdown_path(asset_path));
     let resolved = if candidate.is_absolute() {
         candidate
     } else {
@@ -147,9 +153,9 @@ pub fn resolve_document_asset_path(
         document_dir.join(candidate)
     };
 
-    Ok(Some(
-        normalize_markdown_path(&fs::canonicalize(&resolved).unwrap_or(resolved)),
-    ))
+    Ok(Some(normalize_markdown_path(
+        &fs::canonicalize(&resolved).unwrap_or(resolved),
+    )))
 }
 
 pub fn persist_draft_attachments<P: AsRef<Path>>(
@@ -207,11 +213,16 @@ fn document_dir(document_path: &Path) -> Result<&Path> {
         .with_context(|| format!("Document path has no parent: {document_path:?}"))
 }
 
-fn build_stored_attachment(document_path: &Path, target_path: &Path) -> Result<StoredAttachment> {
+fn build_stored_attachment(
+    document_path: &Path,
+    target_path: &Path,
+    options: &MarkdownReferenceOptions,
+) -> Result<StoredAttachment> {
     let absolute_path = normalize_markdown_path(
-        &fs::canonicalize(target_path).unwrap_or(target_path.to_path_buf())
+        &fs::canonicalize(target_path).unwrap_or(target_path.to_path_buf()),
     );
-    let markdown_path = markdown_reference(Some(document_dir(document_path)?), target_path);
+    let markdown_path =
+        markdown_reference(Some(document_dir(document_path)?), target_path, options);
 
     Ok(StoredAttachment {
         markdown_path,
@@ -256,8 +267,11 @@ fn write_attachment_file(dir: &Path, file_name: &str, bytes: &[u8]) -> Result<Pa
 
 fn move_file(source: &Path, target: &Path) -> Result<()> {
     if let Err(error) = fs::rename(source, target) {
-        fs::copy(source, target)
-            .with_context(|| format!("Failed to copy draft attachment to: {target:?}; original rename error: {error}"))?;
+        fs::copy(source, target).with_context(|| {
+            format!(
+                "Failed to copy draft attachment to: {target:?}; original rename error: {error}"
+            )
+        })?;
         fs::remove_file(source)
             .with_context(|| format!("Failed to remove draft attachment after copy: {source:?}"))?;
     }
@@ -269,20 +283,37 @@ fn normalize_markdown_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
-fn markdown_reference(document_dir: Option<&Path>, target_path: &Path) -> String {
+fn markdown_reference(
+    document_dir: Option<&Path>,
+    target_path: &Path,
+    options: &MarkdownReferenceOptions,
+) -> String {
     let normalized_target = fs::canonicalize(target_path).unwrap_or(target_path.to_path_buf());
 
-    if let Some(document_dir) = document_dir {
-        let normalized_dir = fs::canonicalize(document_dir).unwrap_or(document_dir.to_path_buf());
-        if let Some(relative_path) = diff_paths(&normalized_target, &normalized_dir) {
-            let normalized = normalize_markdown_path(&relative_path);
-            if !normalized.is_empty() && normalized != "." {
-                return normalized;
+    let mut reference = normalize_markdown_path(&normalized_target);
+
+    if options.prefer_relative_path {
+        if let Some(document_dir) = document_dir {
+            let normalized_dir =
+                fs::canonicalize(document_dir).unwrap_or(document_dir.to_path_buf());
+            if let Some(relative_path) = diff_paths(&normalized_target, &normalized_dir) {
+                let normalized = normalize_markdown_path(&relative_path);
+                if !normalized.is_empty() && normalized != "." {
+                    reference = normalized;
+                }
             }
         }
     }
 
-    normalize_markdown_path(&normalized_target)
+    if options.ensure_dot_slash && is_plain_relative_reference(&reference) {
+        reference = format!("./{reference}");
+    }
+
+    if options.escape_path {
+        reference = escape_markdown_path(&reference);
+    }
+
+    reference
 }
 
 fn diff_paths(path: &Path, base: &Path) -> Option<PathBuf> {
@@ -321,6 +352,37 @@ fn components_equal(left: &Component<'_>, right: &Component<'_>) -> bool {
         (Component::Prefix(a), Component::Prefix(b)) => a.kind() == b.kind(),
         _ => left == right,
     }
+}
+
+fn is_plain_relative_reference(reference: &str) -> bool {
+    !reference.is_empty()
+        && !reference.starts_with("./")
+        && !reference.starts_with("../")
+        && !reference.starts_with('/')
+        && !reference.starts_with("\\")
+        && !reference.contains(':')
+}
+
+fn escape_markdown_path(path: &str) -> String {
+    path.replace(' ', "\\ ")
+}
+
+fn unescape_markdown_path(path: &str) -> String {
+    let mut result = String::with_capacity(path.len());
+    let mut chars = path.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if let Some(' ') = chars.peek() {
+                result.push(' ');
+                chars.next();
+                continue;
+            }
+        }
+        result.push(ch);
+    }
+
+    result
 }
 
 fn sanitize_file_name(file_name: &str) -> String {

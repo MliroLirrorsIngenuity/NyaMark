@@ -6,6 +6,8 @@ const shellStyles = `
   --ny-font-mono: "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace;
   --ny-surface-radius: 24px;
   --ny-toolbar-frame-max: 1440px;
+  --ny-editor-font-size: 14px;
+  --ny-editor-line-height: 1.52;
   --ny-editor-readable-max: 1120px;
   --ny-window-controls-space: 0px;
   --ny-accent: #4d7a8f;

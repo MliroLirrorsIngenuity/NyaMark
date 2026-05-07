@@ -2,8 +2,8 @@ pub mod commands;
 pub mod file;
 #[cfg(target_os = "macos")]
 pub mod menu;
-pub mod settings;
 pub mod sessions;
+pub mod settings;
 pub mod windows;
 
 use std::{
@@ -106,7 +106,9 @@ fn save_markdown(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
-        .manage(PendingLaunchFiles(Mutex::new(sessions::collect_launch_files())))
+        .manage(PendingLaunchFiles(Mutex::new(
+            sessions::collect_launch_files(),
+        )))
         .manage(WindowSessions(Mutex::new(HashMap::new())))
         .manage(DraftSessions(Mutex::new(HashMap::new())))
         .manage(WindowCounter(AtomicUsize::new(1)))

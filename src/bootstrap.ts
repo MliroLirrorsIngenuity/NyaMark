@@ -10,7 +10,7 @@ import { FileController } from './features/file-controller';
 import { MenuController } from './features/menu-controller';
 import { ShortcutController } from './features/shortcut-controller';
 import { store } from './state/store';
-import { hydrateSettings } from './state/settings';
+import { hydrateSettings, subscribeSettings } from './state/settings';
 import { OutlinePanel } from './ui/outline';
 import { SearchPanel } from './ui/search';
 import { renderAppShell, registerShellStyles } from './ui/shell';
@@ -28,6 +28,10 @@ export class App {
   private suppressDirtyTracking = false;
   private theme: ThemeManager | null = null;
   private readonly settingsPanel = new SettingsPanel();
+  private autoSaveEnabled = false;
+  private autoSaveIntervalMs = 4000;
+  private autoSaveTimer: number | null = null;
+  private autoSaveInFlight = false;
 
   async init() {
     registerShellStyles();
@@ -42,6 +46,7 @@ export class App {
     renderAppShell(appRoot);
     this.theme = new ThemeManager();
     this.bindThemeToggle();
+    this.bindAutoSave();
 
     const editorContainer = document.getElementById('editor-container');
     if (!editorContainer) {
@@ -102,6 +107,7 @@ export class App {
       }
       this.updateStats();
       store.update({ isDirty: true });
+      this.syncAutoSave();
     });
 
     new ShortcutController({
@@ -227,5 +233,46 @@ export class App {
     queueMicrotask(() => this.updateStats());
     requestAnimationFrame(() => this.updateStats());
     window.setTimeout(() => this.updateStats(), 80);
+  }
+
+  private bindAutoSave() {
+    subscribeSettings((settings) => {
+      this.autoSaveEnabled = settings.save.autoSave;
+      this.autoSaveIntervalMs = Math.max(500, settings.save.autoSaveIntervalMs);
+      this.syncAutoSave();
+    });
+
+    store.subscribe(() => this.syncAutoSave());
+  }
+
+  private syncAutoSave() {
+    this.clearAutoSaveTimer();
+    const state = store.getState();
+    if (
+      !this.autoSaveEnabled ||
+      !state.isDirty ||
+      !state.filePath ||
+      !this.fileController ||
+      this.autoSaveInFlight
+    ) {
+      return;
+    }
+
+    this.autoSaveTimer = window.setTimeout(async () => {
+      this.autoSaveTimer = null;
+      this.autoSaveInFlight = true;
+      try {
+        await this.fileController?.autoSaveFile();
+      } finally {
+        this.autoSaveInFlight = false;
+        this.syncAutoSave();
+      }
+    }, this.autoSaveIntervalMs);
+  }
+
+  private clearAutoSaveTimer() {
+    if (this.autoSaveTimer === null) return;
+    window.clearTimeout(this.autoSaveTimer);
+    this.autoSaveTimer = null;
   }
 }

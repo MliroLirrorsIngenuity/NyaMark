@@ -57,9 +57,7 @@ export class FileController {
 
     try {
       if (state.filePath) {
-        const savedContent = await saveMarkdown(state.filePath, editor.getMarkdown());
-        this.hooks.syncEditorAfterSave(savedContent);
-        store.update({ isDirty: false });
+        await this.saveToExistingPath(state.filePath, editor.getMarkdown());
       } else {
         await this.saveFileAs();
       }
@@ -74,14 +72,41 @@ export class FileController {
     try {
       const path = await saveFileDialog();
       if (path) {
-        const savedContent = await saveMarkdown(path, editor.getMarkdown());
-        this.hooks.syncEditorAfterSave(savedContent);
-        store.update({ filePath: path, isDirty: false });
+        await this.saveToExistingPath(path, editor.getMarkdown());
+        store.update({ filePath: path });
         return path;
       }
     } catch (error) {
       console.error('Failed to save file as:', error);
     }
     return null;
+  }
+
+  async autoSaveFile() {
+    const editor = this.getEditor();
+    if (!editor) return;
+
+    const state = store.getState();
+    if (!state.filePath || !state.isDirty) return;
+
+    try {
+      await this.saveToExistingPath(state.filePath, editor.getMarkdown());
+    } catch (error) {
+      console.error('Failed to auto-save file:', error);
+    }
+  }
+
+  private async saveToExistingPath(path: string, snapshot: string) {
+    const savedContent = await saveMarkdown(path, snapshot);
+    const currentMarkdown = this.getEditor()?.getMarkdown() ?? snapshot;
+    const changedWhileSaving = currentMarkdown !== snapshot;
+
+    if (!changedWhileSaving) {
+      this.hooks.syncEditorAfterSave(savedContent);
+      store.update({ isDirty: false });
+      return;
+    }
+
+    store.update({ isDirty: true });
   }
 }
