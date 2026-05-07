@@ -1,0 +1,22 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "NyaMark",
+        "width": 860,
+        "height": 720,
+        "minWidth": 826,
+        "minHeight": 448,
+        "decorations": true,
+        "transparent": false,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 22
+        }
+      }
+    ]
+  }
+}

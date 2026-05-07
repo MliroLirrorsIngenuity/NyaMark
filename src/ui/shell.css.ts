@@ -1,0 +1,388 @@
+import { ensureStyle } from '../style/register';
+
+const shellStyles = `
+:root {
+  --ny-font-sans: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+  --ny-font-mono: "SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace;
+  --ny-surface-radius: 24px;
+  --ny-toolbar-frame-max: 1440px;
+  --ny-editor-readable-max: 1120px;
+  --ny-window-controls-space: 0px;
+  --ny-accent: #4d7a8f;
+  --ny-accent-soft: #ecf4f7;
+  --ny-app-bg-start: #fffefb;
+  --ny-app-bg-end: #ffffff;
+  --ny-surface-elevated: rgba(255, 255, 255, 0.96);
+  --ny-surface-muted: rgba(255, 255, 255, 0.72);
+  --ny-surface-ghost: rgba(250, 250, 249, 0.9);
+  --ny-titlebar-bg: rgba(255, 255, 255, 0.86);
+  --ny-statusbar-bg: rgba(255, 255, 255, 0.94);
+  --ny-border-soft: rgba(226, 232, 240, 0.5);
+  --ny-border-strong: rgba(226, 232, 240, 0.72);
+  --ny-border-button: rgba(214, 220, 229, 0.88);
+  --ny-border-button-hover: rgba(197, 205, 216, 0.96);
+  --ny-text-primary: #17212b;
+  --ny-text-secondary: #6b7280;
+  --ny-text-muted: #8b95a3;
+  --ny-text-quiet: #727b88;
+  --ny-kbd-bg: rgba(236, 244, 247, 0.92);
+  --ny-kbd-border: rgba(214, 230, 235, 0.96);
+  --ny-kbd-text: #53758a;
+  --ny-warning: #d97706;
+  --ny-shadow-float: 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+
+:root[data-theme="dark"] {
+  --ny-accent: #8db4c8;
+  --ny-accent-soft: rgba(96, 135, 158, 0.18);
+  --ny-app-bg-start: #10151b;
+  --ny-app-bg-end: #131a22;
+  --ny-surface-elevated: rgba(24, 31, 41, 0.96);
+  --ny-surface-muted: rgba(21, 28, 36, 0.78);
+  --ny-surface-ghost: rgba(20, 27, 35, 0.92);
+  --ny-titlebar-bg: rgba(19, 25, 33, 0.82);
+  --ny-statusbar-bg: rgba(17, 23, 31, 0.94);
+  --ny-border-soft: rgba(119, 134, 155, 0.16);
+  --ny-border-strong: rgba(132, 148, 170, 0.25);
+  --ny-border-button: rgba(101, 117, 139, 0.28);
+  --ny-border-button-hover: rgba(127, 145, 168, 0.38);
+  --ny-text-primary: #edf3f8;
+  --ny-text-secondary: #c7d0db;
+  --ny-text-muted: #91a0b2;
+  --ny-text-quiet: #a7b4c4;
+  --ny-kbd-bg: rgba(74, 101, 122, 0.24);
+  --ny-kbd-border: rgba(101, 129, 150, 0.34);
+  --ny-kbd-text: #c6dce8;
+  --ny-warning: #f3ba67;
+  --ny-shadow-float: 0 20px 48px rgba(0, 0, 0, 0.38);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+html,
+body {
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  color: var(--ny-text-primary);
+  font-family: var(--ny-font-sans);
+}
+
+body {
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+  background: transparent;
+}
+
+.ny-shell {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--ny-surface-radius);
+  background: linear-gradient(180deg, var(--ny-app-bg-start) 0%, color-mix(in srgb, var(--ny-app-bg-start), var(--ny-app-bg-end) 42%) 38%, var(--ny-app-bg-end) 100%);
+  color: var(--ny-text-primary);
+}
+
+.ny-shell--macos {
+  --ny-window-controls-space: 78px;
+  border-radius: 0;
+}
+
+#titlebar {
+  height: 40px;
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--ny-border-soft);
+  background: var(--ny-titlebar-bg) !important;
+  border-bottom-color: var(--ny-border-strong) !important;
+  color: var(--ny-text-quiet) !important;
+  font-size: 14px;
+  backdrop-filter: blur(18px) saturate(1.35) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.35) !important;
+}
+
+.ny-shell__title-leading {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.ny-shell__title-leading .ny-shell__title-quick-actions {
+  padding-left: var(--ny-window-controls-space);
+}
+
+.ny-shell--macos .ny-shell__title-leading {
+  min-width: var(--ny-window-controls-space);
+}
+
+.ny-shell--macos .ny-shell__title-leading .ny-shell__title-quick-actions {
+  display: none;
+}
+
+.ny-shell__title-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  max-width: min(52vw, 420px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.ny-shell__filename {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  text-align: center;
+}
+
+.ny-shell__title-actions,
+.ny-shell__title-meta,
+.ny-shell__status-group {
+  display: flex;
+  align-items: center;
+}
+
+.ny-shell__title-actions,
+.ny-shell__status-group {
+  gap: 16px;
+}
+
+.ny-shell__title-actions {
+  gap: 10px;
+  margin-left: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.ny-shell__title-meta {
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.ny-shell__title-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.ny-shell__shortcut-button {
+  appearance: none;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(214, 220, 229, 0.88);
+  border-radius: 999px;
+  background: var(--ny-surface-muted);
+  border-color: var(--ny-border-button);
+  color: var(--ny-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ny-shell__shortcut-button:hover {
+  background: var(--ny-surface-elevated);
+  border-color: var(--ny-border-button-hover);
+  color: var(--ny-text-primary);
+}
+
+.ny-shell__shortcut-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 72%);
+  outline-offset: 1px;
+}
+
+.ny-shell__shortcut-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.ny-shell__shortcut-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ny-kbd-bg);
+  border: 1px solid var(--ny-kbd-border);
+  color: var(--ny-kbd-text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ny-shell__window-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ny-shell--macos .ny-shell__window-controls {
+  display: none;
+}
+
+.ny-shell__settings-button {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+
+.ny-shell--macos .ny-shell__settings-button {
+  display: none;
+}
+
+.ny-shell__window-button {
+  appearance: none;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--ny-border-button);
+  border-radius: 8px;
+  background: var(--ny-surface-muted);
+  color: var(--ny-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ny-shell__window-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.ny-shell__window-button:hover {
+  background: var(--ny-surface-elevated);
+  border-color: var(--ny-border-button-hover);
+  color: var(--ny-text-primary);
+}
+
+.ny-shell__window-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 72%);
+  outline-offset: 1px;
+}
+
+.ny-shell__window-button--close:hover {
+  background: color-mix(in srgb, #b42318, transparent 90%);
+  border-color: color-mix(in srgb, #b42318, transparent 76%);
+  color: color-mix(in srgb, #f97316, white 12%);
+}
+
+.ny-shell--windows .ny-shell__window-button {
+  width: 34px;
+  border-radius: 7px;
+}
+
+.ny-shell--linux .ny-shell__window-button {
+  width: 32px;
+  border-radius: 7px;
+}
+
+.ny-shell__title-meta,
+.ny-shell__status-group {
+  gap: 16px;
+}
+
+.ny-shell__shortcut,
+.ny-shell__status {
+  font-size: 12px;
+}
+
+.ny-shell__dirty {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ny-warning);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.ny-shell__body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+#editor-container {
+  width: 100%;
+  max-width: var(--ny-toolbar-frame-max);
+  margin: 0 auto;
+  padding: 0 24px 64px;
+  box-sizing: border-box;
+}
+
+#statusbar {
+  height: 32px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  box-sizing: border-box;
+  border-top: 1px solid var(--ny-border-soft);
+  background: var(--ny-statusbar-bg) !important;
+  border-top-color: var(--ny-border-strong) !important;
+  color: var(--ny-text-muted) !important;
+  font-size: 12px;
+}
+
+:is(#titlebar, #statusbar),
+:is(#titlebar, #statusbar) * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ny-shell__action {
+  cursor: default;
+  transition: color 0.15s ease;
+}
+
+.ny-shell__action:hover {
+  color: var(--ny-text-primary);
+}
+`;
+
+export function registerShellStyles() {
+  ensureStyle('app-shell', shellStyles);
+}
