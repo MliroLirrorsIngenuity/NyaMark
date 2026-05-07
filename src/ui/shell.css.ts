@@ -323,6 +323,10 @@ body {
   pointer-events: auto;
 }
 
+.ny-shell__file-menu {
+  position: relative;
+}
+
 .ny-shell__shortcut-button {
   appearance: none;
   min-width: 0;
@@ -375,6 +379,47 @@ body {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.ny-shell__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 188px;
+  padding: 8px;
+  border: 1px solid var(--ny-border-strong);
+  border-radius: 16px;
+  background: var(--ny-surface-elevated);
+  box-shadow: var(--ny-shadow-float);
+  display: grid;
+  gap: 4px;
+}
+
+.ny-shell__menu-item {
+  appearance: none;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ny-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font: inherit;
+  cursor: default;
+}
+
+.ny-shell__menu-item:hover {
+  background: var(--ny-accent-soft);
+  color: var(--ny-text-primary);
+}
+
+.ny-shell__menu-item:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 72%);
+  outline-offset: 1px;
 }
 
 .ny-shell__window-controls {

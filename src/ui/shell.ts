@@ -47,7 +47,43 @@ export function renderAppShell(host: HTMLElement) {
   const newShortcutHint = isMac ? '⌘N' : 'Ctrl+N';
   const openShortcutHint = isMac ? '⌘O' : 'Ctrl+O';
   const saveShortcutHint = isMac ? '⌘S' : 'Ctrl+S';
+  const saveAsShortcutHint = isMac ? '⌘⇧S' : 'Ctrl+Shift+S';
   const outlineShortcutHint = isMac ? '⌘⇧O' : 'Ctrl+Shift+O';
+  const fileActionsMarkup = isMac
+    ? ''
+    : `
+        <div class="ny-shell__file-menu">
+          <button
+            id="tb-file-menu-button"
+            class="ny-shell__shortcut-button"
+            type="button"
+            title="File"
+            aria-label="File"
+            aria-haspopup="menu"
+            aria-expanded="false"
+          >
+            <span class="ny-shell__shortcut-label">File</span>
+          </button>
+          <div id="tb-file-menu" class="ny-shell__menu" role="menu" hidden>
+            <button class="ny-shell__menu-item" type="button" data-file-action="new" role="menuitem">
+              <span>New</span>
+              <span class="ny-shell__shortcut-hint">${newShortcutHint}</span>
+            </button>
+            <button class="ny-shell__menu-item" type="button" data-file-action="open" role="menuitem">
+              <span>Open</span>
+              <span class="ny-shell__shortcut-hint">${openShortcutHint}</span>
+            </button>
+            <button class="ny-shell__menu-item" type="button" data-file-action="save" role="menuitem">
+              <span>Save</span>
+              <span class="ny-shell__shortcut-hint">${saveShortcutHint}</span>
+            </button>
+            <button class="ny-shell__menu-item" type="button" data-file-action="save-as" role="menuitem">
+              <span>Save As</span>
+              <span class="ny-shell__shortcut-hint">${saveAsShortcutHint}</span>
+            </button>
+          </div>
+        </div>
+      `;
 
   document.documentElement.dataset.platform = platformClass;
   host.className = `ny-editor-root ny-shell ny-shell--${platformClass}`;
@@ -56,20 +92,7 @@ export function renderAppShell(host: HTMLElement) {
 
     <div id="titlebar" data-tauri-drag-region>
       <div class="ny-shell__title-leading">
-        <div class="ny-shell__title-quick-actions">
-          <button id="tb-new" class="ny-shell__shortcut-button" type="button" title="New file" aria-label="New file">
-            <span class="ny-shell__shortcut-label">New</span>
-            <span class="ny-shell__shortcut-hint">${newShortcutHint}</span>
-          </button>
-          <button id="tb-open" class="ny-shell__shortcut-button" type="button" title="Open file" aria-label="Open file">
-            <span class="ny-shell__shortcut-label">Open</span>
-            <span class="ny-shell__shortcut-hint">${openShortcutHint}</span>
-          </button>
-          <button id="tb-save" class="ny-shell__shortcut-button" type="button" title="Save file" aria-label="Save file">
-            <span class="ny-shell__shortcut-label">Save</span>
-            <span class="ny-shell__shortcut-hint">${saveShortcutHint}</span>
-          </button>
-        </div>
+        <div class="ny-shell__title-quick-actions">${fileActionsMarkup}</div>
       </div>
       <div class="ny-shell__title-center">
         <div id="tb-filename" class="ny-shell__filename">Untitled.md</div>

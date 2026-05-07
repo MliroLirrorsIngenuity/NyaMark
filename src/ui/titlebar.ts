@@ -2,10 +2,11 @@ import { Store } from '../state/store';
 import { closeWindow, minimizeWindow, setWindowTitle, toggleMaximizeWindow } from '../bridge/ipc/windows';
 
 type TitlebarActions = {
-  onNewFile: () => Promise<void>;
-  onOpenFile: () => Promise<void>;
-  onSaveFile: () => Promise<void>;
-  onToggleOutline: () => Promise<void>;
+  onNewFile: () => Promise<unknown> | void;
+  onOpenFile: () => Promise<unknown> | void;
+  onSaveFile: () => Promise<unknown> | void;
+  onSaveFileAs: () => Promise<unknown> | void;
+  onToggleOutline: () => Promise<unknown> | void;
   onOpenSettings: () => void;
 };
 
@@ -18,11 +19,11 @@ type TitlebarActions = {
 export class Titlebar {
   private readonly elFilename = document.getElementById('tb-filename') as HTMLElement;
   private readonly elDirty = document.getElementById('tb-dirty') as HTMLElement;
+  private readonly elFileMenuButton = document.getElementById('tb-file-menu-button') as HTMLButtonElement | null;
+  private readonly elFileMenu = document.getElementById('tb-file-menu') as HTMLDivElement | null;
 
   constructor(private readonly store: Store, private readonly actions: TitlebarActions) {
-    this.bindAction('tb-new', this.actions.onNewFile);
-    this.bindAction('tb-open', this.actions.onOpenFile);
-    this.bindAction('tb-save', this.actions.onSaveFile);
+    this.bindFileMenu();
     this.bindAction('tb-outline', this.actions.onToggleOutline);
     this.bindClick('tb-settings', () => this.actions.onOpenSettings());
     this.bindClick('tb-minimize', () => void minimizeWindow().catch(console.error));
@@ -32,9 +33,53 @@ export class Titlebar {
     this.store.subscribe((state) => this.update(state));
   }
 
-  private bindAction(id: string, handler: () => Promise<void>) {
+  private bindFileMenu() {
+    if (!this.elFileMenuButton || !this.elFileMenu) return;
+    const menuButton = this.elFileMenuButton;
+    const menu = this.elFileMenu;
+
+    const setOpen = (open: boolean) => {
+      menu.hidden = !open;
+      menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+
+    menuButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setOpen(menu.hidden);
+    });
+
+    menu.querySelector<HTMLElement>('[data-file-action="new"]')?.addEventListener('click', () => {
+      setOpen(false);
+      void Promise.resolve(this.actions.onNewFile()).catch(console.error);
+    });
+    menu.querySelector<HTMLElement>('[data-file-action="open"]')?.addEventListener('click', () => {
+      setOpen(false);
+      void Promise.resolve(this.actions.onOpenFile()).catch(console.error);
+    });
+    menu.querySelector<HTMLElement>('[data-file-action="save"]')?.addEventListener('click', () => {
+      setOpen(false);
+      void Promise.resolve(this.actions.onSaveFile()).catch(console.error);
+    });
+    menu.querySelector<HTMLElement>('[data-file-action="save-as"]')?.addEventListener('click', () => {
+      setOpen(false);
+      void Promise.resolve(this.actions.onSaveFileAs()).catch(console.error);
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (menu.contains(target) || menuButton.contains(target)) return;
+      setOpen(false);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    });
+  }
+
+  private bindAction(id: string, handler: () => Promise<unknown> | void) {
     document.getElementById(id)?.addEventListener('click', () => {
-      handler().catch(console.error);
+      Promise.resolve(handler()).catch(console.error);
     });
   }
 

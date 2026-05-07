@@ -1,6 +1,11 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-export type AppMenuAction = 'new-file' | 'open-file' | 'save-file' | 'open-settings';
+export type AppMenuAction =
+  | 'new-file'
+  | 'open-file'
+  | 'save-file'
+  | 'save-file-as'
+  | 'open-settings';
 
 const APP_MENU_ACTION_EVENT = 'nyamark://menu-action';
 
@@ -8,6 +13,7 @@ const KNOWN_ACTIONS = new Set<AppMenuAction>([
   'new-file',
   'open-file',
   'save-file',
+  'save-file-as',
   'open-settings',
 ]);
 

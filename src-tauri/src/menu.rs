@@ -8,6 +8,7 @@ pub const APP_MENU_ACTION_EVENT: &str = "nyamark://menu-action";
 const MENU_NEW_ID: &str = "file_new";
 const MENU_OPEN_ID: &str = "file_open";
 const MENU_SAVE_ID: &str = "file_save";
+const MENU_SAVE_AS_ID: &str = "file_save_as";
 const MENU_SETTINGS_ID: &str = "app_settings";
 
 pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
@@ -38,6 +39,13 @@ pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>
     let new_item = MenuItem::with_id(app, MENU_NEW_ID, "New", true, Some("CmdOrCtrl+N"))?;
     let open_item = MenuItem::with_id(app, MENU_OPEN_ID, "Open...", true, Some("CmdOrCtrl+O"))?;
     let save_item = MenuItem::with_id(app, MENU_SAVE_ID, "Save", true, Some("CmdOrCtrl+S"))?;
+    let save_as_item = MenuItem::with_id(
+        app,
+        MENU_SAVE_AS_ID,
+        "Save As...",
+        true,
+        Some("CmdOrCtrl+Shift+S"),
+    )?;
     let file_menu = Submenu::with_items(
         app,
         "File",
@@ -46,6 +54,7 @@ pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>
             &new_item,
             &open_item,
             &save_item,
+            &save_as_item,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::close_window(app, None)?,
         ],
@@ -95,6 +104,8 @@ pub fn handle_macos_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent)
         Some("open-file")
     } else if event.id() == MENU_SAVE_ID {
         Some("save-file")
+    } else if event.id() == MENU_SAVE_AS_ID {
+        Some("save-file-as")
     } else if event.id() == MENU_SETTINGS_ID {
         Some("open-settings")
     } else {

@@ -83,6 +83,7 @@ export class App {
       onNewFile: () => this.fileController!.newFile(),
       onOpenFile: () => this.fileController!.openFile(),
       onSaveFile: () => this.fileController!.saveFile(),
+      onSaveFileAs: () => this.fileController!.saveFileAs(),
       onToggleOutline: async () => this.outline?.toggle(),
       onOpenSettings: () => this.settingsPanel.open(),
     });
@@ -122,6 +123,7 @@ export class App {
       'new-file': () => void this.fileController!.newFile(),
       'open-file': () => void this.fileController!.openFile(),
       'save-file': () => void this.fileController!.saveFile(),
+      'save-file-as': () => void this.fileController!.saveFileAs(),
       'open-settings': () => this.settingsPanel.open(),
     }).bind();
   }
