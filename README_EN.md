@@ -1,7 +1,7 @@
 <div align="center">
   <img src="src-tauri/icons/banner.svg" alt="NyaMark Banner" width="600">
-  <h1 align="center">NyaMark</h1>
-  <p align="center">
+  <h1 align="center" style="margin-top: -30px;">NyaMark</h1>
+  <p align="center" style="margin-top: -10px;">
     A modern Markdown editor based on <a href="https://tauri.app/"><strong>Tauri v2</strong></a> and <a href="https://milkdown.dev/"><strong>Milkdown</strong></a>.
     <br />
     <br />

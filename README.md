@@ -1,7 +1,7 @@
 <div align="center">
   <img src="src-tauri/icons/banner.svg" alt="NyaMark Banner" width="600">
-  <h1 align="center">NyaMark</h1>
-  <p align="center">
+  <h1 align="center" style="margin-top: -30px;">NyaMark</h1>
+  <p align="center" style="margin-top: -10px;">
     一款基于 <a href="https://tauri.app/"><strong>Tauri v2</strong></a> 和 <a href="https://milkdown.dev/"><strong>Milkdown</strong></a> 开发的现代化 Markdown 编辑器。
     <br />
     <br />
