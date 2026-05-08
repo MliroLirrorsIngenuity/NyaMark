@@ -15,10 +15,11 @@ use std::{
     },
 };
 
-use tauri::{AppHandle, Window};
+use tauri::{AppHandle, Manager, Window};
 
 use crate::sessions::{
-    DraftSessions, MainWindowBootstrapComplete, PendingLaunchFiles, WindowCounter, WindowSessions,
+    DraftSessions, LastFocusedWindow, MainWindowBootstrapComplete, PendingLaunchFiles,
+    WindowCounter, WindowSessions,
 };
 
 #[tauri::command]
@@ -111,10 +112,23 @@ pub fn run() {
         )))
         .manage(WindowSessions(Mutex::new(HashMap::new())))
         .manage(DraftSessions(Mutex::new(HashMap::new())))
+        .manage(LastFocusedWindow(Mutex::new(None)))
         .manage(WindowCounter(AtomicUsize::new(1)))
         .manage(MainWindowBootstrapComplete(AtomicBool::new(false)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::Focused(true) => {
+                sessions::remember_last_focused_window(&window.app_handle(), window.label());
+            }
+            tauri::WindowEvent::Destroyed => {
+                let app = window.app_handle();
+                sessions::forget_window_file(&app, window.label());
+                let _ = sessions::take_draft_session_dir(&app, window.label());
+                sessions::clear_last_focused_window(&app, window.label());
+            }
+            _ => {}
+        })
         .invoke_handler(tauri::generate_handler![
             commands::read_markdown,
             commands::load_settings,

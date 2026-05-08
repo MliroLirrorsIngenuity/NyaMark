@@ -51,49 +51,57 @@ export class FileController {
   }
 
   async saveFile() {
-    const editor = this.getEditor();
-    if (!editor) return;
-    const state = store.getState();
-
     try {
-      if (state.filePath) {
-        await this.saveToExistingPath(state.filePath, editor.getMarkdown());
-      } else {
-        await this.saveFileAs();
-      }
+      await this.saveCurrentDocument({ forceDialog: false, allowDialogWhenMissingPath: true });
     } catch (error) {
       console.error('Failed to save file:', error);
     }
   }
 
   async saveFileAs(): Promise<string | null> {
-    const editor = this.getEditor();
-    if (!editor) return null;
     try {
-      const path = await saveFileDialog();
-      if (path) {
-        await this.saveToExistingPath(path, editor.getMarkdown());
-        store.update({ filePath: path });
-        return path;
-      }
+      return await this.saveCurrentDocument({ forceDialog: true, allowDialogWhenMissingPath: true });
     } catch (error) {
       console.error('Failed to save file as:', error);
+      return null;
     }
-    return null;
   }
 
   async autoSaveFile() {
-    const editor = this.getEditor();
-    if (!editor) return;
-
-    const state = store.getState();
-    if (!state.filePath || !state.isDirty) return;
-
     try {
-      await this.saveToExistingPath(state.filePath, editor.getMarkdown());
+      await this.saveCurrentDocument({ forceDialog: false, allowDialogWhenMissingPath: false });
     } catch (error) {
       console.error('Failed to auto-save file:', error);
     }
+  }
+
+  private async saveCurrentDocument(options: {
+    forceDialog: boolean;
+    allowDialogWhenMissingPath: boolean;
+  }): Promise<string | null> {
+    const editor = this.getEditor();
+    if (!editor) return null;
+
+    const state = store.getState();
+    if (!state.isDirty && !options.forceDialog) {
+      return state.filePath;
+    }
+
+    const path = options.forceDialog
+      ? await saveFileDialog()
+      : state.filePath ?? (
+          options.allowDialogWhenMissingPath
+            ? await saveFileDialog()
+            : null
+        );
+
+    if (!path) return null;
+
+    await this.saveToExistingPath(path, editor.getMarkdown());
+    if (state.filePath !== path) {
+      store.update({ filePath: path });
+    }
+    return path;
   }
 
   private async saveToExistingPath(path: string, snapshot: string) {

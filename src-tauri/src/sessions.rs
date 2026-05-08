@@ -26,6 +26,9 @@ pub struct WindowCounter(pub AtomicUsize);
 /// Latch flipped to true once the main window has resolved its initial file (or determined it's blank).
 pub struct MainWindowBootstrapComplete(pub AtomicBool);
 
+/// Last editor window that held focus, used to target app-menu actions.
+pub struct LastFocusedWindow(pub Mutex<Option<String>>);
+
 pub fn normalize_file_path(path: impl AsRef<Path>) -> Option<String> {
     let path = path.as_ref();
     if !path.is_file() {
@@ -95,6 +98,22 @@ pub fn mark_main_bootstrap_complete<R: Runtime>(app: &AppHandle<R>) {
     app.state::<MainWindowBootstrapComplete>()
         .0
         .store(true, Ordering::Release);
+}
+
+pub fn remember_last_focused_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    app.state::<LastFocusedWindow>().0.lock().unwrap().replace(label.to_string());
+}
+
+pub fn last_focused_window<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
+    app.state::<LastFocusedWindow>().0.lock().unwrap().clone()
+}
+
+pub fn clear_last_focused_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    let state = app.state::<LastFocusedWindow>();
+    let mut current = state.0.lock().unwrap();
+    if current.as_deref() == Some(label) {
+        current.take();
+    }
 }
 
 pub fn is_main_bootstrap_complete<R: Runtime>(app: &AppHandle<R>) -> bool {

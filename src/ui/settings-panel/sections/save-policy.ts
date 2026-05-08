@@ -4,6 +4,12 @@ export function renderSaveSection(
   current: SaveSettings,
   onChange: (next: SaveSettings) => void
 ): HTMLElement {
+  const minuteMin = 1;
+  const minuteMax = 60;
+  const minuteStep = 1;
+  const toMinutes = (valueMs: number) => Math.round(valueMs / 60000);
+  const toMilliseconds = (valueMinutes: number) => valueMinutes * 60000;
+
   const section = document.createElement('section');
   section.className = 'ny-settings__section';
   section.innerHTML = `
@@ -14,8 +20,8 @@ export function renderSaveSection(
         <span>Auto-save while editing</span>
       </label>
       <label class="ny-settings__field">
-        <span>Auto-save interval (ms)</span>
-        <input type="number" min="500" max="60000" step="500" data-key="autoSaveIntervalMs" />
+        <span>Auto-save interval (min)</span>
+        <input type="number" min="${minuteMin}" max="${minuteMax}" step="${minuteStep}" data-key="autoSaveIntervalMs" />
       </label>
     </div>
   `;
@@ -35,7 +41,7 @@ export function renderSaveSection(
     const hint = document.createElement('span');
     hint.className = 'ny-settings__field-hint';
     field?.appendChild(hint);
-    interval.value = String(current.autoSaveIntervalMs);
+    interval.value = String(toMinutes(current.autoSaveIntervalMs));
 
     const syncValidity = () => {
       const invalid = Boolean(interval.value) && !interval.validity.valid;
@@ -44,9 +50,10 @@ export function renderSaveSection(
     };
 
     const commit = (value: number) => {
-      const next = { ...current, autoSaveIntervalMs: value };
+      const next = { ...current, autoSaveIntervalMs: toMilliseconds(value) };
       onChange(next);
       Object.assign(current, next);
+      interval.value = String(toMinutes(current.autoSaveIntervalMs));
       syncValidity();
     };
 
@@ -60,13 +67,13 @@ export function renderSaveSection(
 
     interval.addEventListener('change', () => {
       if (!interval.value || !interval.validity.valid) {
-        interval.value = String(current.autoSaveIntervalMs);
+        interval.value = String(toMinutes(current.autoSaveIntervalMs));
         syncValidity();
         return;
       }
       const value = Number(interval.value);
       if (!Number.isFinite(value)) {
-        interval.value = String(current.autoSaveIntervalMs);
+        interval.value = String(toMinutes(current.autoSaveIntervalMs));
         syncValidity();
         return;
       }

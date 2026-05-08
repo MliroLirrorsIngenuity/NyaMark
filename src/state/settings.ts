@@ -34,7 +34,7 @@ export const defaultSettings: Settings = {
   },
   save: {
     autoSave: false,
-    autoSaveIntervalMs: 4000,
+    autoSaveIntervalMs: 60_000,
   },
   attachments: defaultImageSettings,
 };
@@ -63,8 +63,8 @@ function sanitizeSaveSettings(save: Partial<SaveSettings> | undefined): SaveSett
     autoSave: Boolean(save?.autoSave),
     autoSaveIntervalMs: clamp(
       Number(save?.autoSaveIntervalMs ?? defaultSettings.save.autoSaveIntervalMs),
-      500,
-      60000
+      60_000,
+      3_600_000
     ),
   };
 }

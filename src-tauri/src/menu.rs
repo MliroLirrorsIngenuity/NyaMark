@@ -3,6 +3,8 @@
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
+use crate::sessions;
+
 pub const APP_MENU_ACTION_EVENT: &str = "nyamark://menu-action";
 
 const MENU_NEW_ID: &str = "file_new";
@@ -119,8 +121,18 @@ pub fn handle_macos_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent)
             .find(|window| window.is_focused().unwrap_or(false))
         {
             let _ = app.emit_to(window.label(), APP_MENU_ACTION_EVENT, action);
-        } else {
-            let _ = app.emit(APP_MENU_ACTION_EVENT, action);
+            return;
+        }
+
+        if let Some(label) = sessions::last_focused_window(app) {
+            if app.get_webview_window(&label).is_some() {
+                let _ = app.emit_to(label, APP_MENU_ACTION_EVENT, action);
+                return;
+            }
+        }
+
+        if let Some(window) = app.webview_windows().values().next() {
+            let _ = app.emit_to(window.label(), APP_MENU_ACTION_EVENT, action);
         }
     }
 }

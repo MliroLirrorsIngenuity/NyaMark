@@ -29,7 +29,7 @@ export class App {
   private theme: ThemeManager | null = null;
   private readonly settingsPanel = new SettingsPanel();
   private autoSaveEnabled = false;
-  private autoSaveIntervalMs = 4000;
+  private autoSaveIntervalMs = 60_000;
   private autoSaveTimer: number | null = null;
   private autoSaveInFlight = false;
 
@@ -240,7 +240,7 @@ export class App {
   private bindAutoSave() {
     subscribeSettings((settings) => {
       this.autoSaveEnabled = settings.save.autoSave;
-      this.autoSaveIntervalMs = Math.max(500, settings.save.autoSaveIntervalMs);
+      this.autoSaveIntervalMs = Math.max(60_000, settings.save.autoSaveIntervalMs);
       this.syncAutoSave();
     });
 
