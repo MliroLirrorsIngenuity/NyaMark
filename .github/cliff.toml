@@ -59,6 +59,7 @@ filter_unconventional = false
 split_commits = false
 protect_breaking_commits = false
 commit_parsers = [
+    { message = "^chore: format code with biome", skip = true },
     { message = "^feat", group = "<!-- 0 -->✨ Features" },
     { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
     { message = "^docs", group = "<!-- 4 -->📚 Documentation" },
