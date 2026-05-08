@@ -101,7 +101,11 @@ pub fn mark_main_bootstrap_complete<R: Runtime>(app: &AppHandle<R>) {
 }
 
 pub fn remember_last_focused_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
-    app.state::<LastFocusedWindow>().0.lock().unwrap().replace(label.to_string());
+    app.state::<LastFocusedWindow>()
+        .0
+        .lock()
+        .unwrap()
+        .replace(label.to_string());
 }
 
 pub fn last_focused_window<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
