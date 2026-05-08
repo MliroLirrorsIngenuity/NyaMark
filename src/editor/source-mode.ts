@@ -132,8 +132,8 @@ export class SourceModeController {
   private cmThemeCompartment = new Compartment();
   private syncTimer: number | null = null;
   private active = false;
-  private unsubscribeStore: (() => void) | null = null;
-  private unsubscribeTheme: (() => void) | null = null;
+  private isSyncingScroll = false;
+  private lastScrollSource: HTMLElement | null = null;
 
   constructor(
     private readonly editorRoot: HTMLElement,
@@ -212,6 +212,40 @@ export class SourceModeController {
     });
 
     this.cmView.focus();
+    this.bindScrollSync();
+  }
+
+  private bindScrollSync() {
+    if (!this.cmView || !this.editorRoot) return;
+
+    const cmScroller = this.cmView.scrollDOM;
+    const milkdownPane = this.editorRoot.querySelector('.milkdown') as HTMLElement;
+    if (!cmScroller || !milkdownPane) return;
+
+    const sync = (source: HTMLElement, target: HTMLElement) => {
+      if (this.lastScrollSource && this.lastScrollSource !== source) {
+        return;
+      }
+
+      this.lastScrollSource = source;
+      
+      requestAnimationFrame(() => {
+        const sourceMax = source.scrollHeight - source.clientHeight;
+        const targetMax = target.scrollHeight - target.clientHeight;
+        
+        if (sourceMax > 0 && targetMax > 0) {
+          const percentage = source.scrollTop / sourceMax;
+          target.scrollTop = Math.round(percentage * targetMax);
+        }
+        
+        requestAnimationFrame(() => {
+          this.lastScrollSource = null;
+        });
+      });
+    };
+
+    cmScroller.addEventListener('scroll', () => sync(cmScroller, milkdownPane), { passive: true });
+    milkdownPane.addEventListener('scroll', () => sync(milkdownPane, cmScroller), { passive: true });
   }
 
   private exit() {
