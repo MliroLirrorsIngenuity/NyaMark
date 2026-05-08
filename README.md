@@ -67,26 +67,6 @@ bun tauri dev
 bun tauri build
 ```
 
-## 提问前必看
-
-在提问之前，请确保：
-
-* 已经尝试了所有可能的解决方案
-
-* 已经尝试搜索了解决方案（包括但不限于本仓库的 Issues）
-
-* 你提供了**足够的信息**帮助开发人员定位问题，包括但不限于下列：
-
-  * 软件版本
-
-  * 操作系统版本
-
-  * 复现步骤
-
-* 提问渠道说明
-
-  * **Bug/功能请求** → [Issues](https://github.com/MliroLirrorsIngenuity/NyaMark/issues)
-
 ## 开源协议
 
 本项目代码部分遵循 [MIT License](LICENSE) 开源协议。
