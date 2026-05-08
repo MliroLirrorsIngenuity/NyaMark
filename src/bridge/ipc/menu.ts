@@ -1,4 +1,5 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export type AppMenuAction =
   | 'new-file'
@@ -20,7 +21,7 @@ const KNOWN_ACTIONS = new Set<AppMenuAction>([
 export async function listenAppMenuAction(
   handler: (action: AppMenuAction) => void
 ): Promise<UnlistenFn> {
-  return listen<AppMenuAction>(APP_MENU_ACTION_EVENT, (event) => {
+  return getCurrentWindow().listen<AppMenuAction>(APP_MENU_ACTION_EVENT, (event) => {
     if (KNOWN_ACTIONS.has(event.payload)) {
       handler(event.payload);
     }
