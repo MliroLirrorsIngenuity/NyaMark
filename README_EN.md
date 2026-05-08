@@ -67,26 +67,6 @@ bun tauri dev
 bun tauri build
 ```
 
-## Before You Ask
-
-Before submitting an inquiry, please ensure:
-
-* You have tried all possible solutions.
-
-* You have searched for solutions (including but not limited to the [Issues](https://github.com/MliroLirrorsIngenuity/NyaMark/issues) of this repository).
-
-* You provide **sufficient information** to help developers locate the problem, including:
-
-  * Software version.
-
-  * Operating system version.
-
-  * Steps to reproduce.
-
-* Support Channels:
-
-  * **Bugs/Feature Requests** → [Issues](https://github.com/MliroLirrorsIngenuity/NyaMark/issues)
-
 ## License
 
 The source code of this project is licensed under the [MIT License](LICENSE).
