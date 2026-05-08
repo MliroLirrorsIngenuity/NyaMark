@@ -16,10 +16,50 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build ${{ matrix.name }}
-    runs-on: ${{ matrix.platform }}
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.get_version.outputs.tag }}
+      version: ${{ steps.get_version.outputs.version }}
+      wix_version: ${{ steps.get_version.outputs.wix_version }}
+      is_prerelease: ${{ steps.get_version.outputs.is_prerelease }}
+      changelog: ${{ steps.git-cliff.outputs.content }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
+      - name: Get version info
+        id: get_version
+        shell: bash
+        run: |
+          TAG_NAME=${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          VERSION=${TAG_NAME#v}
+          WIX_VERSION=$(echo $VERSION | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
+          IS_PRERELEASE=false
+          if [[ $VERSION == *"-"* ]]; then
+            IS_PRERELEASE=true
+          fi
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "wix_version=$WIX_VERSION" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+
+      - name: Generate Changelog
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          config: .github/cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: meta
+    runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
@@ -36,10 +76,25 @@ jobs:
           - name: macOS Apple Silicon
             platform: macos-latest
             args: "--target aarch64-apple-darwin"
+          - name: Windows ARM64
+            platform: windows-latest
+            args: "--target aarch64-pc-windows-msvc"
+          - name: Linux ARM64
+            platform: ubuntu-22.04
+            args: "--target aarch64-unknown-linux-gnu"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Update Version in files
+        shell: bash
+        run: |
+          VERSION="${{ needs.meta.outputs.version }}"
+          WIX_VERSION="${{ needs.meta.outputs.wix_version }}"
+          perl -i -pe "s/\"version\": \".*?\"/\"version\": \"$VERSION\"/" package.json
+          perl -i -pe "s/^version = \".*?\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          perl -i -pe "s/\"version\": \"0.0.0\"/\"version\": \"$WIX_VERSION\"/" src-tauri/tauri.conf.json
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -51,28 +106,28 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install frontend dependencies
-        run: bun ci
+        run: bun install
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'x86_64-apple-darwin,aarch64-apple-darwin' || '' }}
+          targets: ${{ (matrix.platform == 'macos-latest' && 'x86_64-apple-darwin,aarch64-apple-darwin') || (matrix.name == 'Windows ARM64' && 'aarch64-pc-windows-msvc') || (matrix.name == 'Linux ARM64' && 'aarch64-unknown-linux-gnu') || '' }}
 
       - name: Cache Rust build artifacts
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@v2.9
         with:
           workspaces: ./src-tauri -> target
 
       - name: Build and upload release assets
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          releaseName: NyaMark ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          releaseBody: See the assets below to download and install NyaMark.
-          releaseDraft: true
-          prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, '-') }}
-          generateReleaseNotes: true
+          tagName: ${{ needs.meta.outputs.tag }}
+          releaseName: NyaMark ${{ needs.meta.outputs.tag }}
+          releaseBody: ${{ needs.meta.outputs.changelog }}
+          releaseDraft: false
+          prerelease: ${{ needs.meta.outputs.is_prerelease }}
           tauriScript: bun tauri
           args: ${{ matrix.args }}
+          useCross: ${{ matrix.name == 'Linux ARM64' }}
