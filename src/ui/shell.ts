@@ -1,18 +1,59 @@
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getPlatform } from '../platform/detect';
 
 export { registerShellStyles } from './shell.css';
 
+type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
+
+const linuxResizeHandles: Array<{ direction: ResizeDirection; className: string }> = [
+  { direction: 'North', className: 'ny-shell__resize-handle--n' },
+  { direction: 'South', className: 'ny-shell__resize-handle--s' },
+  { direction: 'West', className: 'ny-shell__resize-handle--w' },
+  { direction: 'East', className: 'ny-shell__resize-handle--e' },
+  { direction: 'NorthWest', className: 'ny-shell__resize-handle--nw' },
+  { direction: 'NorthEast', className: 'ny-shell__resize-handle--ne' },
+  { direction: 'SouthWest', className: 'ny-shell__resize-handle--sw' },
+  { direction: 'SouthEast', className: 'ny-shell__resize-handle--se' },
+];
+
+function renderLinuxResizeHandles() {
+  return linuxResizeHandles
+    .map(({ direction, className }) => (
+      `<div class="ny-shell__resize-handle ${className}" data-resize-direction="${direction}" aria-hidden="true"></div>`
+    ))
+    .join('');
+}
+
+function bindLinuxResizeHandles(host: HTMLElement) {
+  host.querySelectorAll<HTMLElement>('[data-resize-direction]').forEach((handle) => {
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const direction = handle.dataset.resizeDirection as ResizeDirection | undefined;
+      if (!direction) return;
+
+      void getCurrentWindow().startResizeDragging(direction).catch(console.error);
+    });
+  });
+}
+
 export function renderAppShell(host: HTMLElement) {
   const platformClass = getPlatform();
   const isMac = platformClass === 'macos';
+  const isLinux = platformClass === 'linux';
   const initialThemeLabel = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'Dark' : 'Light';
   const newShortcutHint = isMac ? '⌘N' : 'Ctrl+N';
   const openShortcutHint = isMac ? '⌘O' : 'Ctrl+O';
   const saveShortcutHint = isMac ? '⌘S' : 'Ctrl+S';
   const outlineShortcutHint = isMac ? '⌘⇧O' : 'Ctrl+Shift+O';
 
+  document.documentElement.dataset.platform = platformClass;
   host.className = `ny-editor-root ny-shell ny-shell--${platformClass}`;
   host.innerHTML = `
+    ${isLinux ? renderLinuxResizeHandles() : ''}
+
     <div id="titlebar" data-tauri-drag-region>
       <div class="ny-shell__title-leading">
         <div class="ny-shell__title-quick-actions">
@@ -83,4 +124,6 @@ export function renderAppShell(host: HTMLElement) {
       </div>
     </div>
   `;
+
+  if (isLinux) bindLinuxResizeHandles(host);
 }

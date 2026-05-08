@@ -57,6 +57,48 @@ const shellStyles = `
   --ny-shadow-float: 0 20px 48px rgba(0, 0, 0, 0.38);
 }
 
+:root[data-platform="linux"] {
+  --ny-surface-elevated: rgba(255, 255, 255, 0.9);
+  --ny-surface-muted: rgba(255, 255, 255, 0.72);
+  --ny-surface-ghost: rgba(250, 250, 249, 0.78);
+  --ny-titlebar-bg: rgba(255, 255, 255, 0.72);
+  --ny-statusbar-bg: rgba(255, 255, 255, 0.8);
+  --ny-border-soft: rgba(214, 220, 229, 0.7);
+  --ny-border-strong: rgba(197, 205, 216, 0.78);
+  --ny-linux-frost-sheen: rgba(255, 255, 255, 0.56);
+  --ny-linux-frost-glow: rgba(141, 180, 200, 0.2);
+  --ny-linux-frost-depth: rgba(77, 122, 143, 0.12);
+}
+
+:root[data-platform="linux"][data-theme="dark"] {
+  --ny-surface-elevated: rgba(24, 31, 41, 0.88);
+  --ny-surface-muted: rgba(21, 28, 36, 0.72);
+  --ny-surface-ghost: rgba(20, 27, 35, 0.76);
+  --ny-titlebar-bg: rgba(19, 25, 33, 0.68);
+  --ny-statusbar-bg: rgba(17, 23, 31, 0.78);
+  --ny-border-soft: rgba(119, 134, 155, 0.24);
+  --ny-border-strong: rgba(132, 148, 170, 0.34);
+  --ny-linux-frost-sheen: rgba(141, 180, 200, 0.1);
+  --ny-linux-frost-glow: rgba(96, 135, 158, 0.16);
+  --ny-linux-frost-depth: rgba(0, 0, 0, 0.18);
+}
+
+:root[data-platform="linux"],
+:root[data-platform="linux"] body,
+:root[data-platform="linux"] #app {
+  background: var(--ny-app-bg-end);
+}
+
+:root[data-platform="linux"] .ny-editor-root .milkdown {
+  --ny-editor-toolbar-bg: rgba(255, 255, 255, 0.78);
+  --ny-editor-floating-bg: rgba(255, 255, 255, 0.88);
+}
+
+:root[data-platform="linux"][data-theme="dark"] .ny-editor-root .milkdown {
+  --ny-editor-toolbar-bg: rgba(18, 24, 31, 0.68);
+  --ny-editor-floating-bg: rgba(22, 29, 38, 0.82);
+}
+
 html,
 body,
 #app {
@@ -96,6 +138,95 @@ body {
 .ny-shell--macos {
   --ny-window-controls-space: 78px;
   border-radius: 0;
+}
+
+.ny-shell--linux {
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 18% 0%, var(--ny-linux-frost-sheen) 0%, transparent 30%),
+    radial-gradient(circle at 88% 14%, var(--ny-linux-frost-glow) 0%, transparent 28%),
+    radial-gradient(circle at 52% 100%, var(--ny-linux-frost-depth) 0%, transparent 36%),
+    linear-gradient(180deg, var(--ny-app-bg-start) 0%, color-mix(in srgb, var(--ny-app-bg-start), var(--ny-app-bg-end) 48%) 38%, var(--ny-app-bg-end) 100%);
+}
+
+:root[data-platform="linux"] :is(
+  .ny-settings-overlay,
+  .ny-image-policy-overlay
+) {
+  background: color-mix(in srgb, var(--ny-app-bg-end), transparent 38%) !important;
+}
+
+.ny-shell__resize-handle {
+  position: fixed;
+  z-index: 220;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ny-shell__resize-handle--n,
+.ny-shell__resize-handle--s {
+  left: 18px;
+  right: 18px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.ny-shell__resize-handle--n {
+  top: 0;
+}
+
+.ny-shell__resize-handle--s {
+  bottom: 0;
+}
+
+.ny-shell__resize-handle--e,
+.ny-shell__resize-handle--w {
+  top: 18px;
+  bottom: 18px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.ny-shell__resize-handle--e {
+  right: 0;
+}
+
+.ny-shell__resize-handle--w {
+  left: 0;
+}
+
+.ny-shell__resize-handle--nw,
+.ny-shell__resize-handle--ne,
+.ny-shell__resize-handle--sw,
+.ny-shell__resize-handle--se {
+  width: 18px;
+  height: 18px;
+}
+
+.ny-shell__resize-handle--nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.ny-shell__resize-handle--ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.ny-shell__resize-handle--sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.ny-shell__resize-handle--se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
 }
 
 #titlebar {
