@@ -58,28 +58,23 @@ const css = `
 #editor-container.is-source-mode > .ny-source-pane {
   grid-column: 1;
   border-right: 1px solid var(--ny-editor-panel-border, rgba(186, 196, 210, 0.6));
-  background: var(--ny-editor-codeblock-bg, transparent);
+  background: var(--ny-bg-secondary);
 }
 
 #editor-container.is-source-mode > .milkdown {
   grid-column: 2;
 }
 
-/*
- * Disable interaction in the rendered pane while in source mode so the
- * user can only edit through the CodeMirror side. We can't toggle
- * Crepe's setReadonly without losing the toolbar (see source-mode.ts).
- */
+#editor-container.is-source-mode > .milkdown > *:not(.ProseMirror) {
+  display: none !important;
+}
+
 #editor-container.is-source-mode > .milkdown .ProseMirror {
   user-select: text;
   cursor: default;
   pointer-events: none;
-}
-
-#editor-container.is-source-mode > .milkdown .milkdown-top-bar,
-#editor-container.is-source-mode > .milkdown .milkdown-toolbar {
-  pointer-events: none;
-  opacity: 0.55;
+  padding-top: 16px !important;
+  padding-bottom: 16px !important;
 }
 
 .ny-source-pane {
@@ -88,17 +83,38 @@ const css = `
   align-items: stretch;
 }
 
+.ny-source-pane .cm-editor,
+.ny-source-pane .cm-gutters,
+.ny-source-pane .cm-scroller {
+  background-color: var(--ny-bg-secondary) !important;
+}
+
 .ny-source-pane .cm-editor {
   flex: 1;
   height: 100%;
-  background: transparent;
   font-family: var(--ny-font-mono);
   font-size: 13px;
   line-height: 1.45;
+  outline: none;
 }
 
 .ny-source-pane .cm-scroller {
-  padding: 16px clamp(12px, 3vw, 28px);
+  padding: 0;
+}
+
+.ny-source-pane .cm-content {
+  padding: 16px 12px;
+}
+
+.ny-source-pane .cm-gutters {
+  border-right: 1px solid var(--ny-editor-panel-border, rgba(186, 196, 210, 0.6)) !important;
+  min-width: 45px;
+  color: var(--ny-text-secondary);
+  opacity: 0.8;
+}
+
+.ny-source-pane .cm-gutter {
+  background-color: transparent !important;
 }
 
 .ny-source-pane .cm-content {
