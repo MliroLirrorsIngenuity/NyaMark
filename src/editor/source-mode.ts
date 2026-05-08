@@ -132,8 +132,9 @@ export class SourceModeController {
   private cmThemeCompartment = new Compartment();
   private syncTimer: number | null = null;
   private active = false;
-  private isSyncingScroll = false;
   private lastScrollSource: HTMLElement | null = null;
+  private unsubscribeStore: (() => void) | null = null;
+  private unsubscribeTheme: (() => void) | null = null;
 
   constructor(
     private readonly editorRoot: HTMLElement,
