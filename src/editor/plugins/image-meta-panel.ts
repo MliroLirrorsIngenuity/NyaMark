@@ -12,12 +12,16 @@ export class ImageMetaPanel {
   private observer: MutationObserver | null = null;
   private readonly handleRootPointerDown = (event: PointerEvent) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
-    const activeHost = target?.closest('.milkdown-image-block.nyamark-image-meta-open');
-    this.root.querySelectorAll('.milkdown-image-block.nyamark-image-meta-open').forEach((host) => {
-      if (host !== activeHost) {
-        host.classList.remove('nyamark-image-meta-open');
-      }
-    });
+    const activeHost = target?.closest(
+      '.milkdown-image-block.nyamark-image-meta-open'
+    );
+    this.root
+      .querySelectorAll('.milkdown-image-block.nyamark-image-meta-open')
+      .forEach((host) => {
+        if (host !== activeHost) {
+          host.classList.remove('nyamark-image-meta-open');
+        }
+      });
   };
 
   constructor(
@@ -44,12 +48,16 @@ export class ImageMetaPanel {
     });
   }
 
-  private findImageNodeState(host: HTMLElement): { pos: number; node: ProseNode } | null {
+  private findImageNodeState(
+    host: HTMLElement
+  ): { pos: number; node: ProseNode } | null {
     const crepe = this.getCrepe();
     if (!crepe) return null;
 
     const view = crepe.editor.ctx.get(editorViewCtx);
-    const hosts = Array.from(this.root.querySelectorAll('.milkdown-image-block'));
+    const hosts = Array.from(
+      this.root.querySelectorAll('.milkdown-image-block')
+    );
     const hostIndex = hosts.indexOf(host);
     if (hostIndex >= 0) {
       const imageNodes: Array<{ pos: number; node: ProseNode }> = [];
@@ -83,18 +91,27 @@ export class ImageMetaPanel {
     for (const pos of candidates) {
       if (pos < 0 || pos > docSize) continue;
       const node = view.state.doc.nodeAt(pos);
-      if (node && (node.type.name === 'image-block' || node.type.name === 'image')) {
+      if (
+        node &&
+        (node.type.name === 'image-block' || node.type.name === 'image')
+      ) {
         return { pos, node };
       }
 
       const $pos = view.state.doc.resolve(pos);
       const after = $pos.nodeAfter;
-      if (after && (after.type.name === 'image-block' || after.type.name === 'image')) {
+      if (
+        after &&
+        (after.type.name === 'image-block' || after.type.name === 'image')
+      ) {
         return { pos: $pos.pos, node: after };
       }
 
       const before = $pos.nodeBefore;
-      if (before && (before.type.name === 'image-block' || before.type.name === 'image')) {
+      if (
+        before &&
+        (before.type.name === 'image-block' || before.type.name === 'image')
+      ) {
         return { pos: $pos.pos - before.nodeSize, node: before };
       }
     }
@@ -125,14 +142,20 @@ export class ImageMetaPanel {
 
     if (!host.dataset.nyamarkMetaBound) {
       const stopMouseEvent = (event: Event) => {
-        const target = event.target instanceof HTMLElement ? event.target : null;
-        if (target?.closest('.nyamark-image-meta, .nyamark-image-meta-toggle')) {
+        const target =
+          event.target instanceof HTMLElement ? event.target : null;
+        if (
+          target?.closest('.nyamark-image-meta, .nyamark-image-meta-toggle')
+        ) {
           event.stopPropagation();
         }
       };
       const stopDragEvent = (event: DragEvent) => {
-        const target = event.target instanceof HTMLElement ? event.target : null;
-        if (target?.closest('.nyamark-image-meta, .nyamark-image-meta-toggle')) {
+        const target =
+          event.target instanceof HTMLElement ? event.target : null;
+        if (
+          target?.closest('.nyamark-image-meta, .nyamark-image-meta-toggle')
+        ) {
           event.preventDefault();
           event.stopPropagation();
         }
@@ -143,7 +166,9 @@ export class ImageMetaPanel {
       host.dataset.nyamarkMetaBound = 'true';
     }
 
-    let toggle = wrapper.querySelector('.nyamark-image-meta-toggle') as HTMLButtonElement | null;
+    let toggle = wrapper.querySelector(
+      '.nyamark-image-meta-toggle'
+    ) as HTMLButtonElement | null;
     if (!toggle) {
       toggle = document.createElement('button');
       toggle.type = 'button';
@@ -152,7 +177,9 @@ export class ImageMetaPanel {
       toggle.setAttribute('contenteditable', 'false');
       toggle.textContent = 'Info';
       toggle.setAttribute('aria-label', 'Toggle image details');
-      toggle.addEventListener('pointerdown', (event) => event.stopPropagation());
+      toggle.addEventListener('pointerdown', (event) =>
+        event.stopPropagation()
+      );
       toggle.addEventListener('dragstart', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -165,7 +192,9 @@ export class ImageMetaPanel {
       wrapper.appendChild(toggle);
     }
 
-    let panel = wrapper.querySelector('.nyamark-image-meta') as HTMLElement | null;
+    let panel = wrapper.querySelector(
+      '.nyamark-image-meta'
+    ) as HTMLElement | null;
     if (!panel) {
       panel = document.createElement('div');
       panel.className = 'nyamark-image-meta';
@@ -183,8 +212,12 @@ export class ImageMetaPanel {
       `;
       wrapper.appendChild(panel);
 
-      const captionInput = panel.querySelector('.nyamark-image-meta__input--caption') as HTMLInputElement;
-      const pathInput = panel.querySelector('.nyamark-image-meta__input--path') as HTMLInputElement;
+      const captionInput = panel.querySelector(
+        '.nyamark-image-meta__input--caption'
+      ) as HTMLInputElement;
+      const pathInput = panel.querySelector(
+        '.nyamark-image-meta__input--path'
+      ) as HTMLInputElement;
       captionInput.draggable = false;
       pathInput.draggable = false;
 
@@ -232,18 +265,33 @@ export class ImageMetaPanel {
       });
     }
 
-    const captionInput = panel.querySelector('.nyamark-image-meta__input--caption') as HTMLInputElement | null;
-    const pathInput = panel.querySelector('.nyamark-image-meta__input--path') as HTMLInputElement | null;
+    const captionInput = panel.querySelector(
+      '.nyamark-image-meta__input--caption'
+    ) as HTMLInputElement | null;
+    const pathInput = panel.querySelector(
+      '.nyamark-image-meta__input--path'
+    ) as HTMLInputElement | null;
 
-    if (captionInput && document.activeElement !== captionInput && captionInput.value !== currentCaption) {
+    if (
+      captionInput &&
+      document.activeElement !== captionInput &&
+      captionInput.value !== currentCaption
+    ) {
       captionInput.value = currentCaption;
     }
-    if (pathInput && document.activeElement !== pathInput && pathInput.value !== currentSrc) {
+    if (
+      pathInput &&
+      document.activeElement !== pathInput &&
+      pathInput.value !== currentSrc
+    ) {
       pathInput.value = currentSrc;
     }
   }
 
-  private updateImageNodeAttrs(host: HTMLElement, attrs: { src?: string; caption?: string }) {
+  private updateImageNodeAttrs(
+    host: HTMLElement,
+    attrs: { src?: string; caption?: string }
+  ) {
     const crepe = this.getCrepe();
     if (!crepe) return;
     const state = this.findImageNodeState(host);
@@ -254,8 +302,15 @@ export class ImageMetaPanel {
     if (attrs.src !== undefined && attrs.src !== state.node.attrs.src) {
       transaction = transaction.setNodeAttribute(state.pos, 'src', attrs.src);
     }
-    if (attrs.caption !== undefined && attrs.caption !== state.node.attrs.caption) {
-      transaction = transaction.setNodeAttribute(state.pos, 'caption', attrs.caption);
+    if (
+      attrs.caption !== undefined &&
+      attrs.caption !== state.node.attrs.caption
+    ) {
+      transaction = transaction.setNodeAttribute(
+        state.pos,
+        'caption',
+        attrs.caption
+      );
     }
     if (!transaction.docChanged) return;
     transaction = transaction.scrollIntoView();

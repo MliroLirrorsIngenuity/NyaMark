@@ -18,7 +18,9 @@ export type CrepeConfigOptions = {
  * language the user typed (lazy-loaded). Without this list Crepe falls back
  * to plain text rendering with no token colours at all.
  */
-export function buildCrepeConfig(opts: CrepeConfigOptions): ConstructorParameters<typeof Crepe>[0] {
+export function buildCrepeConfig(
+  opts: CrepeConfigOptions
+): ConstructorParameters<typeof Crepe>[0] {
   return {
     root: opts.root,
     defaultValue: opts.defaultValue,

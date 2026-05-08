@@ -12,10 +12,7 @@ import { outline, replaceAll } from '@milkdown/kit/utils';
 
 import { buildCrepeConfig } from './config';
 import { registerEditorStyles } from './styles';
-import {
-  bindMermaidThemeListener,
-  configureMermaid,
-} from './plugins/mermaid';
+import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
 import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
@@ -126,7 +123,9 @@ export class NyaEditor {
 
   scrollToHeading(id: string) {
     if (!this.crepe) return;
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document
+      .getElementById(id)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   focusAtEnd() {
@@ -165,7 +164,12 @@ export class NyaEditor {
 
       if (!paragraphType) return [];
       const marks = linkMarkType
-        ? [linkMarkType.create({ href: attachment.href, title: attachment.label })]
+        ? [
+            linkMarkType.create({
+              href: attachment.href,
+              title: attachment.label,
+            }),
+          ]
         : [];
       return [paragraphType.create(null, schema.text(attachment.label, marks))];
     });

@@ -12,7 +12,11 @@ import {
 import { openMarkdownInNewWindow } from '../bridge/ipc/files';
 import { listenWindowFileDrop } from '../bridge/ipc/windows';
 import { openDirectoryDialog } from '../bridge/ipc/files';
-import { getSettings, updateSettings, subscribeSettings } from '../state/settings';
+import {
+  getSettings,
+  updateSettings,
+  subscribeSettings,
+} from '../state/settings';
 import { ImagePolicyDialog } from '../ui/image-policy-dialog';
 import {
   basename,
@@ -52,18 +56,22 @@ export class AttachmentController {
   }
 
   bindPaste(editorContainer: HTMLElement) {
-    editorContainer.addEventListener('paste', (event) => {
-      const clipboard = event.clipboardData;
-      if (!clipboard) return;
+    editorContainer.addEventListener(
+      'paste',
+      (event) => {
+        const clipboard = event.clipboardData;
+        if (!clipboard) return;
 
-      const filePaths = extractClipboardFilePaths(clipboard);
-      const files = Array.from(clipboard.files ?? []);
-      if (!filePaths.length && !files.length) return;
+        const filePaths = extractClipboardFilePaths(clipboard);
+        const files = Array.from(clipboard.files ?? []);
+        if (!filePaths.length && !files.length) return;
 
-      event.preventDefault();
-      event.stopPropagation();
-      void this.handleAttachmentPaste(files, filePaths);
-    }, true);
+        event.preventDefault();
+        event.stopPropagation();
+        void this.handleAttachmentPaste(files, filePaths);
+      },
+      true
+    );
   }
 
   async bindWindowFileDrop() {
@@ -81,7 +89,10 @@ export class AttachmentController {
   async resolvePreviewUrl(src: string) {
     if (!src || isExternalResource(src)) return src;
 
-    const absolutePath = await resolveDocumentAssetPath(this.options.getDocumentPath(), src);
+    const absolutePath = await resolveDocumentAssetPath(
+      this.options.getDocumentPath(),
+      src
+    );
     return absolutePath ? toAssetUrl(absolutePath) : src;
   }
 
@@ -94,7 +105,10 @@ export class AttachmentController {
       return;
     }
 
-    const absolutePath = await resolveDocumentAssetPath(this.options.getDocumentPath(), normalizedHref);
+    const absolutePath = await resolveDocumentAssetPath(
+      this.options.getDocumentPath(),
+      normalizedHref
+    );
     if (!absolutePath) return;
 
     if (/\.(md|markdown)$/i.test(absolutePath)) {
@@ -144,7 +158,9 @@ export class AttachmentController {
     this.commitInsertedAttachments(attachments);
   }
 
-  private async materializeAttachment(file: File): Promise<EditorAttachment | null> {
+  private async materializeAttachment(
+    file: File
+  ): Promise<EditorAttachment | null> {
     const nativePath = this.getNativeFilePath(file);
     if (nativePath) {
       return await this.createAttachmentFromLocalPath(nativePath);
@@ -162,7 +178,9 @@ export class AttachmentController {
     return typeof candidate === 'string' && candidate.trim() ? candidate : null;
   }
 
-  private async createAttachmentFromLocalPath(path: string): Promise<EditorAttachment | null> {
+  private async createAttachmentFromLocalPath(
+    path: string
+  ): Promise<EditorAttachment | null> {
     const kind = isImagePath(path) ? 'image' : 'file';
     const label = basename(path);
 
@@ -171,7 +189,11 @@ export class AttachmentController {
       if (insertRule.mode === 'copy') {
         const filePath = this.options.getDocumentPath();
         if (!filePath) {
-          const href = await formatMarkdownReference(null, path, this.getReferenceOptions());
+          const href = await formatMarkdownReference(
+            null,
+            path,
+            this.getReferenceOptions()
+          );
           return { kind, href, label };
         }
 
@@ -193,7 +215,9 @@ export class AttachmentController {
     return { kind, href, label };
   }
 
-  private async materializePastedImageAttachment(file: File): Promise<EditorAttachment | null> {
+  private async materializePastedImageAttachment(
+    file: File
+  ): Promise<EditorAttachment | null> {
     const insertRule = await this.resolvePastedImageRule();
     if (!insertRule) return null;
 
@@ -211,7 +235,8 @@ export class AttachmentController {
 
     let filePath = this.options.getDocumentPath();
     if (!filePath) {
-      const action = await this.imagePolicyDialog.chooseUnsavedPastedImageAction();
+      const action =
+        await this.imagePolicyDialog.chooseUnsavedPastedImageAction();
       if (action === 'cancel') return null;
       if (action === 'base64') {
         return {
@@ -247,7 +272,10 @@ export class AttachmentController {
       return { mode: 'copy', targetDir: documentTarget };
     }
 
-    return policyToInsertRule(this.imageSettings.insertPolicy, this.imageSettings.customCopyDirectory);
+    return policyToInsertRule(
+      this.imageSettings.insertPolicy,
+      this.imageSettings.customCopyDirectory
+    );
   }
 
   private async resolvePastedImageRule(): Promise<InsertRule | null> {
@@ -276,13 +304,17 @@ export class AttachmentController {
       const next = {
         ...this.imageSettings,
         pastedImagePolicy: choice.policy,
-        customCopyDirectory: choice.customDirectory ?? this.imageSettings.customCopyDirectory,
+        customCopyDirectory:
+          choice.customDirectory ?? this.imageSettings.customCopyDirectory,
       };
       this.imageSettings = next;
       void updateSettings({ attachments: next });
     }
 
-    return policyToInsertRule(choice.policy, choice.customDirectory ?? this.imageSettings.customCopyDirectory);
+    return policyToInsertRule(
+      choice.policy,
+      choice.customDirectory ?? this.imageSettings.customCopyDirectory
+    );
   }
 
   private commitInsertedAttachments(attachments: EditorAttachment[]) {

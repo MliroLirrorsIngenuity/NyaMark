@@ -181,7 +181,8 @@ export class ImagePolicyDialog {
 
       const customPath = document.createElement('div');
       customPath.className = 'ny-image-policy-dialog__custom-path';
-      customPath.textContent = options.customDirectory || 'No custom folder selected';
+      customPath.textContent =
+        options.customDirectory || 'No custom folder selected';
 
       const pickButton = document.createElement('button');
       pickButton.type = 'button';
@@ -193,7 +194,8 @@ export class ImagePolicyDialog {
 
       const remember = document.createElement('label');
       remember.className = 'ny-image-policy-dialog__checkbox';
-      remember.innerHTML = '<input type="checkbox" checked /> Remember this choice';
+      remember.innerHTML =
+        '<input type="checkbox" checked /> Remember this choice';
       panel.appendChild(remember);
 
       const actions = document.createElement('div');
@@ -206,14 +208,19 @@ export class ImagePolicyDialog {
 
       const confirm = document.createElement('button');
       confirm.type = 'button';
-      confirm.className = 'ny-image-policy-dialog__button ny-image-policy-dialog__button--primary';
+      confirm.className =
+        'ny-image-policy-dialog__button ny-image-policy-dialog__button--primary';
       confirm.textContent = 'Save';
 
       actions.append(cancel, confirm);
       panel.appendChild(actions);
       this.overlay.appendChild(panel);
 
-      const policyInputs = Array.from(panel.querySelectorAll<HTMLInputElement>('input[name="ny-image-policy"]'));
+      const policyInputs = Array.from(
+        panel.querySelectorAll<HTMLInputElement>(
+          'input[name="ny-image-policy"]'
+        )
+      );
       const rememberInput = remember.querySelector('input') as HTMLInputElement;
       const setSelected = (value: PastedImagePolicyChoice['policy']) => {
         policyInputs.forEach((input) => {
@@ -231,11 +238,15 @@ export class ImagePolicyDialog {
       };
 
       cancel.addEventListener('click', () => close(null));
-      this.overlay.addEventListener('click', (event) => {
-        if (event.target === this.overlay) {
-          close(null);
-        }
-      }, { once: true });
+      this.overlay.addEventListener(
+        'click',
+        (event) => {
+          if (event.target === this.overlay) {
+            close(null);
+          }
+        },
+        { once: true }
+      );
 
       pickButton.addEventListener('click', async () => {
         const path = await options.pickCustomDirectory();
@@ -246,7 +257,9 @@ export class ImagePolicyDialog {
       });
 
       confirm.addEventListener('click', () => {
-        const selected = policyInputs.find((input) => input.checked)?.value as PastedImagePolicyChoice['policy'] | undefined;
+        const selected = policyInputs.find((input) => input.checked)?.value as
+          | PastedImagePolicyChoice['policy']
+          | undefined;
         if (!selected) {
           close(null);
           return;
@@ -259,14 +272,17 @@ export class ImagePolicyDialog {
 
         close({
           policy: selected,
-          customDirectory: selected === 'copy-custom-folder' ? customDirectory : null,
+          customDirectory:
+            selected === 'copy-custom-folder' ? customDirectory : null,
           remember: rememberInput.checked,
         });
       });
     });
   }
 
-  async chooseUnsavedPastedImageAction(): Promise<'save-document' | 'base64' | 'cancel'> {
+  async chooseUnsavedPastedImageAction(): Promise<
+    'save-document' | 'base64' | 'cancel'
+  > {
     return await new Promise((resolve) => {
       this.overlay.innerHTML = '';
       this.overlay.hidden = false;
@@ -293,7 +309,8 @@ export class ImagePolicyDialog {
 
       const saveDocument = document.createElement('button');
       saveDocument.type = 'button';
-      saveDocument.className = 'ny-image-policy-dialog__button ny-image-policy-dialog__button--primary';
+      saveDocument.className =
+        'ny-image-policy-dialog__button ny-image-policy-dialog__button--primary';
       saveDocument.textContent = 'Save Document';
 
       actions.append(cancel, base64, saveDocument);
@@ -309,15 +326,23 @@ export class ImagePolicyDialog {
       cancel.addEventListener('click', () => close('cancel'));
       base64.addEventListener('click', () => close('base64'));
       saveDocument.addEventListener('click', () => close('save-document'));
-      this.overlay.addEventListener('click', (event) => {
-        if (event.target === this.overlay) {
-          close('cancel');
-        }
-      }, { once: true });
+      this.overlay.addEventListener(
+        'click',
+        (event) => {
+          if (event.target === this.overlay) {
+            close('cancel');
+          }
+        },
+        { once: true }
+      );
     });
   }
 
-  private optionMarkup(value: PastedImagePolicyChoice['policy'], title: string, description: string) {
+  private optionMarkup(
+    value: PastedImagePolicyChoice['policy'],
+    title: string,
+    description: string
+  ) {
     return `
       <label class="ny-image-policy-dialog__option">
         <input type="radio" name="ny-image-policy" value="${value}" />

@@ -1,4 +1,8 @@
-import { defaultImageSettings, type ImageInsertPolicy, type PastedImagePolicy } from '../state/image-settings';
+import {
+  defaultImageSettings,
+  type ImageInsertPolicy,
+  type PastedImagePolicy,
+} from '../state/image-settings';
 
 export type InsertRule =
   | { mode: 'use-path' }
@@ -28,7 +32,9 @@ export function getDocumentCopyTarget(markdown: string) {
   if (!frontmatter) return null;
 
   for (const key of ['typora-copy-images-to', 'nyamark-copy-images-to']) {
-    const match = frontmatter[1].match(new RegExp(`^\\s*${key}\\s*:\\s*(.+?)\\s*$`, 'm'));
+    const match = frontmatter[1].match(
+      new RegExp(`^\\s*${key}\\s*:\\s*(.+?)\\s*$`, 'm')
+    );
     if (match?.[1]) {
       return match[1].trim().replace(/^['"]|['"]$/g, '');
     }
@@ -65,11 +71,16 @@ export function extractClipboardFilePaths(clipboard: DataTransfer) {
     clipboard.getData('text/plain'),
   ];
 
-  return Array.from(new Set(payloads.flatMap((payload) => parseFileUris(payload))));
+  return Array.from(
+    new Set(payloads.flatMap((payload) => parseFileUris(payload)))
+  );
 }
 
 export function isExternalResource(value: string) {
-  return !/^[a-zA-Z]:[\\/]/.test(value) && /^(https?:|data:|blob:|asset:|mailto:|tel:)/i.test(value);
+  return (
+    !/^[a-zA-Z]:[\\/]/.test(value) &&
+    /^(https?:|data:|blob:|asset:|mailto:|tel:)/i.test(value)
+  );
 }
 
 function parseFileUris(payload: string) {

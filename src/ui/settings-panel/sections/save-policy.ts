@@ -26,8 +26,12 @@ export function renderSaveSection(
     </div>
   `;
 
-  const checkbox = section.querySelector<HTMLInputElement>('input[type="checkbox"][data-key="autoSave"]');
-  const interval = section.querySelector<HTMLInputElement>('input[type="number"][data-key="autoSaveIntervalMs"]');
+  const checkbox = section.querySelector<HTMLInputElement>(
+    'input[type="checkbox"][data-key="autoSave"]'
+  );
+  const interval = section.querySelector<HTMLInputElement>(
+    'input[type="number"][data-key="autoSaveIntervalMs"]'
+  );
   if (checkbox) {
     checkbox.checked = current.autoSave;
     checkbox.addEventListener('change', () => {

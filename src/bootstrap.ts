@@ -65,7 +65,8 @@ export class App {
       getMarkdown: () => this.editor?.getMarkdown() ?? '',
       getDocumentPath: () => store.getState().filePath,
       saveDocumentAs: () => this.fileController!.saveFileAs(),
-      insertAttachments: (attachments) => this.editor?.insertAttachments(attachments),
+      insertAttachments: (attachments) =>
+        this.editor?.insertAttachments(attachments),
       onAttachmentsInserted: () => {
         this.updateStats();
         store.update({ isDirty: true });
@@ -73,7 +74,8 @@ export class App {
     });
 
     this.editor = new NyaEditor(editorContainer, {
-      onUploadFile: (file) => this.attachments?.upload(file) ?? Promise.resolve(''),
+      onUploadFile: (file) =>
+        this.attachments?.upload(file) ?? Promise.resolve(''),
       proxyDomURL: (src) => this.attachments?.resolvePreviewUrl(src) ?? src,
     });
 
@@ -91,7 +93,11 @@ export class App {
     new SearchPanel();
 
     this.outline = new OutlinePanel(this.editor);
-    this.sourceMode = new SourceModeController(editorContainer, this.editor, store);
+    this.sourceMode = new SourceModeController(
+      editorContainer,
+      this.editor,
+      store
+    );
     this.sourceMode.init();
 
     this.bindBlankDocumentFocus();
@@ -106,7 +112,7 @@ export class App {
         isInitialLoad = false;
         return;
       }
-      
+
       const lastKnown = this.fileController?.getLastKnownContent();
       if (lastKnown !== null && markdown === lastKnown) {
         store.update({ isDirty: false });
@@ -142,7 +148,9 @@ export class App {
   }
 
   private bindBlankDocumentFocus() {
-    const shellBody = document.querySelector('.ny-shell__body') as HTMLElement | null;
+    const shellBody = document.querySelector(
+      '.ny-shell__body'
+    ) as HTMLElement | null;
     if (!shellBody) return;
 
     shellBody.addEventListener('pointerdown', (event) => {
@@ -176,15 +184,23 @@ export class App {
         if (!anchor) return;
         event.preventDefault();
         event.stopPropagation();
-        void this.attachments?.openLinkedResource(anchor.getAttribute('href') ?? '');
+        void this.attachments?.openLinkedResource(
+          anchor.getAttribute('href') ?? ''
+        );
       },
       true
     );
   }
 
-  private shouldFocusEditorEnd(target: HTMLElement, clientX: number, clientY: number) {
+  private shouldFocusEditorEnd(
+    target: HTMLElement,
+    clientX: number,
+    clientY: number
+  ) {
     const editorFrame = document.getElementById('editor-container');
-    const editorSurface = document.querySelector('.milkdown .editor') as HTMLElement | null;
+    const editorSurface = document.querySelector(
+      '.milkdown .editor'
+    ) as HTMLElement | null;
     if (!editorFrame || !editorSurface) return false;
 
     const frameRect = editorFrame.getBoundingClientRect();
@@ -198,7 +214,8 @@ export class App {
       .reverse()
       .find(
         (child): child is HTMLElement =>
-          child instanceof HTMLElement && child.getBoundingClientRect().height > 0
+          child instanceof HTMLElement &&
+          child.getBoundingClientRect().height > 0
       );
 
     if (!lastContent) return false;
@@ -220,7 +237,10 @@ export class App {
   private updateThemeLabel(elTheme: HTMLElement, mode: ThemeMode) {
     const label = mode === 'dark' ? 'Dark' : 'Light';
     elTheme.textContent = label;
-    elTheme.setAttribute('aria-label', `Switch theme mode, current ${label.toLowerCase()}`);
+    elTheme.setAttribute(
+      'aria-label',
+      `Switch theme mode, current ${label.toLowerCase()}`
+    );
     elTheme.setAttribute(
       'title',
       `Current ${mode}. Updates automatically when the system theme changes.`
@@ -231,7 +251,7 @@ export class App {
     if (!this.editor || savedContent === this.editor.getMarkdown()) return;
     this.suppressDirtyTracking = true;
     this.editor.setMarkdown(savedContent);
-    
+
     setTimeout(() => {
       this.suppressDirtyTracking = false;
       store.update({ isDirty: false });
@@ -249,7 +269,10 @@ export class App {
   private bindAutoSave() {
     subscribeSettings((settings) => {
       this.autoSaveEnabled = settings.save.autoSave;
-      this.autoSaveIntervalMs = Math.max(60_000, settings.save.autoSaveIntervalMs);
+      this.autoSaveIntervalMs = Math.max(
+        60_000,
+        settings.save.autoSaveIntervalMs
+      );
       this.syncAutoSave();
     });
 

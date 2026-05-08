@@ -159,9 +159,15 @@ export class SourceModeController {
         effects: this.cmThemeCompartment.reconfigure(this.themeExtension()),
       });
     };
-    window.addEventListener('nyamark:themechange', handleThemeChange as EventListener);
+    window.addEventListener(
+      'nyamark:themechange',
+      handleThemeChange as EventListener
+    );
     this.unsubscribeTheme = () => {
-      window.removeEventListener('nyamark:themechange', handleThemeChange as EventListener);
+      window.removeEventListener(
+        'nyamark:themechange',
+        handleThemeChange as EventListener
+      );
     };
   }
 
@@ -220,7 +226,9 @@ export class SourceModeController {
     if (!this.cmView || !this.editorRoot) return;
 
     const cmScroller = this.cmView.scrollDOM;
-    const milkdownPane = this.editorRoot.querySelector('.milkdown') as HTMLElement;
+    const milkdownPane = this.editorRoot.querySelector(
+      '.milkdown'
+    ) as HTMLElement;
     if (!cmScroller || !milkdownPane) return;
 
     const sync = (source: HTMLElement, target: HTMLElement) => {
@@ -229,24 +237,32 @@ export class SourceModeController {
       }
 
       this.lastScrollSource = source;
-      
+
       requestAnimationFrame(() => {
         const sourceMax = source.scrollHeight - source.clientHeight;
         const targetMax = target.scrollHeight - target.clientHeight;
-        
+
         if (sourceMax > 0 && targetMax > 0) {
           const percentage = source.scrollTop / sourceMax;
           target.scrollTop = Math.round(percentage * targetMax);
         }
-        
+
         requestAnimationFrame(() => {
           this.lastScrollSource = null;
         });
       });
     };
 
-    cmScroller.addEventListener('scroll', () => sync(cmScroller, milkdownPane), { passive: true });
-    milkdownPane.addEventListener('scroll', () => sync(milkdownPane, cmScroller), { passive: true });
+    cmScroller.addEventListener(
+      'scroll',
+      () => sync(cmScroller, milkdownPane),
+      { passive: true }
+    );
+    milkdownPane.addEventListener(
+      'scroll',
+      () => sync(milkdownPane, cmScroller),
+      { passive: true }
+    );
   }
 
   private exit() {

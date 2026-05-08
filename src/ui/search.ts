@@ -103,7 +103,11 @@ export class SearchPanel {
     this.setupListeners(btnPrev, btnNext, btnClose);
   }
 
-  private setupListeners(btnPrev: HTMLButtonElement, btnNext: HTMLButtonElement, btnClose: HTMLButtonElement) {
+  private setupListeners(
+    btnPrev: HTMLButtonElement,
+    btnNext: HTMLButtonElement,
+    btnClose: HTMLButtonElement
+  ) {
     window.addEventListener('keydown', (e) => {
       // Cmd/Ctrl + F
       if ((e.metaKey || e.ctrlKey) && e.code === 'KeyF') {
@@ -147,11 +151,19 @@ export class SearchPanel {
   private performSearch(backward: boolean) {
     const text = this.elInput.value;
     if (!text) return;
-    
+
     // Basic native find for MVP (it handles highlighting and scrolling)
     // A robust Prosemirror implementation would be needed for a perfect Typora clone
     // but window.find provides instant value for v0.2
-    const found = (window as any).find(text, false, backward, true, false, false, false);
+    const found = (window as any).find(
+      text,
+      false,
+      backward,
+      true,
+      false,
+      false,
+      false
+    );
     if (!found) {
       // If we reach the end/beginning, wrap around
       // window.find stops at document bounds if wrap is false, but we passed wrap=true

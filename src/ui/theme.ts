@@ -19,7 +19,8 @@ const STORAGE_KEY = 'nyamark-theme';
 export class ThemeManager {
   private mode: ThemeMode;
   private listeners = new Set<(mode: ThemeMode) => void>();
-  private readonly mediaQuery = window.matchMedia?.('(prefers-color-scheme: dark)') ?? null;
+  private readonly mediaQuery =
+    window.matchMedia?.('(prefers-color-scheme: dark)') ?? null;
   private readonly handleBrowserThemeChange = (event: MediaQueryListEvent) => {
     if (this.hasManualPreference()) return;
     this.setMode(event.matches ? 'dark' : 'light');
@@ -108,12 +109,17 @@ export class ThemeManager {
     document.documentElement.classList.toggle('dark', this.mode === 'dark');
     document.documentElement.dataset.theme = this.mode;
     document.documentElement.style.colorScheme = this.mode;
-    window.dispatchEvent(new CustomEvent('nyamark:themechange', { detail: { mode: this.mode } }));
+    window.dispatchEvent(
+      new CustomEvent('nyamark:themechange', { detail: { mode: this.mode } })
+    );
     this.listeners.forEach((listener) => listener(this.mode));
   }
 
   destroy() {
-    this.mediaQuery?.removeEventListener('change', this.handleBrowserThemeChange);
+    this.mediaQuery?.removeEventListener(
+      'change',
+      this.handleBrowserThemeChange
+    );
     this.nativeUnlisten?.();
     this.nativeUnlisten = null;
   }

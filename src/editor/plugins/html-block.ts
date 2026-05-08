@@ -106,7 +106,9 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
       if (textarea.value !== node.attrs.value && typeof getPos === 'function') {
         const pos = getPos();
         if (pos !== undefined) {
-          const tr = view.state.tr.setNodeMarkup(pos, undefined, { value: textarea.value });
+          const tr = view.state.tr.setNodeMarkup(pos, undefined, {
+            value: textarea.value,
+          });
           view.dispatch(tr);
         }
       }
@@ -123,7 +125,7 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
       if (target.closest('a, button, input, select, textarea')) {
         return;
       }
-      
+
       focused = true;
       updateDisplay();
       textarea.focus();

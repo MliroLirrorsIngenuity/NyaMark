@@ -28,7 +28,10 @@ export async function readMarkdown(path: string): Promise<string> {
   return await invoke('read_markdown', { path });
 }
 
-export async function saveMarkdown(path: string, content: string): Promise<string> {
+export async function saveMarkdown(
+  path: string,
+  content: string
+): Promise<string> {
   return await invoke('save_markdown', { path, content });
 }
 

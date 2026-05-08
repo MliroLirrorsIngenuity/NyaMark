@@ -3,9 +3,20 @@ import { getPlatform } from '../platform/detect';
 
 export { registerShellStyles } from './shell.css';
 
-type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
+type ResizeDirection =
+  | 'East'
+  | 'North'
+  | 'NorthEast'
+  | 'NorthWest'
+  | 'South'
+  | 'SouthEast'
+  | 'SouthWest'
+  | 'West';
 
-const linuxResizeHandles: Array<{ direction: ResizeDirection; className: string }> = [
+const linuxResizeHandles: Array<{
+  direction: ResizeDirection;
+  className: string;
+}> = [
   { direction: 'North', className: 'ny-shell__resize-handle--n' },
   { direction: 'South', className: 'ny-shell__resize-handle--s' },
   { direction: 'West', className: 'ny-shell__resize-handle--w' },
@@ -18,32 +29,42 @@ const linuxResizeHandles: Array<{ direction: ResizeDirection; className: string 
 
 function renderLinuxResizeHandles() {
   return linuxResizeHandles
-    .map(({ direction, className }) => (
-      `<div class="ny-shell__resize-handle ${className}" data-resize-direction="${direction}" aria-hidden="true"></div>`
-    ))
+    .map(
+      ({ direction, className }) =>
+        `<div class="ny-shell__resize-handle ${className}" data-resize-direction="${direction}" aria-hidden="true"></div>`
+    )
     .join('');
 }
 
 function bindLinuxResizeHandles(host: HTMLElement) {
-  host.querySelectorAll<HTMLElement>('[data-resize-direction]').forEach((handle) => {
-    handle.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      event.preventDefault();
-      event.stopPropagation();
+  host
+    .querySelectorAll<HTMLElement>('[data-resize-direction]')
+    .forEach((handle) => {
+      handle.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
 
-      const direction = handle.dataset.resizeDirection as ResizeDirection | undefined;
-      if (!direction) return;
+        const direction = handle.dataset.resizeDirection as
+          | ResizeDirection
+          | undefined;
+        if (!direction) return;
 
-      void getCurrentWindow().startResizeDragging(direction).catch(console.error);
+        void getCurrentWindow()
+          .startResizeDragging(direction)
+          .catch(console.error);
+      });
     });
-  });
 }
 
 export function renderAppShell(host: HTMLElement) {
   const platformClass = getPlatform();
   const isMac = platformClass === 'macos';
   const isLinux = platformClass === 'linux';
-  const initialThemeLabel = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'Dark' : 'Light';
+  const initialThemeLabel = window.matchMedia?.('(prefers-color-scheme: dark)')
+    .matches
+    ? 'Dark'
+    : 'Light';
   const newShortcutHint = isMac ? '⌘N' : 'Ctrl+N';
   const openShortcutHint = isMac ? '⌘O' : 'Ctrl+O';
   const saveShortcutHint = isMac ? '⌘S' : 'Ctrl+S';

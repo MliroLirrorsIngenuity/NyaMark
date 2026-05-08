@@ -1,5 +1,10 @@
 import { Store } from '../state/store';
-import { closeWindow, minimizeWindow, setWindowTitle, toggleMaximizeWindow } from '../bridge/ipc/windows';
+import {
+  closeWindow,
+  minimizeWindow,
+  setWindowTitle,
+  toggleMaximizeWindow,
+} from '../bridge/ipc/windows';
 
 type TitlebarActions = {
   onNewFile: () => Promise<unknown> | void;
@@ -17,17 +22,32 @@ type TitlebarActions = {
  * any of that here.
  */
 export class Titlebar {
-  private readonly elFilename = document.getElementById('tb-filename') as HTMLElement;
+  private readonly elFilename = document.getElementById(
+    'tb-filename'
+  ) as HTMLElement;
   private readonly elDirty = document.getElementById('tb-dirty') as HTMLElement;
-  private readonly elFileMenuButton = document.getElementById('tb-file-menu-button') as HTMLButtonElement | null;
-  private readonly elFileMenu = document.getElementById('tb-file-menu') as HTMLDivElement | null;
+  private readonly elFileMenuButton = document.getElementById(
+    'tb-file-menu-button'
+  ) as HTMLButtonElement | null;
+  private readonly elFileMenu = document.getElementById(
+    'tb-file-menu'
+  ) as HTMLDivElement | null;
 
-  constructor(private readonly store: Store, private readonly actions: TitlebarActions) {
+  constructor(
+    private readonly store: Store,
+    private readonly actions: TitlebarActions
+  ) {
     this.bindFileMenu();
     this.bindAction('tb-outline', this.actions.onToggleOutline);
     this.bindClick('tb-settings', () => this.actions.onOpenSettings());
-    this.bindClick('tb-minimize', () => void minimizeWindow().catch(console.error));
-    this.bindClick('tb-maximize', () => void toggleMaximizeWindow().catch(console.error));
+    this.bindClick(
+      'tb-minimize',
+      () => void minimizeWindow().catch(console.error)
+    );
+    this.bindClick(
+      'tb-maximize',
+      () => void toggleMaximizeWindow().catch(console.error)
+    );
     this.bindClick('tb-close', () => void closeWindow().catch(console.error));
 
     this.store.subscribe((state) => this.update(state));
@@ -48,22 +68,30 @@ export class Titlebar {
       setOpen(menu.hidden);
     });
 
-    menu.querySelector<HTMLElement>('[data-file-action="new"]')?.addEventListener('click', () => {
-      setOpen(false);
-      void Promise.resolve(this.actions.onNewFile()).catch(console.error);
-    });
-    menu.querySelector<HTMLElement>('[data-file-action="open"]')?.addEventListener('click', () => {
-      setOpen(false);
-      void Promise.resolve(this.actions.onOpenFile()).catch(console.error);
-    });
-    menu.querySelector<HTMLElement>('[data-file-action="save"]')?.addEventListener('click', () => {
-      setOpen(false);
-      void Promise.resolve(this.actions.onSaveFile()).catch(console.error);
-    });
-    menu.querySelector<HTMLElement>('[data-file-action="save-as"]')?.addEventListener('click', () => {
-      setOpen(false);
-      void Promise.resolve(this.actions.onSaveFileAs()).catch(console.error);
-    });
+    menu
+      .querySelector<HTMLElement>('[data-file-action="new"]')
+      ?.addEventListener('click', () => {
+        setOpen(false);
+        void Promise.resolve(this.actions.onNewFile()).catch(console.error);
+      });
+    menu
+      .querySelector<HTMLElement>('[data-file-action="open"]')
+      ?.addEventListener('click', () => {
+        setOpen(false);
+        void Promise.resolve(this.actions.onOpenFile()).catch(console.error);
+      });
+    menu
+      .querySelector<HTMLElement>('[data-file-action="save"]')
+      ?.addEventListener('click', () => {
+        setOpen(false);
+        void Promise.resolve(this.actions.onSaveFile()).catch(console.error);
+      });
+    menu
+      .querySelector<HTMLElement>('[data-file-action="save-as"]')
+      ?.addEventListener('click', () => {
+        setOpen(false);
+        void Promise.resolve(this.actions.onSaveFileAs()).catch(console.error);
+      });
 
     document.addEventListener('click', (event) => {
       const target = event.target as Node | null;
@@ -89,7 +117,9 @@ export class Titlebar {
 
   private update(state: ReturnType<Store['getState']>) {
     const filename = state.filePath
-      ? state.filePath.split('/').pop() || state.filePath.split('\\').pop() || 'Untitled.md'
+      ? state.filePath.split('/').pop() ||
+        state.filePath.split('\\').pop() ||
+        'Untitled.md'
       : 'Untitled.md';
     if (this.elFilename.textContent !== filename) {
       this.elFilename.textContent = filename;

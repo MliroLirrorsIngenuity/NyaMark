@@ -1,15 +1,39 @@
-import type { ImageSettings, ImageInsertPolicy } from '../../../state/image-settings';
+import type {
+  ImageSettings,
+  ImageInsertPolicy,
+} from '../../../state/image-settings';
 
-const POLICIES: Array<{ value: ImageInsertPolicy; label: string; description: string }> = [
-  { value: 'use-path', label: 'Keep original path', description: 'Reference the original file location, no copy.' },
-  { value: 'copy-same-folder', label: 'Same folder', description: 'Copy next to the current document.' },
-  { value: 'copy-assets', label: './assets', description: 'Copy into a sibling assets folder.' },
+const POLICIES: Array<{
+  value: ImageInsertPolicy;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'use-path',
+    label: 'Keep original path',
+    description: 'Reference the original file location, no copy.',
+  },
+  {
+    value: 'copy-same-folder',
+    label: 'Same folder',
+    description: 'Copy next to the current document.',
+  },
+  {
+    value: 'copy-assets',
+    label: './assets',
+    description: 'Copy into a sibling assets folder.',
+  },
   {
     value: 'copy-custom-folder',
     label: 'Custom folder',
-    description: 'Copy into a folder you choose. Set it from the paste dialog the first time.',
+    description:
+      'Copy into a folder you choose. Set it from the paste dialog the first time.',
   },
-  { value: 'base64', label: 'Embed as Base64', description: 'Inline images directly inside the document.' },
+  {
+    value: 'base64',
+    label: 'Embed as Base64',
+    description: 'Inline images directly inside the document.',
+  },
 ];
 
 export function renderAttachmentsSection(
@@ -42,7 +66,9 @@ export function renderAttachmentsSection(
     </div>
   `;
 
-  const policyGroup = section.querySelector<HTMLElement>('[data-group="insertPolicy"]');
+  const policyGroup = section.querySelector<HTMLElement>(
+    '[data-group="insertPolicy"]'
+  );
   if (policyGroup) {
     POLICIES.forEach(({ value, label, description }) => {
       const option = document.createElement('label');
@@ -63,15 +89,20 @@ export function renderAttachmentsSection(
     });
   }
 
-  section.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-key]').forEach((input) => {
-    const key = input.dataset.key as keyof Pick<ImageSettings, 'preferRelativePath' | 'ensureDotSlash' | 'escapePath'>;
-    input.checked = Boolean(current[key]);
-    input.addEventListener('change', () => {
-      const next = { ...current, [key]: input.checked } as ImageSettings;
-      onChange(next);
-      Object.assign(current, next);
+  section
+    .querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-key]')
+    .forEach((input) => {
+      const key = input.dataset.key as keyof Pick<
+        ImageSettings,
+        'preferRelativePath' | 'ensureDotSlash' | 'escapePath'
+      >;
+      input.checked = Boolean(current[key]);
+      input.addEventListener('change', () => {
+        const next = { ...current, [key]: input.checked } as ImageSettings;
+        onChange(next);
+        Object.assign(current, next);
+      });
     });
-  });
 
   return section;
 }

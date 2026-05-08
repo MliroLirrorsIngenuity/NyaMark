@@ -357,24 +357,30 @@ export class SettingsPanel {
       }, 180);
     };
 
-    const appearance = renderAppearanceSection(working.appearance, (next, mode) => {
-      working = { ...working, appearance: next };
-      if (mode === 'commit') {
-        if (previewTimer !== null) {
-          window.clearTimeout(previewTimer);
-          previewTimer = null;
+    const appearance = renderAppearanceSection(
+      working.appearance,
+      (next, mode) => {
+        working = { ...working, appearance: next };
+        if (mode === 'commit') {
+          if (previewTimer !== null) {
+            window.clearTimeout(previewTimer);
+            previewTimer = null;
+          }
+          previewAppearance(next);
+          return;
         }
-        previewAppearance(next);
-        return;
+        scheduleAppearancePreview(next);
       }
-      scheduleAppearancePreview(next);
-    });
+    );
     const save = renderSaveSection(working.save, (next) => {
       working = { ...working, save: next };
     });
-    const attachments = renderAttachmentsSection(working.attachments, (next) => {
-      working = { ...working, attachments: next };
-    });
+    const attachments = renderAttachmentsSection(
+      working.attachments,
+      (next) => {
+        working = { ...working, attachments: next };
+      }
+    );
 
     body.append(appearance, save, attachments);
     dialog.appendChild(body);
@@ -384,7 +390,8 @@ export class SettingsPanel {
 
     const reset = document.createElement('button');
     reset.type = 'button';
-    reset.className = 'ny-settings-dialog__button ny-settings-dialog__button--danger';
+    reset.className =
+      'ny-settings-dialog__button ny-settings-dialog__button--danger';
     reset.textContent = 'Reset to defaults';
 
     const buttons = document.createElement('div');
@@ -398,7 +405,8 @@ export class SettingsPanel {
 
     const ok = document.createElement('button');
     ok.type = 'button';
-    ok.className = 'ny-settings-dialog__button ny-settings-dialog__button--primary';
+    ok.className =
+      'ny-settings-dialog__button ny-settings-dialog__button--primary';
     ok.textContent = 'OK';
 
     buttons.append(cancel, ok);
@@ -407,7 +415,9 @@ export class SettingsPanel {
     overlay.appendChild(dialog);
 
     const syncOkState = () => {
-      ok.disabled = Boolean(dialog.querySelector('input[type="number"]:invalid'));
+      ok.disabled = Boolean(
+        dialog.querySelector('input[type="number"]:invalid')
+      );
       ok.style.opacity = ok.disabled ? '0.55' : '';
     };
     syncOkState();
@@ -486,8 +496,12 @@ export class SettingsPanel {
       };
 
       document.addEventListener('keydown', onKey, true);
-      confirm.querySelector<HTMLElement>('[data-action="cancel"]')?.addEventListener('click', () => void close(false));
-      confirm.querySelector<HTMLElement>('[data-action="confirm"]')?.addEventListener('click', () => void close(true));
+      confirm
+        .querySelector<HTMLElement>('[data-action="cancel"]')
+        ?.addEventListener('click', () => void close(false));
+      confirm
+        .querySelector<HTMLElement>('[data-action="confirm"]')
+        ?.addEventListener('click', () => void close(true));
 
       host.appendChild(confirm);
     });

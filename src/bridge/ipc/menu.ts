@@ -21,9 +21,12 @@ const KNOWN_ACTIONS = new Set<AppMenuAction>([
 export async function listenAppMenuAction(
   handler: (action: AppMenuAction) => void
 ): Promise<UnlistenFn> {
-  return getCurrentWindow().listen<AppMenuAction>(APP_MENU_ACTION_EVENT, (event) => {
-    if (KNOWN_ACTIONS.has(event.payload)) {
-      handler(event.payload);
+  return getCurrentWindow().listen<AppMenuAction>(
+    APP_MENU_ACTION_EVENT,
+    (event) => {
+      if (KNOWN_ACTIONS.has(event.payload)) {
+        handler(event.payload);
+      }
     }
-  });
+  );
 }

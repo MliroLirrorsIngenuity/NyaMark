@@ -226,7 +226,10 @@ export class OutlinePanel {
       const el = document.createElement('div');
       el.className = 'ny-outline__item';
       el.dataset.level = String(item.level);
-      el.style.setProperty('--outline-indent', `${Math.max(0, item.level - 2) * 14}px`);
+      el.style.setProperty(
+        '--outline-indent',
+        `${Math.max(0, item.level - 2) * 14}px`
+      );
       el.textContent = item.text;
       el.title = item.text;
       if (item.id === this.activeHeadingId) {

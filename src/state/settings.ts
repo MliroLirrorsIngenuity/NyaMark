@@ -1,7 +1,4 @@
-import {
-  type ImageSettings,
-  defaultImageSettings,
-} from './image-settings';
+import { type ImageSettings, defaultImageSettings } from './image-settings';
 import {
   loadPersistedSettings,
   savePersistedSettings,
@@ -46,23 +43,40 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function sanitizeAppearanceSettings(appearance: Partial<AppearanceSettings> | undefined): AppearanceSettings {
+export function sanitizeAppearanceSettings(
+  appearance: Partial<AppearanceSettings> | undefined
+): AppearanceSettings {
   return {
-    fontSize: clamp(Number(appearance?.fontSize ?? defaultSettings.appearance.fontSize), 11, 22),
-    lineHeight: clamp(Number(appearance?.lineHeight ?? defaultSettings.appearance.lineHeight), 1.2, 2.2),
+    fontSize: clamp(
+      Number(appearance?.fontSize ?? defaultSettings.appearance.fontSize),
+      11,
+      22
+    ),
+    lineHeight: clamp(
+      Number(appearance?.lineHeight ?? defaultSettings.appearance.lineHeight),
+      1.2,
+      2.2
+    ),
     readableMaxWidth: clamp(
-      Number(appearance?.readableMaxWidth ?? defaultSettings.appearance.readableMaxWidth),
+      Number(
+        appearance?.readableMaxWidth ??
+          defaultSettings.appearance.readableMaxWidth
+      ),
       520,
       1100
     ),
   };
 }
 
-function sanitizeSaveSettings(save: Partial<SaveSettings> | undefined): SaveSettings {
+function sanitizeSaveSettings(
+  save: Partial<SaveSettings> | undefined
+): SaveSettings {
   return {
     autoSave: Boolean(save?.autoSave),
     autoSaveIntervalMs: clamp(
-      Number(save?.autoSaveIntervalMs ?? defaultSettings.save.autoSaveIntervalMs),
+      Number(
+        save?.autoSaveIntervalMs ?? defaultSettings.save.autoSaveIntervalMs
+      ),
       60_000,
       3_600_000
     ),
@@ -73,18 +87,26 @@ function applyAppearance(appearance: AppearanceSettings) {
   const root = document.documentElement.style;
   root.setProperty('--ny-editor-font-size', `${appearance.fontSize}px`);
   root.setProperty('--ny-editor-line-height', String(appearance.lineHeight));
-  root.setProperty('--ny-editor-readable-max', `${appearance.readableMaxWidth}px`);
+  root.setProperty(
+    '--ny-editor-readable-max',
+    `${appearance.readableMaxWidth}px`
+  );
 }
 
 export function previewAppearance(appearance: AppearanceSettings) {
   applyAppearance(sanitizeAppearanceSettings(appearance));
 }
 
-function normalizeSettings(parsed: Partial<Settings> | null | undefined): Settings {
+function normalizeSettings(
+  parsed: Partial<Settings> | null | undefined
+): Settings {
   return {
     appearance: sanitizeAppearanceSettings(parsed?.appearance),
     save: sanitizeSaveSettings(parsed?.save),
-    attachments: { ...defaultSettings.attachments, ...(parsed?.attachments ?? {}) },
+    attachments: {
+      ...defaultSettings.attachments,
+      ...(parsed?.attachments ?? {}),
+    },
   };
 }
 
@@ -119,7 +141,9 @@ export async function saveSettings(next: Settings) {
     applyAppearance(previous.appearance);
     throw error;
   }
-  window.dispatchEvent(new CustomEvent<Settings>(SETTINGS_EVENT, { detail: cached }));
+  window.dispatchEvent(
+    new CustomEvent<Settings>(SETTINGS_EVENT, { detail: cached })
+  );
 }
 
 export async function updateSettings(partial: Partial<Settings>) {
@@ -132,7 +156,9 @@ export async function updateSettings(partial: Partial<Settings>) {
   await saveSettings(merged);
 }
 
-export function subscribeSettings(listener: (settings: Settings) => void): () => void {
+export function subscribeSettings(
+  listener: (settings: Settings) => void
+): () => void {
   const handler = (event: Event) => {
     const detail = (event as CustomEvent<Settings>).detail;
     listener(detail);

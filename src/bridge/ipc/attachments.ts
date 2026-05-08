@@ -17,7 +17,11 @@ export async function materializeAttachment(
   fileName: string,
   bytes: number[]
 ): Promise<StoredAttachment> {
-  return await invoke('materialize_attachment', { documentPath, fileName, bytes });
+  return await invoke('materialize_attachment', {
+    documentPath,
+    fileName,
+    bytes,
+  });
 }
 
 export async function materializeDraftAttachment(
@@ -49,14 +53,22 @@ export async function copyLocalAttachment(
   targetDir: string,
   options: AttachmentReferenceOptions
 ): Promise<StoredAttachment> {
-  return await invoke('copy_local_attachment', { documentPath, sourcePath, targetDir, options });
+  return await invoke('copy_local_attachment', {
+    documentPath,
+    sourcePath,
+    targetDir,
+    options,
+  });
 }
 
 export async function resolveDocumentAssetPath(
   documentPath: string | null,
   assetPath: string
 ): Promise<string | null> {
-  return await invoke('resolve_document_asset_path', { documentPath, assetPath });
+  return await invoke('resolve_document_asset_path', {
+    documentPath,
+    assetPath,
+  });
 }
 
 export async function formatMarkdownReference(
@@ -64,7 +76,11 @@ export async function formatMarkdownReference(
   assetPath: string,
   options: AttachmentReferenceOptions
 ): Promise<string> {
-  return await invoke('format_markdown_reference', { documentPath, assetPath, options });
+  return await invoke('format_markdown_reference', {
+    documentPath,
+    assetPath,
+    options,
+  });
 }
 
 export function toAssetUrl(path: string): string {

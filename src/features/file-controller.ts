@@ -33,7 +33,10 @@ export class FileController {
     return this.lastKnownContent;
   }
 
-  async resolveInitialDocument(): Promise<{ filePath: string | null; markdown: string }> {
+  async resolveInitialDocument(): Promise<{
+    filePath: string | null;
+    markdown: string;
+  }> {
     try {
       const filePath = await resolveCurrentWindowFile();
       if (!filePath) return { filePath: null, markdown: '' };
@@ -48,24 +51,28 @@ export class FileController {
 
   private updateWatcher(path: string | null) {
     if (this.watchedPath === path) return;
-    
+
     if (this.unwatch) {
       window.clearInterval(this.unwatch as unknown as number);
       this.unwatch = null;
     }
-    
+
     this.watchedPath = path;
     if (!path) return;
 
     let lastMtime: number | null = null;
-    invoke<number>('get_file_modified_time', { path }).then(mtime => lastMtime = mtime).catch(() => {});
+    invoke<number>('get_file_modified_time', { path })
+      .then((mtime) => (lastMtime = mtime))
+      .catch(() => {});
 
     const timer = window.setInterval(async () => {
       try {
-        const currentMtime = await invoke<number>('get_file_modified_time', { path });
+        const currentMtime = await invoke<number>('get_file_modified_time', {
+          path,
+        });
         if (lastMtime !== null && currentMtime !== lastMtime) {
           lastMtime = currentMtime;
-          
+
           const state = store.getState();
           if (state.isDirty) {
             return;
@@ -84,8 +91,7 @@ export class FileController {
         } else {
           lastMtime = currentMtime;
         }
-      } catch (error) {
-      }
+      } catch (error) {}
     }, 1000);
 
     this.unwatch = () => window.clearInterval(timer);
@@ -110,7 +116,10 @@ export class FileController {
 
   async saveFile() {
     try {
-      await this.saveCurrentDocument({ forceDialog: false, allowDialogWhenMissingPath: true });
+      await this.saveCurrentDocument({
+        forceDialog: false,
+        allowDialogWhenMissingPath: true,
+      });
     } catch (error) {
       console.error('Failed to save file:', error);
     }
@@ -118,7 +127,10 @@ export class FileController {
 
   async saveFileAs(): Promise<string | null> {
     try {
-      return await this.saveCurrentDocument({ forceDialog: true, allowDialogWhenMissingPath: true });
+      return await this.saveCurrentDocument({
+        forceDialog: true,
+        allowDialogWhenMissingPath: true,
+      });
     } catch (error) {
       console.error('Failed to save file as:', error);
       return null;
@@ -127,7 +139,10 @@ export class FileController {
 
   async autoSaveFile() {
     try {
-      await this.saveCurrentDocument({ forceDialog: false, allowDialogWhenMissingPath: false });
+      await this.saveCurrentDocument({
+        forceDialog: false,
+        allowDialogWhenMissingPath: false,
+      });
     } catch (error) {
       console.error('Failed to auto-save file:', error);
     }
@@ -147,11 +162,8 @@ export class FileController {
 
     const path = options.forceDialog
       ? await saveFileDialog()
-      : state.filePath ?? (
-          options.allowDialogWhenMissingPath
-            ? await saveFileDialog()
-            : null
-        );
+      : (state.filePath ??
+        (options.allowDialogWhenMissingPath ? await saveFileDialog() : null));
 
     if (!path) return null;
 
