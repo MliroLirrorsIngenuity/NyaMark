@@ -22,8 +22,6 @@
 
 * [Development](#development)
 
-* [Before You Ask](#before-you-ask)
-
 * [License](#license)
 
 * [Acknowledgments](#acknowledgments)
