@@ -18,6 +18,7 @@ import {
 } from './plugins/mermaid';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
+import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
 
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
@@ -49,6 +50,7 @@ export class NyaEditor {
   async init(initialMarkdown = '') {
     registerEditorStyles();
     registerGfmAlertStyles();
+    registerHtmlBlockStyles();
 
     configureMermaid(document.documentElement.dataset.theme === 'dark');
     this.detachMermaidThemeListener = bindMermaidThemeListener(this.root);
@@ -69,6 +71,7 @@ export class NyaEditor {
     );
 
     crepe.editor.use(gfmAlerts);
+    crepe.editor.use(htmlBlockView);
 
     crepe.on((api) => {
       api.markdownUpdated((_ctx, markdown, prev) => {

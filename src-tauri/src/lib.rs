@@ -131,6 +131,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::read_markdown,
+            commands::get_file_modified_time,
             commands::load_settings,
             commands::save_settings,
             save_markdown,

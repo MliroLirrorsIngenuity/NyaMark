@@ -8,6 +8,14 @@ pub fn read_markdown(path: String) -> Result<String, String> {
 }
 
 #[command]
+pub fn get_file_modified_time(path: String) -> Result<u64, String> {
+    std::fs::metadata(&path)
+        .and_then(|m| m.modified())
+        .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64)
+        .map_err(|e| e.to_string())
+}
+
+#[command]
 pub fn materialize_attachment(
     document_path: String,
     file_name: String,

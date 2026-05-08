@@ -101,11 +101,18 @@ export class App {
     this.refreshStatsSoon();
 
     let isInitialLoad = true;
-    this.editor.onChange(() => {
+    this.editor.onChange((markdown) => {
       if (isInitialLoad || this.suppressDirtyTracking) {
         isInitialLoad = false;
         return;
       }
+      
+      const lastKnown = this.fileController?.getLastKnownContent();
+      if (lastKnown !== null && markdown === lastKnown) {
+        store.update({ isDirty: false });
+        return;
+      }
+
       this.updateStats();
       store.update({ isDirty: true });
       this.syncAutoSave();
@@ -224,10 +231,12 @@ export class App {
     if (!this.editor || savedContent === this.editor.getMarkdown()) return;
     this.suppressDirtyTracking = true;
     this.editor.setMarkdown(savedContent);
-    queueMicrotask(() => {
+    
+    setTimeout(() => {
       this.suppressDirtyTracking = false;
+      store.update({ isDirty: false });
       this.refreshStatsSoon();
-    });
+    }, 10);
   }
 
   private refreshStatsSoon() {
