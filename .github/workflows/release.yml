@@ -46,7 +46,7 @@ jobs:
           echo "wix_version=$WIX_VERSION" >> $GITHUB_OUTPUT
           echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
 
-      - name: Generate Changelog
+      - name: Generate Changelog (Latest)
         uses: orhun/git-cliff-action@v4
         id: git-cliff
         with:
@@ -55,6 +55,26 @@ jobs:
         env:
           OUTPUT: CHANGES.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update CHANGELOG.md (Prepend)
+        if: github.event_name != 'workflow_dispatch'
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: .github/cliff.toml
+          args: --latest --prepend CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push CHANGELOG.md
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "chore: update CHANGELOG.md [skip ci]"
+            git push origin HEAD:main
+          fi
 
   build:
     name: Build ${{ matrix.name }}
