@@ -117,6 +117,34 @@ pub fn run() {
         .manage(MainWindowBootstrapComplete(AtomicBool::new(false)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            let paths: Vec<String> = args
+                .iter()
+                .skip(1)
+                .filter_map(|arg| sessions::normalize_file_path(arg))
+                .collect();
+
+            if paths.is_empty() {
+                if let Some(label) = sessions::last_focused_window(app) {
+                    if let Some(window) = app.get_webview_window(&label) {
+                        let _ = window.set_focus();
+                    }
+                } else if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_focus();
+                }
+                return;
+            }
+
+            if sessions::is_main_bootstrap_complete(app) {
+                for path in paths {
+                    if let Err(error) = windows::open_editor_window(app, path.clone()) {
+                        eprintln!("Failed to open runtime window for {:?}: {error}", path);
+                    }
+                }
+            } else {
+                sessions::extend_pending_launch_files(app, paths);
+            }
+        }))
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::Focused(true) => {
                 sessions::remember_last_focused_window(&window.app_handle(), window.label());

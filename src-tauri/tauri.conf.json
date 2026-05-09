@@ -42,10 +42,30 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown",
+          "mdown",
+          "mkdn",
+          "mdwn",
+          "mdtxt"
+        ],
+        "name": "Markdown File",
+        "description": "Markdown text file",
+        "role": "Editor"
+      }
+    ],
     "windows": {
-      "wix": {
-        "language": "zh-CN",
-        "version": "0.0.0"
+      "nsis": {
+        "template": "nsis/installer.nsi",
+        "languages": [
+          "ChineseSimplified",
+          "English"
+        ],
+        "installMode": "both",
+        "compression": "lzma"
       }
     }
   }
