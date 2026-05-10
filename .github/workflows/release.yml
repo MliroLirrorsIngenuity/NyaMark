@@ -14,9 +14,11 @@ on:
 
 permissions:
   contents: write
+  pull-requests: read
+  issues: read
 
 jobs:
-  meta:
+  preparation:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.get_version.outputs.tag }}
@@ -78,7 +80,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.name }}
-    needs: meta
+    needs: preparation
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -110,8 +112,8 @@ jobs:
       - name: Update Version in files
         shell: bash
         run: |
-          VERSION="${{ needs.meta.outputs.version }}"
-          WIX_VERSION="${{ needs.meta.outputs.wix_version }}"
+          VERSION="${{ needs.preparation.outputs.version }}"
+          WIX_VERSION="${{ needs.preparation.outputs.wix_version }}"
           perl -i -pe "s/\"version\": \".*?\"/\"version\": \"$VERSION\"/" package.json
           perl -i -pe "s/^version = \".*?\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
           perl -i -pe "s/\"version\": \"0.0.0\"/\"version\": \"$WIX_VERSION\"/" src-tauri/tauri.conf.json
@@ -143,11 +145,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ needs.meta.outputs.tag }}
-          releaseName: NyaMark ${{ needs.meta.outputs.tag }}
-          releaseBody: ${{ needs.meta.outputs.changelog }}
+          tagName: ${{ needs.preparation.outputs.tag }}
+          releaseName: NyaMark ${{ needs.preparation.outputs.tag }}
+          releaseBody: ${{ needs.preparation.outputs.changelog }}
           releaseDraft: false
-          prerelease: ${{ needs.meta.outputs.is_prerelease }}
+          prerelease: ${{ needs.preparation.outputs.is_prerelease }}
           tauriScript: bun tauri
           args: ${{ matrix.args }}
           useCross: false
