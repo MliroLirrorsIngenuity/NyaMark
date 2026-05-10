@@ -1,4 +1,10 @@
 # Changelog
+## 1.0.0-beta.3 (2026-05-10)
+
+### 🐛 Bug Fixes
+
+- Transparency rendering bug  @Lemon-miaow
+
 ## 1.0.0-beta.2 (2026-05-10)
 
 ### 🐛 Bug Fixes
