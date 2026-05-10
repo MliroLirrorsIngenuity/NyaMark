@@ -184,7 +184,8 @@ export class ImagePolicyDialog {
       customPath.className = 'ny-image-policy-dialog__custom-path';
       customPath.textContent =
         options.customDirectory || 'No custom folder selected';
-      if (!options.customDirectory) customPath.setAttribute('data-i18n', 'dialog.imagePolicy.noFolder');
+      if (!options.customDirectory)
+        customPath.setAttribute('data-i18n', 'dialog.imagePolicy.noFolder');
 
       const pickButton = document.createElement('button');
       pickButton.type = 'button';

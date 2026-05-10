@@ -11,7 +11,7 @@ const SUPPORTED_MATCHERS: Array<[RegExp, string]> = [
 
 export function resolveLanguage(pref: string): string {
   if (pref !== 'auto') return pref;
-  
+
   const sysLangs = navigator.languages || [navigator.language];
   for (const lang of sysLangs) {
     const matched = SUPPORTED_MATCHERS.find(([pattern]) => pattern.test(lang));

@@ -48,7 +48,7 @@ export class App {
       const raw = await invoke<string | null>('load_settings_raw');
       if (!raw) return false;
       const parsed = JSON.parse(raw);
-      return !!(parsed?.general?.language);
+      return !!parsed?.general?.language;
     } catch {
       return false;
     }
@@ -69,8 +69,13 @@ export class App {
 
     await initI18n(this.currentLanguage);
 
-    if (document.documentElement.dataset.platform === 'macos' || /Mac/.test(navigator.platform)) {
-      void updateMacosMenu(i18next.getResourceBundle(i18next.language, 'translation').menu);
+    if (
+      document.documentElement.dataset.platform === 'macos' ||
+      /Mac/.test(navigator.platform)
+    ) {
+      void updateMacosMenu(
+        i18next.getResourceBundle(i18next.language, 'translation').menu
+      );
     }
 
     const appRoot = document.getElementById('app');
@@ -93,8 +98,13 @@ export class App {
         this.currentLanguage = newSettings.general.language;
         i18next.changeLanguage(this.currentLanguage).then(() => {
           translateDOM(document.body);
-          if (document.documentElement.dataset.platform === 'macos' || /Mac/.test(navigator.platform)) {
-            void updateMacosMenu(i18next.getResourceBundle(i18next.language, 'translation').menu);
+          if (
+            document.documentElement.dataset.platform === 'macos' ||
+            /Mac/.test(navigator.platform)
+          ) {
+            void updateMacosMenu(
+              i18next.getResourceBundle(i18next.language, 'translation').menu
+            );
           }
         });
       }
@@ -133,7 +143,11 @@ export class App {
 
     await this.editor.init(initialDocument.markdown);
 
-    this.sourceMode = new SourceModeController(editorContainer, this.editor, store);
+    this.sourceMode = new SourceModeController(
+      editorContainer,
+      this.editor,
+      store
+    );
     this.sourceMode.init();
 
     editorContainer.addEventListener('click', (e) => {
@@ -221,16 +235,16 @@ export class App {
   }
 
   private updateThemeLabel(elTheme: HTMLElement, mode: ThemeMode) {
-    const label = mode === 'dark' ? i18next.t('statusbar.themeDark') : i18next.t('statusbar.themeLight');
+    const label =
+      mode === 'dark'
+        ? i18next.t('statusbar.themeDark')
+        : i18next.t('statusbar.themeLight');
     elTheme.textContent = label;
     elTheme.setAttribute(
       'aria-label',
       i18next.t('statusbar.themeAriaLabel', { label: label.toLowerCase() })
     );
-    elTheme.setAttribute(
-      'title',
-      i18next.t('statusbar.themeTitle', { mode })
-    );
+    elTheme.setAttribute('title', i18next.t('statusbar.themeTitle', { mode }));
   }
 
   private syncEditorAfterSave(savedContent: string) {

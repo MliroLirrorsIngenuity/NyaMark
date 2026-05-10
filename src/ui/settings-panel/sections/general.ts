@@ -3,7 +3,7 @@ import { type GeneralSettings } from '../../../state/settings';
 const LANGUAGES = [
   { value: 'en', label: 'English' },
   { value: 'zh-CN', label: '简体中文 (Simplified Chinese)' },
-  { value: 'zh-TW', label: '繁體中文 (Traditional Chinese)' }
+  { value: 'zh-TW', label: '繁體中文 (Traditional Chinese)' },
 ];
 
 export function renderGeneralSection(
@@ -12,8 +12,9 @@ export function renderGeneralSection(
 ): HTMLElement {
   const section = document.createElement('section');
   section.className = 'ny-settings__section';
-  
-  const currentLang = LANGUAGES.find(l => l.value === current.language) || LANGUAGES[0];
+
+  const currentLang =
+    LANGUAGES.find((l) => l.value === current.language) || LANGUAGES[0];
 
   section.innerHTML = `
     <h4 class="ny-settings__section-title" data-i18n="settings.general.title">General</h4>
@@ -28,11 +29,13 @@ export function renderGeneralSection(
             </svg>
           </button>
           <div class="ny-settings__select-menu" hidden>
-            ${LANGUAGES.map(lang => `
+            ${LANGUAGES.map(
+              (lang) => `
               <button type="button" class="ny-settings__select-option ${lang.value === current.language ? 'is-selected' : ''}" data-value="${lang.value}">
                 ${lang.label}
               </button>
-            `).join('')}
+            `
+            ).join('')}
           </div>
         </div>
       </label>
@@ -40,10 +43,16 @@ export function renderGeneralSection(
   `;
 
   const selectContainer = section.querySelector('.ny-settings__select');
-  const trigger = selectContainer?.querySelector('.ny-settings__select-trigger');
+  const trigger = selectContainer?.querySelector(
+    '.ny-settings__select-trigger'
+  );
   const menu = selectContainer?.querySelector('.ny-settings__select-menu');
-  const valueDisplay = selectContainer?.querySelector('.ny-settings__select-value');
-  const options = selectContainer?.querySelectorAll('.ny-settings__select-option');
+  const valueDisplay = selectContainer?.querySelector(
+    '.ny-settings__select-value'
+  );
+  const options = selectContainer?.querySelectorAll(
+    '.ny-settings__select-option'
+  );
 
   if (selectContainer && trigger && menu && valueDisplay && options) {
     const toggleMenu = () => {
@@ -62,12 +71,12 @@ export function renderGeneralSection(
       toggleMenu();
     });
 
-    options.forEach(option => {
+    options.forEach((option) => {
       option.addEventListener('click', (e) => {
         e.stopPropagation();
         const value = option.getAttribute('data-value');
         if (value && value !== current.language) {
-          options.forEach(o => o.classList.remove('is-selected'));
+          options.forEach((o) => o.classList.remove('is-selected'));
           option.classList.add('is-selected');
           valueDisplay.textContent = option.textContent?.trim() || '';
           onChange({ ...current, language: value });
@@ -78,7 +87,10 @@ export function renderGeneralSection(
     });
 
     document.addEventListener('click', (e) => {
-      if (selectContainer.classList.contains('is-open') && !selectContainer.contains(e.target as Node)) {
+      if (
+        selectContainer.classList.contains('is-open') &&
+        !selectContainer.contains(e.target as Node)
+      ) {
         selectContainer.classList.remove('is-open');
         menu.setAttribute('hidden', '');
       }

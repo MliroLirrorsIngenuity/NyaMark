@@ -118,13 +118,13 @@ function applyWindowOpacity(windowOpacity: number) {
   //   At 98% → shell bg ~0.97 alpha, comfortable and near-opaque.
   //   At 72% → shell bg ~0.75, visible but faint blur-through hint.
   const appStartAlpha = clamp(opacity * 0.82 + 0.16, 0.75, 0.97);
-  const appEndAlpha = clamp(opacity * 0.82 + 0.20, 0.79, 0.99);
-  const surfaceElevatedAlpha = clamp(opacity * 0.70 + 0.28, 0.78, 0.99);
+  const appEndAlpha = clamp(opacity * 0.82 + 0.2, 0.79, 0.99);
+  const surfaceElevatedAlpha = clamp(opacity * 0.7 + 0.28, 0.78, 0.99);
   const surfaceMutedAlpha = clamp(opacity * 0.78 + 0.12, 0.68, 0.92);
-  const surfaceGhostAlpha = clamp(opacity * 0.78 + 0.20, 0.76, 0.96);
+  const surfaceGhostAlpha = clamp(opacity * 0.78 + 0.2, 0.76, 0.96);
   const titlebarAlpha = clamp(opacity * 0.78 + 0.16, 0.72, 0.96);
   const statusbarAlpha = clamp(opacity * 0.78 + 0.22, 0.78, 0.98);
-  const toolbarAlpha = clamp(opacity * 0.70 + 0.22, 0.72, 0.94);
+  const toolbarAlpha = clamp(opacity * 0.7 + 0.22, 0.72, 0.94);
   const floatingAlpha = clamp(opacity * 0.76 + 0.22, 0.77, 0.98);
 
   root.setProperty('--ny-app-bg-start', rgba(palette.appStart, appStartAlpha));
@@ -133,10 +133,19 @@ function applyWindowOpacity(windowOpacity: number) {
     '--ny-surface-elevated',
     rgba(palette.elevated, surfaceElevatedAlpha)
   );
-  root.setProperty('--ny-surface-muted', rgba(palette.muted, surfaceMutedAlpha));
-  root.setProperty('--ny-surface-ghost', rgba(palette.ghost, surfaceGhostAlpha));
+  root.setProperty(
+    '--ny-surface-muted',
+    rgba(palette.muted, surfaceMutedAlpha)
+  );
+  root.setProperty(
+    '--ny-surface-ghost',
+    rgba(palette.ghost, surfaceGhostAlpha)
+  );
   root.setProperty('--ny-titlebar-bg', rgba(palette.titlebar, titlebarAlpha));
-  root.setProperty('--ny-statusbar-bg', rgba(palette.statusbar, statusbarAlpha));
+  root.setProperty(
+    '--ny-statusbar-bg',
+    rgba(palette.statusbar, statusbarAlpha)
+  );
   root.setProperty(
     '--ny-window-toolbar-bg',
     rgba(palette.elevated, toolbarAlpha)
@@ -194,7 +203,9 @@ export function sanitizeAppearanceSettings(
       1100
     ),
     windowOpacity: clamp(
-      Number(appearance?.windowOpacity ?? defaultSettings.appearance.windowOpacity),
+      Number(
+        appearance?.windowOpacity ?? defaultSettings.appearance.windowOpacity
+      ),
       72,
       98
     ),
@@ -207,7 +218,10 @@ function sanitizeGeneralSettings(
   const allowedLanguages = ['en', 'zh-CN', 'zh-TW'];
   const lang = general?.language;
   return {
-    language: typeof lang === 'string' && allowedLanguages.includes(lang) ? lang : defaultSettings.general.language,
+    language:
+      typeof lang === 'string' && allowedLanguages.includes(lang)
+        ? lang
+        : defaultSettings.general.language,
   };
 }
 

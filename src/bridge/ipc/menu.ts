@@ -32,7 +32,9 @@ export async function listenAppMenuAction(
   );
 }
 
-export async function updateMacosMenu(translations: Record<string, string>): Promise<void> {
+export async function updateMacosMenu(
+  translations: Record<string, string>
+): Promise<void> {
   try {
     await invoke('update_macos_menu', { translations });
   } catch (error) {

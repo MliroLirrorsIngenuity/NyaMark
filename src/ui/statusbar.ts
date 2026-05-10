@@ -27,8 +27,12 @@ export class Statusbar {
   }
 
   private update(state: ReturnType<Store['getState']>) {
-    this.elWords.textContent = i18next.t('statusbar.words', { count: state.wordCount });
-    this.elLines.textContent = i18next.t('statusbar.line', { line: state.lineCount });
+    this.elWords.textContent = i18next.t('statusbar.words', {
+      count: state.wordCount,
+    });
+    this.elLines.textContent = i18next.t('statusbar.line', {
+      line: state.lineCount,
+    });
     this.elMode.textContent = state.sourceMode ? 'Source' : 'Markdown';
   }
 }
