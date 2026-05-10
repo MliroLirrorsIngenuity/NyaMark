@@ -148,7 +148,7 @@ jobs:
           workspaces: ./src-tauri -> target
 
       - name: Build and upload release assets
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -159,4 +159,6 @@ jobs:
           prerelease: ${{ needs.preparation.outputs.is_prerelease }}
           tauriScript: bun tauri
           releaseAssetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: "[name]_[version]_[platform]_[arch]_[bundle]"
           args: ${{ matrix.args }}
