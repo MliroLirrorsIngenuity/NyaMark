@@ -158,7 +158,5 @@ jobs:
           releaseDraft: false
           prerelease: ${{ needs.preparation.outputs.is_prerelease }}
           tauriScript: bun tauri
-          releaseAssetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: "[name]_[version]_[platform]_[arch]_[bundle]"
+          assetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
           args: ${{ matrix.args }}
