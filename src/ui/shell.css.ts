@@ -247,6 +247,7 @@ body {
   font-size: 14px;
   backdrop-filter: blur(18px) saturate(1.35) !important;
   -webkit-backdrop-filter: blur(18px) saturate(1.35) !important;
+  z-index: 1000;
 }
 
 .ny-shell__title-leading {
@@ -520,6 +521,9 @@ body {
 .ny-shell__body {
   flex: 1;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  scroll-padding-top: 40px;
 }
 
 #editor-container {
@@ -528,6 +532,8 @@ body {
   margin: 0 auto;
   padding: 0 24px 64px;
   box-sizing: border-box;
+  flex: 1;
+  min-height: 100%;
 }
 
 #statusbar {

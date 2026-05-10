@@ -490,6 +490,10 @@ const css = `
   user-select: none !important;
   -webkit-user-select: none !important;
 }
+
+.milkdown-toolbar {
+  z-index: 500 !important;
+}
 `;
 
 export function registerCrepeOverrideStyles() {

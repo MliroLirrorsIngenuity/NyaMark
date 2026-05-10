@@ -81,6 +81,12 @@ export class App {
 
     await this.editor.init(initialDocument.markdown);
 
+    editorContainer.addEventListener('click', (e) => {
+      if (e.target === editorContainer) {
+        this.editor?.focusAtEnd();
+      }
+    });
+
     new Titlebar(store, {
       onNewFile: () => this.fileController!.newFile(),
       onOpenFile: () => this.fileController!.openFile(),
