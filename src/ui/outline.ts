@@ -1,5 +1,6 @@
 import { NyaEditor } from '../editor/editor';
 import { ensureStyle } from '../style/register';
+import { translateDOM } from '../i18n/dom';
 
 const outlineStyles = `
 .ny-outline {
@@ -218,7 +219,9 @@ export class OutlinePanel {
       const empty = document.createElement('div');
       empty.className = 'ny-outline__empty';
       empty.textContent = 'No headings found';
+      empty.setAttribute('data-i18n', 'outline.empty');
       this.elList.appendChild(empty);
+      translateDOM(this.elList);
       return;
     }
 

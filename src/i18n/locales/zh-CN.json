@@ -1,0 +1,140 @@
+{
+  "menu": {
+    "preferences": "偏好设置…",
+    "about": "关于 NyaMark",
+    "services": "服务",
+    "hide": "隐藏 NyaMark",
+    "hideOthers": "隐藏其他",
+    "quit": "退出 NyaMark",
+    "new": "新建",
+    "open": "打开...",
+    "save": "保存",
+    "saveAs": "另存为...",
+    "file": "文件",
+    "closeWindow": "关闭窗口",
+    "edit": "编辑",
+    "undo": "撤销",
+    "redo": "重做",
+    "cut": "剪切",
+    "copy": "复制",
+    "paste": "粘贴",
+    "selectAll": "全选",
+    "view": "视图",
+    "fullscreen": "切换全屏",
+    "window": "窗口",
+    "minimize": "最小化",
+    "maximize": "缩放"
+  },
+  "shell": {
+    "file": "文件",
+    "new": "新建",
+    "open": "打开",
+    "save": "保存",
+    "saveAs": "另存为",
+    "settings": "设置",
+    "outline": "大纲",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "close": "关闭",
+    "untitled": "未命名.md",
+    "windowControls": "窗口控件"
+  },
+  "statusbar": {
+    "words": "{{count}} 个字",
+    "line": "第 {{line}} 行",
+    "modeMarkdown": "Markdown",
+    "modeSource": "源代码",
+    "themeDark": "深色",
+    "themeLight": "浅色",
+    "themeAriaLabel": "切换主题模式，当前为{{label}}",
+    "themeTitle": "当前为{{mode}}。将随系统主题自动更新。"
+  },
+  "search": {
+    "placeholder": "查找...",
+    "next": "下一个匹配",
+    "prev": "上一个匹配",
+    "close": "关闭搜索"
+  },
+  "outline": {
+    "empty": "未找到标题"
+  },
+  "editor": {
+    "image": {
+      "info": "信息",
+      "toggleInfo": "切换图片详情",
+      "description": "描述",
+      "descriptionPlaceholder": "填写图片描述",
+      "path": "路径",
+      "pathPlaceholder": "图片路径"
+    }
+  },
+  "dialog": {
+    "imagePolicy": {
+      "title": "粘贴的图片需要保存位置",
+      "subtitle": "请选择一个规则，以后的截图粘贴将静默遵循该规则。",
+      "noFolder": "未选择自定义文件夹",
+      "choose": "选择…",
+      "remember": "记住此选择"
+    },
+    "unsavedImage": {
+      "title": "插入粘贴的图片前请保存此文档",
+      "subtitle": "截图没有原始文件路径。请先保存文档，或将此图片作为 Base64 嵌入。",
+      "saveDocument": "保存文档"
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "在此个性化您的编辑器。",
+    "cancel": "取消",
+    "ok": "确定",
+    "reset": "恢复默认设置",
+    "confirmResetTitle": "重置所有设置？",
+    "confirmResetBody": "这会将外观、自动保存和附件选项恢复为默认值。此操作无法撤销。",
+    "confirmResetButton": "重置",
+    "general": {
+      "title": "常规",
+      "language": "语言",
+      "autoLabel": "自动（跟随系统）"
+    },
+    "appearance": {
+      "title": "外观",
+      "fontSize": "字体大小",
+      "lineHeight": "行高",
+      "readableWidth": "最佳阅读宽度 (px)"
+    },
+    "save": {
+      "title": "保存",
+      "autoSave": "编辑时自动保存",
+      "autoSaveInterval": "自动保存间隔 (分钟)"
+    },
+    "attachments": {
+      "title": "附件",
+      "insertPolicy": "本地图片插入策略",
+      "preferRelativePath": "优先使用相对路径",
+      "ensureDotSlash": "相对路径以 ./ 开头",
+      "escapePath": "转义路径中的空格",
+      "policies": {
+        "use-path": {
+          "label": "保留原始路径",
+          "description": "引用原始文件位置，不复制。"
+        },
+        "copy-same-folder": {
+          "label": "相同文件夹",
+          "description": "复制到当前文档旁边。"
+        },
+        "copy-assets": {
+          "label": "./assets",
+          "description": "复制到同级的 assets 文件夹中。"
+        },
+        "copy-custom-folder": {
+          "label": "自定义文件夹",
+          "description": "复制到您选择的文件夹中。首次使用时在粘贴对话框中设置。"
+        },
+        "base64": {
+          "label": "嵌入为 Base64",
+          "description": "将图片直接内联到文档中。"
+        }
+      }
+    }
+  }
+}

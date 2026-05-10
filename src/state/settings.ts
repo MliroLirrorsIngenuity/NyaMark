@@ -15,7 +15,12 @@ export type SaveSettings = {
   autoSaveIntervalMs: number;
 };
 
+export type GeneralSettings = {
+  language: string;
+};
+
 export type Settings = {
+  general: GeneralSettings;
   appearance: AppearanceSettings;
   save: SaveSettings;
   attachments: ImageSettings;
@@ -24,6 +29,9 @@ export type Settings = {
 const SETTINGS_EVENT = 'nyamark:settingschange';
 
 export const defaultSettings: Settings = {
+  general: {
+    language: 'auto',
+  },
   appearance: {
     fontSize: 14,
     lineHeight: 1.52,
@@ -68,6 +76,16 @@ export function sanitizeAppearanceSettings(
   };
 }
 
+function sanitizeGeneralSettings(
+  general: Partial<GeneralSettings> | undefined
+): GeneralSettings {
+  const allowedLanguages = ['en', 'zh-CN', 'zh-TW'];
+  const lang = general?.language;
+  return {
+    language: typeof lang === 'string' && allowedLanguages.includes(lang) ? lang : defaultSettings.general.language,
+  };
+}
+
 function sanitizeSaveSettings(
   save: Partial<SaveSettings> | undefined
 ): SaveSettings {
@@ -101,6 +119,7 @@ function normalizeSettings(
   parsed: Partial<Settings> | null | undefined
 ): Settings {
   return {
+    general: sanitizeGeneralSettings(parsed?.general),
     appearance: sanitizeAppearanceSettings(parsed?.appearance),
     save: sanitizeSaveSettings(parsed?.save),
     attachments: {
@@ -149,6 +168,7 @@ export async function saveSettings(next: Settings) {
 export async function updateSettings(partial: Partial<Settings>) {
   const current = getSettings();
   const merged: Settings = {
+    general: { ...current.general, ...(partial.general ?? {}) },
     appearance: { ...current.appearance, ...(partial.appearance ?? {}) },
     save: { ...current.save, ...(partial.save ?? {}) },
     attachments: { ...current.attachments, ...(partial.attachments ?? {}) },

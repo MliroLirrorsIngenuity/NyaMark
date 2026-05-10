@@ -6,9 +6,11 @@ import {
   type Settings,
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
+import { renderGeneralSection } from './sections/general';
 import { renderAppearanceSection } from './sections/appearance';
 import { renderSaveSection } from './sections/save-policy';
 import { renderAttachmentsSection } from './sections/attachments';
+import { translateDOM } from '../../i18n/dom';
 
 const styles = `
 .ny-settings-overlay {
@@ -116,6 +118,83 @@ const styles = `
   background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
   color: var(--ny-text-primary);
   font: inherit;
+}
+
+.ny-settings__select {
+  position: relative;
+  width: 100%;
+}
+
+.ny-settings__select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
+  color: var(--ny-text-primary);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ny-settings__select-trigger:hover {
+  border-color: color-mix(in srgb, var(--ny-border-strong), transparent 28%);
+}
+
+.ny-settings__select-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--ny-text-secondary);
+  transition: transform 150ms ease;
+}
+
+.ny-settings__select.is-open .ny-settings__select-icon {
+  transform: rotate(180deg);
+}
+
+.ny-settings__select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 4px;
+  background: var(--ny-surface-elevated);
+  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
+  border-radius: 10px;
+  box-shadow: var(--ny-shadow-float);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ny-settings__select-menu[hidden] {
+  display: none;
+}
+
+.ny-settings__select-option {
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--ny-text-primary);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ny-settings__select-option:hover {
+  background: color-mix(in srgb, var(--ny-border-strong), transparent 60%);
+}
+
+.ny-settings__select-option.is-selected {
+  background: color-mix(in srgb, var(--ny-accent), transparent 80%);
+  color: var(--ny-accent);
 }
 
 .ny-settings__field input[type="number"]:invalid,
@@ -339,8 +418,8 @@ export class SettingsPanel {
     dialog.className = 'ny-settings-dialog';
     dialog.innerHTML = `
       <header>
-        <h3>Settings</h3>
-        <p class="ny-settings-dialog__subtitle">Personalise the editor without leaving the document.</p>
+        <h3 data-i18n="settings.title">Settings</h3>
+        <p class="ny-settings-dialog__subtitle" data-i18n="settings.subtitle">Personalise the editor without leaving the document.</p>
       </header>
     `;
 
@@ -357,6 +436,9 @@ export class SettingsPanel {
       }, 180);
     };
 
+    const general = renderGeneralSection(working.general, (next) => {
+      working = { ...working, general: next };
+    });
     const appearance = renderAppearanceSection(
       working.appearance,
       (next, mode) => {
@@ -382,7 +464,7 @@ export class SettingsPanel {
       }
     );
 
-    body.append(appearance, save, attachments);
+    body.append(general, appearance, save, attachments);
     dialog.appendChild(body);
 
     const actions = document.createElement('div');
@@ -393,6 +475,7 @@ export class SettingsPanel {
     reset.className =
       'ny-settings-dialog__button ny-settings-dialog__button--danger';
     reset.textContent = 'Reset to defaults';
+    reset.setAttribute('data-i18n', 'settings.reset');
 
     const buttons = document.createElement('div');
     buttons.style.display = 'flex';
@@ -402,17 +485,21 @@ export class SettingsPanel {
     cancel.type = 'button';
     cancel.className = 'ny-settings-dialog__button';
     cancel.textContent = 'Cancel';
+    cancel.setAttribute('data-i18n', 'settings.cancel');
 
     const ok = document.createElement('button');
     ok.type = 'button';
     ok.className =
       'ny-settings-dialog__button ny-settings-dialog__button--primary';
     ok.textContent = 'OK';
+    ok.setAttribute('data-i18n', 'settings.ok');
 
     buttons.append(cancel, ok);
     actions.append(reset, buttons);
     dialog.appendChild(actions);
     overlay.appendChild(dialog);
+
+    translateDOM(overlay);
 
     const syncOkState = () => {
       ok.disabled = Boolean(
@@ -467,11 +554,11 @@ export class SettingsPanel {
       confirm.className = 'ny-settings-confirm';
       confirm.innerHTML = `
         <div class="ny-settings-confirm__panel" role="alertdialog" aria-modal="true" aria-labelledby="ny-settings-confirm-title">
-          <h4 class="ny-settings-confirm__title" id="ny-settings-confirm-title">Reset all settings?</h4>
-          <p class="ny-settings-confirm__body">This will restore appearance, auto-save, and attachment options to their defaults. This action cannot be undone.</p>
+          <h4 class="ny-settings-confirm__title" id="ny-settings-confirm-title" data-i18n="settings.confirmResetTitle">Reset all settings?</h4>
+          <p class="ny-settings-confirm__body" data-i18n="settings.confirmResetBody">This will restore appearance, auto-save, and attachment options to their defaults. This action cannot be undone.</p>
           <div class="ny-settings-confirm__actions">
-            <button type="button" class="ny-settings-dialog__button" data-action="cancel">Cancel</button>
-            <button type="button" class="ny-settings-dialog__button ny-settings-dialog__button--danger" data-action="confirm">Reset</button>
+            <button type="button" class="ny-settings-dialog__button" data-action="cancel" data-i18n="settings.cancel">Cancel</button>
+            <button type="button" class="ny-settings-dialog__button ny-settings-dialog__button--danger" data-action="confirm" data-i18n="settings.confirmResetButton">Reset</button>
           </div>
         </div>
       `;
@@ -504,6 +591,7 @@ export class SettingsPanel {
         ?.addEventListener('click', () => void close(true));
 
       host.appendChild(confirm);
+      translateDOM(confirm);
     });
   }
 }

@@ -1,4 +1,5 @@
 import { Store } from '../state/store';
+import { i18next } from '../i18n';
 
 export class Statusbar {
   private elWords: HTMLElement;
@@ -14,6 +15,10 @@ export class Statusbar {
       this.update(state);
     });
 
+    i18next.on('languageChanged', () => {
+      this.update(this.store.getState());
+    });
+
     this.elMode.addEventListener('click', () => {
       // Toggle source mode later
       const currentMode = this.store.getState().sourceMode;
@@ -22,8 +27,8 @@ export class Statusbar {
   }
 
   private update(state: ReturnType<Store['getState']>) {
-    this.elWords.textContent = `${state.wordCount} words`;
-    this.elLines.textContent = `Line ${state.lineCount}`;
+    this.elWords.textContent = i18next.t('statusbar.words', { count: state.wordCount });
+    this.elLines.textContent = i18next.t('statusbar.line', { line: state.lineCount });
     this.elMode.textContent = state.sourceMode ? 'Source' : 'Markdown';
   }
 }

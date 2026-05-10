@@ -1,4 +1,5 @@
 import { ensureStyle } from '../style/register';
+import { translateDOM } from '../i18n/dom';
 
 export type PastedImagePolicyChoice = {
   policy: 'copy-same-folder' | 'copy-assets' | 'copy-custom-folder' | 'base64';
@@ -166,13 +167,13 @@ export class ImagePolicyDialog {
       const panel = document.createElement('div');
       panel.className = 'ny-image-policy-dialog';
       panel.innerHTML = `
-        <h3>Pasted images need a save location</h3>
-        <p>Pick a rule once. Later screenshot paste will follow it silently.</p>
+        <h3 data-i18n="dialog.imagePolicy.title">Pasted images need a save location</h3>
+        <p data-i18n="dialog.imagePolicy.subtitle">Pick a rule once. Later screenshot paste will follow it silently.</p>
         <div class="ny-image-policy-dialog__section ny-image-policy-dialog__options">
-          ${this.optionMarkup('copy-same-folder', 'Same folder as current Markdown file', 'Save pasted images next to the current document.')}
-          ${this.optionMarkup('copy-assets', './assets', 'Store pasted images in an assets folder beside the current document.')}
-          ${this.optionMarkup('copy-custom-folder', 'Custom folder…', 'Use one folder you choose and keep using it later.')}
-          ${this.optionMarkup('base64', 'Embed as Base64', 'Keep the image inside the Markdown file itself.')}
+          ${this.optionMarkup('copy-same-folder', 'settings.attachments.policies.copy-same-folder.label', 'Same folder as current Markdown file', 'settings.attachments.policies.copy-same-folder.description', 'Save pasted images next to the current document.')}
+          ${this.optionMarkup('copy-assets', 'settings.attachments.policies.copy-assets.label', './assets', 'settings.attachments.policies.copy-assets.description', 'Store pasted images in an assets folder beside the current document.')}
+          ${this.optionMarkup('copy-custom-folder', 'settings.attachments.policies.copy-custom-folder.label', 'Custom folder…', 'settings.attachments.policies.copy-custom-folder.description', 'Use one folder you choose and keep using it later.')}
+          ${this.optionMarkup('base64', 'settings.attachments.policies.base64.label', 'Embed as Base64', 'settings.attachments.policies.base64.description', 'Keep the image inside the Markdown file itself.')}
         </div>
       `;
 
@@ -183,11 +184,13 @@ export class ImagePolicyDialog {
       customPath.className = 'ny-image-policy-dialog__custom-path';
       customPath.textContent =
         options.customDirectory || 'No custom folder selected';
+      if (!options.customDirectory) customPath.setAttribute('data-i18n', 'dialog.imagePolicy.noFolder');
 
       const pickButton = document.createElement('button');
       pickButton.type = 'button';
       pickButton.className = 'ny-image-policy-dialog__button';
       pickButton.textContent = 'Choose…';
+      pickButton.setAttribute('data-i18n', 'dialog.imagePolicy.choose');
 
       customRow.append(customPath, pickButton);
       panel.appendChild(customRow);
@@ -195,7 +198,7 @@ export class ImagePolicyDialog {
       const remember = document.createElement('label');
       remember.className = 'ny-image-policy-dialog__checkbox';
       remember.innerHTML =
-        '<input type="checkbox" checked /> Remember this choice';
+        '<input type="checkbox" checked /> <span data-i18n="dialog.imagePolicy.remember">Remember this choice</span>';
       panel.appendChild(remember);
 
       const actions = document.createElement('div');
@@ -205,16 +208,19 @@ export class ImagePolicyDialog {
       cancel.type = 'button';
       cancel.className = 'ny-image-policy-dialog__button';
       cancel.textContent = 'Cancel';
+      cancel.setAttribute('data-i18n', 'settings.cancel');
 
       const confirm = document.createElement('button');
       confirm.type = 'button';
       confirm.className =
         'ny-image-policy-dialog__button ny-image-policy-dialog__button--primary';
       confirm.textContent = 'Save';
+      confirm.setAttribute('data-i18n', 'settings.ok');
 
       actions.append(cancel, confirm);
       panel.appendChild(actions);
       this.overlay.appendChild(panel);
+      translateDOM(this.overlay);
 
       const policyInputs = Array.from(
         panel.querySelectorAll<HTMLInputElement>(
@@ -340,15 +346,17 @@ export class ImagePolicyDialog {
 
   private optionMarkup(
     value: PastedImagePolicyChoice['policy'],
-    title: string,
-    description: string
+    titleKey: string,
+    titleFallback: string,
+    descKey: string,
+    descFallback: string
   ) {
     return `
       <label class="ny-image-policy-dialog__option">
         <input type="radio" name="ny-image-policy" value="${value}" />
         <span>
-          <strong>${title}</strong>
-          <span>${description}</span>
+          <strong data-i18n="${titleKey}">${titleFallback}</strong>
+          <span data-i18n="${descKey}">${descFallback}</span>
         </span>
       </label>
     `;

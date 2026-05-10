@@ -33,7 +33,14 @@ pub struct AttachmentSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GeneralSettings {
+    pub language: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Settings {
+    pub general: GeneralSettings,
     pub appearance: AppearanceSettings,
     pub save: SaveSettings,
     pub attachments: AttachmentSettings,
@@ -42,6 +49,9 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            general: GeneralSettings {
+                language: "en".to_string(),
+            },
             appearance: AppearanceSettings {
                 font_size: 14,
                 line_height: 1.52,

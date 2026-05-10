@@ -75,7 +75,17 @@ pub fn load_settings(app: tauri::AppHandle) -> Result<settings::Settings, String
     settings::load_settings(&app).map_err(|e| e.to_string())
 }
 
-#[command]
+#[tauri::command]
 pub fn save_settings(app: tauri::AppHandle, settings: settings::Settings) -> Result<(), String> {
     settings::save_settings(&app, &settings).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn load_settings_raw(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri::Manager;
+    let path = app.path().app_config_dir().map_err(|e| e.to_string())?.join("settings.json");
+    if !path.exists() {
+        return Ok(None);
+    }
+    std::fs::read_to_string(path).map(Some).map_err(|e| e.to_string())
 }

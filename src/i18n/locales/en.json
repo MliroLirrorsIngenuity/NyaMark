@@ -1,0 +1,141 @@
+{
+  "menu": {
+    "preferences": "Preferences…",
+    "about": "About NyaMark",
+    "services": "Services",
+    "hide": "Hide NyaMark",
+    "hideOthers": "Hide Others",
+    "quit": "Quit NyaMark",
+    "new": "New",
+    "open": "Open...",
+    "save": "Save",
+    "saveAs": "Save As...",
+    "file": "File",
+    "closeWindow": "Close Window",
+    "edit": "Edit",
+    "undo": "Undo",
+    "redo": "Redo",
+    "cut": "Cut",
+    "copy": "Copy",
+    "paste": "Paste",
+    "selectAll": "Select All",
+    "view": "View",
+    "fullscreen": "Toggle Full Screen",
+    "window": "Window",
+    "minimize": "Minimize",
+    "maximize": "Zoom"
+  },
+  "shell": {
+    "file": "File",
+    "new": "New",
+    "open": "Open",
+    "save": "Save",
+    "saveAs": "Save As",
+    "settings": "Settings",
+    "outline": "Outline",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "close": "Close",
+    "untitled": "Untitled.md",
+    "windowControls": "Window controls"
+  },
+  "statusbar": {
+    "words": "{{count}} words",
+    "words_one": "1 word",
+    "line": "Line {{line}}",
+    "modeMarkdown": "Markdown",
+    "modeSource": "Source",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "themeAriaLabel": "Switch theme mode, current {{label}}",
+    "themeTitle": "Current {{mode}}. Updates automatically when the system theme changes."
+  },
+  "search": {
+    "placeholder": "Find...",
+    "next": "Next match",
+    "prev": "Previous match",
+    "close": "Close search"
+  },
+  "outline": {
+    "empty": "No headings found"
+  },
+  "editor": {
+    "image": {
+      "info": "Info",
+      "toggleInfo": "Toggle image details",
+      "description": "Description",
+      "descriptionPlaceholder": "Write image description",
+      "path": "Path",
+      "pathPlaceholder": "Image path"
+    }
+  },
+  "dialog": {
+    "imagePolicy": {
+      "title": "Pasted images need a save location",
+      "subtitle": "Pick a rule once. Later screenshot paste will follow it silently.",
+      "noFolder": "No custom folder selected",
+      "choose": "Choose…",
+      "remember": "Remember this choice"
+    },
+    "unsavedImage": {
+      "title": "Save this document before inserting pasted images",
+      "subtitle": "Screenshot images have no original file path. Save the document first, or embed this image as Base64.",
+      "saveDocument": "Save Document"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Personalise the editor without leaving the document.",
+    "cancel": "Cancel",
+    "ok": "OK",
+    "reset": "Reset to defaults",
+    "confirmResetTitle": "Reset all settings?",
+    "confirmResetBody": "This will restore appearance, auto-save, and attachment options to their defaults. This action cannot be undone.",
+    "confirmResetButton": "Reset",
+    "general": {
+      "title": "General",
+      "language": "Language",
+      "autoLabel": "Auto (System Default)"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "fontSize": "Font size",
+      "lineHeight": "Line height",
+      "readableWidth": "Readable width (px)"
+    },
+    "save": {
+      "title": "Save Policy",
+      "autoSave": "Auto-save while editing",
+      "autoSaveInterval": "Auto-save interval (min)"
+    },
+    "attachments": {
+      "title": "Attachments",
+      "insertPolicy": "Insert policy for local images",
+      "preferRelativePath": "Prefer relative paths",
+      "ensureDotSlash": "Prefix relative paths with ./",
+      "escapePath": "Escape spaces in paths",
+      "policies": {
+        "use-path": {
+          "label": "Keep original path",
+          "description": "Reference the original file location, no copy."
+        },
+        "copy-same-folder": {
+          "label": "Same folder",
+          "description": "Copy next to the current document."
+        },
+        "copy-assets": {
+          "label": "./assets",
+          "description": "Copy into a sibling assets folder."
+        },
+        "copy-custom-folder": {
+          "label": "Custom folder",
+          "description": "Copy into a folder you choose. Set it from the paste dialog the first time."
+        },
+        "base64": {
+          "label": "Embed as Base64",
+          "description": "Inline images directly inside the document."
+        }
+      }
+    }
+  }
+}

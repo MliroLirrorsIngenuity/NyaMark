@@ -1,4 +1,5 @@
 import { ensureStyle } from '../style/register';
+import { translateDOM } from '../i18n/dom';
 
 const searchStyles = `
 .ny-search {
@@ -78,27 +79,36 @@ export class SearchPanel {
     this.elInput.type = 'text';
     this.elInput.placeholder = 'Find...';
     this.elInput.className = 'ny-search__input';
+    this.elInput.setAttribute('data-i18n-placeholder', 'search.placeholder');
 
     const btnNext = document.createElement('button');
     btnNext.innerHTML = '↓';
     btnNext.className = 'ny-search__button';
     btnNext.type = 'button';
+    btnNext.setAttribute('title', 'Next match');
+    btnNext.setAttribute('data-i18n-title', 'search.next');
 
     const btnPrev = document.createElement('button');
     btnPrev.innerHTML = '↑';
     btnPrev.className = 'ny-search__button';
     btnPrev.type = 'button';
+    btnPrev.setAttribute('title', 'Previous match');
+    btnPrev.setAttribute('data-i18n-title', 'search.prev');
 
     const btnClose = document.createElement('button');
     btnClose.innerHTML = '✕';
     btnClose.className = 'ny-search__button ny-search__button--close';
     btnClose.type = 'button';
+    btnClose.setAttribute('title', 'Close search');
+    btnClose.setAttribute('data-i18n-title', 'search.close');
 
     this.elPanel.appendChild(this.elInput);
     this.elPanel.appendChild(btnPrev);
     this.elPanel.appendChild(btnNext);
     this.elPanel.appendChild(btnClose);
     document.body.appendChild(this.elPanel);
+
+    translateDOM(this.elPanel);
 
     this.setupListeners(btnPrev, btnNext, btnClose);
   }

@@ -6,6 +6,8 @@ import {
   toggleMaximizeWindow,
 } from '../bridge/ipc/windows';
 
+import { i18next } from '../i18n';
+
 type TitlebarActions = {
   onNewFile: () => Promise<unknown> | void;
   onOpenFile: () => Promise<unknown> | void;
@@ -51,6 +53,9 @@ export class Titlebar {
     this.bindClick('tb-close', () => void closeWindow().catch(console.error));
 
     this.store.subscribe((state) => this.update(state));
+    i18next.on('languageChanged', () => {
+      this.update(this.store.getState());
+    });
   }
 
   private bindFileMenu() {

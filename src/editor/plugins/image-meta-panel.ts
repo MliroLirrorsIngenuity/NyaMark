@@ -7,6 +7,7 @@
 import type { Crepe } from '@milkdown/crepe';
 import { editorViewCtx } from '@milkdown/kit/core';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
+import { translateDOM } from '../../i18n/dom';
 
 export class ImageMetaPanel {
   private observer: MutationObserver | null = null;
@@ -202,12 +203,12 @@ export class ImageMetaPanel {
       panel.setAttribute('contenteditable', 'false');
       panel.innerHTML = `
         <label class="nyamark-image-meta__field nyamark-image-meta__field--caption">
-          <span class="nyamark-image-meta__label">Description</span>
-          <input type="text" class="nyamark-image-meta__input nyamark-image-meta__input--caption" placeholder="Write image description" />
+          <span class="nyamark-image-meta__label" data-i18n="editor.image.description">Description</span>
+          <input type="text" class="nyamark-image-meta__input nyamark-image-meta__input--caption" placeholder="Write image description" data-i18n-placeholder="editor.image.descriptionPlaceholder" />
         </label>
         <label class="nyamark-image-meta__field nyamark-image-meta__field--path">
-          <span class="nyamark-image-meta__label">Path</span>
-          <input type="text" class="nyamark-image-meta__input nyamark-image-meta__input--path" placeholder="Image path" spellcheck="false" />
+          <span class="nyamark-image-meta__label" data-i18n="editor.image.path">Path</span>
+          <input type="text" class="nyamark-image-meta__input nyamark-image-meta__input--path" placeholder="Image path" spellcheck="false" data-i18n-placeholder="editor.image.pathPlaceholder" />
         </label>
       `;
       wrapper.appendChild(panel);
@@ -263,6 +264,9 @@ export class ImageMetaPanel {
           host.classList.remove('nyamark-image-meta-open');
         }
       });
+      translateDOM(wrapper);
+    } else if (!toggle) {
+      translateDOM(wrapper);
     }
 
     const captionInput = panel.querySelector(

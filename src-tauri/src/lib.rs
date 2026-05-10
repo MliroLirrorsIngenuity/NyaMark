@@ -161,6 +161,7 @@ pub fn run() {
             commands::read_markdown,
             commands::get_file_modified_time,
             commands::load_settings,
+            commands::load_settings_raw,
             commands::save_settings,
             save_markdown,
             commands::materialize_attachment,
@@ -171,7 +172,9 @@ pub fn run() {
             resolve_current_window_file,
             open_new_window,
             open_markdown_in_new_window,
-            materialize_draft_attachment
+            materialize_draft_attachment,
+            #[cfg(target_os = "macos")]
+            menu::update_macos_menu,
         ]);
 
     #[cfg(target_os = "macos")]

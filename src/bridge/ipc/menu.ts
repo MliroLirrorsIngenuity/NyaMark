@@ -1,5 +1,6 @@
 import { type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 
 export type AppMenuAction =
   | 'new-file'
@@ -29,4 +30,12 @@ export async function listenAppMenuAction(
       }
     }
   );
+}
+
+export async function updateMacosMenu(translations: Record<string, string>): Promise<void> {
+  try {
+    await invoke('update_macos_menu', { translations });
+  } catch (error) {
+    console.warn('Failed to update macOS menu:', error);
+  }
 }

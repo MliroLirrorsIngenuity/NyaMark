@@ -10,18 +10,18 @@ export function renderAppearanceSection(
   const section = document.createElement('section');
   section.className = 'ny-settings__section';
   section.innerHTML = `
-    <h4 class="ny-settings__section-title">Appearance</h4>
+    <h4 class="ny-settings__section-title" data-i18n="settings.appearance.title">Appearance</h4>
     <div class="ny-settings__row">
       <label class="ny-settings__field">
-        <span>Font size</span>
+        <span data-i18n="settings.appearance.fontSize">Font size</span>
         <input type="number" min="11" max="22" step="1" data-key="fontSize" />
       </label>
       <label class="ny-settings__field">
-        <span>Line height</span>
+        <span data-i18n="settings.appearance.lineHeight">Line height</span>
         <input type="number" min="1.2" max="2.2" step="0.01" data-key="lineHeight" />
       </label>
       <label class="ny-settings__field">
-        <span>Readable width (px)</span>
+        <span data-i18n="settings.appearance.readableWidth">Readable width (px)</span>
         <input type="number" min="520" max="1100" step="10" data-key="readableMaxWidth" />
       </label>
     </div>
