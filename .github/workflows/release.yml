@@ -58,8 +58,19 @@ jobs:
           OUTPUT: CHANGES.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check if version already exists in CHANGELOG.md
+        id: check_changelog
+        shell: bash
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          if grep -q "## $VERSION" CHANGELOG.md; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Update CHANGELOG.md (Prepend)
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && steps.check_changelog.outputs.exists == 'false'
         uses: orhun/git-cliff-action@v4
         with:
           config: .github/cliff.toml
@@ -68,7 +79,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push CHANGELOG.md
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && steps.check_changelog.outputs.exists == 'false'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
