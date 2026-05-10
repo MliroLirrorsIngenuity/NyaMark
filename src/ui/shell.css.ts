@@ -86,9 +86,8 @@ const shellStyles = `
 }
 
 :root[data-platform="linux"],
-:root[data-platform="linux"] body,
-:root[data-platform="linux"] #app {
-  background: var(--ny-app-bg-end);
+:root[data-platform="linux"] body {
+  background: transparent;
 }
 
 :root[data-platform="linux"] .ny-editor-root .milkdown {
@@ -123,10 +122,9 @@ body {
 
 #app {
   min-height: 100vh;
-  background: transparent;
 }
 
-.ny-shell {
+#app.ny-shell {
   width: 100%;
   height: 100%;
   display: flex;
@@ -137,12 +135,16 @@ body {
   color: var(--ny-text-primary);
 }
 
-.ny-shell--macos {
+#app.ny-shell--macos {
   --ny-window-controls-space: 78px;
   border-radius: 0;
 }
 
-.ny-shell--linux {
+#app.ny-shell--windows {
+  border-radius: 0;
+}
+
+#app.ny-shell--linux {
   border-radius: 0;
   background:
     radial-gradient(circle at 18% 0%, var(--ny-linux-frost-sheen) 0%, transparent 30%),
