@@ -92,13 +92,13 @@ const shellStyles = `
 }
 
 :root[data-platform="linux"] .ny-editor-root .milkdown {
-  --ny-editor-toolbar-bg: rgba(255, 255, 255, 0.78);
-  --ny-editor-floating-bg: rgba(255, 255, 255, 0.88);
+  --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(255, 255, 255, 0.78));
+  --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(255, 255, 255, 0.88));
 }
 
 :root[data-platform="linux"][data-theme="dark"] .ny-editor-root .milkdown {
-  --ny-editor-toolbar-bg: rgba(18, 24, 31, 0.68);
-  --ny-editor-floating-bg: rgba(22, 29, 38, 0.82);
+  --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(18, 24, 31, 0.68));
+  --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(22, 29, 38, 0.82));
 }
 
 html,
@@ -394,6 +394,10 @@ body {
   box-shadow: var(--ny-shadow-float);
   display: grid;
   gap: 4px;
+}
+
+.ny-shell__menu[hidden] {
+  display: none;
 }
 
 .ny-shell__menu-item {

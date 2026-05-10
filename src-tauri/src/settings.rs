@@ -7,10 +7,23 @@ use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct AppearanceSettings {
     pub font_size: u32,
     pub line_height: f64,
     pub readable_max_width: u32,
+    pub window_opacity: u32,
+}
+
+impl Default for AppearanceSettings {
+    fn default() -> Self {
+        Self {
+            font_size: 14,
+            line_height: 1.52,
+            readable_max_width: 720,
+            window_opacity: 92,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,11 +65,7 @@ impl Default for Settings {
             general: GeneralSettings {
                 language: "en".to_string(),
             },
-            appearance: AppearanceSettings {
-                font_size: 14,
-                line_height: 1.52,
-                readable_max_width: 720,
-            },
+            appearance: AppearanceSettings::default(),
             save: SaveSettings {
                 auto_save: false,
                 auto_save_interval_ms: 4000,

@@ -101,7 +101,8 @@
       "title": "Appearance",
       "fontSize": "Font size",
       "lineHeight": "Line height",
-      "readableWidth": "Readable width (px)"
+      "readableWidth": "Readable width (px)",
+      "windowOpacity": "Window opacity (%)"
     },
     "save": {
       "title": "Save Policy",

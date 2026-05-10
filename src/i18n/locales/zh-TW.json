@@ -100,7 +100,8 @@
       "title": "外觀",
       "fontSize": "字體大小",
       "lineHeight": "行高",
-      "readableWidth": "最佳閱讀寬度 (px)"
+      "readableWidth": "最佳閱讀寬度 (px)",
+      "windowOpacity": "視窗不透明度 (%)"
     },
     "save": {
       "title": "儲存",

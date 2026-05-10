@@ -22,9 +22,9 @@ const css = `
   --ny-editor-heading: #101828;
   --ny-editor-inline-code-bg: #ecf4f7;
   --ny-editor-inline-code-border: #d6e6eb;
-  --ny-editor-toolbar-bg: rgba(255, 255, 255, 0.82);
+  --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(255, 255, 255, 0.82));
   --ny-editor-toolbar-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
-  --ny-editor-floating-bg: rgba(255, 255, 255, 0.96);
+  --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(255, 255, 255, 0.96));
   --ny-editor-floating-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
   --ny-editor-codeblock-border: rgba(224, 230, 238, 0.92);
   --ny-editor-codeblock-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(251, 252, 254, 0.98) 100%);
@@ -67,9 +67,9 @@ const css = `
   --ny-editor-heading: #f4f8fb;
   --ny-editor-inline-code-bg: rgba(68, 88, 108, 0.32);
   --ny-editor-inline-code-border: rgba(103, 123, 147, 0.34);
-  --ny-editor-toolbar-bg: rgba(18, 24, 31, 0.74);
+  --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(18, 24, 31, 0.74));
   --ny-editor-toolbar-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
-  --ny-editor-floating-bg: rgba(22, 29, 38, 0.96);
+  --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(22, 29, 38, 0.96));
   --ny-editor-floating-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
   --ny-editor-codeblock-border: rgba(96, 112, 132, 0.24);
   --ny-editor-codeblock-bg: linear-gradient(180deg, rgba(24, 31, 40, 0.96) 0%, rgba(20, 26, 35, 0.98) 100%);

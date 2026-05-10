@@ -10,7 +10,13 @@ import { FileController } from './features/file-controller';
 import { MenuController } from './features/menu-controller';
 import { ShortcutController } from './features/shortcut-controller';
 import { store } from './state/store';
-import { getSettings, hydrateSettings, subscribeSettings, updateSettings } from './state/settings';
+import {
+  getSettings,
+  hydrateSettings,
+  previewAppearance,
+  subscribeSettings,
+  updateSettings,
+} from './state/settings';
 import { initI18n, i18next, resolveLanguage } from './i18n';
 import { translateDOM } from './i18n/dom';
 import { updateMacosMenu } from './bridge/ipc/menu';
@@ -78,6 +84,9 @@ export class App {
     this.theme = new ThemeManager();
     this.bindThemeToggle();
     this.bindAutoSave();
+    window.addEventListener('nyamark:themechange', () => {
+      previewAppearance(getSettings().appearance);
+    });
 
     subscribeSettings((newSettings) => {
       if (newSettings.general.language !== this.currentLanguage) {

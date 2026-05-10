@@ -1,12 +1,14 @@
 import {
   sanitizeAppearanceSettings,
   type AppearanceSettings,
+  supportsAdjustableWindowOpacity,
 } from '../../../state/settings';
 
 export function renderAppearanceSection(
   current: AppearanceSettings,
   onChange: (next: AppearanceSettings, mode: 'input' | 'commit') => void
 ): HTMLElement {
+  const showWindowOpacity = supportsAdjustableWindowOpacity();
   const section = document.createElement('section');
   section.className = 'ny-settings__section';
   section.innerHTML = `
@@ -24,6 +26,16 @@ export function renderAppearanceSection(
         <span data-i18n="settings.appearance.readableWidth">Readable width (px)</span>
         <input type="number" min="520" max="1100" step="10" data-key="readableMaxWidth" />
       </label>
+      ${
+        showWindowOpacity
+          ? `
+      <label class="ny-settings__field">
+        <span data-i18n="settings.appearance.windowOpacity">Window opacity (%)</span>
+        <input type="number" min="72" max="98" step="1" data-key="windowOpacity" />
+      </label>
+      `
+          : ''
+      }
     </div>
   `;
 
