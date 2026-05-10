@@ -1,4 +1,5 @@
 name: Release
+run-name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 on:
   push:
@@ -23,7 +24,6 @@ jobs:
     outputs:
       tag: ${{ steps.get_version.outputs.tag }}
       version: ${{ steps.get_version.outputs.version }}
-      wix_version: ${{ steps.get_version.outputs.wix_version }}
       is_prerelease: ${{ steps.get_version.outputs.is_prerelease }}
       changelog: ${{ steps.git-cliff.outputs.content }}
     steps:
@@ -38,14 +38,12 @@ jobs:
         run: |
           TAG_NAME=${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           VERSION=${TAG_NAME#v}
-          WIX_VERSION=$(echo $VERSION | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
           IS_PRERELEASE=false
           if [[ $VERSION == *"-"* ]]; then
             IS_PRERELEASE=true
           fi
           echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "wix_version=$WIX_VERSION" >> $GITHUB_OUTPUT
           echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
 
       - name: Generate Changelog (Latest)
@@ -124,11 +122,8 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.preparation.outputs.version }}"
-          WIX_VERSION="${{ needs.preparation.outputs.wix_version }}"
           perl -i -pe "s/\"version\": \".*?\"/\"version\": \"$VERSION\"/" package.json
           perl -i -pe "s/^version = \".*?\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
-          perl -i -pe "s/\"version\": \"\.\.\/package\.json\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
-          perl -i -pe "s/\"windows\": \{/\"windows\": { \"wix\": { \"version\": \"$WIX_VERSION\" },/" src-tauri/tauri.conf.json
 
       - name: Install Linux dependencies
         if: contains(matrix.platform, 'ubuntu')
@@ -163,4 +158,5 @@ jobs:
           releaseDraft: false
           prerelease: ${{ needs.preparation.outputs.is_prerelease }}
           tauriScript: bun tauri
+          releaseAssetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
           args: ${{ matrix.args }}
