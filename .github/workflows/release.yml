@@ -152,4 +152,3 @@ jobs:
           prerelease: ${{ needs.preparation.outputs.is_prerelease }}
           tauriScript: bun tauri
           args: ${{ matrix.args }}
-          useCross: false

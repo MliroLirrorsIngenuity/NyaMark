@@ -78,4 +78,3 @@ jobs:
         with:
           tauriScript: bun tauri
           args: ${{ matrix.args }} --no-bundle
-          useCross: false
