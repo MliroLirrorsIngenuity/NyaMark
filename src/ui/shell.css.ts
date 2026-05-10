@@ -140,12 +140,14 @@ body {
   border-radius: 0;
 }
 
-#app.ny-shell--windows {
+#app.ny-shell--windows,
+#app.ny-shell--linux {
   border-radius: 0;
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  backdrop-filter: blur(40px) saturate(1.6);
 }
 
 #app.ny-shell--linux {
-  border-radius: 0;
   background:
     radial-gradient(circle at 18% 0%, var(--ny-linux-frost-sheen) 0%, transparent 30%),
     radial-gradient(circle at 88% 14%, var(--ny-linux-frost-glow) 0%, transparent 28%),

@@ -110,15 +110,22 @@ function applyWindowOpacity(windowOpacity: number) {
         linuxDepth: [77, 122, 143] as [number, number, number],
       };
 
-  const appStartAlpha = clamp(opacity - 0.14, 0.58, 0.92);
-  const appEndAlpha = clamp(opacity - 0.08, 0.64, 0.96);
-  const surfaceElevatedAlpha = clamp(opacity + 0.06, 0.82, 0.98);
-  const surfaceMutedAlpha = clamp(opacity - 0.18, 0.56, 0.88);
-  const surfaceGhostAlpha = clamp(opacity - 0.04, 0.68, 0.95);
-  const titlebarAlpha = clamp(opacity - 0.08, 0.62, 0.94);
-  const statusbarAlpha = clamp(opacity - 0.02, 0.7, 0.97);
-  const toolbarAlpha = clamp(opacity - 0.12, 0.58, 0.9);
-  const floatingAlpha = clamp(opacity - 0.04, 0.7, 0.96);
+  // Frosted-glass layering:
+  // - The shell has `backdrop-filter: blur(40px)` via CSS, so whatever is
+  //   behind the window is heavily blurred — not see-through stark.
+  // - These alpha values sit on top of that blur, giving a translucent
+  //   frosted look that stays readable even at lower opacity settings.
+  //   At 98% → shell bg ~0.97 alpha, comfortable and near-opaque.
+  //   At 72% → shell bg ~0.75, visible but faint blur-through hint.
+  const appStartAlpha = clamp(opacity * 0.82 + 0.16, 0.75, 0.97);
+  const appEndAlpha = clamp(opacity * 0.82 + 0.20, 0.79, 0.99);
+  const surfaceElevatedAlpha = clamp(opacity * 0.70 + 0.28, 0.78, 0.99);
+  const surfaceMutedAlpha = clamp(opacity * 0.78 + 0.12, 0.68, 0.92);
+  const surfaceGhostAlpha = clamp(opacity * 0.78 + 0.20, 0.76, 0.96);
+  const titlebarAlpha = clamp(opacity * 0.78 + 0.16, 0.72, 0.96);
+  const statusbarAlpha = clamp(opacity * 0.78 + 0.22, 0.78, 0.98);
+  const toolbarAlpha = clamp(opacity * 0.70 + 0.22, 0.72, 0.94);
+  const floatingAlpha = clamp(opacity * 0.76 + 0.22, 0.77, 0.98);
 
   root.setProperty('--ny-app-bg-start', rgba(palette.appStart, appStartAlpha));
   root.setProperty('--ny-app-bg-end', rgba(palette.appEnd, appEndAlpha));
