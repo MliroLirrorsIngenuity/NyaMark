@@ -116,7 +116,8 @@ jobs:
           WIX_VERSION="${{ needs.preparation.outputs.wix_version }}"
           perl -i -pe "s/\"version\": \".*?\"/\"version\": \"$VERSION\"/" package.json
           perl -i -pe "s/^version = \".*?\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
-          perl -i -pe "s/\"version\": \"0.0.0\"/\"version\": \"$WIX_VERSION\"/" src-tauri/tauri.conf.json
+          perl -i -pe "s/\"version\": \"\.\.\/package\.json\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
+          perl -i -pe "s/\"windows\": \{/\"windows\": { \"wix\": { \"version\": \"$WIX_VERSION\" },/" src-tauri/tauri.conf.json
 
       - name: Install Linux dependencies
         if: contains(matrix.platform, 'ubuntu')
