@@ -18,13 +18,21 @@ const styles = `
   inset: 0;
   z-index: 130;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: color-mix(in srgb, var(--ny-bg-primary), transparent 26%);
-  backdrop-filter: blur(10px) saturate(1.08);
-  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  padding: 0 24px;
+  background: rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(12px) saturate(1.05);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
+  overflow-y: auto;
   animation: ny-settings-overlay-in 160ms ease-out;
+}
+
+.ny-settings-overlay::before,
+.ny-settings-overlay::after {
+  content: "";
+  flex: 1;
+  min-height: 48px;
 }
 
 .ny-settings-overlay.is-closing {
@@ -33,20 +41,21 @@ const styles = `
 }
 
 .ny-settings-dialog {
-  width: min(640px, calc(100vw - 40px));
-  max-height: calc(100vh - 80px);
+  width: min(680px, calc(100vw - 48px));
+  max-height: min(720px, calc(100vh - 120px));
+  flex-shrink: 0;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  padding: 22px 22px 18px;
+  padding: 32px 32px 28px;
   border: 1px solid var(--ny-border-strong);
-  border-radius: 24px;
-  background: var(--ny-surface-ghost);
-  box-shadow: var(--ny-shadow-float);
+  border-radius: 28px;
+  background: var(--ny-surface-elevated);
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.22);
   color: var(--ny-text-primary);
   user-select: none;
   -webkit-user-select: none;
-  transform-origin: top center;
-  animation: ny-settings-dialog-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: center center;
+  animation: ny-settings-dialog-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ny-settings-overlay.is-closing .ny-settings-dialog {
@@ -107,8 +116,54 @@ const styles = `
 .ny-settings__field--checkbox {
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex: 0 1 auto;
+  cursor: pointer;
+}
+
+.ny-settings__field--checkbox input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  background: color-mix(in srgb, var(--ny-text-muted), transparent 82%);
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 60%);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.ny-settings__field--checkbox input[type="checkbox"]:checked {
+  background: var(--ny-accent);
+  border-color: var(--ny-accent);
+}
+
+.ny-settings__field--checkbox input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ny-settings__field--checkbox input[type="checkbox"]:checked::after {
+  transform: translateX(14px);
+}
+
+.ny-settings__field--checkbox:hover input[type="checkbox"] {
+  border-color: color-mix(in srgb, var(--ny-border-strong), transparent 20%);
+}
+
+.ny-settings__field--checkbox:hover input[type="checkbox"]:checked {
+  filter: brightness(1.05);
 }
 
 .ny-settings__field input[type="number"] {
@@ -160,15 +215,19 @@ const styles = `
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  z-index: 10;
-  padding: 4px;
-  background: var(--ny-surface-elevated);
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
-  border-radius: 10px;
-  box-shadow: var(--ny-shadow-float);
+  z-index: 150;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid var(--ny-border-strong);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+:root[data-theme="dark"] .ny-settings__select-menu {
+  background: #1a202c;
 }
 
 .ny-settings__select-menu[hidden] {
@@ -237,13 +296,18 @@ const styles = `
   border-radius: 12px;
   background: color-mix(in srgb, var(--ny-surface-elevated), transparent 28%);
 }
-.ny-settings__option input[type="radio"] { margin-top: 3px; }
+
+.ny-settings__option input[type="radio"] {
+  margin-top: 3px;
+}
+
 .ny-settings__option strong {
   display: block;
   margin-bottom: 2px;
   font-size: 13px;
   color: var(--ny-text-primary);
 }
+
 .ny-settings__option span span {
   display: block;
   color: var(--ny-text-secondary);

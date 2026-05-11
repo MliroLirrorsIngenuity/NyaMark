@@ -14,11 +14,13 @@ export function renderSaveSection(
   section.className = 'ny-settings__section';
   section.innerHTML = `
     <h4 class="ny-settings__section-title" data-i18n="settings.save.title">Save</h4>
-    <div class="ny-settings__row">
+    <div class="ny-settings__row" style="margin-bottom: 20px;">
       <label class="ny-settings__field ny-settings__field--checkbox">
         <input type="checkbox" data-key="autoSave" />
         <span data-i18n="settings.save.autoSave">Auto-save while editing</span>
       </label>
+    </div>
+    <div class="ny-settings__row">
       <label class="ny-settings__field">
         <span data-i18n="settings.save.autoSaveInterval">Auto-save interval (min)</span>
         <input type="number" min="${minuteMin}" max="${minuteMax}" step="${minuteStep}" data-key="autoSaveIntervalMs" />

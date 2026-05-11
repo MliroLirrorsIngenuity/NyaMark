@@ -101,7 +101,7 @@
       "fontSize": "字體大小",
       "lineHeight": "行高",
       "readableWidth": "最佳閱讀寬度 (px)",
-      "windowTransparency": "開啟視窗透明"
+      "windowTransparency": "毛玻璃效果"
     },
     "save": {
       "title": "儲存",

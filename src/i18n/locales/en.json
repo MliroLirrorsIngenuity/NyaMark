@@ -102,7 +102,7 @@
       "fontSize": "Font size",
       "lineHeight": "Line height",
       "readableWidth": "Readable width (px)",
-      "windowTransparency": "Enable window transparency"
+      "windowTransparency": "Frosted glass effect"
     },
     "save": {
       "title": "Save Policy",

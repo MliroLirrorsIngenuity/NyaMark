@@ -13,6 +13,18 @@ export function renderAppearanceSection(
   section.className = 'ny-settings__section';
   section.innerHTML = `
     <h4 class="ny-settings__section-title" data-i18n="settings.appearance.title">Appearance</h4>
+    ${
+      showTransparency
+        ? `
+    <div class="ny-settings__row" style="margin-bottom: 20px;">
+      <label class="ny-settings__field ny-settings__field--checkbox">
+        <input type="checkbox" data-key="windowTransparency" />
+        <span data-i18n="settings.appearance.windowTransparency">Enable frosted glass effect</span>
+      </label>
+    </div>
+    `
+        : ''
+    }
     <div class="ny-settings__row">
       <label class="ny-settings__field">
         <span data-i18n="settings.appearance.fontSize">Font size</span>
@@ -26,16 +38,6 @@ export function renderAppearanceSection(
         <span data-i18n="settings.appearance.readableWidth">Readable width (px)</span>
         <input type="number" min="520" max="1100" step="10" data-key="readableMaxWidth" />
       </label>
-      ${
-        showTransparency
-          ? `
-      <label class="ny-settings__field ny-settings__field--checkbox">
-        <input type="checkbox" data-key="windowTransparency" />
-        <span data-i18n="settings.appearance.windowTransparency">Enable window transparency</span>
-      </label>
-      `
-          : ''
-      }
     </div>
   `;
 
