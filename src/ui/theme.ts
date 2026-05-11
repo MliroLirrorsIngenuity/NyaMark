@@ -1,4 +1,8 @@
-import { getWindowTheme, listenWindowThemeChange } from '../bridge/ipc/windows';
+import {
+  getWindowTheme,
+  listenWindowThemeChange,
+  setWindowTheme,
+} from '../bridge/ipc/windows';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -109,6 +113,7 @@ export class ThemeManager {
     document.documentElement.classList.toggle('dark', this.mode === 'dark');
     document.documentElement.dataset.theme = this.mode;
     document.documentElement.style.colorScheme = this.mode;
+    void setWindowTheme(this.mode);
     window.dispatchEvent(
       new CustomEvent('nyamark:themechange', { detail: { mode: this.mode } })
     );

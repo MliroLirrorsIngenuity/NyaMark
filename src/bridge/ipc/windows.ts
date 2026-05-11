@@ -14,6 +14,10 @@ export async function getWindowTheme(): Promise<WindowTheme | null> {
   return theme === 'light' || theme === 'dark' ? theme : null;
 }
 
+export async function setWindowTheme(theme: WindowTheme | null): Promise<void> {
+  await getCurrentWindow().setTheme(theme);
+}
+
 export async function listenWindowThemeChange(
   handler: (theme: WindowTheme) => void
 ): Promise<UnlistenFn> {

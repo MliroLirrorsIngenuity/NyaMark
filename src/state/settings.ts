@@ -67,7 +67,7 @@ async function applyWindowEffects(transparency: boolean) {
     if (transparency) {
       if (platform === 'macos') {
         await win.setEffects({
-          effects: [Effect.WindowBackground],
+          effects: [Effect.Sidebar],
           state: EffectState.Active,
         });
       } else if (platform === 'windows') {

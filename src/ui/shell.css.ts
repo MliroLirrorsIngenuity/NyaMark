@@ -64,24 +64,6 @@ const shellStyles = `
   --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(255, 255, 255, 0.88));
 }
 
-.ny-shell--transparent {
-  --ny-app-bg-start: rgba(255, 255, 255, 0.04);
-  --ny-app-bg-end: rgba(255, 255, 255, 0.04);
-  --ny-surface-elevated: rgba(255, 255, 255, 0.72);
-  --ny-surface-muted: rgba(255, 255, 255, 0.52);
-  --ny-surface-ghost: rgba(255, 255, 255, 0.36);
-  --ny-titlebar-bg: transparent;
-  --ny-statusbar-bg: transparent;
-}
-
-:root[data-theme="dark"].ny-shell--transparent {
-  --ny-app-bg-start: rgba(255, 255, 255, 0.01);
-  --ny-app-bg-end: rgba(255, 255, 255, 0.01);
-  --ny-surface-elevated: rgba(15, 23, 42, 0.72);
-  --ny-surface-muted: rgba(15, 23, 42, 0.52);
-  --ny-surface-ghost: rgba(15, 23, 42, 0.36);
-}
-
 html,
 body,
 #app {
@@ -115,6 +97,29 @@ body {
   border-radius: var(--ny-surface-radius);
   background: linear-gradient(180deg, var(--ny-app-bg-start) 0%, color-mix(in srgb, var(--ny-app-bg-start), var(--ny-app-bg-end) 42%) 38%, var(--ny-app-bg-end) 100%);
   color: var(--ny-text-primary);
+}
+
+/* Transparency overrides - MUST be defined after the base background to win */
+:root.ny-shell--transparent #app.ny-shell {
+  background: transparent !important;
+}
+
+:root.ny-shell--transparent {
+  --ny-surface-elevated: rgba(255, 255, 255, 0.72);
+  --ny-surface-muted: rgba(255, 255, 255, 0.52);
+  --ny-surface-ghost: rgba(255, 255, 255, 0.36);
+  --ny-titlebar-bg: transparent;
+  --ny-statusbar-bg: transparent;
+}
+
+:root[data-theme="dark"].ny-shell--transparent #app.ny-shell {
+  background: transparent !important;
+}
+
+:root[data-theme="dark"].ny-shell--transparent {
+  --ny-surface-elevated: rgba(15, 23, 42, 0.72);
+  --ny-surface-muted: rgba(15, 23, 42, 0.52);
+  --ny-surface-ghost: rgba(15, 23, 42, 0.36);
 }
 
 #app.ny-shell--macos {
