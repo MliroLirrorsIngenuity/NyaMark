@@ -1,5 +1,6 @@
 {
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
@@ -9,12 +10,16 @@
         "minWidth": 826,
         "minHeight": 448,
         "decorations": true,
-        "transparent": false,
+        "transparent": true,
         "hiddenTitle": true,
         "titleBarStyle": "Overlay",
         "trafficLightPosition": {
           "x": 18,
           "y": 22
+        },
+        "windowEffects": {
+          "effects": ["sidebar"],
+          "state": "active"
         }
       }
     ]

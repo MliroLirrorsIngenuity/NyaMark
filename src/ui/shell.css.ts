@@ -59,45 +59,27 @@ const shellStyles = `
   --ny-shadow-float: 0 20px 48px rgba(0, 0, 0, 0.38);
 }
 
-:root[data-platform="linux"] {
-  --ny-surface-elevated: rgba(255, 255, 255, 0.9);
-  --ny-surface-muted: rgba(255, 255, 255, 0.72);
-  --ny-surface-ghost: rgba(250, 250, 249, 0.78);
-  --ny-titlebar-bg: rgba(255, 255, 255, 0.72);
-  --ny-statusbar-bg: rgba(255, 255, 255, 0.8);
-  --ny-border-soft: rgba(214, 220, 229, 0.7);
-  --ny-border-strong: rgba(197, 205, 216, 0.78);
-  --ny-linux-frost-sheen: rgba(255, 255, 255, 0.56);
-  --ny-linux-frost-glow: rgba(141, 180, 200, 0.2);
-  --ny-linux-frost-depth: rgba(77, 122, 143, 0.12);
-}
-
-:root[data-platform="linux"][data-theme="dark"] {
-  --ny-surface-elevated: rgba(24, 31, 41, 0.88);
-  --ny-surface-muted: rgba(21, 28, 36, 0.72);
-  --ny-surface-ghost: rgba(20, 27, 35, 0.76);
-  --ny-titlebar-bg: rgba(19, 25, 33, 0.68);
-  --ny-statusbar-bg: rgba(17, 23, 31, 0.78);
-  --ny-border-soft: rgba(119, 134, 155, 0.24);
-  --ny-border-strong: rgba(132, 148, 170, 0.34);
-  --ny-linux-frost-sheen: rgba(141, 180, 200, 0.1);
-  --ny-linux-frost-glow: rgba(96, 135, 158, 0.16);
-  --ny-linux-frost-depth: rgba(0, 0, 0, 0.18);
-}
-
-:root[data-platform="linux"],
-:root[data-platform="linux"] body {
-  background: transparent;
-}
-
 :root[data-platform="linux"] .ny-editor-root .milkdown {
   --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(255, 255, 255, 0.78));
   --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(255, 255, 255, 0.88));
 }
 
-:root[data-platform="linux"][data-theme="dark"] .ny-editor-root .milkdown {
-  --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(18, 24, 31, 0.68));
-  --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(22, 29, 38, 0.82));
+.ny-shell--transparent {
+  --ny-app-bg-start: rgba(255, 255, 255, 0.04);
+  --ny-app-bg-end: rgba(255, 255, 255, 0.04);
+  --ny-surface-elevated: rgba(255, 255, 255, 0.72);
+  --ny-surface-muted: rgba(255, 255, 255, 0.52);
+  --ny-surface-ghost: rgba(255, 255, 255, 0.36);
+  --ny-titlebar-bg: transparent;
+  --ny-statusbar-bg: transparent;
+}
+
+:root[data-theme="dark"].ny-shell--transparent {
+  --ny-app-bg-start: rgba(255, 255, 255, 0.01);
+  --ny-app-bg-end: rgba(255, 255, 255, 0.01);
+  --ny-surface-elevated: rgba(15, 23, 42, 0.72);
+  --ny-surface-muted: rgba(15, 23, 42, 0.52);
+  --ny-surface-ghost: rgba(15, 23, 42, 0.36);
 }
 
 html,
@@ -143,23 +125,10 @@ body {
 #app.ny-shell--windows,
 #app.ny-shell--linux {
   border-radius: 0;
-  -webkit-backdrop-filter: blur(40px) saturate(1.6);
-  backdrop-filter: blur(40px) saturate(1.6);
 }
 
 #app.ny-shell--linux {
-  background:
-    radial-gradient(circle at 18% 0%, var(--ny-linux-frost-sheen) 0%, transparent 30%),
-    radial-gradient(circle at 88% 14%, var(--ny-linux-frost-glow) 0%, transparent 28%),
-    radial-gradient(circle at 52% 100%, var(--ny-linux-frost-depth) 0%, transparent 36%),
-    linear-gradient(180deg, var(--ny-app-bg-start) 0%, color-mix(in srgb, var(--ny-app-bg-start), var(--ny-app-bg-end) 48%) 38%, var(--ny-app-bg-end) 100%);
-}
-
-:root[data-platform="linux"] :is(
-  .ny-settings-overlay,
-  .ny-image-policy-overlay
-) {
-  background: color-mix(in srgb, var(--ny-app-bg-end), transparent 38%) !important;
+  border-radius: 0;
 }
 
 .ny-shell__resize-handle {

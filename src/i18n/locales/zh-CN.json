@@ -101,7 +101,7 @@
       "fontSize": "字体大小",
       "lineHeight": "行高",
       "readableWidth": "最佳阅读宽度 (px)",
-      "windowOpacity": "窗口不透明度 (%)"
+      "windowTransparency": "开启窗口透明"
     },
     "save": {
       "title": "保存",

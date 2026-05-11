@@ -12,7 +12,7 @@ pub struct AppearanceSettings {
     pub font_size: u32,
     pub line_height: f64,
     pub readable_max_width: u32,
-    pub window_opacity: u32,
+    pub window_transparency: bool,
 }
 
 impl Default for AppearanceSettings {
@@ -21,7 +21,7 @@ impl Default for AppearanceSettings {
             font_size: 14,
             line_height: 1.52,
             readable_max_width: 720,
-            window_opacity: 92,
+            window_transparency: false,
         }
     }
 }

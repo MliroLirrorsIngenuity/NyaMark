@@ -1,4 +1,23 @@
 {
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "NyaMark",
+        "width": 860,
+        "height": 720,
+        "minWidth": 826,
+        "minHeight": 448,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "windowEffects": {
+          "effects": ["blur"],
+          "color": "#00000000"
+        }
+      }
+    ]
+  },
   "bundle": {
     "targets": [
       "nsis"

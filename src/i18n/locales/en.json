@@ -102,7 +102,7 @@
       "fontSize": "Font size",
       "lineHeight": "Line height",
       "readableWidth": "Readable width (px)",
-      "windowOpacity": "Window opacity (%)"
+      "windowTransparency": "Enable window transparency"
     },
     "save": {
       "title": "Save Policy",

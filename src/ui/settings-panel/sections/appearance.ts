@@ -1,14 +1,14 @@
+import { getPlatform } from '../../../platform/detect';
 import {
   sanitizeAppearanceSettings,
   type AppearanceSettings,
-  supportsAdjustableWindowOpacity,
 } from '../../../state/settings';
 
 export function renderAppearanceSection(
   current: AppearanceSettings,
   onChange: (next: AppearanceSettings, mode: 'input' | 'commit') => void
 ): HTMLElement {
-  const showWindowOpacity = supportsAdjustableWindowOpacity();
+  const showTransparency = getPlatform() !== 'linux';
   const section = document.createElement('section');
   section.className = 'ny-settings__section';
   section.innerHTML = `
@@ -27,11 +27,11 @@ export function renderAppearanceSection(
         <input type="number" min="520" max="1100" step="10" data-key="readableMaxWidth" />
       </label>
       ${
-        showWindowOpacity
+        showTransparency
           ? `
-      <label class="ny-settings__field">
-        <span data-i18n="settings.appearance.windowOpacity">Window opacity (%)</span>
-        <input type="number" min="72" max="98" step="1" data-key="windowOpacity" />
+      <label class="ny-settings__field ny-settings__field--checkbox">
+        <input type="checkbox" data-key="windowTransparency" />
+        <span data-i18n="settings.appearance.windowTransparency">Enable window transparency</span>
       </label>
       `
           : ''
@@ -43,24 +43,36 @@ export function renderAppearanceSection(
   inputs.forEach((input) => {
     const key = input.dataset.key as keyof AppearanceSettings;
     const field = input.closest('.ny-settings__field') as HTMLElement | null;
-    const hint = document.createElement('span');
-    hint.className = 'ny-settings__field-hint';
-    field?.appendChild(hint);
-    input.value = String(current[key]);
+    const isCheckbox = input.type === 'checkbox';
+
+    let hint: HTMLElement | null = null;
+    if (!isCheckbox) {
+      hint = document.createElement('span');
+      hint.className = 'ny-settings__field-hint';
+      field?.appendChild(hint);
+      input.value = String(current[key]);
+    } else {
+      input.checked = Boolean(current[key]);
+    }
 
     const syncValidity = () => {
+      if (isCheckbox) return;
       const invalid = Boolean(input.value) && !input.validity.valid;
       field?.toggleAttribute('data-invalid', invalid);
       if (!invalid) {
-        hint.textContent = '';
+        if (hint) hint.textContent = '';
         return;
       }
-      hint.textContent = `${input.min} - ${input.max}`;
+      if (hint) hint.textContent = `${input.min} - ${input.max}`;
     };
 
-    const commit = (raw: number) => {
+    const commit = (raw: number | boolean) => {
       const next = sanitizeAppearanceSettings({ ...current, [key]: raw });
-      input.value = String(next[key]);
+      if (isCheckbox) {
+        input.checked = Boolean(next[key]);
+      } else {
+        input.value = String(next[key]);
+      }
       onChange(next, 'commit');
       Object.assign(current, next);
       syncValidity();
@@ -68,6 +80,14 @@ export function renderAppearanceSection(
 
     input.addEventListener('input', () => {
       syncValidity();
+      if (isCheckbox) {
+        const next = sanitizeAppearanceSettings({
+          ...current,
+          [key]: input.checked,
+        });
+        onChange(next, 'input');
+        return;
+      }
       if (!input.value || !input.validity.valid) return;
       const raw = Number(input.value);
       if (!Number.isFinite(raw)) return;
@@ -76,6 +96,10 @@ export function renderAppearanceSection(
     });
 
     input.addEventListener('change', () => {
+      if (isCheckbox) {
+        commit(input.checked);
+        return;
+      }
       if (!input.value || !input.validity.valid) {
         input.value = String(current[key]);
         syncValidity();
