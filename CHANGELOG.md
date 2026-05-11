@@ -1,4 +1,22 @@
 # Changelog
+## 1.0.0-beta.4 (2026-05-11)
+
+### 🐛 Bug Fixes
+
+- Dark mode transparency effects  @Lemon-miaow
+
+
+### 🚜 Refactor
+
+- Improve transparency effects  @Lemon-miaow
+
+- Refine the settings panel style  @Lemon-miaow
+
+
+### 🔧 Chore
+
+- Update CHANGELOG.md [skip ci]  @github-actions[bot]
+
 ## 1.0.0-beta.3 (2026-05-10)
 
 ### 🐛 Bug Fixes
