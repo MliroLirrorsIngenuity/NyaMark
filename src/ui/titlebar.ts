@@ -1,12 +1,15 @@
 import { Store } from '../state/store';
 import {
   closeWindow,
+  isWindowMaximized,
   minimizeWindow,
   setWindowTitle,
   toggleMaximizeWindow,
+  unmaximizeWindow,
 } from '../bridge/ipc/windows';
 
 import { i18next } from '../i18n';
+import { isMacOS } from '../platform/detect';
 
 type TitlebarActions = {
   onNewFile: () => Promise<unknown> | void;
@@ -19,9 +22,7 @@ type TitlebarActions = {
 
 /**
  * Pure UI binding: forwards button clicks to controller actions and reflects
- * state from the store. Window-chrome behaviour like double-click maximize is
- * handled natively by Tauri via `data-tauri-drag-region`, so we don't carry
- * any of that here.
+ * state from the store. Drag regions still use Tauri's native window handler.
  */
 export class Titlebar {
   private readonly elFilename = document.getElementById(
@@ -39,6 +40,7 @@ export class Titlebar {
     private readonly store: Store,
     private readonly actions: TitlebarActions
   ) {
+    this.bindWindowChromeRestore();
     this.bindFileMenu();
     this.bindAction('tb-outline', this.actions.onToggleOutline);
     this.bindClick('tb-settings', () => this.actions.onOpenSettings());
@@ -56,6 +58,68 @@ export class Titlebar {
     i18next.on('languageChanged', () => {
       this.update(this.store.getState());
     });
+  }
+
+  private bindWindowChromeRestore() {
+    const titlebar = document.getElementById('titlebar') as HTMLElement;
+    const isMac = isMacOS();
+    let maximizedBeforeClick: Promise<boolean> | null = null;
+
+    const isTitlebarClick = (event: MouseEvent) =>
+      event.button === 0 && event.target === titlebar;
+
+    const restoreDoubleClick = (event: MouseEvent) => {
+      if (maximizedBeforeClick === null) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const wasMaximized = maximizedBeforeClick;
+      maximizedBeforeClick = null;
+      void wasMaximized
+        .then((maximized) =>
+          maximized ? unmaximizeWindow() : toggleMaximizeWindow()
+        )
+        .catch(console.error);
+    };
+
+    titlebar.addEventListener(
+      'mousedown',
+      (event) => {
+        if (!isTitlebarClick(event)) {
+          return;
+        }
+
+        if (event.detail === 1) {
+          maximizedBeforeClick = isWindowMaximized().catch((error) => {
+            console.error(error);
+            return false;
+          });
+          return;
+        }
+
+        if (!isMac && event.detail === 2) {
+          restoreDoubleClick(event);
+        }
+      },
+      true
+    );
+
+    if (!isMac) {
+      return;
+    }
+
+    titlebar.addEventListener(
+      'mouseup',
+      (event) => {
+        if (isTitlebarClick(event) && event.detail === 2) {
+          restoreDoubleClick(event);
+        }
+      },
+      true
+    );
   }
 
   private bindFileMenu() {

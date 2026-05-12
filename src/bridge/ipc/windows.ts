@@ -42,6 +42,14 @@ export async function toggleMaximizeWindow(): Promise<void> {
   await getCurrentWindow().toggleMaximize();
 }
 
+export async function unmaximizeWindow(): Promise<void> {
+  await getCurrentWindow().unmaximize();
+}
+
+export async function isWindowMaximized(): Promise<boolean> {
+  return await getCurrentWindow().isMaximized();
+}
+
 export async function closeWindow(): Promise<void> {
   await getCurrentWindow().close();
 }
