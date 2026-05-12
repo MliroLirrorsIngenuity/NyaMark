@@ -10,11 +10,7 @@
         "minHeight": 448,
         "resizable": true,
         "decorations": false,
-        "transparent": true,
-        "windowEffects": {
-          "effects": ["blur"],
-          "color": "#00000000"
-        }
+        "transparent": true
       }
     ]
   },

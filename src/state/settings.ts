@@ -5,6 +5,7 @@ import {
 } from '../bridge/ipc/settings';
 import { getPlatform } from '../platform/detect';
 import { getCurrentWindow, Effect, EffectState } from '@tauri-apps/api/window';
+import { setNativeWindowBackdrop } from '../bridge/ipc/windows';
 
 export type AppearanceSettings = {
   fontSize: number;
@@ -71,17 +72,22 @@ async function applyWindowEffects(transparency: boolean) {
           state: EffectState.Active,
         });
       } else if (platform === 'windows') {
-        await win.setEffects({
-          effects: [Effect.Blur],
-          color: '#00000000',
-        });
+        await setNativeWindowBackdrop(true);
       }
       document.documentElement.classList.add('ny-shell--transparent');
     } else {
+      if (platform === 'windows') {
+        document.documentElement.classList.remove('ny-shell--transparent');
+        await setNativeWindowBackdrop(false);
+        return;
+      }
       await win.clearEffects();
       document.documentElement.classList.remove('ny-shell--transparent');
     }
   } catch (e) {
+    if (platform === 'windows') {
+      document.documentElement.classList.remove('ny-shell--transparent');
+    }
     console.error('Failed to apply window effects:', e);
   }
 }

@@ -122,6 +122,11 @@ body {
   --ny-surface-ghost: rgba(15, 23, 42, 0.36);
 }
 
+:root[data-platform="windows"].ny-shell--transparent #titlebar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 #app.ny-shell--macos {
   --ny-window-controls-space: 78px;
   border-radius: 0;

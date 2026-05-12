@@ -67,6 +67,11 @@ fn open_new_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn set_windows_backdrop(window: Window, enabled: bool) -> Result<(), String> {
+    windows::set_native_backdrop(&window, enabled).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn materialize_draft_attachment(
     window: Window,
     app: AppHandle,
@@ -172,6 +177,7 @@ pub fn run() {
             resolve_current_window_file,
             open_new_window,
             open_markdown_in_new_window,
+            set_windows_backdrop,
             materialize_draft_attachment,
             #[cfg(target_os = "macos")]
             menu::update_macos_menu,

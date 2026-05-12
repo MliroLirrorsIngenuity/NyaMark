@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use tauri::utils::config::WindowConfig;
-use tauri::{AppHandle, Runtime, WebviewWindowBuilder};
+use tauri::{AppHandle, Runtime, WebviewWindowBuilder, Window};
 
 use crate::sessions;
 
@@ -45,4 +45,37 @@ pub fn open_blank_editor_window<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     let builder = WebviewWindowBuilder::from_config(app, &config)?;
 
     builder.build().map(|_| ()).map_err(Into::into)
+}
+
+#[cfg(target_os = "windows")]
+pub fn set_native_backdrop<R: Runtime>(window: &Window<R>, enabled: bool) -> Result<()> {
+    use ::windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWA_SYSTEMBACKDROP_TYPE,
+    };
+
+    let hwnd = window
+        .hwnd()
+        .context("Failed to get native window handle")?;
+    let backdrop = if enabled {
+        DWMSBT_TRANSIENTWINDOW
+    } else {
+        DWMSBT_NONE
+    };
+
+    unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            &backdrop as *const _ as *const core::ffi::c_void,
+            std::mem::size_of_val(&backdrop) as u32,
+        )
+        .context("Failed to set native DWM backdrop")?;
+    }
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_native_backdrop<R: Runtime>(_window: &Window<R>, _enabled: bool) -> Result<()> {
+    Ok(())
 }

@@ -1,4 +1,5 @@
 import { type UnlistenFn } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import type { DragDropEvent } from '@tauri-apps/api/webview';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { type Event } from '@tauri-apps/api/event';
@@ -32,6 +33,10 @@ export async function listenWindowFileDrop(
   handler: (event: Event<DragDropEvent>) => void
 ): Promise<UnlistenFn> {
   return await getCurrentWindow().onDragDropEvent(handler);
+}
+
+export async function setNativeWindowBackdrop(enabled: boolean): Promise<void> {
+  await invoke('set_windows_backdrop', { enabled });
 }
 
 export async function minimizeWindow(): Promise<void> {
