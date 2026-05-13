@@ -1,13 +1,8 @@
+import { relaunch } from '@tauri-apps/plugin-process';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { startUpdate } from '../bridge/ipc/update';
+import type { Update, DownloadEvent } from '@tauri-apps/plugin-updater';
 import { i18next } from '../i18n';
-import { getPlatform } from '../platform/detect';
 import { ensureStyle } from '../style/register';
-import {
-  type UpdateAsset,
-  type UpdateChannel,
-  type UpdateCheckResult,
-} from '../features/update-checker';
 
 const updateDialogStyles = `
 .ny-update-overlay {
@@ -165,38 +160,6 @@ const updateDialogStyles = `
   -webkit-user-select: text;
 }
 
-.ny-update-dialog__assets {
-  display: grid;
-  gap: 8px;
-}
-
-.ny-update-dialog__asset {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 28%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 26%);
-}
-
-.ny-update-dialog__asset-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ny-text-primary);
-  font-size: 13px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ny-update-dialog__asset-meta {
-  margin-top: 3px;
-  color: var(--ny-text-muted);
-  font-size: 11.5px;
-}
-
 .ny-update-dialog__actions {
   display: flex;
   justify-content: flex-end;
@@ -222,12 +185,6 @@ const updateDialogStyles = `
   background: color-mix(in srgb, var(--ny-accent), var(--ny-surface-elevated) 14%);
 }
 
-.ny-update-dialog__button--small {
-  min-width: 76px;
-  padding: 7px 12px;
-  font-size: 12px;
-}
-
 .ny-update-dialog__button:hover {
   border-color: color-mix(in srgb, var(--ny-accent), transparent 36%);
 }
@@ -239,11 +196,6 @@ const updateDialogStyles = `
 
 @media (max-width: 700px) {
   .ny-update-dialog__meta {
-    grid-template-columns: 1fr;
-  }
-
-  .ny-update-dialog__asset,
-  .ny-update-dialog__actions {
     grid-template-columns: 1fr;
   }
 
@@ -289,12 +241,6 @@ const updateDialogStyles = `
 }
 `;
 
-function channelLabel(channel: UpdateChannel) {
-  return channel === 'prerelease'
-    ? i18next.t('updates.channelPrerelease')
-    : i18next.t('updates.channelRelease');
-}
-
 function formatDate(value: string | null) {
   if (!value) return i18next.t('updates.unknownDate');
   const date = new Date(value);
@@ -304,22 +250,6 @@ function formatDate(value: string | null) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
-}
-
-function formatSize(size: number | null) {
-  if (size === null) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = size;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${new Intl.NumberFormat(i18next.language, {
-    maximumFractionDigits: unitIndex === 0 ? 0 : 1,
-  }).format(value)} ${units[unitIndex]}`;
 }
 
 function appendMetaCard(host: HTMLElement, label: string, value: string) {
@@ -339,11 +269,6 @@ function appendMetaCard(host: HTMLElement, label: string, value: string) {
   host.appendChild(card);
 }
 
-function supportsAutomaticUpdater() {
-  const platform = getPlatform();
-  return platform === 'windows' || platform === 'macos';
-}
-
 export class UpdateDialog {
   private overlay: HTMLDivElement | null = null;
 
@@ -355,10 +280,11 @@ export class UpdateDialog {
     return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
   }
 
-  open(result: UpdateCheckResult) {
-    if (this.overlay || !result.latest) return;
+  open(update: Update) {
+    if (this.overlay) return;
 
-    const release = result.latest;
+    const currentVersion = update.currentVersion;
+
     const overlay = document.createElement('div');
     overlay.className = 'ny-update-overlay';
     document.body.appendChild(overlay);
@@ -378,13 +304,12 @@ export class UpdateDialog {
       <p class="ny-update-dialog__subtitle"></p>
     `;
     header.querySelector('.ny-update-dialog__eyebrow')!.textContent =
-      channelLabel(result.currentChannel);
+      i18next.t('updates.newVersionAvailable');
     header.querySelector('h3')!.textContent = i18next.t('updates.title');
     header.querySelector('.ny-update-dialog__subtitle')!.textContent =
       i18next.t('updates.subtitle', {
-        current: result.currentVersion,
-        latest: release.tagName,
-        channel: channelLabel(result.currentChannel).toLowerCase(),
+        current: currentVersion,
+        latest: update.version,
       });
 
     const body = document.createElement('div');
@@ -392,9 +317,9 @@ export class UpdateDialog {
 
     const meta = document.createElement('div');
     meta.className = 'ny-update-dialog__meta';
-    appendMetaCard(meta, i18next.t('updates.currentVersion'), result.currentVersion);
-    appendMetaCard(meta, i18next.t('updates.latestVersion'), release.tagName);
-    appendMetaCard(meta, i18next.t('updates.publishedAt'), formatDate(release.publishedAt));
+    appendMetaCard(meta, i18next.t('updates.currentVersion'), currentVersion);
+    appendMetaCard(meta, i18next.t('updates.latestVersion'), update.version);
+    appendMetaCard(meta, i18next.t('updates.publishedAt'), formatDate(update.date ?? null));
     body.appendChild(meta);
 
     const notesSection = document.createElement('section');
@@ -404,38 +329,17 @@ export class UpdateDialog {
     notesTitle.textContent = i18next.t('updates.releaseNotes');
     const notes = document.createElement('pre');
     notes.className = 'ny-update-dialog__notes';
-    notes.textContent = release.body || i18next.t('updates.noReleaseNotes');
+    notes.textContent = update.body || i18next.t('updates.noReleaseNotes');
     notesSection.append(notesTitle, notes);
     body.appendChild(notesSection);
-
-    const assetsSection = document.createElement('section');
-    assetsSection.className = 'ny-update-dialog__section';
-    const assetsTitle = document.createElement('h4');
-    assetsTitle.className = 'ny-update-dialog__section-title';
-    assetsTitle.textContent = i18next.t('updates.downloads');
-    const assets = document.createElement('div');
-    assets.className = 'ny-update-dialog__assets';
-    assetsSection.append(assetsTitle, assets);
-    this.renderAssets(assets, release.assets);
-    body.appendChild(assetsSection);
 
     const actions = document.createElement('div');
     actions.className = 'ny-update-dialog__actions';
 
     const later = this.createButton(i18next.t('updates.later'));
-    const openRelease = this.createButton(i18next.t('updates.openRelease'));
-    const downloadSuggested = release.suggestedAsset
-      ? this.createButton(
-          supportsAutomaticUpdater()
-            ? i18next.t('updates.updateNow')
-            : i18next.t('updates.downloadSuggested'),
-          true
-        )
-      : null;
+    const updateNow = this.createButton(i18next.t('updates.updateNow'), true);
 
-    actions.append(later, openRelease);
-    if (downloadSuggested) actions.appendChild(downloadSuggested);
-
+    actions.append(later, updateNow);
     dialog.append(header, body, actions);
     overlay.appendChild(dialog);
 
@@ -462,25 +366,48 @@ export class UpdateDialog {
       if (event.target === overlay) void close();
     });
     later.addEventListener('click', () => void close());
-    openRelease.addEventListener('click', () =>
-      void openUrl(release.url).catch(console.error)
-    );
-    downloadSuggested?.addEventListener('click', () => {
-      const asset = release.suggestedAsset;
-      if (!asset) return;
+    updateNow.addEventListener('click', () => {
+      updateNow.disabled = true;
+      later.disabled = true;
+      updateNow.textContent = i18next.t('updates.downloading');
 
-      if (!supportsAutomaticUpdater()) {
-        void openUrl(asset.url).catch(console.error);
-        return;
-      }
+      let downloaded = 0;
+      let contentLength: number | null = null;
 
-      downloadSuggested.disabled = true;
-      downloadSuggested.textContent = i18next.t('updates.startingUpdater');
-      void startUpdate(asset.url, asset.name).catch((error) => {
-        console.error(error);
-        downloadSuggested.disabled = false;
-        downloadSuggested.textContent = i18next.t('updates.updateFailed');
-      });
+      update
+        .downloadAndInstall((event: DownloadEvent) => {
+          switch (event.event) {
+            case 'Started':
+              contentLength = event.data.contentLength ?? null;
+              break;
+            case 'Progress':
+              downloaded += event.data.chunkLength;
+              if (contentLength && contentLength > 0) {
+                const pct = Math.round((downloaded / contentLength) * 100);
+                updateNow.textContent = `${i18next.t('updates.downloading')} ${pct}%`;
+              }
+              break;
+            case 'Finished':
+              updateNow.textContent = i18next.t('updates.installing');
+              break;
+          }
+        })
+        .then(() => relaunch())
+        .catch((error) => {
+          console.error(error);
+          later.textContent = i18next.t('updates.closeDialog');
+          later.disabled = false;
+          updateNow.textContent = i18next.t('updates.openDownloadPage');
+          updateNow.disabled = false;
+          updateNow.addEventListener(
+            'click',
+            () => {
+              void openUrl('https://github.com/MliroLirrorsIngenuity/NyaMark/releases').catch(console.error);
+              void close();
+            },
+            { once: true }
+          );
+        });
     });
   }
 
@@ -492,45 +419,5 @@ export class UpdateDialog {
       : 'ny-update-dialog__button';
     button.textContent = label;
     return button;
-  }
-
-  private renderAssets(host: HTMLElement, assets: UpdateAsset[]) {
-    if (assets.length === 0) {
-      const empty = document.createElement('p');
-      empty.className = 'ny-update-dialog__asset-meta';
-      empty.textContent = i18next.t('updates.noAssets');
-      host.appendChild(empty);
-      return;
-    }
-
-    assets.forEach((asset) => {
-      const row = document.createElement('div');
-      row.className = 'ny-update-dialog__asset';
-
-      const info = document.createElement('div');
-      const name = document.createElement('div');
-      name.className = 'ny-update-dialog__asset-name';
-      name.textContent = asset.name;
-      name.title = asset.name;
-
-      const meta = document.createElement('div');
-      meta.className = 'ny-update-dialog__asset-meta';
-      meta.textContent = [
-        formatSize(asset.size),
-        asset.recommended ? i18next.t('updates.recommended') : '',
-      ]
-        .filter(Boolean)
-        .join(' · ');
-      info.append(name, meta);
-
-      const button = this.createButton(i18next.t('updates.download'), false);
-      button.classList.add('ny-update-dialog__button--small');
-      button.addEventListener('click', () =>
-        void openUrl(asset.url).catch(console.error)
-      );
-
-      row.append(info, button);
-      host.appendChild(row);
-    });
   }
 }

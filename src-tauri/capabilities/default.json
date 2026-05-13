@@ -20,6 +20,7 @@
     "core:window:allow-set-effects",
     "core:window:allow-set-theme",
     "opener:default",
-    "dialog:default"
+    "dialog:default",
+    "updater:default"
   ]
 }

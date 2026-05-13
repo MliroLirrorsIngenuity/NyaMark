@@ -9,7 +9,7 @@ import { AttachmentController } from './features/attachment-controller';
 import { FileController } from './features/file-controller';
 import { MenuController } from './features/menu-controller';
 import { ShortcutController } from './features/shortcut-controller';
-import { checkForGitHubUpdate } from './features/update-checker';
+import { check } from '@tauri-apps/plugin-updater';
 import { store } from './state/store';
 import {
   getSettings,
@@ -205,15 +205,15 @@ export class App {
   private scheduleUpdateCheck() {
     window.setTimeout(() => {
       void this.checkForUpdates().catch((error) => {
-        console.error('[updates] Automatic GitHub Release check failed', error);
+        console.error('[updates] Update check failed', error);
       });
     }, 1200);
   }
 
   private async checkForUpdates() {
-    const result = await checkForGitHubUpdate();
-    if (result.latest) {
-      this.updateDialog.open(result);
+    const update = await check();
+    if (update) {
+      this.updateDialog.open(update);
     }
   }
 

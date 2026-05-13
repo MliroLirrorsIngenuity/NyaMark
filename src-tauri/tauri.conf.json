@@ -41,6 +41,7 @@
       "appimage",
       "dmg"
     ],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -63,5 +64,13 @@
         "role": "Editor"
       }
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "RWRAyMiQVq+YecuBIag96bf7q6Offv9vxebMnQvektEhP8kShYqMPXLi",
+      "endpoints": [
+        "https://github.com/MliroLirrorsIngenuity/NyaMark/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

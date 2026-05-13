@@ -4,7 +4,6 @@ pub mod file;
 pub mod menu;
 pub mod sessions;
 pub mod settings;
-pub mod updater;
 pub mod windows;
 
 use std::{
@@ -123,6 +122,7 @@ pub fn run() {
         .manage(MainWindowBootstrapComplete(AtomicBool::new(false)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let paths: Vec<String> = args
                 .iter()
@@ -180,10 +180,14 @@ pub fn run() {
             open_markdown_in_new_window,
             set_windows_backdrop,
             materialize_draft_attachment,
-            updater::start_update,
             #[cfg(target_os = "macos")]
             menu::update_macos_menu,
-        ]);
+        ])
+        .setup(|app| {
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            Ok(())
+        });
 
     #[cfg(target_os = "macos")]
     let builder = builder
