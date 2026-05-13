@@ -27,10 +27,10 @@ jobs:
       matrix:
         include:
           - name: Windows x64
-            platform: windows-latest
+            platform: windows-latest-vs2026
             args: ""
           - name: Windows ARM64
-            platform: windows-latest
+            platform: windows-latest-vs2026
             args: "--target aarch64-pc-windows-msvc"
           - name: macOS x64
             platform: macos-latest
