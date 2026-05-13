@@ -3,6 +3,21 @@
 version = 4
 
 [[package]]
+name = "NyaMark"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "windows",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2100,21 +2115,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "nyamark"
-version = "0.0.0-dev"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "windows",
 ]
 
 [[package]]

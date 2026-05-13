@@ -83,6 +83,28 @@
       "saveDocument": "Save Document"
     }
   },
+  "updates": {
+    "title": "A new NyaMark update is available",
+    "subtitle": "You are running {{current}} on the {{channel}} channel. {{latest}} is ready on GitHub Releases.",
+    "channelRelease": "Release",
+    "channelPrerelease": "Pre-release",
+    "currentVersion": "Current",
+    "latestVersion": "Latest",
+    "publishedAt": "Published",
+    "unknownDate": "Unknown",
+    "releaseNotes": "Release notes",
+    "noReleaseNotes": "No release notes were provided for this version.",
+    "downloads": "Downloads",
+    "download": "Download",
+    "downloadSuggested": "Download for this device",
+    "updateNow": "Update now",
+    "startingUpdater": "Starting updater...",
+    "updateFailed": "Updater failed",
+    "openRelease": "Open GitHub Release",
+    "later": "Later",
+    "recommended": "Recommended",
+    "noAssets": "No downloadable assets are attached to this release yet."
+  },
   "settings": {
     "title": "Settings",
     "subtitle": "Personalise the editor without leaving the document.",

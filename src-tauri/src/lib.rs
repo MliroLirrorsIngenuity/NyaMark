@@ -4,6 +4,7 @@ pub mod file;
 pub mod menu;
 pub mod sessions;
 pub mod settings;
+pub mod updater;
 pub mod windows;
 
 use std::{
@@ -179,6 +180,7 @@ pub fn run() {
             open_markdown_in_new_window,
             set_windows_backdrop,
             materialize_draft_attachment,
+            updater::start_update,
             #[cfg(target_os = "macos")]
             menu::update_macos_menu,
         ]);

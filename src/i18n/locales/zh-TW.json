@@ -82,6 +82,28 @@
       "saveDocument": "儲存文件"
     }
   },
+  "updates": {
+    "title": "NyaMark 有新版本可用",
+    "subtitle": "目前執行的是 {{channel}} 通道的 {{current}}。GitHub Releases 上已有 {{latest}}。",
+    "channelRelease": "正式版",
+    "channelPrerelease": "預發布版",
+    "currentVersion": "目前版本",
+    "latestVersion": "最新版本",
+    "publishedAt": "發布時間",
+    "unknownDate": "未知",
+    "releaseNotes": "Release Notes",
+    "noReleaseNotes": "這個版本沒有填寫 Release Notes。",
+    "downloads": "下載",
+    "download": "下載",
+    "downloadSuggested": "下載適合此裝置的安裝包",
+    "updateNow": "立即更新",
+    "startingUpdater": "正在啟動 Updater...",
+    "updateFailed": "Updater 啟動失敗",
+    "openRelease": "開啟 GitHub Release",
+    "later": "稍後",
+    "recommended": "推薦",
+    "noAssets": "此 Release 尚未附帶可下載檔案。"
+  },
   "settings": {
     "title": "設定",
     "subtitle": "在此個人化您的編輯器。",

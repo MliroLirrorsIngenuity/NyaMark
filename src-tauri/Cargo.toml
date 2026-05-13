@@ -1,7 +1,7 @@
 [package]
-name = "nyamark"
+name = "NyaMark"
 version = "0.0.0-dev"
-description = "A Tauri App"
+description = "A Modern Markdown editor based on Tauri v2 and Milkdown."
 authors = ["MliroLirrorsIngenuity"]
 edition = "2021"
 

@@ -9,6 +9,7 @@ import { AttachmentController } from './features/attachment-controller';
 import { FileController } from './features/file-controller';
 import { MenuController } from './features/menu-controller';
 import { ShortcutController } from './features/shortcut-controller';
+import { checkForGitHubUpdate } from './features/update-checker';
 import { store } from './state/store';
 import {
   getSettings,
@@ -28,6 +29,7 @@ import { SettingsPanel } from './ui/settings-panel/panel';
 import { Statusbar } from './ui/statusbar';
 import { ThemeManager, type ThemeMode } from './ui/theme';
 import { Titlebar } from './ui/titlebar';
+import { UpdateDialog } from './ui/update-dialog';
 
 export class App {
   private editor: NyaEditor | null = null;
@@ -38,6 +40,7 @@ export class App {
   private suppressDirtyTracking = false;
   private theme: ThemeManager | null = null;
   private readonly settingsPanel = new SettingsPanel();
+  private readonly updateDialog = new UpdateDialog();
   private autoSaveEnabled = false;
   private autoSaveIntervalMs = 60_000;
   private autoSaveTimer: number | null = null;
@@ -196,6 +199,22 @@ export class App {
     this.refreshStatsSoon();
 
     this.updateStats();
+    this.scheduleUpdateCheck();
+  }
+
+  private scheduleUpdateCheck() {
+    window.setTimeout(() => {
+      void this.checkForUpdates().catch((error) => {
+        console.error('[updates] Automatic GitHub Release check failed', error);
+      });
+    }, 1200);
+  }
+
+  private async checkForUpdates() {
+    const result = await checkForGitHubUpdate();
+    if (result.latest) {
+      this.updateDialog.open(result);
+    }
   }
 
   private bindAutoSave() {
