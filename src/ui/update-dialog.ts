@@ -303,8 +303,9 @@ export class UpdateDialog {
       <h3 id="ny-update-title"></h3>
       <p class="ny-update-dialog__subtitle"></p>
     `;
-    header.querySelector('.ny-update-dialog__eyebrow')!.textContent =
-      i18next.t('updates.newVersionAvailable');
+    header.querySelector('.ny-update-dialog__eyebrow')!.textContent = i18next.t(
+      'updates.newVersionAvailable'
+    );
     header.querySelector('h3')!.textContent = i18next.t('updates.title');
     header.querySelector('.ny-update-dialog__subtitle')!.textContent =
       i18next.t('updates.subtitle', {
@@ -319,7 +320,11 @@ export class UpdateDialog {
     meta.className = 'ny-update-dialog__meta';
     appendMetaCard(meta, i18next.t('updates.currentVersion'), currentVersion);
     appendMetaCard(meta, i18next.t('updates.latestVersion'), update.version);
-    appendMetaCard(meta, i18next.t('updates.publishedAt'), formatDate(update.date ?? null));
+    appendMetaCard(
+      meta,
+      i18next.t('updates.publishedAt'),
+      formatDate(update.date ?? null)
+    );
     body.appendChild(meta);
 
     const notesSection = document.createElement('section');
@@ -402,7 +407,9 @@ export class UpdateDialog {
           updateNow.addEventListener(
             'click',
             () => {
-              void openUrl('https://github.com/MliroLirrorsIngenuity/NyaMark/releases').catch(console.error);
+              void openUrl(
+                'https://github.com/MliroLirrorsIngenuity/NyaMark/releases'
+              ).catch(console.error);
               void close();
             },
             { once: true }
