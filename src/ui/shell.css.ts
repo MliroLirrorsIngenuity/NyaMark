@@ -554,6 +554,15 @@ body {
 }
 
 @media print {
+  body > *:not(#app) {
+    display: none !important;
+  }
+
+  :root.ny-exporting-pdf #app > :not(.ny-shell__body),
+  :root.ny-exporting-pdf .ny-shell__body > :not(#editor-container) {
+    display: none !important;
+  }
+
   @page {
     margin: 16mm;
   }
@@ -576,6 +585,9 @@ body {
   :root.ny-exporting-pdf .ny-shell__window-controls,
   :root.ny-exporting-pdf .ny-shell__title-leading,
   :root.ny-exporting-pdf .ny-shell__title-actions,
+  :root.ny-exporting-pdf .ny-shell__file-menu,
+  :root.ny-exporting-pdf .ny-search,
+  :root.ny-exporting-pdf .ny-outline,
   :root.ny-exporting-pdf .milkdown .toolbar {
     display: none !important;
   }

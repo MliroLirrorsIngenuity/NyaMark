@@ -410,6 +410,15 @@ export class App {
       }
 
       @media print {
+        body > *:not(#app) {
+          display: none !important;
+        }
+
+        :root.ny-exporting-pdf #app > :not(.ny-shell__body),
+        :root.ny-exporting-pdf .ny-shell__body > :not(#editor-container) {
+          display: none !important;
+        }
+
         html,
         body,
         #app,
@@ -434,7 +443,11 @@ export class App {
         :root.ny-exporting-pdf .ny-settings-overlay,
         :root.ny-exporting-pdf .ny-update-overlay,
         :root.ny-exporting-pdf .ny-image-policy-overlay,
-        :root.ny-exporting-pdf .ny-export-pdf-overlay {
+        :root.ny-exporting-pdf .ny-search,
+        :root.ny-exporting-pdf .ny-outline,
+        :root.ny-exporting-pdf .ny-export-pdf-overlay,
+        :root.ny-exporting-pdf .ny-shell__body > .ny-shell__overlay,
+        :root.ny-exporting-pdf .ny-shell__body [data-tauri-drag-region] {
           display: none !important;
         }
 
