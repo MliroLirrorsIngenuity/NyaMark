@@ -583,6 +583,7 @@ body {
   :root.ny-exporting-pdf .ny-shell__body,
   :root.ny-exporting-pdf #editor-container,
   :root.ny-exporting-pdf .milkdown,
+  :root.ny-exporting-pdf .milkdown .editor,
   :root.ny-exporting-pdf .milkdown .ProseMirror {
     overflow: visible !important;
     max-width: none !important;
@@ -591,13 +592,30 @@ body {
     padding: 0 !important;
   }
 
+  :root.ny-exporting-pdf .milkdown .editor {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
   :root.ny-exporting-pdf .milkdown pre,
   :root.ny-exporting-pdf .milkdown blockquote,
   :root.ny-exporting-pdf .milkdown table,
   :root.ny-exporting-pdf .milkdown img,
-  :root.ny-exporting-pdf .milkdown .mermaid {
+  :root.ny-exporting-pdf .milkdown .mermaid,
+  :root.ny-exporting-pdf .milkdown .milkdown-code-block {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  :root.ny-exporting-pdf .nyamark-image-meta,
+  :root.ny-exporting-pdf .nyamark-image-meta-toggle,
+  :root.ny-exporting-pdf .nyamark-image-meta-open .nyamark-image-meta,
+  :root.ny-exporting-pdf .milkdown .milkdown-top-bar,
+  :root.ny-exporting-pdf .milkdown .milkdown-toolbar,
+  :root.ny-exporting-pdf .milkdown .toolbar,
+  :root.ny-exporting-pdf .milkdown .top-bar,
+  :root.ny-exporting-pdf .milkdown .milkdown-code-block .tools {
+    display: none !important;
   }
 
   :root.ny-exporting-pdf .milkdown h1,

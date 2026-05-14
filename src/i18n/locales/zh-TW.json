@@ -82,6 +82,28 @@
       "title": "插入貼上的圖片前請儲存此文件",
       "subtitle": "截圖沒有原始檔案路徑。請先儲存文件，或將圖片做為 Base64 嵌入。",
       "saveDocument": "儲存文件"
+    },
+    "exportPdf": {
+      "title": "匯出為 PDF",
+      "subtitle": "依照下列設定將「{{fileName}}」匯出為 PDF。",
+      "includeTitle": "將檔名作為標題",
+      "pageSize": "頁面尺寸",
+      "landscape": "橫向",
+      "margin": "邊界",
+      "downscale": "縮放百分比",
+      "cancel": "取消",
+      "export": "匯出為 PDF",
+      "pageSizes": {
+        "letter": "Letter",
+        "a4": "A4",
+        "legal": "Legal"
+      },
+      "margins": {
+        "default": "預設",
+        "narrow": "窄",
+        "none": "無",
+        "wide": "寬"
+      }
     }
   },
   "updates": {
