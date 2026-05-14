@@ -630,6 +630,17 @@ body {
     display: none !important;
   }
 
+  /* Hide Milkdown block handles, slash triggers and floating UI controls */
+  :root.ny-exporting-pdf .milkdown .milkdown-block-handle,
+  :root.ny-exporting-pdf .milkdown .milkdown-slash-menu,
+  :root.ny-exporting-pdf .milkdown [data-milkdown-floating],
+  :root.ny-exporting-pdf .milkdown .milkdown-floating,
+  :root.ny-exporting-pdf .milkdown .cm-tooltip,
+  :root.ny-exporting-pdf .milkdown .cm-completion,
+  :root.ny-exporting-pdf .milkdown .milkdown-emoji-picker {
+    display: none !important;
+  }
+
   :root.ny-exporting-pdf .milkdown h1,
   :root.ny-exporting-pdf .milkdown h2,
   :root.ny-exporting-pdf .milkdown h3,
