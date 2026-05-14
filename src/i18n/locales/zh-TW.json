@@ -86,7 +86,6 @@
     "exportPdf": {
       "title": "匯出為 PDF",
       "subtitle": "依照下列設定將「{{fileName}}」匯出為 PDF。",
-      "includeTitle": "將檔名作為標題",
       "pageSize": "頁面尺寸",
       "landscape": "橫向",
       "margin": "邊界",

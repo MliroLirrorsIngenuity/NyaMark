@@ -3,7 +3,6 @@ import { translateDOM } from '../i18n/dom';
 import { i18next } from '../i18n';
 
 export type ExportPdfSettings = {
-  includeFileNameAsTitle: boolean;
   pageSize: 'Letter' | 'A4' | 'Legal';
   landscape: boolean;
   margin: 'default' | 'narrow' | 'none' | 'wide';
@@ -255,15 +254,6 @@ export class ExportPdfDialog {
         <div class="ny-export-pdf-dialog__section">
           <div class="ny-export-pdf-dialog__row">
             <div>
-              <div class="ny-export-pdf-dialog__row-label" data-i18n="dialog.exportPdf.includeTitle">Include file name as title</div>
-            </div>
-            <input class="ny-export-pdf-dialog__switch" type="checkbox" checked />
-          </div>
-        </div>
-
-        <div class="ny-export-pdf-dialog__section">
-          <div class="ny-export-pdf-dialog__row">
-            <div>
               <div class="ny-export-pdf-dialog__row-label" data-i18n="dialog.exportPdf.pageSize">Page size</div>
             </div>
             <select class="ny-export-pdf-dialog__select">
@@ -330,15 +320,12 @@ export class ExportPdfDialog {
       const close = dialog.querySelector(
         '.ny-export-pdf-dialog__close'
       ) as HTMLButtonElement;
-      const includeTitle = dialog.querySelector(
-        '.ny-export-pdf-dialog__section .ny-export-pdf-dialog__switch'
-      ) as HTMLInputElement;
       const pageSize = dialog.querySelector(
         '.ny-export-pdf-dialog__select'
       ) as HTMLSelectElement;
-      const landscape = dialog.querySelectorAll<HTMLInputElement>(
+      const landscape = dialog.querySelector(
         '.ny-export-pdf-dialog__switch'
-      )[1];
+      ) as HTMLInputElement;
       const margin = dialog.querySelectorAll<HTMLSelectElement>(
         '.ny-export-pdf-dialog__select'
       )[1];
@@ -393,7 +380,6 @@ export class ExportPdfDialog {
       close.addEventListener('click', () => resolveAndClose(null));
       confirm.addEventListener('click', () => {
         resolveAndClose({
-          includeFileNameAsTitle: includeTitle.checked,
           pageSize: pageSize.value as ExportPdfSettings['pageSize'],
           landscape: landscape.checked,
           margin: margin.value as ExportPdfSettings['margin'],
@@ -403,7 +389,6 @@ export class ExportPdfDialog {
       this.overlay.addEventListener('click', handleOverlayClick);
       document.addEventListener('keydown', onKey, true);
 
-      includeTitle.checked = true;
       pageSize.value = 'Letter';
       landscape.checked = false;
       margin.value = 'default';

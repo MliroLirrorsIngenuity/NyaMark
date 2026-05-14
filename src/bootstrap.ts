@@ -330,16 +330,11 @@ export class App {
     const root = document.documentElement;
     root.classList.add('ny-exporting-pdf');
 
-    const previousTitle = document.title;
     const previousZoom = document.body.style.zoom;
     const printStyle = document.createElement('style');
     printStyle.id = 'ny-print-export-style';
     printStyle.textContent = this.buildPrintStyle(settings);
     document.head.appendChild(printStyle);
-
-    if (settings.includeFileNameAsTitle) {
-      document.title = this.getPrintableFileTitle();
-    }
 
     if (settings.downscalePercent !== 100) {
       document.body.style.zoom = String(settings.downscalePercent / 100);
@@ -349,7 +344,6 @@ export class App {
 
     const cleanup = () => {
       printStyle.remove();
-      document.title = previousTitle;
       document.body.style.zoom = previousZoom;
       root.classList.remove('ny-exporting-pdf');
       if (previousSourceMode) {

@@ -87,7 +87,6 @@
     "exportPdf": {
       "title": "Export to PDF",
       "subtitle": "Export \"{{fileName}}\" to PDF with the settings below.",
-      "includeTitle": "Include file name as title",
       "pageSize": "Page size",
       "landscape": "Landscape",
       "margin": "Margin",
