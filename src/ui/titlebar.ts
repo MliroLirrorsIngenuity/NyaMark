@@ -16,6 +16,7 @@ type TitlebarActions = {
   onOpenFile: () => Promise<unknown> | void;
   onSaveFile: () => Promise<unknown> | void;
   onSaveFileAs: () => Promise<unknown> | void;
+  onExportPdf: () => Promise<unknown> | void;
   onToggleOutline: () => Promise<unknown> | void;
   onOpenSettings: () => void;
 };
@@ -134,7 +135,7 @@ export class Titlebar {
 
     menuButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      setOpen(menu.hidden);
+      setOpen(Boolean(menu.hidden));
     });
 
     menu
@@ -160,6 +161,12 @@ export class Titlebar {
       ?.addEventListener('click', () => {
         setOpen(false);
         void Promise.resolve(this.actions.onSaveFileAs()).catch(console.error);
+      });
+    menu
+      .querySelector<HTMLElement>('[data-file-action="export-pdf"]')
+      ?.addEventListener('click', () => {
+        setOpen(false);
+        void Promise.resolve(this.actions.onExportPdf()).catch(console.error);
       });
 
     document.addEventListener('click', (event) => {

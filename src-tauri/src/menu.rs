@@ -19,6 +19,7 @@ pub struct MenuTranslations {
     pub open: String,
     pub save: String,
     pub save_as: String,
+    pub export_pdf: String,
     pub file: String,
     pub close_window: String,
     pub edit: String,
@@ -41,6 +42,7 @@ const MENU_NEW_ID: &str = "file_new";
 const MENU_OPEN_ID: &str = "file_open";
 const MENU_SAVE_ID: &str = "file_save";
 const MENU_SAVE_AS_ID: &str = "file_save_as";
+const MENU_EXPORT_PDF_ID: &str = "file_export_pdf";
 const MENU_SETTINGS_ID: &str = "app_settings";
 
 pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
@@ -55,6 +57,7 @@ pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>
         open: "Open...".to_string(),
         save: "Save".to_string(),
         save_as: "Save As...".to_string(),
+        export_pdf: "Export as PDF...".to_string(),
         file: "File".to_string(),
         close_window: "Close Window".to_string(),
         edit: "Edit".to_string(),
@@ -108,6 +111,13 @@ pub fn build_custom_macos_menu<R: Runtime>(app: &AppHandle<R>, t: &MenuTranslati
         true,
         Some("CmdOrCtrl+Shift+S"),
     )?;
+    let export_pdf_item = MenuItem::with_id(
+        app,
+        MENU_EXPORT_PDF_ID,
+        &t.export_pdf,
+        true,
+        Some("CmdOrCtrl+P"),
+    )?;
     let file_menu = Submenu::with_items(
         app,
         &t.file,
@@ -117,6 +127,7 @@ pub fn build_custom_macos_menu<R: Runtime>(app: &AppHandle<R>, t: &MenuTranslati
             &open_item,
             &save_item,
             &save_as_item,
+            &export_pdf_item,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::close_window(app, Some(&t.close_window))?,
         ],
@@ -175,6 +186,8 @@ pub fn handle_macos_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent)
         Some("save-file")
     } else if event.id() == MENU_SAVE_AS_ID {
         Some("save-file-as")
+    } else if event.id() == MENU_EXPORT_PDF_ID {
+        Some("export-pdf")
     } else if event.id() == MENU_SETTINGS_ID {
         Some("open-settings")
     } else {

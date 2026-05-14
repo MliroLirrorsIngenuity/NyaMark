@@ -69,6 +69,7 @@ export function renderAppShell(host: HTMLElement) {
   const openShortcutHint = isMac ? '⌘O' : 'Ctrl+O';
   const saveShortcutHint = isMac ? '⌘S' : 'Ctrl+S';
   const saveAsShortcutHint = isMac ? '⌘⇧S' : 'Ctrl+Shift+S';
+  const exportPdfShortcutHint = isMac ? '⌘P' : 'Ctrl+P';
   const outlineShortcutHint = isMac ? '⌘⇧O' : 'Ctrl+Shift+O';
   const fileActionsMarkup = isMac
     ? ''
@@ -103,6 +104,10 @@ export function renderAppShell(host: HTMLElement) {
             <button class="ny-shell__menu-item" type="button" data-file-action="save-as" role="menuitem">
               <span data-i18n="shell.saveAs">Save As</span>
               <span class="ny-shell__shortcut-hint">${saveAsShortcutHint}</span>
+            </button>
+            <button class="ny-shell__menu-item" type="button" data-file-action="export-pdf" role="menuitem">
+              <span data-i18n="shell.exportPdf">Export as PDF</span>
+              <span class="ny-shell__shortcut-hint">${exportPdfShortcutHint}</span>
             </button>
           </div>
         </div>

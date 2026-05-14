@@ -164,6 +164,7 @@ export class App {
       onOpenFile: () => this.fileController!.openFile(),
       onSaveFile: () => this.fileController!.saveFile(),
       onSaveFileAs: () => this.fileController!.saveFileAs(),
+      onExportPdf: () => this.exportAsPdf(),
       onToggleOutline: () => {
         if (!this.outline) {
           this.outline = new OutlinePanel(this.editor!);
@@ -181,6 +182,7 @@ export class App {
       'open-file': () => this.fileController!.openFile(),
       'save-file': () => this.fileController!.saveFile(),
       'save-file-as': () => this.fileController!.saveFileAs(),
+      'export-pdf': () => this.exportAsPdf(),
       'open-settings': () => this.settingsPanel.open(),
     });
     void menuController.bind();
@@ -190,9 +192,7 @@ export class App {
       openFile: () => this.fileController!.openFile(),
       saveFile: () => this.fileController!.saveFile(),
       saveFileAs: () => this.fileController!.saveFileAs(),
-      print: () => {
-        window.print();
-      },
+      print: () => this.exportAsPdf(),
     });
     shortcutController.bind();
 
@@ -290,5 +290,35 @@ export class App {
     if (this.autoSaveTimer === null) return;
     window.clearTimeout(this.autoSaveTimer);
     this.autoSaveTimer = null;
+  }
+
+  private async exportAsPdf() {
+    const previousSourceMode = store.getState().sourceMode;
+    if (previousSourceMode) {
+      store.update({ sourceMode: false });
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+    }
+
+    const root = document.documentElement;
+    root.classList.add('ny-exporting-pdf');
+
+    const restore = () => {
+      root.classList.remove('ny-exporting-pdf');
+      window.removeEventListener('afterprint', restore);
+      if (previousSourceMode) {
+        store.update({ sourceMode: true });
+      }
+    };
+
+    window.addEventListener('afterprint', restore, { once: true });
+
+    try {
+      window.print();
+    } catch (error) {
+      restore();
+      throw error;
+    }
   }
 }
