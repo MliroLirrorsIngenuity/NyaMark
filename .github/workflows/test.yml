@@ -73,3 +73,14 @@ jobs:
 
       - name: Build test
         run: bun tauri build ${{ matrix.args }} --no-bundle
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.name }}-${{ github.run_number }}
+          path: |
+            src-tauri/target/release/*
+            src-tauri/target/*/release/*
+          if-no-files-found: warn
+          retention-days: 14
