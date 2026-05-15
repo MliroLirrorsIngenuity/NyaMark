@@ -72,7 +72,7 @@ jobs:
           workspaces: ./src-tauri -> target
 
       - name: Build test
-        uses: tauri-apps/tauri-action@action-v0.6.2
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -80,3 +80,4 @@ jobs:
           tauriScript: bun tauri
           args: ${{ matrix.args }} --no-bundle
           uploadPlainBinary: true
+          uploadWorkflowArtifacts: true

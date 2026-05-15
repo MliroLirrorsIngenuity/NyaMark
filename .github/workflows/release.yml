@@ -148,7 +148,7 @@ jobs:
           workspaces: ./src-tauri -> target
 
       - name: Build and upload release assets
-        uses: tauri-apps/tauri-action@action-v0.6.2
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -163,5 +163,5 @@ jobs:
           tauriScript: bun tauri
           uploadUpdaterJson: ${{ needs.preparation.outputs.is_prerelease != 'true' }}
           uploadUpdaterSignatures: ${{ needs.preparation.outputs.is_prerelease != 'true' }}
-          assetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
+          releaseAssetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
           args: ${{ matrix.args }}
