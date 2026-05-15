@@ -10,6 +10,7 @@
     "open": "打开...",
     "save": "保存",
     "saveAs": "另存为...",
+    "exportPdf": "导出为 PDF...",
     "file": "文件",
     "closeWindow": "关闭窗口",
     "edit": "编辑",
@@ -31,6 +32,7 @@
     "open": "打开",
     "save": "保存",
     "saveAs": "另存为",
+    "exportPdf": "导出为 PDF",
     "settings": "设置",
     "outline": "大纲",
     "minimize": "最小化",
@@ -80,6 +82,27 @@
       "title": "插入粘贴的图片前请保存此文档",
       "subtitle": "截图没有原始文件路径。请先保存文档，或将此图片作为 Base64 嵌入。",
       "saveDocument": "保存文档"
+    },
+    "exportPdf": {
+      "title": "导出为 PDF",
+      "subtitle": "按下面的设置将“{{fileName}}”导出为 PDF。",
+      "pageSize": "页面尺寸",
+      "landscape": "横向",
+      "margin": "边距",
+      "downscale": "缩放百分比",
+      "cancel": "取消",
+      "export": "导出为 PDF",
+      "pageSizes": {
+        "letter": "Letter",
+        "a4": "A4",
+        "legal": "Legal"
+      },
+      "margins": {
+        "default": "默认",
+        "narrow": "窄",
+        "none": "无",
+        "wide": "宽"
+      }
     }
   },
   "updates": {

@@ -552,6 +552,105 @@ body {
 .ny-shell__action:hover {
   color: var(--ny-text-primary);
 }
+
+@media print {
+  body > *:not(#app) {
+    display: none !important;
+  }
+
+  :root.ny-exporting-pdf #app > :not(.ny-shell__body),
+  :root.ny-exporting-pdf .ny-shell__body > :not(#editor-container) {
+    display: none !important;
+  }
+
+  @page {
+    margin: 16mm;
+  }
+
+  html,
+  body,
+  #app,
+  #app.ny-shell {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #111 !important;
+    border-radius: 0 !important;
+  }
+
+  :root.ny-exporting-pdf #titlebar,
+  :root.ny-exporting-pdf #statusbar,
+  :root.ny-exporting-pdf .ny-shell__resize-handle,
+  :root.ny-exporting-pdf .ny-shell__window-controls,
+  :root.ny-exporting-pdf .ny-shell__title-leading,
+  :root.ny-exporting-pdf .ny-shell__title-actions,
+  :root.ny-exporting-pdf .ny-shell__file-menu,
+  :root.ny-exporting-pdf .ny-search,
+  :root.ny-exporting-pdf .ny-outline,
+  :root.ny-exporting-pdf .milkdown .toolbar {
+    display: none !important;
+  }
+
+  :root.ny-exporting-pdf .ny-shell__body,
+  :root.ny-exporting-pdf #editor-container,
+  :root.ny-exporting-pdf .milkdown,
+  :root.ny-exporting-pdf .milkdown .editor,
+  :root.ny-exporting-pdf .milkdown .ProseMirror {
+    overflow: visible !important;
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  :root.ny-exporting-pdf .milkdown .editor {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  :root.ny-exporting-pdf .milkdown pre,
+  :root.ny-exporting-pdf .milkdown blockquote,
+  :root.ny-exporting-pdf .milkdown table,
+  :root.ny-exporting-pdf .milkdown img,
+  :root.ny-exporting-pdf .milkdown .mermaid,
+  :root.ny-exporting-pdf .milkdown .milkdown-code-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  :root.ny-exporting-pdf .nyamark-image-meta,
+  :root.ny-exporting-pdf .nyamark-image-meta-toggle,
+  :root.ny-exporting-pdf .nyamark-image-meta-open .nyamark-image-meta,
+  :root.ny-exporting-pdf .milkdown .milkdown-top-bar,
+  :root.ny-exporting-pdf .milkdown .milkdown-toolbar,
+  :root.ny-exporting-pdf .milkdown .toolbar,
+  :root.ny-exporting-pdf .milkdown .top-bar,
+  :root.ny-exporting-pdf .milkdown .milkdown-code-block .tools {
+    display: none !important;
+  }
+
+  /* Hide Milkdown block handles, slash triggers and floating UI controls */
+  :root.ny-exporting-pdf .milkdown .milkdown-block-handle,
+  :root.ny-exporting-pdf .milkdown .milkdown-slash-menu,
+  :root.ny-exporting-pdf .milkdown [data-milkdown-floating],
+  :root.ny-exporting-pdf .milkdown .milkdown-floating,
+  :root.ny-exporting-pdf .milkdown .cm-tooltip,
+  :root.ny-exporting-pdf .milkdown .cm-completion,
+  :root.ny-exporting-pdf .milkdown .milkdown-emoji-picker {
+    display: none !important;
+  }
+
+  :root.ny-exporting-pdf .milkdown h1,
+  :root.ny-exporting-pdf .milkdown h2,
+  :root.ny-exporting-pdf .milkdown h3,
+  :root.ny-exporting-pdf .milkdown h4,
+  :root.ny-exporting-pdf .milkdown h5,
+  :root.ny-exporting-pdf .milkdown h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+}
 `;
 
 export function registerShellStyles() {

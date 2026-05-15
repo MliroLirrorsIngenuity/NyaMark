@@ -58,3 +58,7 @@ export async function isWindowMaximized(): Promise<boolean> {
 export async function closeWindow(): Promise<void> {
   await getCurrentWindow().close();
 }
+
+export async function printCurrentWindow(): Promise<void> {
+  await invoke('print_current_window');
+}

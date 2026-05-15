@@ -10,6 +10,7 @@
     "open": "Open...",
     "save": "Save",
     "saveAs": "Save As...",
+    "exportPdf": "Export as PDF...",
     "file": "File",
     "closeWindow": "Close Window",
     "edit": "Edit",
@@ -31,6 +32,7 @@
     "open": "Open",
     "save": "Save",
     "saveAs": "Save As",
+    "exportPdf": "Export as PDF",
     "settings": "Settings",
     "outline": "Outline",
     "minimize": "Minimize",
@@ -81,6 +83,27 @@
       "title": "Save this document before inserting pasted images",
       "subtitle": "Screenshot images have no original file path. Save the document first, or embed this image as Base64.",
       "saveDocument": "Save Document"
+    },
+    "exportPdf": {
+      "title": "Export to PDF",
+      "subtitle": "Export \"{{fileName}}\" to PDF with the settings below.",
+      "pageSize": "Page size",
+      "landscape": "Landscape",
+      "margin": "Margin",
+      "downscale": "Downscale percent",
+      "cancel": "Cancel",
+      "export": "Export to PDF",
+      "pageSizes": {
+        "letter": "Letter",
+        "a4": "A4",
+        "legal": "Legal"
+      },
+      "margins": {
+        "default": "Default",
+        "narrow": "Narrow",
+        "none": "None",
+        "wide": "Wide"
+      }
     }
   },
   "updates": {

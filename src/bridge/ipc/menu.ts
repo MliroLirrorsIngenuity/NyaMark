@@ -7,6 +7,7 @@ export type AppMenuAction =
   | 'open-file'
   | 'save-file'
   | 'save-file-as'
+  | 'export-pdf'
   | 'open-settings';
 
 const APP_MENU_ACTION_EVENT = 'nyamark://menu-action';
@@ -16,6 +17,7 @@ const KNOWN_ACTIONS = new Set<AppMenuAction>([
   'open-file',
   'save-file',
   'save-file-as',
+  'export-pdf',
   'open-settings',
 ]);
 
