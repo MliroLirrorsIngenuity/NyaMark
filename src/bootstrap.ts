@@ -515,5 +515,4 @@ export class App {
       }
     `;
   }
-
 }
