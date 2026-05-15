@@ -80,7 +80,17 @@ jobs:
         with:
           name: build-${{ matrix.name }}-${{ github.run_number }}
           path: |
-            src-tauri/target/release/*
-            src-tauri/target/*/release/*
+            # macOS installers
+            src-tauri/target/**/bundle/macos/*.dmg
+            src-tauri/target/**/bundle/macos/*.pkg
+            src-tauri/target/**/bundle/macos/*.zip
+            # Windows installers
+            src-tauri/target/**/bundle/windows/**/*.exe
+            src-tauri/target/**/bundle/windows/**/*.msi
+            # Linux installers
+            src-tauri/target/**/bundle/*.AppImage
+            src-tauri/target/**/bundle/debian/*.deb
+            src-tauri/target/**/bundle/*.rpm
+            src-tauri/target/**/bundle/*.zip
           if-no-files-found: warn
           retention-days: 14
