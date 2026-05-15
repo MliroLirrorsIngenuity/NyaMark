@@ -98,21 +98,33 @@ jobs:
           - name: Windows x64
             platform: windows-latest
             args: ""
+            target: ""
+            updater_key: windows-x86_64
           - name: Windows ARM64
             platform: windows-latest
             args: "--target aarch64-pc-windows-msvc"
+            target: aarch64-pc-windows-msvc
+            updater_key: windows-aarch64
           - name: macOS x64
             platform: macos-latest
             args: "--target x86_64-apple-darwin"
+            target: x86_64-apple-darwin
+            updater_key: darwin-x86_64
           - name: macOS Apple Silicon
             platform: macos-latest
             args: "--target aarch64-apple-darwin"
+            target: aarch64-apple-darwin
+            updater_key: darwin-aarch64
           - name: Linux x64
             platform: ubuntu-22.04
             args: ""
+            target: ""
+            updater_key: linux-x86_64
           - name: Linux ARM64
             platform: ubuntu-24.04-arm
             args: ""
+            target: ""
+            updater_key: linux-aarch64
 
     steps:
       - name: Checkout repository
@@ -147,21 +159,172 @@ jobs:
         with:
           workspaces: ./src-tauri -> target
 
-      - name: Build and upload release assets
-        uses: tauri-apps/tauri-action@v1
+      - name: Build release assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bun tauri build ${{ matrix.args }}
+
+      - name: Collect release assets
+        shell: bash
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
+          UPDATER_KEY: ${{ matrix.updater_key }}
+        run: |
+          set -euo pipefail
+
+          BASE_DIR="src-tauri/target/release"
+          if [ -n "$TARGET_TRIPLE" ]; then
+            BASE_DIR="src-tauri/target/$TARGET_TRIPLE/release"
+          fi
+
+          mkdir -p upload_dist updater_metadata
+
+          case "${{ runner.os }}" in
+            Linux)
+              find "$BASE_DIR/bundle/appimage" -maxdepth 1 -type f \( -name "*.AppImage" -o -name "*.AppImage.sig" \) -exec cp {} upload_dist/ \; 2>/dev/null || true
+              find "$BASE_DIR/bundle/deb" -maxdepth 1 -type f \( -name "*.deb" -o -name "*.deb.sig" \) -exec cp {} upload_dist/ \; 2>/dev/null || true
+              find "$BASE_DIR/bundle/rpm" -maxdepth 1 -type f \( -name "*.rpm" -o -name "*.rpm.sig" \) -exec cp {} upload_dist/ \; 2>/dev/null || true
+              UPDATE_ASSET=$(find upload_dist -maxdepth 1 -type f -name "*.AppImage" | head -n 1)
+              ;;
+            macOS)
+              find "$BASE_DIR/bundle/dmg" -maxdepth 1 -type f -name "*.dmg" -exec cp {} upload_dist/ \; 2>/dev/null || true
+              find "$BASE_DIR/bundle/macos" -maxdepth 1 -type f \( -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" \) -exec cp {} upload_dist/ \; 2>/dev/null || true
+              UPDATE_ASSET=$(find upload_dist -maxdepth 1 -type f -name "*.app.tar.gz" | head -n 1)
+              ;;
+            Windows)
+              find "$BASE_DIR/bundle/nsis" -maxdepth 1 -type f \( -name "*.exe" -o -name "*.exe.sig" \) -exec cp {} upload_dist/ \; 2>/dev/null || true
+              UPDATE_ASSET=$(find upload_dist -maxdepth 1 -type f -name "*.exe" | head -n 1)
+              ;;
+            *)
+              echo "Unsupported runner OS: ${{ runner.os }}"
+              exit 1
+              ;;
+          esac
+
+          ls -la upload_dist
+
+          if ! find upload_dist -mindepth 1 -maxdepth 1 | grep -q .; then
+            echo "No release assets found in $BASE_DIR"
+            exit 1
+          fi
+
+          if [ -n "${UPDATE_ASSET:-}" ] && [ -f "${UPDATE_ASSET}.sig" ]; then
+            printf '%s\n' "$(basename "$UPDATE_ASSET")" > "updater_metadata/${UPDATER_KEY}.txt"
+          fi
+
+      - name: Upload bundled artifacts
+        uses: actions/upload-artifact@v4
         with:
-          projectPath: src-tauri
-          tagName: ${{ needs.preparation.outputs.tag }}
-          releaseName: NyaMark ${{ needs.preparation.outputs.tag }}
-          releaseBody: ${{ needs.preparation.outputs.changelog }}
-          releaseDraft: false
-          prerelease: ${{ needs.preparation.outputs.is_prerelease }}
-          tauriScript: bun tauri
-          uploadUpdaterJson: ${{ needs.preparation.outputs.is_prerelease != 'true' }}
-          uploadUpdaterSignatures: ${{ needs.preparation.outputs.is_prerelease != 'true' }}
-          releaseAssetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
-          args: ${{ matrix.args }}
+          name: release-assets-${{ matrix.updater_key }}
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            upload_dist/**
+            updater_metadata/**
+
+  publish:
+    name: Publish release assets
+    needs:
+      - preparation
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download bundled artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          path: collected_artifacts
+          merge-multiple: true
+
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ needs.preparation.outputs.tag }}
+          RELEASE_NAME: NyaMark ${{ needs.preparation.outputs.tag }}
+          RELEASE_BODY: ${{ needs.preparation.outputs.changelog }}
+          IS_PRERELEASE: ${{ needs.preparation.outputs.is_prerelease }}
+          TARGET_COMMITISH: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$RELEASE_BODY" > release_notes.md
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            if [ "$IS_PRERELEASE" = "true" ]; then
+              gh release edit "$TAG_NAME" --title "$RELEASE_NAME" --notes-file release_notes.md --prerelease
+            else
+              gh release edit "$TAG_NAME" --title "$RELEASE_NAME" --notes-file release_notes.md
+            fi
+          else
+            if [ "$IS_PRERELEASE" = "true" ]; then
+              gh release create "$TAG_NAME" --target "$TARGET_COMMITISH" --title "$RELEASE_NAME" --notes-file release_notes.md --prerelease
+            else
+              gh release create "$TAG_NAME" --target "$TARGET_COMMITISH" --title "$RELEASE_NAME" --notes-file release_notes.md
+            fi
+          fi
+
+      - name: Upload release bundle files
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ needs.preparation.outputs.tag }}
+        run: |
+          set -euo pipefail
+          ls -la collected_artifacts/upload_dist
+          gh release upload "$TAG_NAME" collected_artifacts/upload_dist/* --clobber
+
+      - name: Generate latest.json
+        if: needs.preparation.outputs.is_prerelease != 'true'
+        shell: bash
+        env:
+          TAG_NAME: ${{ needs.preparation.outputs.tag }}
+          VERSION: ${{ needs.preparation.outputs.version }}
+          RELEASE_BODY: ${{ needs.preparation.outputs.changelog }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          jq -n \
+            --arg version "$VERSION" \
+            --arg notes "$RELEASE_BODY" \
+            --arg pub_date "$PUB_DATE" \
+            '{version:$version,notes:$notes,pub_date:$pub_date,platforms:{}}' > latest.json
+
+          for meta in collected_artifacts/updater_metadata/*.txt; do
+            [ -f "$meta" ] || continue
+
+            PLATFORM_KEY=$(basename "$meta" .txt)
+            ASSET_NAME=$(tr -d '\r\n' < "$meta")
+            SIGNATURE_FILE="collected_artifacts/upload_dist/${ASSET_NAME}.sig"
+
+            if [ ! -f "$SIGNATURE_FILE" ]; then
+              echo "Missing updater signature for $ASSET_NAME"
+              exit 1
+            fi
+
+            SIGNATURE=$(tr -d '\r\n' < "$SIGNATURE_FILE")
+            ASSET_URL="https://github.com/${REPOSITORY}/releases/download/${TAG_NAME}/${ASSET_NAME}"
+            TMP_JSON=$(mktemp)
+
+            jq \
+              --arg platform "$PLATFORM_KEY" \
+              --arg url "$ASSET_URL" \
+              --arg signature "$SIGNATURE" \
+              '.platforms[$platform] = { url: $url, signature: $signature }' \
+              latest.json > "$TMP_JSON"
+
+            mv "$TMP_JSON" latest.json
+          done
+
+          jq -e '.platforms | length > 0' latest.json >/dev/null
+          jq . latest.json
+
+      - name: Upload latest.json
+        if: needs.preparation.outputs.is_prerelease != 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ needs.preparation.outputs.tag }}
+        run: gh release upload "$TAG_NAME" latest.json --clobber
