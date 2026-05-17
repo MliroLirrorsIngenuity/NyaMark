@@ -4,7 +4,7 @@
     NyaMark
   </h1>
   <p align="center">
-    一款基于 <a href="https://tauri.app/"><strong>Tauri v2</strong></a> 和 <a href="https://milkdown.dev/"><strong>Milkdown</strong></a> 开发的现代化 Markdown 编辑器。
+    一款轻量、快速启动的 Markdown 编辑器，打开就写，写完就走。
     <br />
     <br />
     <a href="README.md">简体中文</a>
@@ -30,21 +30,27 @@
 
 ## 特性
 
-* **高性能渲染核心**：利用 Tauri v2 与 Rust 编写的后端，提供极速响应的桌面端应用体验。
+* **轻量启动**：基于 <a href="https://tauri.app/"><strong>Tauri v2</strong></a> 和 Rust，启动快、占用轻，打开就能开始写。
 
-* **现代化所见即所得 (WYSIWYG)**：基于 Milkdown (Crepe) 框架，提供流畅的“所见即所得”编辑体验，让创作回归内容。
+* **专注写作**：基于 <a href="https://milkdown.dev/"><strong>Milkdown</strong></a> (Crepe) 的所见即所得体验，编辑过程顺手，不打断思路。
 
-* **强大的扩展支持**：
+* **常用能力一次配齐**：
 
   * **数学公式**：内置 KaTeX 支持，完美渲染 LaTeX 公式。
 
   * **图表渲染**：集成 Mermaid，支持流程图、时序图、甘特图等多种图表。
 
-  * **源码模式**：底层采用 CodeMirror 6，提供专业的 Markdown 源码编辑与语法高亮。
+  * **源码模式**：底层采用 CodeMirror 6，随时切回源码继续写。
 
 * **跨平台支持**：原生支持 Windows、macOS 和 Linux。
 
-* **极致的视觉体验**：基于 TailwindCSS v4 构建，提供精致、现代且符合直觉的用户界面。
+* **界面克制**：基于 TailwindCSS v4 构建，界面干净，重点留给内容。
+
+<p align="center">
+  <a href="https://nm.lolicon.best/hero-editor.webp">
+    <img src="https://nm.lolicon.best/hero-editor.webp" alt="NyaMark editor preview" width="920">
+  </a>
+</p>
 
 ## 使用方式
 
@@ -88,4 +94,3 @@ bun tauri build
 * [CodeMirror](https://codemirror.net/)：业界领先的代码编辑器组件
 
 * [TailwindCSS](https://tailwindcss.com/)：让界面开发更高效的 CSS 框架
-

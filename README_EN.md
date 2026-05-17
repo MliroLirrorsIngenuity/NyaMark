@@ -4,7 +4,7 @@
     NyaMark
   </h1>
   <p align="center">
-    A modern Markdown editor based on <a href="https://tauri.app/"><strong>Tauri v2</strong></a> and <a href="https://milkdown.dev/"><strong>Milkdown</strong></a>.
+    A lightweight Markdown editor that launches fast and gets out of your way.
     <br />
     <br />
     <a href="README.md">简体中文</a>
@@ -30,21 +30,27 @@
 
 ## Features
 
-* **High-Performance Core**: Leverages Tauri v2 and Rust backend for a blazing-fast, responsive desktop experience.
+* **Lightweight by design**: Built with <a href="https://tauri.app/"><strong>Tauri v2</strong></a> and Rust for a small footprint and quick launch.
 
-* **Modern WYSIWYG Experience**: Built on the Milkdown (Crepe) framework, providing a seamless "What You See Is What You Get" editing flow.
+* **Focus-first editing**: Powered by <a href="https://milkdown.dev/"><strong>Milkdown</strong></a> (Crepe) for a smooth WYSIWYG flow that stays out of the way.
 
-* **Rich Extension Support**:
+* **Useful essentials included**:
 
   * **Mathematical Formulas**: Built-in KaTeX support for perfect LaTeX rendering.
 
   * **Diagram Rendering**: Integrated Mermaid support for flowcharts, sequence diagrams, Gantt charts, and more.
 
-  * **Source Mode**: Powered by CodeMirror 6 at the lower level, offering professional Markdown source editing and syntax highlighting.
+  * **Source Mode**: Powered by CodeMirror 6, so you can switch to source editing whenever you need it.
 
 * **Cross-Platform**: Native support for Windows, macOS, and Linux.
 
-* **Premium Visuals**: Crafted with TailwindCSS v4 to provide a refined, modern, and intuitive user interface.
+* **Clean interface**: Built with TailwindCSS v4 to keep the UI simple and leave the focus on your writing.
+
+<p align="center">
+  <a href="https://nm.lolicon.best/hero-editor.webp">
+    <img src="https://nm.lolicon.best/hero-editor.webp" alt="NyaMark editor preview" width="920">
+  </a>
+</p>
 
 ## Usage
 
