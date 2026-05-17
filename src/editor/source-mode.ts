@@ -174,7 +174,9 @@ function buildSourceAnchors(state: EditorState): SourceAnchor[] {
     if (isHeadingNodeName(cursor.name)) {
       anchors.push({
         from: cursor.from,
-        key: normalizeHeadingText(state.doc.sliceString(cursor.from, cursor.to)),
+        key: normalizeHeadingText(
+          state.doc.sliceString(cursor.from, cursor.to)
+        ),
       });
     }
   } while (cursor.nextSibling());
@@ -213,7 +215,8 @@ function buildScrollGuidePoints(
     if (fromTop <= points[points.length - 1].fromTop) continue;
 
     const toIndex = toAnchors.findIndex(
-      (toAnchor, index) => index > lastToIndex && toAnchor.key === fromAnchor.key
+      (toAnchor, index) =>
+        index > lastToIndex && toAnchor.key === fromAnchor.key
     );
     if (toIndex < 0) continue;
 
@@ -273,7 +276,8 @@ function mapViewportScrollTop(
   target: HTMLElement,
   points: ScrollGuidePoint[]
 ) {
-  const sourceReferenceTop = source.scrollTop + source.clientHeight * SYNC_REFERENCE_RATIO;
+  const sourceReferenceTop =
+    source.scrollTop + source.clientHeight * SYNC_REFERENCE_RATIO;
   const targetReferenceTop = mapScrollTop(sourceReferenceTop, points);
   const targetMax = Math.max(0, target.scrollHeight - target.clientHeight);
 
@@ -413,7 +417,9 @@ export class SourceModeController {
     if (!this.cmView || !this.previewView || !this.editorRoot) return;
 
     const cmScroller = this.cmView.scrollDOM;
-    const previewPane = this.editorRoot.querySelector('.milkdown') as HTMLElement | null;
+    const previewPane = this.editorRoot.querySelector(
+      '.milkdown'
+    ) as HTMLElement | null;
     if (!cmScroller || !previewPane) return;
 
     const userScrollEvents: Array<keyof HTMLElementEventMap> = [
@@ -426,12 +432,20 @@ export class SourceModeController {
     ];
 
     for (const eventName of userScrollEvents) {
-      cmScroller.addEventListener(eventName, () => this.markScrollSource(cmScroller), {
-        passive: true,
-      });
-      previewPane.addEventListener(eventName, () => this.markScrollSource(previewPane), {
-        passive: true,
-      });
+      cmScroller.addEventListener(
+        eventName,
+        () => this.markScrollSource(cmScroller),
+        {
+          passive: true,
+        }
+      );
+      previewPane.addEventListener(
+        eventName,
+        () => this.markScrollSource(previewPane),
+        {
+          passive: true,
+        }
+      );
     }
 
     const sync = (source: HTMLElement, target: HTMLElement) => {
@@ -493,11 +507,9 @@ export class SourceModeController {
       });
     };
 
-    cmScroller.addEventListener(
-      'scroll',
-      () => sync(cmScroller, previewPane),
-      { passive: true }
-    );
+    cmScroller.addEventListener('scroll', () => sync(cmScroller, previewPane), {
+      passive: true,
+    });
     previewPane.addEventListener(
       'scroll',
       () => sync(previewPane, cmScroller),
