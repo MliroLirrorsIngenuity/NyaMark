@@ -9,6 +9,7 @@ import { editorViewCtx } from '@milkdown/kit/core';
 import { Fragment, Slice } from '@milkdown/kit/prose/model';
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { outline, replaceAll } from '@milkdown/kit/utils';
+import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
 import { registerEditorStyles } from './styles';
@@ -89,6 +90,11 @@ export class NyaEditor {
 
   getMarkdown(): string {
     return this.crepe ? this.crepe.getMarkdown() : '';
+  }
+
+  getView(): ProseMirrorEditorView | null {
+    if (!this.crepe) return null;
+    return this.crepe.editor.ctx.get(editorViewCtx);
   }
 
   isEmpty() {

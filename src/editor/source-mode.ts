@@ -15,16 +15,34 @@
  *    at the top regardless of how long the rendered preview gets.
  */
 
-import { EditorView, basicSetup } from 'codemirror';
-import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
+import { syntaxTree } from '@codemirror/language';
+import { EditorState, Compartment } from '@codemirror/state';
+import { EditorView, basicSetup } from 'codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
+import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import type { NyaEditor } from './editor';
 import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
 
 const SYNC_DELAY_MS = 180;
+const SYNC_REFERENCE_RATIO = 0.28;
+
+type SourceAnchor = {
+  from: number;
+  key: string;
+};
+
+type PreviewAnchor = {
+  dom: HTMLElement;
+  key: string;
+};
+
+type ScrollGuidePoint = {
+  fromTop: number;
+  toTop: number;
+};
 
 const css = `
 .ny-shell__body.is-source-mode-host {
@@ -126,15 +144,160 @@ function registerSourceModeStyles() {
   ensureStyle('editor-source-mode', css);
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function isHeadingNodeName(name: string) {
+  return /^ATXHeading[1-6]$/.test(name) || /^SetextHeading[12]$/.test(name);
+}
+
+function normalizeHeadingText(text: string) {
+  const [firstLine] = text.trim().split(/\r?\n/);
+
+  return firstLine
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/\s+#+\s*$/, '')
+    .replace(/`/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function buildSourceAnchors(state: EditorState): SourceAnchor[] {
+  const anchors: SourceAnchor[] = [];
+  const cursor = syntaxTree(state).cursor();
+
+  if (!cursor.firstChild()) return anchors;
+
+  do {
+    if (isHeadingNodeName(cursor.name)) {
+      anchors.push({
+        from: cursor.from,
+        key: normalizeHeadingText(state.doc.sliceString(cursor.from, cursor.to)),
+      });
+    }
+  } while (cursor.nextSibling());
+
+  return anchors;
+}
+
+function buildPreviewAnchors(view: ProseMirrorEditorView): PreviewAnchor[] {
+  return Array.from(view.dom.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(
+    (dom) => ({
+      dom: dom as HTMLElement,
+      key: normalizeHeadingText(dom.textContent ?? ''),
+    })
+  );
+}
+
+function paneContentTop(scrollPane: HTMLElement, element: HTMLElement) {
+  const paneRect = scrollPane.getBoundingClientRect();
+  const rect = element.getBoundingClientRect();
+  return scrollPane.scrollTop + (rect.top - paneRect.top);
+}
+
+function buildScrollGuidePoints(
+  fromAnchors: Array<{ key: string; top: number }>,
+  toAnchors: Array<{ key: string; top: number }>,
+  fromMax: number,
+  toMax: number
+) {
+  if (fromMax <= 0 || toMax <= 0) return [{ fromTop: 0, toTop: 0 }];
+
+  const points: ScrollGuidePoint[] = [{ fromTop: 0, toTop: 0 }];
+  let lastToIndex = -1;
+
+  for (const fromAnchor of fromAnchors) {
+    const fromTop = clamp(fromAnchor.top, 0, fromMax);
+    if (fromTop <= points[points.length - 1].fromTop) continue;
+
+    const toIndex = toAnchors.findIndex(
+      (toAnchor, index) => index > lastToIndex && toAnchor.key === fromAnchor.key
+    );
+    if (toIndex < 0) continue;
+
+    lastToIndex = toIndex;
+
+    points.push({
+      fromTop,
+      toTop: clamp(toAnchors[toIndex].top, 0, toMax),
+    });
+  }
+
+  if (points.length === 1) {
+    const count = Math.min(fromAnchors.length, toAnchors.length);
+    for (let index = 0; index < count; index += 1) {
+      const fromTop = clamp(fromAnchors[index].top, 0, fromMax);
+      if (fromTop <= points[points.length - 1].fromTop) continue;
+
+      points.push({
+        fromTop,
+        toTop: clamp(toAnchors[index].top, 0, toMax),
+      });
+    }
+  }
+
+  const lastPoint = points[points.length - 1];
+  if (lastPoint.fromTop < fromMax || lastPoint.toTop < toMax) {
+    points.push({ fromTop: fromMax, toTop: toMax });
+  }
+
+  return points;
+}
+
+function mapScrollTop(scrollTop: number, points: ScrollGuidePoint[]) {
+  if (points.length === 0) return 0;
+  if (points.length === 1) return points[0].toTop;
+
+  const lastPoint = points[points.length - 1];
+  const x = clamp(scrollTop, 0, lastPoint.fromTop);
+
+  let current = points[0];
+  for (let index = 1; index < points.length; index += 1) {
+    const next = points[index];
+    if (x <= next.fromTop) {
+      const span = next.fromTop - current.fromTop;
+      const ratio = span <= 0 ? 0 : (x - current.fromTop) / span;
+      return current.toTop + ratio * (next.toTop - current.toTop);
+    }
+
+    current = next;
+  }
+
+  return lastPoint.toTop;
+}
+
+function mapViewportScrollTop(
+  source: HTMLElement,
+  target: HTMLElement,
+  points: ScrollGuidePoint[]
+) {
+  const sourceReferenceTop = source.scrollTop + source.clientHeight * SYNC_REFERENCE_RATIO;
+  const targetReferenceTop = mapScrollTop(sourceReferenceTop, points);
+  const targetMax = Math.max(0, target.scrollHeight - target.clientHeight);
+
+  return clamp(
+    targetReferenceTop - target.clientHeight * SYNC_REFERENCE_RATIO,
+    0,
+    targetMax
+  );
+}
+
 export class SourceModeController {
   private host: HTMLElement | null = null;
   private cmView: EditorView | null = null;
+  private previewView: ProseMirrorEditorView | null = null;
   private cmThemeCompartment = new Compartment();
   private syncTimer: number | null = null;
   private active = false;
   private lastScrollSource: HTMLElement | null = null;
+  private activeScrollSource: HTMLElement | null = null;
   private unsubscribeStore: (() => void) | null = null;
   private unsubscribeTheme: (() => void) | null = null;
+  private anchorsDirty = true;
+  private sourceAnchors: SourceAnchor[] = [];
+  private previewAnchors: PreviewAnchor[] = [];
 
   constructor(
     private readonly editorRoot: HTMLElement,
@@ -183,11 +346,33 @@ export class SourceModeController {
     return document.documentElement.dataset.theme === 'dark' ? [oneDark] : [];
   }
 
+  private invalidateAnchors() {
+    this.anchorsDirty = true;
+  }
+
+  private markScrollSource(source: HTMLElement) {
+    this.activeScrollSource = source;
+  }
+
+  private ensureAnchors() {
+    if (!this.cmView || !this.previewView) return;
+    if (!this.anchorsDirty) return;
+
+    this.sourceAnchors = buildSourceAnchors(this.cmView.state);
+    this.previewAnchors = buildPreviewAnchors(this.previewView);
+    this.anchorsDirty = false;
+  }
+
   private enter() {
     if (this.active) return;
     this.active = true;
 
     const initialDoc = this.editor.getMarkdown();
+    this.previewView = this.editor.getView();
+    if (!this.previewView) {
+      this.active = false;
+      return;
+    }
 
     // NOTE: we deliberately do NOT call `editor.setReadonly(true)` here.
     // Crepe's TopBar component bails out with `return null` when the view
@@ -212,26 +397,48 @@ export class SourceModeController {
           this.cmThemeCompartment.of(this.themeExtension()),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
+            this.invalidateAnchors();
             this.scheduleSync();
           }),
         ],
       }),
     });
 
+    this.invalidateAnchors();
     this.cmView.focus();
     this.bindScrollSync();
   }
 
   private bindScrollSync() {
-    if (!this.cmView || !this.editorRoot) return;
+    if (!this.cmView || !this.previewView || !this.editorRoot) return;
 
     const cmScroller = this.cmView.scrollDOM;
-    const milkdownPane = this.editorRoot.querySelector(
-      '.milkdown'
-    ) as HTMLElement;
-    if (!cmScroller || !milkdownPane) return;
+    const previewPane = this.editorRoot.querySelector('.milkdown') as HTMLElement | null;
+    if (!cmScroller || !previewPane) return;
+
+    const userScrollEvents: Array<keyof HTMLElementEventMap> = [
+      'pointerdown',
+      'mousedown',
+      'wheel',
+      'touchstart',
+      'keydown',
+      'focusin',
+    ];
+
+    for (const eventName of userScrollEvents) {
+      cmScroller.addEventListener(eventName, () => this.markScrollSource(cmScroller), {
+        passive: true,
+      });
+      previewPane.addEventListener(eventName, () => this.markScrollSource(previewPane), {
+        passive: true,
+      });
+    }
 
     const sync = (source: HTMLElement, target: HTMLElement) => {
+      if (this.activeScrollSource && this.activeScrollSource !== source) {
+        return;
+      }
+
       if (this.lastScrollSource && this.lastScrollSource !== source) {
         return;
       }
@@ -239,13 +446,46 @@ export class SourceModeController {
       this.lastScrollSource = source;
 
       requestAnimationFrame(() => {
-        const sourceMax = source.scrollHeight - source.clientHeight;
-        const targetMax = target.scrollHeight - target.clientHeight;
-
-        if (sourceMax > 0 && targetMax > 0) {
-          const percentage = source.scrollTop / sourceMax;
-          target.scrollTop = Math.round(percentage * targetMax);
+        this.ensureAnchors();
+        if (!this.cmView || !this.previewView) {
+          this.lastScrollSource = null;
+          return;
         }
+
+        const fromAnchors =
+          source === cmScroller
+            ? this.sourceAnchors.map((anchor) => ({
+                key: anchor.key,
+                top: this.cmView!.lineBlockAt(anchor.from).top,
+              }))
+            : this.previewAnchors.map((anchor) => ({
+                key: anchor.key,
+                top: paneContentTop(previewPane, anchor.dom),
+              }));
+        const toAnchors =
+          source === cmScroller
+            ? this.previewAnchors.map((anchor) => ({
+                key: anchor.key,
+                top: paneContentTop(previewPane, anchor.dom),
+              }))
+            : this.sourceAnchors.map((anchor) => ({
+                key: anchor.key,
+                top: this.cmView!.lineBlockAt(anchor.from).top,
+              }));
+
+        const guide = buildScrollGuidePoints(
+          fromAnchors,
+          toAnchors,
+          Math.max(0, source.scrollHeight - source.clientHeight),
+          Math.max(0, target.scrollHeight - target.clientHeight)
+        );
+
+        if (guide.length === 0) {
+          this.lastScrollSource = null;
+          return;
+        }
+
+        target.scrollTop = mapViewportScrollTop(source, target, guide);
 
         requestAnimationFrame(() => {
           this.lastScrollSource = null;
@@ -255,12 +495,12 @@ export class SourceModeController {
 
     cmScroller.addEventListener(
       'scroll',
-      () => sync(cmScroller, milkdownPane),
+      () => sync(cmScroller, previewPane),
       { passive: true }
     );
-    milkdownPane.addEventListener(
+    previewPane.addEventListener(
       'scroll',
-      () => sync(milkdownPane, cmScroller),
+      () => sync(previewPane, cmScroller),
       { passive: true }
     );
   }
@@ -285,6 +525,8 @@ export class SourceModeController {
     this.host = null;
     this.editorRoot.classList.remove('is-source-mode');
     this.editorRoot.parentElement?.classList.remove('is-source-mode-host');
+    this.anchorsDirty = true;
+    this.activeScrollSource = null;
     // Don't focusAtEnd — that would yank the caret away from where the user
     // was editing in source view and force the WYSIWYG to scroll all the way
     // to the bottom (which also leaves the sticky toolbar in a weird state).
@@ -298,6 +540,7 @@ export class SourceModeController {
       const text = this.cmView.state.doc.toString();
       if (text !== this.editor.getMarkdown()) {
         this.editor.setMarkdown(text);
+        this.invalidateAnchors();
       }
     }, SYNC_DELAY_MS);
   }
