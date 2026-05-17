@@ -1,35 +1,22 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { copyFile, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 import { openPath, openUrl } from '@tauri-apps/plugin-opener';
-import type { ImageSettings } from '../../state/image-settings';
+import {
+  type AttachmentReferenceOptions,
+  basenamePath,
+  formatAttachmentReference,
+  normalizePath,
+  resolveAttachmentPath,
+  resolveStorageDir,
+  sanitizeFileName,
+} from '../../features/attachment-paths';
+
+export type { AttachmentReferenceOptions };
 
 export type StoredAttachment = {
   markdownPath: string;
   absolutePath: string;
 };
-
-export type AttachmentReferenceOptions = Pick<
-  ImageSettings,
-  'preferRelativePath' | 'ensureDotSlash' | 'escapePath'
->;
-
-export async function materializeAttachment(
-  documentPath: string,
-  fileName: string,
-  bytes: number[]
-): Promise<StoredAttachment> {
-  return await invoke('materialize_attachment', {
-    documentPath,
-    fileName,
-    bytes,
-  });
-}
-
-export async function materializeDraftAttachment(
-  fileName: string,
-  bytes: number[]
-): Promise<StoredAttachment> {
-  return await invoke('materialize_draft_attachment', { fileName, bytes });
-}
 
 export async function storeAttachmentInDirectory(
   documentPath: string,
@@ -38,13 +25,9 @@ export async function storeAttachmentInDirectory(
   bytes: number[],
   options: AttachmentReferenceOptions
 ): Promise<StoredAttachment> {
-  return await invoke('store_attachment_in_directory', {
-    documentPath,
-    targetDir,
-    fileName,
-    bytes,
-    options,
-  });
+  const storageDir = resolveStorageDir(documentPath, targetDir);
+  const targetPath = await writeAttachmentFile(storageDir, fileName, bytes);
+  return buildStoredAttachment(documentPath, targetPath, options);
 }
 
 export async function copyLocalAttachment(
@@ -53,22 +36,21 @@ export async function copyLocalAttachment(
   targetDir: string,
   options: AttachmentReferenceOptions
 ): Promise<StoredAttachment> {
-  return await invoke('copy_local_attachment', {
-    documentPath,
-    sourcePath,
-    targetDir,
-    options,
-  });
+  const storageDir = resolveStorageDir(documentPath, targetDir);
+  await mkdir(storageDir, { recursive: true });
+
+  const fileName = basenamePath(sourcePath) || 'attachment';
+  const targetPath = await uniqueFilePath(storageDir, sanitizeFileName(fileName));
+  await copyFile(sourcePath, targetPath);
+
+  return buildStoredAttachment(documentPath, targetPath, options);
 }
 
 export async function resolveDocumentAssetPath(
   documentPath: string | null,
   assetPath: string
 ): Promise<string | null> {
-  return await invoke('resolve_document_asset_path', {
-    documentPath,
-    assetPath,
-  });
+  return resolveAttachmentPath(documentPath, assetPath);
 }
 
 export async function formatMarkdownReference(
@@ -76,11 +58,7 @@ export async function formatMarkdownReference(
   assetPath: string,
   options: AttachmentReferenceOptions
 ): Promise<string> {
-  return await invoke('format_markdown_reference', {
-    documentPath,
-    assetPath,
-    options,
-  });
+  return formatAttachmentReference(documentPath, assetPath, options);
 }
 
 export function toAssetUrl(path: string): string {
@@ -93,4 +71,47 @@ export async function openLocalPath(path: string): Promise<void> {
 
 export async function openExternalUrl(url: string): Promise<void> {
   await openUrl(url);
+}
+
+async function buildStoredAttachment(
+  documentPath: string,
+  targetPath: string,
+  options: AttachmentReferenceOptions
+): Promise<StoredAttachment> {
+  return {
+    markdownPath: formatAttachmentReference(documentPath, targetPath, options),
+    absolutePath: normalizePath(targetPath),
+  };
+}
+
+async function writeAttachmentFile(
+  dir: string,
+  fileName: string,
+  bytes: number[]
+) {
+  await mkdir(dir, { recursive: true });
+  const safeName = sanitizeFileName(fileName);
+  const targetPath = await uniqueFilePath(dir, safeName);
+  await writeFile(targetPath, new Uint8Array(bytes));
+  return normalizePath(targetPath);
+}
+
+async function uniqueFilePath(dir: string, fileName: string) {
+  const normalizedDir = normalizePath(dir);
+  const initial = normalizePath(`${normalizedDir}/${fileName}`);
+  if (!(await exists(initial))) {
+    return initial;
+  }
+
+  const dot = fileName.lastIndexOf('.');
+  const stem = dot > 0 ? fileName.slice(0, dot) : fileName || 'attachment';
+  const ext = dot > 0 ? fileName.slice(dot + 1) : '';
+
+  for (let index = 2; ; index += 1) {
+    const candidateName = ext ? `${stem}-${index}.${ext}` : `${stem}-${index}`;
+    const candidate = normalizePath(`${normalizedDir}/${candidateName}`);
+    if (!(await exists(candidate))) {
+      return candidate;
+    }
+  }
 }

@@ -19,8 +19,13 @@
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-effects",
     "core:window:allow-set-theme",
+    "fs:read-all",
+    "fs:write-all",
+    "fs:allow-watch",
+    "fs:allow-unwatch",
     "opener:default",
     "dialog:default",
+    "store:default",
     "updater:default"
   ]
 }

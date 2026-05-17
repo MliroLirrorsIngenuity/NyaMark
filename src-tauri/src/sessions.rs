@@ -8,7 +8,6 @@ use std::{
     },
 };
 
-use anyhow::{Context, Result};
 use tauri::{AppHandle, Manager, Runtime};
 
 /// Files passed via CLI args / `RunEvent::Opened` before the main window finished bootstrap.
@@ -16,9 +15,6 @@ pub struct PendingLaunchFiles(pub Mutex<Vec<String>>);
 
 /// Mapping window label -> resolved markdown file path.
 pub struct WindowSessions(pub Mutex<HashMap<String, String>>);
-
-/// Mapping window label -> draft asset directory used for unsaved-doc paste images.
-pub struct DraftSessions(pub Mutex<HashMap<String, String>>);
 
 /// Monotonic counter to mint child window labels (`editor-N`).
 pub struct WindowCounter(pub AtomicUsize);
@@ -124,51 +120,4 @@ pub fn is_main_bootstrap_complete<R: Runtime>(app: &AppHandle<R>) -> bool {
     app.state::<MainWindowBootstrapComplete>()
         .0
         .load(Ordering::Acquire)
-}
-
-pub fn ensure_draft_session_dir<R: Runtime>(app: &AppHandle<R>, label: &str) -> Result<PathBuf> {
-    if let Some(path) = app
-        .state::<DraftSessions>()
-        .0
-        .lock()
-        .unwrap()
-        .get(label)
-        .cloned()
-    {
-        return Ok(PathBuf::from(path));
-    }
-
-    let dir = env::temp_dir()
-        .join("nyamark-drafts")
-        .join(std::process::id().to_string())
-        .join(label);
-    fs::create_dir_all(&dir)
-        .with_context(|| format!("Failed to create draft session directory: {dir:?}"))?;
-
-    app.state::<DraftSessions>()
-        .0
-        .lock()
-        .unwrap()
-        .insert(label.to_string(), dir.to_string_lossy().into_owned());
-
-    Ok(dir)
-}
-
-pub fn take_draft_session_dir<R: Runtime>(app: &AppHandle<R>, label: &str) -> Option<PathBuf> {
-    app.state::<DraftSessions>()
-        .0
-        .lock()
-        .unwrap()
-        .remove(label)
-        .map(PathBuf::from)
-}
-
-pub fn current_draft_session_dir<R: Runtime>(app: &AppHandle<R>, label: &str) -> Option<PathBuf> {
-    app.state::<DraftSessions>()
-        .0
-        .lock()
-        .unwrap()
-        .get(label)
-        .cloned()
-        .map(PathBuf::from)
 }

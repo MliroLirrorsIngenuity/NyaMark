@@ -1,14 +1,10 @@
-pub mod commands;
-pub mod file;
 #[cfg(target_os = "macos")]
 pub mod menu;
 pub mod sessions;
-pub mod settings;
 pub mod windows;
 
 use std::{
     collections::HashMap,
-    fs,
     sync::{
         atomic::{AtomicBool, AtomicUsize},
         Mutex,
@@ -18,8 +14,8 @@ use std::{
 use tauri::{AppHandle, Manager, Window};
 
 use crate::sessions::{
-    DraftSessions, LastFocusedWindow, MainWindowBootstrapComplete, PendingLaunchFiles,
-    WindowCounter, WindowSessions,
+    LastFocusedWindow, MainWindowBootstrapComplete, PendingLaunchFiles, WindowCounter,
+    WindowSessions,
 };
 
 #[tauri::command]
@@ -76,44 +72,6 @@ fn print_current_window(window: tauri::WebviewWindow) -> Result<(), String> {
     window.print().map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-fn materialize_draft_attachment(
-    window: Window,
-    app: AppHandle,
-    file_name: String,
-    bytes: Vec<u8>,
-) -> Result<file::StoredAttachment, String> {
-    let draft_dir = sessions::ensure_draft_session_dir(&app, window.label())
-        .map_err(|error| error.to_string())?;
-    file::materialize_draft_attachment(&draft_dir, &file_name, &bytes)
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn save_markdown(
-    window: Window,
-    app: AppHandle,
-    path: String,
-    content: String,
-) -> Result<String, String> {
-    let label = window.label().to_string();
-    let draft_dir = sessions::current_draft_session_dir(&app, &label);
-    let final_content = match draft_dir.as_ref() {
-        Some(draft_dir) => file::persist_draft_attachments(&path, &content, draft_dir)
-            .map_err(|error| error.to_string())?,
-        None => content,
-    };
-
-    file::save_file_content(&path, &final_content).map_err(|error| error.to_string())?;
-
-    if let Some(draft_dir) = draft_dir {
-        let _ = fs::remove_dir_all(&draft_dir);
-        let _ = sessions::take_draft_session_dir(&app, &label);
-    }
-
-    Ok(final_content)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -121,13 +79,14 @@ pub fn run() {
             sessions::collect_launch_files(),
         )))
         .manage(WindowSessions(Mutex::new(HashMap::new())))
-        .manage(DraftSessions(Mutex::new(HashMap::new())))
         .manage(LastFocusedWindow(Mutex::new(None)))
         .manage(WindowCounter(AtomicUsize::new(1)))
         .manage(MainWindowBootstrapComplete(AtomicBool::new(false)))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let paths: Vec<String> = args
                 .iter()
@@ -163,29 +122,16 @@ pub fn run() {
             tauri::WindowEvent::Destroyed => {
                 let app = window.app_handle();
                 sessions::forget_window_file(&app, window.label());
-                let _ = sessions::take_draft_session_dir(&app, window.label());
                 sessions::clear_last_focused_window(&app, window.label());
             }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
-            commands::read_markdown,
-            commands::get_file_modified_time,
-            commands::load_settings,
-            commands::load_settings_raw,
-            commands::save_settings,
-            save_markdown,
-            commands::materialize_attachment,
-            commands::store_attachment_in_directory,
-            commands::copy_local_attachment,
-            commands::resolve_document_asset_path,
-            commands::format_markdown_reference,
             resolve_current_window_file,
             open_new_window,
             open_markdown_in_new_window,
             set_windows_backdrop,
             print_current_window,
-            materialize_draft_attachment,
             #[cfg(target_os = "macos")]
             menu::update_macos_menu,
         ])

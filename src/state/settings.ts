@@ -1,5 +1,6 @@
 import { type ImageSettings, defaultImageSettings } from './image-settings';
 import {
+  hasPersistedLanguage as hasStoredLanguage,
   loadPersistedSettings,
   savePersistedSettings,
 } from '../bridge/ipc/settings';
@@ -195,6 +196,10 @@ export async function hydrateSettings(): Promise<Settings> {
   hydrated = true;
   applyAppearance(cached.appearance);
   return cached;
+}
+
+export async function hasPersistedLanguage() {
+  return await hasStoredLanguage();
 }
 
 export async function saveSettings(next: Settings) {

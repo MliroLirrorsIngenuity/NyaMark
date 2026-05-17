@@ -13,6 +13,7 @@ import { check } from '@tauri-apps/plugin-updater';
 import { store } from './state/store';
 import {
   getSettings,
+  hasPersistedLanguage,
   hydrateSettings,
   previewAppearance,
   subscribeSettings,
@@ -21,7 +22,6 @@ import {
 import { initI18n, i18next, resolveLanguage } from './i18n';
 import { translateDOM } from './i18n/dom';
 import { updateMacosMenu } from './bridge/ipc/menu';
-import { invoke } from '@tauri-apps/api/core';
 import { OutlinePanel } from './ui/outline';
 import { SearchPanel } from './ui/search';
 import {
@@ -52,23 +52,12 @@ export class App {
   private autoSaveTimer: number | null = null;
   private currentLanguage = 'en';
 
-  private async hasSavedLanguage(): Promise<boolean> {
-    try {
-      const raw = await invoke<string | null>('load_settings_raw');
-      if (!raw) return false;
-      const parsed = JSON.parse(raw);
-      return !!parsed?.general?.language;
-    } catch {
-      return false;
-    }
-  }
-
   async init() {
     registerShellStyles();
     await hydrateSettings();
     const settings = getSettings();
 
-    if (!(await this.hasSavedLanguage())) {
+    if (!(await hasPersistedLanguage())) {
       const detected = resolveLanguage('auto');
       await updateSettings({ general: { language: detected } });
       this.currentLanguage = detected;

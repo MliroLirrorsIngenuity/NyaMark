@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
+import { readTextFile, watchImmediate, writeTextFile } from '@tauri-apps/plugin-fs';
 
 export async function openFileDialog(): Promise<string | null> {
   const result = await open({
@@ -25,14 +26,22 @@ export async function openDirectoryDialog(): Promise<string | null> {
 }
 
 export async function readMarkdown(path: string): Promise<string> {
-  return await invoke('read_markdown', { path });
+  return await readTextFile(path);
 }
 
 export async function saveMarkdown(
   path: string,
   content: string
 ): Promise<string> {
-  return await invoke('save_markdown', { path, content });
+  await writeTextFile(path, content);
+  return content;
+}
+
+export async function watchMarkdownFile(
+  path: string,
+  handler: () => void
+): Promise<() => void> {
+  return await watchImmediate(path, () => handler());
 }
 
 export async function resolveCurrentWindowFile(): Promise<string | null> {

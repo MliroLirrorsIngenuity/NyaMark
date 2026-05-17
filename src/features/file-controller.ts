@@ -6,8 +6,8 @@ import {
   resolveCurrentWindowFile,
   saveFileDialog,
   saveMarkdown,
+  watchMarkdownFile,
 } from '../bridge/ipc/files';
-import { invoke } from '@tauri-apps/api/core';
 import type { NyaEditor } from '../editor/editor';
 import { store } from '../state/store';
 
@@ -19,13 +19,14 @@ export class FileController {
   private unwatch: (() => void) | null = null;
   private watchedPath: string | null = null;
   private lastKnownContent: string | null = null;
+  private watchVersion = 0;
 
   constructor(
     private readonly getEditor: () => NyaEditor | null,
     private readonly hooks: Hooks
   ) {
     store.subscribe((state) => {
-      this.updateWatcher(state.filePath);
+      void this.updateWatcher(state.filePath);
     });
   }
 
@@ -49,52 +50,53 @@ export class FileController {
     }
   }
 
-  private updateWatcher(path: string | null) {
+  private async updateWatcher(path: string | null) {
     if (this.watchedPath === path) return;
 
     if (this.unwatch) {
-      window.clearInterval(this.unwatch as unknown as number);
+      this.unwatch();
       this.unwatch = null;
     }
 
+    this.watchVersion += 1;
+    const watchVersion = this.watchVersion;
     this.watchedPath = path;
     if (!path) return;
 
-    let lastMtime: number | null = null;
-    invoke<number>('get_file_modified_time', { path })
-      .then((mtime) => (lastMtime = mtime))
-      .catch(() => {});
+    try {
+      const unwatch = await watchMarkdownFile(path, () => {
+        void this.reloadChangedFile(path);
+      });
 
-    const timer = window.setInterval(async () => {
-      try {
-        const currentMtime = await invoke<number>('get_file_modified_time', {
-          path,
-        });
-        if (lastMtime !== null && currentMtime !== lastMtime) {
-          lastMtime = currentMtime;
+      if (this.watchVersion !== watchVersion) {
+        unwatch();
+        return;
+      }
 
-          const state = store.getState();
-          if (state.isDirty) {
-            return;
-          }
+      this.unwatch = unwatch;
+    } catch (error) {
+      console.error('Failed to watch file changes:', error);
+    }
+  }
 
-          try {
-            const newContent = await readMarkdown(path);
-            if (newContent !== this.lastKnownContent) {
-              this.lastKnownContent = newContent;
-              this.hooks.syncEditorAfterSave(newContent);
-              store.update({ isDirty: false });
-            }
-          } catch (error) {
-            console.error('Failed to reload changed file:', error);
-          }
-        } else {
-          lastMtime = currentMtime;
-        }
-      } catch (error) {}
-    }, 1000);
+  private async reloadChangedFile(path: string) {
+    const state = store.getState();
+    if (state.filePath !== path || state.isDirty) {
+      return;
+    }
 
-    this.unwatch = () => window.clearInterval(timer);
+    try {
+      const newContent = await readMarkdown(path);
+      if (newContent === this.lastKnownContent) {
+        return;
+      }
+
+      this.lastKnownContent = newContent;
+      this.hooks.syncEditorAfterSave(newContent);
+      store.update({ isDirty: false });
+    } catch (error) {
+      console.error('Failed to reload changed file:', error);
+    }
   }
 
   async newFile() {
