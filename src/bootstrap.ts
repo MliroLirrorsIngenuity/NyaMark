@@ -140,6 +140,7 @@ export class App {
     });
 
     await this.editor.init(initialDocument.markdown);
+    this.editor.onChange(() => this.handleEditorChange());
 
     this.sourceMode = new SourceModeController(
       editorContainer,
@@ -263,7 +264,27 @@ export class App {
 
   private syncEditorAfterSave(savedContent: string) {
     if (!this.editor || savedContent === this.editor.getMarkdown()) return;
-    this.editor.setMarkdown(savedContent);
+    this.suppressDirtyTracking = true;
+    try {
+      this.editor.setMarkdown(savedContent);
+    } finally {
+      this.suppressDirtyTracking = false;
+    }
+    this.refreshStatsSoon();
+  }
+
+  private handleEditorChange() {
+    if (this.suppressDirtyTracking) {
+      this.refreshStatsSoon();
+      return;
+    }
+
+    const stats = this.editor?.getStats() ?? { words: 0, lines: 1 };
+    store.update({
+      wordCount: stats.words,
+      lineCount: stats.lines,
+      isDirty: true,
+    });
   }
 
   private updateStats() {
