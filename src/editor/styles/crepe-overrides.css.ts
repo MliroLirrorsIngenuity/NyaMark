@@ -74,6 +74,25 @@ const css = `
   margin: 0.62em 0 0.16em !important;
 }
 
+.ny-editor-root .milkdown .ProseMirror table {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror th,
+.ny-editor-root .milkdown .ProseMirror td {
+  min-width: 0 !important;
+  vertical-align: top !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror th code,
+.ny-editor-root .milkdown .ProseMirror td code {
+  display: inline !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
 .ny-editor-root .milkdown .editor p,
 .ny-editor-root .milkdown .editor ul,
 .ny-editor-root .milkdown .editor ol,
