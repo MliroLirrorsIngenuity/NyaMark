@@ -1,6 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { readTextFile, watchImmediate, writeTextFile } from '@tauri-apps/plugin-fs';
+import {
+  readTextFile,
+  watchImmediate,
+  writeTextFile,
+} from '@tauri-apps/plugin-fs';
 
 export async function openFileDialog(): Promise<string | null> {
   const result = await open({

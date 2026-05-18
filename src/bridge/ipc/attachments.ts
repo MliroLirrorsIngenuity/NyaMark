@@ -40,7 +40,10 @@ export async function copyLocalAttachment(
   await mkdir(storageDir, { recursive: true });
 
   const fileName = basenamePath(sourcePath) || 'attachment';
-  const targetPath = await uniqueFilePath(storageDir, sanitizeFileName(fileName));
+  const targetPath = await uniqueFilePath(
+    storageDir,
+    sanitizeFileName(fileName)
+  );
   await copyFile(sourcePath, targetPath);
 
   return buildStoredAttachment(documentPath, targetPath, options);

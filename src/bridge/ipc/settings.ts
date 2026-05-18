@@ -55,7 +55,9 @@ async function importLegacySettings(store: Store) {
     return;
   }
 
-  if (!(await exists(LEGACY_SETTINGS_FILE, { baseDir: BaseDirectory.AppConfig }))) {
+  if (
+    !(await exists(LEGACY_SETTINGS_FILE, { baseDir: BaseDirectory.AppConfig }))
+  ) {
     return;
   }
 

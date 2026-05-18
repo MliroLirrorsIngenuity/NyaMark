@@ -96,7 +96,11 @@ export function sanitizeFileName(fileName: string) {
 
 export function resolveStorageDir(documentPath: string, targetDir: string) {
   const normalizedTarget = targetDir.trim();
-  if (!normalizedTarget || normalizedTarget === '.' || normalizedTarget === './') {
+  if (
+    !normalizedTarget ||
+    normalizedTarget === '.' ||
+    normalizedTarget === './'
+  ) {
     return dirnamePath(documentPath);
   }
 
@@ -164,7 +168,10 @@ function diffPaths(path: string, base: string) {
   const pathRoot = parseRoot(normalizedPath);
   const baseRoot = parseRoot(normalizedBase);
 
-  if (pathRoot.absolute !== baseRoot.absolute || pathRoot.prefix !== baseRoot.prefix) {
+  if (
+    pathRoot.absolute !== baseRoot.absolute ||
+    pathRoot.prefix !== baseRoot.prefix
+  ) {
     return null;
   }
 
@@ -213,10 +220,7 @@ function parseRoot(path: string): PathRoot {
 function pathParts(path: string) {
   const normalized = normalizePathSeparators(path);
   const root = parseRoot(normalized);
-  return normalized
-    .slice(root.prefix.length)
-    .split('/')
-    .filter(Boolean);
+  return normalized.slice(root.prefix.length).split('/').filter(Boolean);
 }
 
 function joinRoot(root: PathRoot, path: string) {
