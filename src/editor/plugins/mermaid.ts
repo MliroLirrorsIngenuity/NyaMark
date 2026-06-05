@@ -6,6 +6,7 @@ const FONT_FAMILY =
 export function configureMermaid(isDark: boolean) {
   mermaid.initialize({
     startOnLoad: false,
+    securityLevel: 'strict',
     theme: 'base',
     htmlLabels: false,
     themeVariables: {

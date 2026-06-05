@@ -24,6 +24,7 @@
         "@tauri-apps/plugin-store": "^2",
         "@tauri-apps/plugin-updater": "^2",
         "codemirror": "^6.0.2",
+        "dompurify": "^3.4.8",
         "i18next": "^26.0.10",
         "katex": "^0.16.45",
         "mermaid": "^11.14.0",
@@ -639,7 +640,7 @@
 
     "diff": ["diff@5.2.2", "", {}, "sha512-vtcDfH3TOjP8UekytvnHH1o1P4FcUdt4eQ1Y+Abap1tk/OB2MWQvcwS2ClCd1zuIhc3JKOx6p3kod8Vfys3E+A=="],
 
-    "dompurify": ["dompurify@3.4.2", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-lHeS9SA/IKeIFFyYciHBr2n0v1VMPlSj843HdLOwjb2OxNwdq9Xykxqhk+FE42MzAdHvInbAolSE4mhahPpjXA=="],
+    "dompurify": ["dompurify@3.4.8", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-yb1cEmaOum7wFvOCSQxyfgVlv5D47Rc30iZWoMpbDIWTnJ6grDDQyu2KFJzB2k7u0pMuJcQ1zphH//fFnw2tjQ=="],
 
     "elkjs": ["elkjs@0.9.3", "", {}, "sha512-f/ZeWvW/BCXbhGEf1Ujp29EASo/lk1FDnETgNKwJrsVvGZhUWCZyg3xLJjAsxfOmt8KjswHmI5EwCQcPMpOYhQ=="],
 
@@ -959,6 +960,8 @@
 
     "@milkdown/components/@milkdown/exception": ["@milkdown/exception@7.20.0", "", {}, "sha512-u8EL7rbqgrWrPpkDhrxUYXauw2DO52JUQmuokrUZvqezmflo7pgIDCr+Rk6AQslzB4Xw+n9eYik5rXX3RXC7Qg=="],
 
+    "@milkdown/components/dompurify": ["dompurify@3.4.2", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-lHeS9SA/IKeIFFyYciHBr2n0v1VMPlSj843HdLOwjb2OxNwdq9Xykxqhk+FE42MzAdHvInbAolSE4mhahPpjXA=="],
+
     "@milkdown/core/@milkdown/exception": ["@milkdown/exception@7.20.0", "", {}, "sha512-u8EL7rbqgrWrPpkDhrxUYXauw2DO52JUQmuokrUZvqezmflo7pgIDCr+Rk6AQslzB4Xw+n9eYik5rXX3RXC7Qg=="],
 
     "@milkdown/ctx/@milkdown/exception": ["@milkdown/exception@7.20.0", "", {}, "sha512-u8EL7rbqgrWrPpkDhrxUYXauw2DO52JUQmuokrUZvqezmflo7pgIDCr+Rk6AQslzB4Xw+n9eYik5rXX3RXC7Qg=="],
@@ -1030,6 +1033,8 @@
     "mdast-util-to-markdown/micromark-util-decode-string": ["micromark-util-decode-string@2.0.1", "", { "dependencies": { "decode-named-character-reference": "^1.0.0", "micromark-util-character": "^2.0.0", "micromark-util-decode-numeric-character-reference": "^2.0.0", "micromark-util-symbol": "^2.0.0" } }, "sha512-nDV/77Fj6eH1ynwscYTOsbK7rR//Uj0bZXBwJZRfaLEJ1iGBR6kIfNmlNqaqJf649EP0F3NWNdeJi03elllNUQ=="],
 
     "mdast-util-to-string/@types/mdast": ["@types/mdast@3.0.15", "", { "dependencies": { "@types/unist": "^2" } }, "sha512-LnwD+mUEfxWMa1QpDraczIn6k0Ee3SMicuYSSzS6ZYl2gKS09EClnJYGd8Du6rfc5r/GZEk5o1mRb8TaTj03sQ=="],
+
+    "mermaid/dompurify": ["dompurify@3.4.2", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-lHeS9SA/IKeIFFyYciHBr2n0v1VMPlSj843HdLOwjb2OxNwdq9Xykxqhk+FE42MzAdHvInbAolSE4mhahPpjXA=="],
 
     "micromark/micromark-factory-space": ["micromark-factory-space@1.1.0", "", { "dependencies": { "micromark-util-character": "^1.0.0", "micromark-util-types": "^1.0.0" } }, "sha512-cRzEj7c0OL4Mw2v6nwzttyOZe8XY/Z8G0rzmWQZTBi/jjwyw/U4uqKtUORXQrR5bAZZnbTI/feRV/R7hc4jQYQ=="],
 
@@ -1124,6 +1129,8 @@
     "@milkdown/plugin-diagram/mermaid/@braintree/sanitize-url": ["@braintree/sanitize-url@6.0.4", "", {}, "sha512-s3jaWicZd0pkP0jf5ysyHUI/RE7MHos6qlToFcGWXVp+ykHOy77OUMrfbgJ9it2C5bow7OIQwYYaHjk9XlBQ2A=="],
 
     "@milkdown/plugin-diagram/mermaid/dagre-d3-es": ["dagre-d3-es@7.0.13", "", { "dependencies": { "d3": "^7.9.0", "lodash-es": "^4.17.21" } }, "sha512-efEhnxpSuwpYOKRm/L5KbqoZmNNukHa/Flty4Wp62JRvgH2ojwVgPgdYyr4twpieZnyRDdIH7PY2mopX26+j2Q=="],
+
+    "@milkdown/plugin-diagram/mermaid/dompurify": ["dompurify@3.4.2", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-lHeS9SA/IKeIFFyYciHBr2n0v1VMPlSj843HdLOwjb2OxNwdq9Xykxqhk+FE42MzAdHvInbAolSE4mhahPpjXA=="],
 
     "@milkdown/plugin-diagram/mermaid/uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
 

@@ -1,6 +1,17 @@
 import { $view } from '@milkdown/kit/utils';
 import { htmlSchema } from '@milkdown/kit/preset/commonmark';
+import DOMPurify from 'dompurify';
 import { ensureStyle } from '../../style/register';
+
+/**
+ * Raw HTML blocks come straight from the opened markdown file, which may be
+ * untrusted (e.g. a `.md` opened via file association). Sanitize before it ever
+ * touches innerHTML so embedded scripts / event handlers cannot execute inside
+ * the privileged Tauri webview.
+ */
+function sanitizeHtmlBlock(value: string): string {
+  return DOMPurify.sanitize(value);
+}
 
 const css = `
 .ny-html-block {
@@ -71,7 +82,7 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
 
     const preview = document.createElement('div');
     preview.classList.add('ny-html-preview');
-    preview.innerHTML = node.attrs.value;
+    preview.innerHTML = sanitizeHtmlBlock(node.attrs.value);
 
     const textarea = document.createElement('textarea');
     textarea.classList.add('ny-html-editor');
@@ -140,7 +151,7 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
       update: (updatedNode) => {
         if (updatedNode.type.name !== node.type.name) return false;
         node = updatedNode;
-        preview.innerHTML = updatedNode.attrs.value;
+        preview.innerHTML = sanitizeHtmlBlock(updatedNode.attrs.value);
         if (!focused) {
           textarea.value = updatedNode.attrs.value;
           autoResize();
