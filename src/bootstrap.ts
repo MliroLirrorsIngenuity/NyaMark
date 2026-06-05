@@ -149,10 +149,23 @@ export class App {
     );
     this.sourceMode.init();
 
+    this.attachments.bindPaste(editorContainer);
+    void this.attachments.bindWindowFileDrop();
+
     editorContainer.addEventListener('click', (e) => {
       if (e.target === editorContainer) {
         this.editor?.focusAtEnd();
+        return;
       }
+
+      // Ctrl/Cmd-click opens links/attachments without hijacking normal
+      // edit clicks that place the caret inside the link text.
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const target = e.target as HTMLElement | null;
+      const href = target?.closest('a[href]')?.getAttribute('href');
+      if (!href) return;
+      e.preventDefault();
+      void this.attachments?.openLinkedResource(href);
     });
 
     new Titlebar(store, {
@@ -313,7 +326,7 @@ export class App {
     const fallback = 'Untitled';
     if (!filePath) return fallback;
 
-    const fileName = filePath.split('/').pop() || filePath.split('\\').pop();
+    const fileName = filePath.split(/[\\/]/).filter(Boolean).pop();
     if (!fileName) return fallback;
 
     return fileName.replace(/\.[^./\\]+$/, '') || fallback;

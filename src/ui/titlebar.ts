@@ -193,9 +193,7 @@ export class Titlebar {
 
   private update(state: ReturnType<Store['getState']>) {
     const filename = state.filePath
-      ? state.filePath.split('/').pop() ||
-        state.filePath.split('\\').pop() ||
-        'Untitled.md'
+      ? state.filePath.split(/[\\/]/).filter(Boolean).pop() || 'Untitled.md'
       : 'Untitled.md';
     if (this.elFilename.textContent !== filename) {
       this.elFilename.textContent = filename;

@@ -83,6 +83,12 @@
       "subtitle": "截圖沒有原始檔案路徑。請先儲存文件，或將圖片做為 Base64 嵌入。",
       "saveDocument": "儲存文件"
     },
+    "fileConflict": {
+      "title": "檔案已在磁碟上變更",
+      "body": "「{{fileName}}」已被其他程式修改。重新載入並放棄未儲存的變更嗎？",
+      "reload": "重新載入",
+      "keep": "保留我的版本"
+    },
     "exportPdf": {
       "title": "匯出為 PDF",
       "subtitle": "依照下列設定將「{{fileName}}」匯出為 PDF。",

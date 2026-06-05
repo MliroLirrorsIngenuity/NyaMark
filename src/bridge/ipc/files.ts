@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { ask, open, save } from '@tauri-apps/plugin-dialog';
 import {
   readTextFile,
   watchImmediate,
@@ -27,6 +27,13 @@ export async function openDirectoryDialog(): Promise<string | null> {
     multiple: false,
   });
   return result as string | null;
+}
+
+export async function confirmDialog(
+  message: string,
+  options: { title: string; okLabel: string; cancelLabel: string }
+): Promise<boolean> {
+  return await ask(message, { kind: 'warning', ...options });
 }
 
 export async function readMarkdown(path: string): Promise<string> {

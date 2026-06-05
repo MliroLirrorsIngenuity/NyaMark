@@ -26,6 +26,7 @@
     "opener:default",
     "dialog:default",
     "store:default",
-    "updater:default"
+    "updater:default",
+    "process:allow-restart"
   ]
 }
