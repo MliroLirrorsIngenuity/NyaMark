@@ -1,4 +1,5 @@
 import {
+  confirmDialog,
   openFileDialog,
   openMarkdownInNewWindow,
   openNewWindow,
@@ -9,6 +10,7 @@ import {
   watchMarkdownFile,
 } from '../bridge/ipc/files';
 import type { NyaEditor } from '../editor/editor';
+import { i18next } from '../i18n';
 import { store } from '../state/store';
 
 type Hooks = {
@@ -20,6 +22,7 @@ export class FileController {
   private watchedPath: string | null = null;
   private lastKnownContent: string | null = null;
   private watchVersion = 0;
+  private conflictPrompting = false;
 
   constructor(
     private readonly getEditor: () => NyaEditor | null,
@@ -81,22 +84,69 @@ export class FileController {
 
   private async reloadChangedFile(path: string) {
     const state = store.getState();
-    if (state.filePath !== path || state.isDirty) {
+    if (state.filePath !== path) {
       return;
     }
 
+    let newContent: string;
     try {
-      const newContent = await readMarkdown(path);
-      if (newContent === this.lastKnownContent) {
-        return;
-      }
-
-      this.lastKnownContent = newContent;
-      this.hooks.syncEditorAfterSave(newContent);
-      store.update({ isDirty: false });
+      newContent = await readMarkdown(path);
     } catch (error) {
       console.error('Failed to reload changed file:', error);
+      return;
     }
+
+    // Ignore events that report no real change (most commonly our own save).
+    if (newContent === this.lastKnownContent) {
+      return;
+    }
+
+    if (!state.isDirty) {
+      this.applyExternalContent(newContent);
+      return;
+    }
+
+    // The file changed on disk while we hold unsaved edits. Ask before
+    // discarding either side instead of silently dropping the external change
+    // (and later overwriting it on save).
+    if (this.conflictPrompting) return;
+    this.conflictPrompting = true;
+    let reload = false;
+    try {
+      reload = await this.confirmExternalReload(path);
+    } finally {
+      this.conflictPrompting = false;
+    }
+
+    // The document may have been saved or closed while the prompt was open.
+    if (store.getState().filePath !== path) return;
+
+    if (reload) {
+      this.applyExternalContent(newContent);
+    } else {
+      // Keep local edits but adopt the disk version as the new baseline so the
+      // same change does not prompt again; the doc stays dirty and the next
+      // save intentionally overwrites disk.
+      this.lastKnownContent = newContent;
+    }
+  }
+
+  private applyExternalContent(content: string) {
+    this.lastKnownContent = content;
+    this.hooks.syncEditorAfterSave(content);
+    store.update({ isDirty: false });
+  }
+
+  private async confirmExternalReload(path: string): Promise<boolean> {
+    const fileName = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+    return await confirmDialog(
+      i18next.t('dialog.fileConflict.body', { fileName }),
+      {
+        title: i18next.t('dialog.fileConflict.title'),
+        okLabel: i18next.t('dialog.fileConflict.reload'),
+        cancelLabel: i18next.t('dialog.fileConflict.keep'),
+      }
+    );
   }
 
   async newFile() {

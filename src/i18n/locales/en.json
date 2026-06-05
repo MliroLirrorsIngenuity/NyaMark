@@ -84,6 +84,12 @@
       "subtitle": "Screenshot images have no original file path. Save the document first, or embed this image as Base64.",
       "saveDocument": "Save Document"
     },
+    "fileConflict": {
+      "title": "File changed on disk",
+      "body": "\"{{fileName}}\" was modified by another program. Reload and discard your unsaved changes?",
+      "reload": "Reload",
+      "keep": "Keep my version"
+    },
     "exportPdf": {
       "title": "Export to PDF",
       "subtitle": "Export \"{{fileName}}\" to PDF with the settings below.",
