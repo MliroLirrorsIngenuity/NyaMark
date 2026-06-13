@@ -34,6 +34,7 @@ import { Statusbar } from './ui/statusbar';
 import { ThemeManager, type ThemeMode } from './ui/theme';
 import { Titlebar } from './ui/titlebar';
 import { UpdateDialog } from './ui/update-dialog';
+import { message } from '@tauri-apps/plugin-dialog';
 import { printCurrentWindow } from './bridge/ipc/windows';
 
 export class App {
@@ -78,7 +79,7 @@ export class App {
 
     const appRoot = document.getElementById('app');
     if (!appRoot) {
-      console.error('App root not found');
+      void message('App root not found', { kind: 'error' });
       return;
     }
 
@@ -110,7 +111,7 @@ export class App {
 
     const editorContainer = document.getElementById('editor-container');
     if (!editorContainer) {
-      console.error('Editor container not found');
+      void message('Editor container not found', { kind: 'error' });
       return;
     }
 

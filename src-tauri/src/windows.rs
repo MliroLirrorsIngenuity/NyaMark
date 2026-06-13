@@ -30,10 +30,13 @@ pub fn open_editor_window<R: Runtime>(app: &AppHandle<R>, path: String) -> Resul
 
     let builder = WebviewWindowBuilder::from_config(app, &config)?;
 
-    if let Err(error) = builder.build() {
+    let window = builder.build().map_err(|error| {
         sessions::forget_window_file(app, &label);
-        return Err(anyhow::Error::from(error));
-    }
+        anyhow::Error::from(error)
+    })?;
+
+    let _ = window.show();
+    let _ = window.set_focus();
 
     Ok(())
 }
