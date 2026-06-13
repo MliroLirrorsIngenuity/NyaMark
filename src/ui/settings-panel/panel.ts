@@ -11,6 +11,7 @@ import { renderAppearanceSection } from './sections/appearance';
 import { renderSaveSection } from './sections/save-policy';
 import { renderAttachmentsSection } from './sections/attachments';
 import { translateDOM } from '../../i18n/dom';
+import { errorDialog } from '../../bridge/ipc/files';
 
 const styles = `
 .ny-settings-overlay {
@@ -565,14 +566,6 @@ export class SettingsPanel {
 
     translateDOM(overlay);
 
-    const syncOkState = () => {
-      ok.disabled = Boolean(
-        dialog.querySelector('input[type="number"]:invalid')
-      );
-      ok.style.opacity = ok.disabled ? '0.55' : '';
-    };
-    syncOkState();
-
     let closing = false;
 
     const close = async () => {
@@ -594,18 +587,16 @@ export class SettingsPanel {
       if (event.key === 'Escape') void close();
     };
     document.addEventListener('keydown', onKey);
-    body.addEventListener('input', syncOkState);
-    body.addEventListener('change', syncOkState);
 
     cancel.addEventListener('click', () => void close());
     ok.addEventListener('click', async () => {
-      syncOkState();
-      if (ok.disabled) return;
-      try {
-        await saveSettings(working);
-      } catch {
-        // save failed — close anyway
-      }
+      // `working` is always a sanitized, valid snapshot (each section clamps on
+      // commit and reverts invalid input), so OK never needs to be blocked by a
+      // transient :invalid field. Persist in the background and always close;
+      // never let a slow or failed save trap the dialog open.
+      void saveSettings(working).catch((error) => {
+        void errorDialog(String(error));
+      });
       await close();
     });
     reset.addEventListener('click', async () => {

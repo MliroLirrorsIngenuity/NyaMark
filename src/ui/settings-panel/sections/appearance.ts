@@ -32,7 +32,7 @@ export function renderAppearanceSection(
       </label>
       <label class="ny-settings__field">
         <span data-i18n="settings.appearance.lineHeight">Line height</span>
-        <input type="number" min="1.2" max="2.2" step="0.01" data-key="lineHeight" />
+        <input type="number" min="1.2" max="2.2" step="any" data-key="lineHeight" />
       </label>
       <label class="ny-settings__field">
         <span data-i18n="settings.appearance.readableWidth">Readable width (px)</span>

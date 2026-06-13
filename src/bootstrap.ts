@@ -55,6 +55,17 @@ export class App {
 
   async init() {
     registerShellStyles();
+
+    const appRoot = document.getElementById('app');
+    if (!appRoot) {
+      void message('App root not found', { kind: 'error' });
+      return;
+    }
+
+    // Render the shell immediately so the window has a visible background
+    // before any async IPC calls complete.
+    renderAppShell(appRoot);
+
     await hydrateSettings();
     const settings = getSettings();
 
@@ -77,13 +88,6 @@ export class App {
       );
     }
 
-    const appRoot = document.getElementById('app');
-    if (!appRoot) {
-      void message('App root not found', { kind: 'error' });
-      return;
-    }
-
-    renderAppShell(appRoot);
     translateDOM(document.body);
     this.theme = new ThemeManager();
     this.bindThemeToggle();

@@ -176,6 +176,7 @@ export class FileController {
       });
     } catch (error) {
       console.error('Failed to save file:', error);
+      await errorDialog(String(error));
     }
   }
 
@@ -187,6 +188,7 @@ export class FileController {
       });
     } catch (error) {
       console.error('Failed to save file as:', error);
+      await errorDialog(String(error));
       return null;
     }
   }
