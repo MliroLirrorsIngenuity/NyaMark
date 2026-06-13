@@ -1,5 +1,6 @@
 import {
   confirmDialog,
+  errorDialog,
   openFileDialog,
   openMarkdownInNewWindow,
   openNewWindow,
@@ -163,6 +164,7 @@ export class FileController {
       if (path) await openMarkdownInNewWindow(path);
     } catch (error) {
       console.error('Failed to open file:', error);
+      await errorDialog(String(error));
     }
   }
 
