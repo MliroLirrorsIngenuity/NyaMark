@@ -227,17 +227,23 @@ export class FileController {
   }
 
   private async saveToExistingPath(path: string, snapshot: string) {
-    const savedContent = await saveMarkdown(path, snapshot);
-    this.lastKnownContent = savedContent;
+    // Update before the write so the file-watcher callback that fires during
+    // the async IPC round-trip (very fast on Windows NTFS) sees the expected
+    // content and does not trigger a spurious "file changed externally" dialog.
+    const prevLastKnown = this.lastKnownContent;
+    this.lastKnownContent = snapshot;
+    try {
+      await saveMarkdown(path, snapshot);
+    } catch (error) {
+      this.lastKnownContent = prevLastKnown;
+      throw error;
+    }
     const currentMarkdown = this.getEditor()?.getMarkdown() ?? snapshot;
-    const changedWhileSaving = currentMarkdown !== snapshot;
-
-    if (!changedWhileSaving) {
-      this.hooks.syncEditorAfterSave(savedContent);
-      store.update({ isDirty: false });
+    if (currentMarkdown !== snapshot) {
+      store.update({ isDirty: true });
       return;
     }
-
-    store.update({ isDirty: true });
+    this.hooks.syncEditorAfterSave(snapshot);
+    store.update({ isDirty: false });
   }
 }
