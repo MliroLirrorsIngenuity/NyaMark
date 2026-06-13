@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { ask, message, open, save } from '@tauri-apps/plugin-dialog';
+import { ask, open, save } from '@tauri-apps/plugin-dialog';
 import {
   readTextFile,
   watchImmediate,
@@ -34,10 +34,6 @@ export async function confirmDialog(
   options: { title: string; okLabel: string; cancelLabel: string }
 ): Promise<boolean> {
   return await ask(message, { kind: 'warning', ...options });
-}
-
-export async function errorDialog(msg: string): Promise<void> {
-  await message(msg, { kind: 'error' });
 }
 
 export async function readMarkdown(path: string): Promise<string> {

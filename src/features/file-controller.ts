@@ -1,6 +1,5 @@
 import {
   confirmDialog,
-  errorDialog,
   openFileDialog,
   openMarkdownInNewWindow,
   openNewWindow,
