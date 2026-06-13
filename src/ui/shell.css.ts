@@ -32,6 +32,10 @@ const shellStyles = `
   --ny-kbd-text: #53758a;
   --ny-warning: #d97706;
   --ny-shadow-float: 0 16px 40px rgba(15, 23, 42, 0.12);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 :root[data-theme="dark"] {
@@ -62,6 +66,42 @@ const shellStyles = `
 :root[data-platform="linux"] .ny-editor-root .milkdown {
   --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(255, 255, 255, 0.78));
   --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(255, 255, 255, 0.88));
+}
+
+:root[data-platform="windows"] {
+  --ny-font-sans: "Segoe UI Variable", "Segoe UI", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+:root[data-platform="linux"] {
+  --ny-font-sans: system-ui, "Noto Sans", "Ubuntu", "DejaVu Sans", sans-serif;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--ny-accent), transparent 72%);
+  color: inherit;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ny-border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ny-border-strong);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ny-text-muted);
 }
 
 html,

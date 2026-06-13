@@ -18,6 +18,22 @@ fn base_window_config<R: Runtime>(app: &AppHandle<R>) -> Result<WindowConfig> {
         .context("Missing window configuration template")
 }
 
+/// Build the configured webview window and reveal it.
+///
+/// This MUST run off the calling command/event-handler thread on Windows.
+/// `WebviewWindowBuilder::build` deadlocks WebView2 initialization when it is
+/// invoked from a synchronous Tauri command or event handler — the OS window
+/// frame appears but the webview content never loads (renders blank). The main
+/// window dodges this only because it is built during `setup`, not from a
+/// command. See the `WebviewWindowBuilder` documentation ("On Windows, this
+/// function deadlocks when used in a synchronous command and event handlers").
+fn build_window<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Result<()> {
+    let window = WebviewWindowBuilder::from_config(app, config)?.build()?;
+    let _ = window.show();
+    let _ = window.set_focus();
+    Ok(())
+}
+
 /// Open a new editor window bound to an existing markdown file on disk.
 pub fn open_editor_window<R: Runtime>(app: &AppHandle<R>, path: String) -> Result<()> {
     let normalized_path = sessions::normalize_file_path(&path)
@@ -26,14 +42,17 @@ pub fn open_editor_window<R: Runtime>(app: &AppHandle<R>, path: String) -> Resul
     let label = sessions::next_window_label(app);
     config.label = label.clone();
 
+    // Remember the file binding before the window builds so the child's
+    // `resolve_current_window_file` lookup cannot race ahead of it.
     sessions::remember_window_file(app, &label, normalized_path);
 
-    let builder = WebviewWindowBuilder::from_config(app, &config)?;
-
-    if let Err(error) = builder.build() {
-        sessions::forget_window_file(app, &label);
-        return Err(anyhow::Error::from(error));
-    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Err(error) = build_window(&app, &config) {
+            sessions::forget_window_file(&app, &label);
+            eprintln!("Failed to open editor window: {error}");
+        }
+    });
 
     Ok(())
 }
@@ -42,9 +61,15 @@ pub fn open_editor_window<R: Runtime>(app: &AppHandle<R>, path: String) -> Resul
 pub fn open_blank_editor_window<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     let mut config = base_window_config(app)?;
     config.label = sessions::next_window_label(app);
-    let builder = WebviewWindowBuilder::from_config(app, &config)?;
 
-    builder.build().map(|_| ()).map_err(Into::into)
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Err(error) = build_window(&app, &config) {
+            eprintln!("Failed to open blank editor window: {error}");
+        }
+    });
+
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]
