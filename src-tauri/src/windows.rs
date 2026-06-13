@@ -50,14 +50,14 @@ pub fn open_blank_editor_window<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
 #[cfg(target_os = "windows")]
 pub fn set_native_backdrop<R: Runtime>(window: &Window<R>, enabled: bool) -> Result<()> {
     use ::windows::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMSBT_MAINWINDOW, DWMSBT_NONE, DWMWA_SYSTEMBACKDROP_TYPE,
+        DwmSetWindowAttribute, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWA_SYSTEMBACKDROP_TYPE,
     };
 
     let hwnd = window
         .hwnd()
         .context("Failed to get native window handle")?;
     let backdrop = if enabled {
-        DWMSBT_MAINWINDOW
+        DWMSBT_TRANSIENTWINDOW
     } else {
         DWMSBT_NONE
     };

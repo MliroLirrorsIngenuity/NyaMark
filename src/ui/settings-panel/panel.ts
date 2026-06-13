@@ -601,7 +601,11 @@ export class SettingsPanel {
     ok.addEventListener('click', async () => {
       syncOkState();
       if (ok.disabled) return;
-      await saveSettings(working);
+      try {
+        await saveSettings(working);
+      } catch {
+        // save failed — close anyway
+      }
       await close();
     });
     reset.addEventListener('click', async () => {

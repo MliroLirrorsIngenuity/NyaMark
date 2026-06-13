@@ -31,9 +31,14 @@ pub fn normalize_file_path(path: impl AsRef<Path>) -> Option<String> {
         return None;
     }
 
-    fs::canonicalize(path)
-        .ok()
-        .map(|value| value.to_string_lossy().into_owned())
+    fs::canonicalize(path).ok().map(|canonical| {
+        let s = canonical.to_string_lossy().into_owned();
+        #[cfg(windows)]
+        if let Some(stripped) = s.strip_prefix(r"\\?\") {
+            return stripped.to_string();
+        }
+        s
+    })
 }
 
 pub fn collect_launch_files() -> Vec<String> {
