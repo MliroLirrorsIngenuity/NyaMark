@@ -20,8 +20,12 @@ const css = `
   --crepe-font-code: var(--ny-font-mono);
   --ny-editor-text-primary: #17212b;
   --ny-editor-heading: #101828;
-  --ny-editor-inline-code-bg: #ecf4f7;
+  --ny-editor-inline-code-bg: rgba(77, 122, 143, 0.09);
   --ny-editor-inline-code-border: #d6e6eb;
+  --ny-editor-marker: #97a8b8;
+  --ny-editor-check-mark: #ffffff;
+  --ny-editor-quote-bar: rgba(148, 163, 178, 0.42);
+  --ny-editor-rule: rgba(148, 163, 178, 0.3);
   --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(255, 255, 255, 0.82));
   --ny-editor-toolbar-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
   --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(255, 255, 255, 0.96));
@@ -65,8 +69,12 @@ const css = `
   --crepe-color-outline: rgba(101, 117, 139, 0.28);
   --ny-editor-text-primary: #e9f0f6;
   --ny-editor-heading: #f4f8fb;
-  --ny-editor-inline-code-bg: rgba(68, 88, 108, 0.32);
+  --ny-editor-inline-code-bg: rgba(141, 180, 200, 0.15);
   --ny-editor-inline-code-border: rgba(103, 123, 147, 0.34);
+  --ny-editor-marker: #6b7d91;
+  --ny-editor-check-mark: #101820;
+  --ny-editor-quote-bar: rgba(140, 162, 184, 0.34);
+  --ny-editor-rule: rgba(140, 162, 184, 0.24);
   --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(18, 24, 31, 0.74));
   --ny-editor-toolbar-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
   --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(22, 29, 38, 0.96));

@@ -1,13 +1,73 @@
 import { ensureStyle } from '../../style/register';
 
 const css = `
-.ny-editor-root .milkdown code {
+/*
+ * Inline code. Crepe's reset makes it an \`inline-block\` at 87.5% with its own
+ * line-height, so the chip becomes taller than the line it sits in and pushes
+ * the surrounding text apart. Render it as a real inline run instead: the
+ * background box then stays inside the line box and the code reads as part of
+ * the sentence rather than a widget dropped on top of it.
+ */
+.ny-editor-root .milkdown .ProseMirror code {
+  display: inline !important;
   font-family: var(--ny-font-mono) !important;
+  font-size: 0.9em !important;
+  line-height: inherit !important;
   color: var(--crepe-color-inline-code) !important;
-  border-radius: 0.375rem !important;
+  border-radius: 4px !important;
   background: var(--ny-editor-inline-code-bg) !important;
-  border: 1px solid var(--ny-editor-inline-code-border) !important;
-  padding: 0.08em 0.35em !important;
+  border: 0 !important;
+  padding: 0.14em 0.34em !important;
+  margin: 0 0.06em !important;
+  overflow-wrap: break-word !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror pre code {
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  font-size: inherit !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror a {
+  color: var(--nyamark-accent) !important;
+  text-decoration-color: color-mix(in srgb, var(--nyamark-accent), transparent 62%) !important;
+  text-decoration-thickness: 1px !important;
+  text-underline-offset: 0.18em !important;
+}
+
+/*
+ * Crepe's reset gives paragraphs \`padding: 4px 0\` and headings \`padding: 2px 0\`
+ * on top of whatever margins we set, so every block carries two independent
+ * spacing systems. Zero the padding and drive the rhythm from margins alone.
+ */
+.ny-editor-root .milkdown .ProseMirror p,
+.ny-editor-root .milkdown .ProseMirror h1,
+.ny-editor-root .milkdown .ProseMirror h2,
+.ny-editor-root .milkdown .ProseMirror h3,
+.ny-editor-root .milkdown .ProseMirror h4,
+.ny-editor-root .milkdown .ProseMirror h5,
+.ny-editor-root .milkdown .ProseMirror h6 {
+  padding: 0 !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror blockquote {
+  padding-left: 1.05em !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror blockquote::before {
+  width: 2px !important;
+  top: 0.16em !important;
+  bottom: 0.16em !important;
+  border-radius: 2px !important;
+  background: var(--ny-editor-quote-bar) !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror hr {
+  height: 1px !important;
+  padding: 0 !important;
+  margin: 1.15em 0 !important;
+  background-color: var(--ny-editor-rule) !important;
 }
 
 .milkdown {
@@ -53,25 +113,25 @@ const css = `
 .ny-editor-root .milkdown .ProseMirror h1 {
   font-size: 1.72em !important;
   line-height: 1.12 !important;
-  margin: 0.62em 0 0.22em !important;
+  margin: 0.88em 0 0.26em !important;
 }
 
 .ny-editor-root .milkdown .ProseMirror h2 {
   font-size: 1.43em !important;
   line-height: 1.16 !important;
-  margin: 0.72em 0 0.2em !important;
+  margin: 0.92em 0 0.24em !important;
 }
 
 .ny-editor-root .milkdown .ProseMirror h3 {
   font-size: 1.22em !important;
   line-height: 1.2 !important;
-  margin: 0.68em 0 0.18em !important;
+  margin: 0.88em 0 0.22em !important;
 }
 
 .ny-editor-root .milkdown .ProseMirror h4 {
   font-size: 1.08em !important;
   line-height: 1.2 !important;
-  margin: 0.62em 0 0.16em !important;
+  margin: 0.84em 0 0.2em !important;
 }
 
 .ny-editor-root .milkdown .ProseMirror table {
@@ -93,20 +153,182 @@ const css = `
   word-break: break-word !important;
 }
 
-.ny-editor-root .milkdown .editor p,
+/*
+ * Block rhythm. Every value below is in \`em\` so the whole document rescales
+ * with the reader's font-size setting instead of drifting apart from it.
+ */
+.ny-editor-root .milkdown .editor p {
+  margin: 0.72em 0 !important;
+}
+
 .ny-editor-root .milkdown .editor ul,
 .ny-editor-root .milkdown .editor ol,
 .ny-editor-root .milkdown .editor blockquote {
-  margin: 0.3em 0 !important;
+  margin: 0.72em 0 !important;
 }
 
+/*
+ * Every block-level node view ships its own margin (4px for tables and
+ * images, 0.5rem for code blocks), so the document gap changes depending on
+ * which node happens to be next. Put them all on the paragraph gap.
+ */
+.ny-editor-root .milkdown .editor .milkdown-table-block,
+.ny-editor-root .milkdown .editor .milkdown-image-block,
+.ny-editor-root .milkdown .editor .milkdown-code-block {
+  margin: 0.72em 0 !important;
+}
+
+.ny-editor-root .milkdown .editor > *:first-child {
+  margin-top: 0 !important;
+}
+
+.ny-editor-root .milkdown .editor > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+.ny-editor-root .milkdown .editor blockquote > *:first-child {
+  margin-top: 0 !important;
+}
+
+.ny-editor-root .milkdown .editor blockquote > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/*
+ * Lists. Crepe renders each item as
+ * div.milkdown-list-item-block > li.list-item > (.label-wrapper + .children)
+ * with a hard-coded 24px marker column, a 10px gap and a 32px tall label box
+ * holding a 24px Material icon — three fixed pixel values that ignore the
+ * text metrics, which is why the markers read as loose furniture sitting next
+ * to the paragraph instead of belonging to it.
+ *
+ * Everything here is re-expressed against the text: the marker column is
+ * 1.35em wide, the gap 0.4em, and the label box is exactly one line tall and
+ * offset by the same margin as the item's first paragraph, so the marker
+ * shares that line's box and its optical centre.
+ */
 .ny-editor-root .milkdown .editor ul,
 .ny-editor-root .milkdown .editor ol {
-  padding-left: 1.18em !important;
+  padding-left: 0 !important;
 }
 
-.ny-editor-root .milkdown .editor li + li {
-  margin-top: 0.08em !important;
+/*
+ * Row spacing lives on the item wrapper, never on the paragraph inside it.
+ * The item's content sits in a flex item, which is its own block formatting
+ * context, so any margin there is trapped: it cannot collapse with the row
+ * above or with the list's own margin, and the list ends up a few pixels
+ * taller than every other block. Keeping the inner paragraph at zero makes a
+ * row exactly one line tall and lets one value own the gap between rows.
+ */
+.ny-editor-root .milkdown .editor .content-dom > p {
+  margin: 0 !important;
+}
+
+.ny-editor-root .milkdown .editor .content-dom > p + p {
+  margin-top: 0.45em !important;
+}
+
+.ny-editor-root .milkdown .editor .content-dom > ul,
+.ny-editor-root .milkdown .editor .content-dom > ol {
+  margin: 0.3em 0 0 !important;
+}
+
+.ny-editor-root .milkdown .editor .milkdown-list-item-block
+  + .milkdown-list-item-block {
+  margin-top: 0.3em !important;
+}
+
+.ny-editor-root .milkdown .editor li.list-item {
+  gap: 0.4em !important;
+  align-items: flex-start !important;
+}
+
+.ny-editor-root .milkdown .editor li.list-item > .label-wrapper {
+  width: 1.35em !important;
+  height: calc(var(--ny-editor-line-height, 1.52) * 1em) !important;
+  margin-top: 0 !important;
+  align-items: center !important;
+  color: var(--ny-editor-marker) !important;
+}
+
+.ny-editor-root .milkdown .editor li.list-item > .label-wrapper > .label {
+  position: relative !important;
+  width: 100% !important;
+  height: auto !important;
+  padding: 0 !important;
+  line-height: inherit !important;
+}
+
+/* The Material icons are replaced by marks drawn from the text's own em box. */
+.ny-editor-root .milkdown .editor li.list-item > .label-wrapper > .label svg {
+  display: none !important;
+}
+
+.ny-editor-root .milkdown .editor .label.bullet::before {
+  content: "" !important;
+  width: 0.36em !important;
+  height: 0.36em !important;
+  border-radius: 50% !important;
+  background: currentColor !important;
+}
+
+/* Depth is signalled the way print does it: filled, hollow, then square. */
+.ny-editor-root .milkdown .editor ul ul .label.bullet::before {
+  width: 0.42em !important;
+  height: 0.42em !important;
+  background: transparent !important;
+  box-shadow: inset 0 0 0 1.3px currentColor !important;
+}
+
+.ny-editor-root .milkdown .editor ul ul ul .label.bullet::before {
+  width: 0.3em !important;
+  height: 0.3em !important;
+  border-radius: 1px !important;
+  background: currentColor !important;
+  box-shadow: none !important;
+}
+
+/*
+ * Ordered markers are text, so they share the column's centre line with the
+ * bullet and the checkbox rather than hanging off its right edge. The extra
+ * padding-left cancels the trailing period's side bearing, which would
+ * otherwise push the digit a couple of pixels left of that centre line.
+ */
+.ny-editor-root .milkdown .editor li.list-item > .label-wrapper > .label.ordered {
+  display: block !important;
+  text-align: center !important;
+  padding-left: 0.26em !important;
+  font-size: 0.88em !important;
+  font-variant-numeric: tabular-nums !important;
+  font-feature-settings: "tnum" !important;
+  letter-spacing: -0.01em !important;
+}
+
+.ny-editor-root .milkdown .editor .label.checked::before,
+.ny-editor-root .milkdown .editor .label.unchecked::before {
+  content: "" !important;
+  width: 0.94em !important;
+  height: 0.94em !important;
+  border-radius: 0.28em !important;
+  box-shadow: inset 0 0 0 1.4px currentColor !important;
+  transition: background 0.15s, box-shadow 0.15s !important;
+}
+
+.ny-editor-root .milkdown .editor .label.checked::before {
+  background: var(--nyamark-accent) !important;
+  box-shadow: none !important;
+}
+
+.ny-editor-root .milkdown .editor .label.checked::after {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  margin: auto !important;
+  width: 0.3em !important;
+  height: 0.16em !important;
+  border-left: 1.5px solid var(--ny-editor-check-mark) !important;
+  border-bottom: 1.5px solid var(--ny-editor-check-mark) !important;
+  transform: translateY(-0.06em) rotate(-45deg) !important;
 }
 
 .ny-editor-root .milkdown .milkdown-code-block .cm-editor,
@@ -274,8 +496,6 @@ const css = `
 }
 
 .ny-editor-root .milkdown .milkdown-code-block {
-  margin-top: 0.5rem !important;
-  margin-bottom: 0.5rem !important;
   padding: 0 !important;
   border: 1px solid var(--ny-editor-codeblock-border) !important;
   border-radius: 16px !important;
