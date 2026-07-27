@@ -12,11 +12,13 @@ import { outline, replaceAll } from '@milkdown/kit/utils';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
-import { registerEditorStyles } from './styles';
-import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
-import { ImageMetaPanel } from './plugins/image-meta-panel';
+import { blockSelection } from './plugins/block-selection';
+import { installDragSelectGuard } from './plugins/drag-guard';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
 import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
+import { ImageMetaPanel } from './plugins/image-meta-panel';
+import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
+import { registerEditorStyles } from './styles';
 
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
@@ -36,6 +38,7 @@ export class NyaEditor {
   private crepe: Crepe | null = null;
   private readonly imageMetaPanel: ImageMetaPanel;
   private detachMermaidThemeListener: (() => void) | null = null;
+  private detachDragSelectGuard: (() => void) | null = null;
   private onChangeCallback?: (markdown: string) => void;
 
   constructor(
@@ -52,6 +55,7 @@ export class NyaEditor {
 
     configureMermaid(document.documentElement.dataset.theme === 'dark');
     this.detachMermaidThemeListener = bindMermaidThemeListener(this.root);
+    this.detachDragSelectGuard = installDragSelectGuard(this.root);
 
     const crepe = new Crepe(
       buildCrepeConfig({
@@ -70,6 +74,7 @@ export class NyaEditor {
 
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(htmlBlockView);
+    crepe.editor.use(blockSelection);
 
     crepe.on((api) => {
       api.markdownUpdated((_ctx, markdown, prev) => {
@@ -189,6 +194,8 @@ export class NyaEditor {
   destroy() {
     this.detachMermaidThemeListener?.();
     this.detachMermaidThemeListener = null;
+    this.detachDragSelectGuard?.();
+    this.detachDragSelectGuard = null;
     this.imageMetaPanel.detach();
     if (this.crepe) {
       this.crepe.destroy();

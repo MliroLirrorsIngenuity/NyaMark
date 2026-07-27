@@ -15,16 +15,17 @@
  *    at the top regardless of how long the rendered preview gets.
  */
 
+import { autocompletion } from '@codemirror/autocomplete';
 import { markdown } from '@codemirror/lang-markdown';
 import { syntaxTree } from '@codemirror/language';
-import { EditorState, Compartment } from '@codemirror/state';
-import { EditorView, basicSetup } from 'codemirror';
+import { Compartment, EditorState } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { EditorView, basicSetup } from 'codemirror';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
-import type { NyaEditor } from './editor';
 import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
+import type { NyaEditor } from './editor';
 
 const SYNC_DELAY_MS = 180;
 const SYNC_REFERENCE_RATIO = 0.28;
@@ -397,6 +398,10 @@ export class SourceModeController {
         doc: initialDoc,
         extensions: [
           basicSetup,
+          // Same call as the code blocks make (see editor/config.ts): basicSetup
+          // turns on autocompletion, and in Markdown prose a popup on every word
+          // is pure interruption. Still available on demand.
+          autocompletion({ activateOnTyping: false }),
           markdown(),
           this.cmThemeCompartment.of(this.themeExtension()),
           EditorView.updateListener.of((update) => {

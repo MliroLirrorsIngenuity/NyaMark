@@ -30,9 +30,13 @@ const css = `
   --ny-editor-toolbar-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
   --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(255, 255, 255, 0.96));
   --ny-editor-floating-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
-  --ny-editor-codeblock-border: rgba(224, 230, 238, 0.92);
-  --ny-editor-codeblock-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(251, 252, 254, 0.98) 100%);
-  --ny-editor-codeblock-shadow: 0 8px 24px rgba(148, 163, 184, 0.1), 0 2px 8px rgba(15, 23, 42, 0.04);
+  /*
+   * A code block is a differently-textured paragraph, not a card parked on the
+   * page: a tint of the page's own ink, a hairline edge, and no shadow. The
+   * lift a shadow gives is exactly what made it read as a separate widget.
+   */
+  --ny-editor-codeblock-border: rgba(15, 23, 42, 0.1);
+  --ny-editor-codeblock-bg: rgba(15, 23, 42, 0.045);
   --ny-editor-chip-bg: linear-gradient(180deg, #ffffff 0%, #f8f8f6 100%);
   --ny-editor-chip-border: rgba(223, 227, 235, 0.95);
   --ny-editor-chip-text: #5e6673;
@@ -40,10 +44,20 @@ const css = `
   --ny-editor-button-bg: rgba(255, 255, 255, 0.82);
   --ny-editor-button-border: rgba(223, 227, 235, 0.9);
   --ny-editor-button-text: #69707c;
+  /*
+   * The code-block tool pill floats ON TOP of the code block, so it needs its
+   * own surface that reads as a separate layer -- reusing floating-bg lands
+   * within a couple of RGB points of codeblock-bg in dark mode and the pill
+   * dissolves into the block behind it.
+   */
+  --ny-editor-codetools-bg: rgba(255, 255, 255, 0.92);
+  --ny-editor-codetools-border: rgba(15, 23, 42, 0.09);
+  --ny-editor-codetools-shadow: 0 4px 14px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --ny-editor-codetools-hover: rgba(15, 23, 42, 0.06);
   --ny-editor-panel-bg: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
   --ny-editor-panel-border: #e6ebf2;
-  --ny-editor-gutter-bg: linear-gradient(180deg, #fbfcff 0%, #f6f8fc 100%);
-  --ny-editor-gutter-text: #7b879c;
+  /* No gutter background: line numbers sit on the block, not in a side pane. */
+  --ny-editor-gutter-text: #aab4c2;
   --ny-editor-code-text: #2259a8;
   --ny-editor-active-line: rgba(72, 112, 255, 0.05);
   --ny-editor-preview-bg: linear-gradient(180deg, #fafdff 0%, #f5f9ff 100%);
@@ -79,9 +93,8 @@ const css = `
   --ny-editor-toolbar-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
   --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(22, 29, 38, 0.96));
   --ny-editor-floating-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
-  --ny-editor-codeblock-border: rgba(96, 112, 132, 0.24);
-  --ny-editor-codeblock-bg: linear-gradient(180deg, rgba(24, 31, 40, 0.96) 0%, rgba(20, 26, 35, 0.98) 100%);
-  --ny-editor-codeblock-shadow: 0 10px 28px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  --ny-editor-codeblock-border: rgba(255, 255, 255, 0.07);
+  --ny-editor-codeblock-bg: rgba(255, 255, 255, 0.042);
   --ny-editor-chip-bg: linear-gradient(180deg, rgba(33, 42, 54, 0.98) 0%, rgba(26, 34, 44, 0.98) 100%);
   --ny-editor-chip-border: rgba(101, 117, 139, 0.26);
   --ny-editor-chip-text: #b0bcc9;
@@ -89,10 +102,13 @@ const css = `
   --ny-editor-button-bg: rgba(28, 36, 46, 0.84);
   --ny-editor-button-border: rgba(96, 112, 132, 0.28);
   --ny-editor-button-text: #c8d2dd;
+  --ny-editor-codetools-bg: rgba(46, 58, 72, 0.94);
+  --ny-editor-codetools-border: rgba(255, 255, 255, 0.1);
+  --ny-editor-codetools-shadow: 0 6px 18px rgba(0, 0, 0, 0.36), 0 1px 3px rgba(0, 0, 0, 0.24);
+  --ny-editor-codetools-hover: rgba(255, 255, 255, 0.1);
   --ny-editor-panel-bg: linear-gradient(180deg, #1a212a 0%, #161c24 100%);
   --ny-editor-panel-border: rgba(96, 112, 132, 0.24);
-  --ny-editor-gutter-bg: linear-gradient(180deg, rgba(31, 39, 50, 0.98) 0%, rgba(23, 30, 40, 0.98) 100%);
-  --ny-editor-gutter-text: #748297;
+  --ny-editor-gutter-text: #5f6d80;
   --ny-editor-code-text: #a8c8f7;
   --ny-editor-active-line: rgba(98, 137, 255, 0.12);
   --ny-editor-preview-bg: linear-gradient(180deg, #151c24 0%, #11171f 100%);
