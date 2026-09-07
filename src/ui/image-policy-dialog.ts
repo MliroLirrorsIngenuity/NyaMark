@@ -1,5 +1,6 @@
 import { ensureStyle } from '../style/register';
 import { translateDOM } from '../i18n/dom';
+import { openModal } from './modal';
 
 export type PastedImagePolicyChoice = {
   policy: 'copy-same-folder' | 'copy-assets' | 'copy-custom-folder' | 'base64';
@@ -167,7 +168,7 @@ export class ImagePolicyDialog {
       const panel = document.createElement('div');
       panel.className = 'ny-image-policy-dialog';
       panel.innerHTML = `
-        <h3 data-i18n="dialog.imagePolicy.title">Pasted images need a save location</h3>
+        <h3 id="ny-image-policy-title" data-i18n="dialog.imagePolicy.title">Pasted images need a save location</h3>
         <p data-i18n="dialog.imagePolicy.subtitle">Pick a rule once. Later screenshot paste will follow it silently.</p>
         <div class="ny-image-policy-dialog__section ny-image-policy-dialog__options">
           ${this.optionMarkup('copy-same-folder', 'settings.attachments.policies.copy-same-folder.label', 'Same folder as current Markdown file', 'settings.attachments.policies.copy-same-folder.description', 'Save pasted images next to the current document.')}
@@ -239,21 +240,20 @@ export class ImagePolicyDialog {
       let customDirectory = options.customDirectory;
 
       const close = (value: PastedImagePolicyChoice | null) => {
+        modal.release();
         this.overlay.hidden = true;
         this.overlay.innerHTML = '';
         resolve(value);
       };
+      const modal = openModal({
+        overlay: this.overlay,
+        dialog: panel,
+        labelledBy: 'ny-image-policy-title',
+        initialFocus: confirm,
+        onDismiss: () => close(null),
+      });
 
       cancel.addEventListener('click', () => close(null));
-      this.overlay.addEventListener(
-        'click',
-        (event) => {
-          if (event.target === this.overlay) {
-            close(null);
-          }
-        },
-        { once: true }
-      );
 
       pickButton.addEventListener('click', async () => {
         const path = await options.pickCustomDirectory();
@@ -297,8 +297,8 @@ export class ImagePolicyDialog {
       const panel = document.createElement('div');
       panel.className = 'ny-image-policy-dialog';
       panel.innerHTML = `
-        <h3>Save this document before inserting pasted images</h3>
-        <p>Screenshot images have no original file path. Save the document first, or embed this image as Base64.</p>
+        <h3 id="ny-unsaved-image-title" data-i18n="dialog.unsavedImage.title">Save this document before inserting pasted images</h3>
+        <p data-i18n="dialog.unsavedImage.subtitle">Screenshot images have no original file path. Save the document first, or embed this image as Base64.</p>
       `;
 
       const actions = document.createElement('div');
@@ -308,40 +308,49 @@ export class ImagePolicyDialog {
       cancel.type = 'button';
       cancel.className = 'ny-image-policy-dialog__button';
       cancel.textContent = 'Cancel';
+      cancel.setAttribute('data-i18n', 'settings.cancel');
 
       const base64 = document.createElement('button');
       base64.type = 'button';
       base64.className = 'ny-image-policy-dialog__button';
       base64.textContent = 'Embed as Base64';
+      base64.setAttribute(
+        'data-i18n',
+        'settings.attachments.policies.base64.label'
+      );
 
       const saveDocument = document.createElement('button');
       saveDocument.type = 'button';
       saveDocument.className =
         'ny-image-policy-dialog__button ny-image-policy-dialog__button--primary';
       saveDocument.textContent = 'Save Document';
+      saveDocument.setAttribute(
+        'data-i18n',
+        'dialog.unsavedImage.saveDocument'
+      );
 
       actions.append(cancel, base64, saveDocument);
       panel.appendChild(actions);
       this.overlay.appendChild(panel);
+      translateDOM(this.overlay);
 
       const close = (value: 'save-document' | 'base64' | 'cancel') => {
+        modal.release();
         this.overlay.hidden = true;
         this.overlay.innerHTML = '';
         resolve(value);
       };
+      const modal = openModal({
+        overlay: this.overlay,
+        dialog: panel,
+        labelledBy: 'ny-unsaved-image-title',
+        initialFocus: saveDocument,
+        onDismiss: () => close('cancel'),
+      });
 
       cancel.addEventListener('click', () => close('cancel'));
       base64.addEventListener('click', () => close('base64'));
       saveDocument.addEventListener('click', () => close('save-document'));
-      this.overlay.addEventListener(
-        'click',
-        (event) => {
-          if (event.target === this.overlay) {
-            close('cancel');
-          }
-        },
-        { once: true }
-      );
     });
   }
 

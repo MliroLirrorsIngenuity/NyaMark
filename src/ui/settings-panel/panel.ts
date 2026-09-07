@@ -12,6 +12,7 @@ import { renderSaveSection } from './sections/save-policy';
 import { renderAttachmentsSection } from './sections/attachments';
 import { translateDOM } from '../../i18n/dom';
 import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
+import { openModal } from '../modal';
 
 const styles = `
 .ny-settings-overlay {
@@ -622,17 +623,21 @@ export class SettingsPanel {
         previewTimer = null;
       }
       previewAppearance(getSettings().appearance);
-      document.removeEventListener('keydown', onKey);
+      modal.release();
       overlay.classList.add('is-closing');
       await this.wait(150);
       overlay.remove();
       this.overlay = null;
     };
 
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') void close();
-    };
-    document.addEventListener('keydown', onKey);
+    // A stray click on the backdrop must not throw away edited settings.
+    const modal = openModal({
+      overlay,
+      dialog,
+      dismissOnBackdrop: false,
+      initialFocus: ok,
+      onDismiss: () => void close(),
+    });
 
     cancel.addEventListener('click', () => void close());
     ok.addEventListener('click', async () => {
@@ -673,30 +678,33 @@ export class SettingsPanel {
       const close = async (accepted: boolean) => {
         if (closing) return;
         closing = true;
-        document.removeEventListener('keydown', onKey, true);
+        modal.release();
         confirm.classList.add('is-closing');
         await this.wait(130);
         confirm.remove();
         resolve(accepted);
       };
 
-      const onKey = (event: KeyboardEvent) => {
-        if (event.key === 'Escape') {
-          event.stopPropagation();
-          void close(false);
-        }
-      };
-
-      document.addEventListener('keydown', onKey, true);
-      confirm
-        .querySelector<HTMLElement>('[data-action="cancel"]')
-        ?.addEventListener('click', () => void close(false));
+      const cancelButton = confirm.querySelector<HTMLElement>(
+        '[data-action="cancel"]'
+      );
+      cancelButton?.addEventListener('click', () => void close(false));
       confirm
         .querySelector<HTMLElement>('[data-action="confirm"]')
         ?.addEventListener('click', () => void close(true));
 
       host.appendChild(confirm);
       translateDOM(confirm);
+      const modal = openModal({
+        overlay: confirm,
+        dialog: confirm.querySelector<HTMLElement>(
+          '.ny-settings-confirm__panel'
+        )!,
+        role: 'alertdialog',
+        labelledBy: 'ny-settings-confirm-title',
+        initialFocus: cancelButton,
+        onDismiss: () => void close(false),
+      });
     });
   }
 }

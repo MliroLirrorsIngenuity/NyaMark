@@ -1,5 +1,6 @@
 import { ensureStyle } from '../style/register';
 import { translateDOM } from '../i18n/dom';
+import { openModal } from './modal';
 import { i18next } from '../i18n';
 
 export type ExportPdfSettings = {
@@ -247,7 +248,7 @@ export class ExportPdfDialog {
       dialog.setAttribute('aria-modal', 'true');
       dialog.setAttribute('aria-labelledby', 'ny-export-pdf-title');
       dialog.innerHTML = `
-        <button type="button" class="ny-export-pdf-dialog__close" aria-label="Close">×</button>
+        <button type="button" class="ny-export-pdf-dialog__close" aria-label="Close" data-i18n-aria-label="dialog.close">×</button>
         <h3 id="ny-export-pdf-title" data-i18n="dialog.exportPdf.title">Export to PDF</h3>
         <p class="ny-export-pdf-dialog__subtitle" data-i18n="dialog.exportPdf.subtitle">Export "Welcome" to PDF with the settings below.</p>
 
@@ -352,10 +353,9 @@ export class ExportPdfDialog {
       const cleanup = () => {
         if (settled) return;
         settled = true;
-        this.overlay.removeEventListener('click', handleOverlayClick);
+        modal.release();
         this.overlay.hidden = true;
         this.overlay.innerHTML = '';
-        document.removeEventListener('keydown', onKey, true);
       };
 
       const resolveAndClose = (value: ExportPdfSettings | null) => {
@@ -363,18 +363,13 @@ export class ExportPdfDialog {
         resolve(value);
       };
 
-      const onKey = (event: KeyboardEvent) => {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          resolveAndClose(null);
-        }
-      };
-
-      const handleOverlayClick = (event: MouseEvent) => {
-        if (event.target === this.overlay) {
-          resolveAndClose(null);
-        }
-      };
+      const modal = openModal({
+        overlay: this.overlay,
+        dialog,
+        labelledBy: 'ny-export-pdf-title',
+        initialFocus: confirm,
+        onDismiss: () => resolveAndClose(null),
+      });
 
       cancel.addEventListener('click', () => resolveAndClose(null));
       close.addEventListener('click', () => resolveAndClose(null));
@@ -386,9 +381,6 @@ export class ExportPdfDialog {
           downscalePercent: Number(range.value),
         });
       });
-      this.overlay.addEventListener('click', handleOverlayClick);
-      document.addEventListener('keydown', onKey, true);
-
       pageSize.value = 'Letter';
       landscape.checked = false;
       margin.value = 'default';

@@ -3,6 +3,7 @@ import { requestAppRestart } from '../bridge/ipc/windows';
 import type { Update, DownloadEvent } from '@tauri-apps/plugin-updater';
 import { i18next } from '../i18n';
 import { ensureStyle } from '../style/register';
+import { openModal } from './modal';
 
 const updateDialogStyles = `
 .ny-update-overlay {
@@ -352,23 +353,19 @@ export class UpdateDialog {
     const close = async () => {
       if (closing) return;
       closing = true;
-      document.removeEventListener('keydown', onKey, true);
+      modal.release();
       overlay.classList.add('is-closing');
       await this.wait(150);
       overlay.remove();
       this.overlay = null;
     };
 
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        void close();
-      }
-    };
-
-    document.addEventListener('keydown', onKey, true);
-    overlay.addEventListener('click', (event) => {
-      if (event.target === overlay) void close();
+    const modal = openModal({
+      overlay,
+      dialog,
+      labelledBy: 'ny-update-title',
+      initialFocus: updateNow,
+      onDismiss: () => void close(),
     });
     later.addEventListener('click', () => void close());
 
