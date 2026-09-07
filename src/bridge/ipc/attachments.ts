@@ -1,5 +1,5 @@
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { copyFile, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { copyFile, exists, writeFile } from '@tauri-apps/plugin-fs';
 import { openPath, openUrl } from '@tauri-apps/plugin-opener';
 import {
   type AttachmentReferenceOptions,
@@ -37,7 +37,7 @@ export async function copyLocalAttachment(
   options: AttachmentReferenceOptions
 ): Promise<StoredAttachment> {
   const storageDir = resolveStorageDir(documentPath, targetDir);
-  await mkdir(storageDir, { recursive: true });
+  await ensureAttachmentDirectory(storageDir);
 
   const fileName = basenamePath(sourcePath) || 'attachment';
   const targetPath = await uniqueFilePath(
@@ -92,11 +92,19 @@ async function writeAttachmentFile(
   fileName: string,
   bytes: number[]
 ) {
-  await mkdir(dir, { recursive: true });
+  await ensureAttachmentDirectory(dir);
   const safeName = sanitizeFileName(fileName);
   const targetPath = await uniqueFilePath(dir, safeName);
   await writeFile(targetPath, new Uint8Array(bytes));
   return normalizePath(targetPath);
+}
+
+/**
+ * Creates the directory on the Rust side and allows it in the fs scope, so a
+ * custom attachment folder outside `$HOME` keeps working across restarts.
+ */
+async function ensureAttachmentDirectory(dir: string): Promise<void> {
+  await invoke('ensure_attachment_directory', { path: dir });
 }
 
 async function uniqueFilePath(dir: string, fileName: string) {

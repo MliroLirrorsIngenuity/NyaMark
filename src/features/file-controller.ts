@@ -5,6 +5,7 @@ import {
   openMarkdownInNewWindow,
   openNewWindow,
   readMarkdown,
+  registerWindowDocument,
   resolveCurrentWindowFile,
   saveFileDialog,
   saveMarkdown,
@@ -225,9 +226,27 @@ export class FileController {
 
     await this.saveToExistingPath(path, editor.getMarkdown());
     if (state.filePath !== path) {
-      store.update({ filePath: path });
+      const registeredPath = await this.registerDocumentPath(path);
+      store.update({ filePath: registeredPath });
+      return registeredPath;
     }
     return path;
+  }
+
+  /**
+   * A path picked in the save dialog is only known to the dialog plugin's
+   * scope grant. Registering it binds the file to this window on the Rust side
+   * (session map + fs scope for the document directory) and yields the
+   * canonical path. Falls back to the raw path so a registration failure never
+   * loses a completed save.
+   */
+  private async registerDocumentPath(path: string): Promise<string> {
+    try {
+      return await registerWindowDocument(path);
+    } catch (error) {
+      console.error('Failed to register document path:', error);
+      return path;
+    }
   }
 
   private async saveToExistingPath(path: string, snapshot: string) {

@@ -19,10 +19,27 @@
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-effects",
     "core:window:allow-set-theme",
-    "fs:read-all",
-    "fs:write-all",
+    "fs:allow-read-text-file",
+    "fs:allow-read-file",
+    "fs:allow-write-text-file",
+    "fs:allow-write-file",
+    "fs:allow-copy-file",
+    "fs:allow-exists",
     "fs:allow-watch",
     "fs:allow-unwatch",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$APPCONFIG/**" },
+        { "path": "$APPDATA/**" }
+      ],
+      "deny": [
+        { "path": "$HOME/.ssh/**" },
+        { "path": "$HOME/.aws/**" },
+        { "path": "$HOME/.gnupg/**" }
+      ]
+    },
     "opener:default",
     "dialog:default",
     "store:default",

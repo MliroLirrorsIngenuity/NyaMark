@@ -9,6 +9,7 @@ use std::{
 };
 
 use tauri::{AppHandle, Manager, Runtime};
+use tauri_plugin_fs::FsExt;
 
 /// Files passed via CLI args / `RunEvent::Opened` before the main window finished bootstrap.
 pub struct PendingLaunchFiles(pub Mutex<Vec<String>>);
@@ -31,14 +32,7 @@ pub fn normalize_file_path(path: impl AsRef<Path>) -> Option<String> {
         return None;
     }
 
-    fs::canonicalize(path).ok().map(|canonical| {
-        let s = canonical.to_string_lossy().into_owned();
-        #[cfg(windows)]
-        if let Some(stripped) = s.strip_prefix(r"\\?\") {
-            return stripped.to_string();
-        }
-        s
-    })
+    fs::canonicalize(path).ok().map(strip_verbatim_prefix)
 }
 
 pub fn collect_launch_files() -> Vec<String> {
@@ -57,11 +51,81 @@ pub fn next_window_label<R: Runtime>(app: &AppHandle<R>) -> String {
 }
 
 pub fn remember_window_file<R: Runtime>(app: &AppHandle<R>, label: &str, path: String) {
+    allow_document_scope(app, &path);
     app.state::<WindowSessions>()
         .0
         .lock()
         .unwrap()
         .insert(label.to_string(), path);
+}
+
+/// Grant the webview filesystem access to a document and the directory around it.
+///
+/// The static `fs:scope` in the capability only covers `$HOME` and the app
+/// directories. Files opened through file associations, CLI arguments or
+/// `RunEvent::Opened` can live anywhere (external volumes, network shares,
+/// `/tmp`), so every path that becomes a window's document is added to the
+/// runtime scope here. The parent directory is allowed recursively because
+/// attachment folders (`./assets`, `${filename}.assets`, a frontmatter
+/// `typora-copy-images-to`) resolve relative to the document. A filesystem
+/// root is never allowed wholesale.
+pub fn allow_document_scope<R: Runtime>(app: &AppHandle<R>, path: &str) {
+    let scope = app.fs_scope();
+    let file = Path::new(path);
+    if let Err(error) = scope.allow_file(file) {
+        eprintln!("Failed to allow fs scope for {path}: {error}");
+    }
+
+    let Some(parent) = file.parent() else {
+        return;
+    };
+    if parent.parent().is_none() {
+        return;
+    }
+    if let Err(error) = scope.allow_directory(parent, true) {
+        eprintln!(
+            "Failed to allow fs scope for {}: {error}",
+            parent.display()
+        );
+    }
+}
+
+/// Create an attachment directory and grant the webview access to it.
+///
+/// Both the path as given and its canonical form are allowed: the scope check
+/// canonicalizes the target, while the frontend keeps building paths from the
+/// document path it was handed, which may still contain a symlinked component
+/// (`/tmp` vs `/private/tmp` on macOS).
+pub fn ensure_attachment_directory<R: Runtime>(
+    app: &AppHandle<R>,
+    path: &str,
+) -> Result<String, String> {
+    let dir = Path::new(path);
+    fs::create_dir_all(dir).map_err(|error| format!("Failed to create {path}: {error}"))?;
+    let canonical =
+        fs::canonicalize(dir).map_err(|error| format!("Failed to resolve {path}: {error}"))?;
+    if !canonical.is_dir() {
+        return Err(format!("Not a directory: {path}"));
+    }
+
+    let scope = app.fs_scope();
+    scope
+        .allow_directory(dir, true)
+        .map_err(|error| error.to_string())?;
+    scope
+        .allow_directory(&canonical, true)
+        .map_err(|error| error.to_string())?;
+
+    Ok(strip_verbatim_prefix(canonical))
+}
+
+fn strip_verbatim_prefix(path: PathBuf) -> String {
+    let s = path.to_string_lossy().into_owned();
+    #[cfg(windows)]
+    if let Some(stripped) = s.strip_prefix(r"\\?\") {
+        return stripped.to_string();
+    }
+    s
 }
 
 pub fn forget_window_file<R: Runtime>(app: &AppHandle<R>, label: &str) {

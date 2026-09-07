@@ -62,6 +62,29 @@ fn open_new_window(app: AppHandle) -> Result<(), String> {
     windows::open_blank_editor_window(&app).map_err(|error| error.to_string())
 }
 
+/// Bind a document the webview opened or saved on its own (dialog, save-as) to
+/// this window, so the session map and the runtime fs scope follow the file.
+/// Returns the canonical path the frontend should keep using.
+#[tauri::command]
+fn register_window_document(
+    window: Window,
+    app: AppHandle,
+    path: String,
+) -> Result<String, String> {
+    let normalized = sessions::normalize_file_path(&path)
+        .ok_or_else(|| format!("Not a readable file: {path}"))?;
+    sessions::remember_window_file(&app, window.label(), normalized.clone());
+    Ok(normalized)
+}
+
+/// Create the directory attachments are copied into and allow it in the fs
+/// scope. Needed for custom attachment folders outside `$HOME` that were
+/// picked in an earlier session (the dialog's grant does not persist).
+#[tauri::command]
+fn ensure_attachment_directory(app: AppHandle, path: String) -> Result<String, String> {
+    sessions::ensure_attachment_directory(&app, &path)
+}
+
 #[tauri::command]
 fn set_windows_backdrop(window: Window, enabled: bool) -> Result<(), String> {
     windows::set_native_backdrop(&window, enabled).map_err(|error| error.to_string())
@@ -128,6 +151,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             resolve_current_window_file,
+            register_window_document,
+            ensure_attachment_directory,
             open_new_window,
             open_markdown_in_new_window,
             set_windows_backdrop,

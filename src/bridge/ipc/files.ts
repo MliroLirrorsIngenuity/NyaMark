@@ -63,6 +63,15 @@ export async function resolveCurrentWindowFile(): Promise<string | null> {
   return await invoke<string | null>('resolve_current_window_file');
 }
 
+/**
+ * Tell the backend which file this window now edits (after a dialog open or
+ * save-as) so the session map and the fs scope follow it. Returns the
+ * canonical path.
+ */
+export async function registerWindowDocument(path: string): Promise<string> {
+  return await invoke<string>('register_window_document', { path });
+}
+
 export async function openMarkdownInNewWindow(path: string): Promise<void> {
   await invoke('open_markdown_in_new_window', { path });
 }
