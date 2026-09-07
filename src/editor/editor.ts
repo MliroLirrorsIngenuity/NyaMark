@@ -5,7 +5,7 @@
  */
 
 import { Crepe } from '@milkdown/crepe';
-import { editorViewCtx } from '@milkdown/kit/core';
+import { editorViewCtx, parserCtx } from '@milkdown/kit/core';
 import { Fragment, Slice } from '@milkdown/kit/prose/model';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import { $prose, outline, replaceAll } from '@milkdown/kit/utils';
@@ -136,9 +136,29 @@ export class NyaEditor {
     return this.getMarkdown().trim() === '';
   }
 
-  setMarkdown(markdown: string) {
+  /**
+   * Replace the whole document. Content the user did not type (a reload
+   * after the file changed on disk) passes `addToHistory: false` so Cmd+Z
+   * cannot resurrect the pre-reload text and mark it dirty; the history
+   * plugin maps the existing undo stack through the replacement instead.
+   */
+  setMarkdown(markdown: string, options: { addToHistory?: boolean } = {}) {
     if (!this.crepe) return;
-    this.crepe.editor.action(replaceAll(markdown));
+    if (options.addToHistory ?? true) {
+      this.crepe.editor.action(replaceAll(markdown));
+      return;
+    }
+    this.crepe.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const doc = ctx.get(parserCtx)(markdown);
+      if (!doc) return;
+      const { state } = view;
+      view.dispatch(
+        state.tr
+          .replace(0, state.doc.content.size, new Slice(doc.content, 0, 0))
+          .setMeta('addToHistory', false)
+      );
+    });
   }
 
   setReadonly(readonly: boolean) {

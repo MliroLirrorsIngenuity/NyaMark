@@ -292,7 +292,7 @@ export class App {
     if (savedContent !== this.editor.getMarkdown()) {
       this.suppressDirtyTracking = true;
       try {
-        this.editor.setMarkdown(savedContent);
+        this.editor.setMarkdown(savedContent, { addToHistory: false });
       } finally {
         this.suppressDirtyTracking = false;
       }
