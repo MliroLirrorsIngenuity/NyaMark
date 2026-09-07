@@ -360,18 +360,21 @@ export class UpdateDialog {
       this.overlay = null;
     };
 
+    // One click handler driven by a phase, so a failed or finished install
+    // never leaves the original "download" handler attached underneath.
+    let phase: 'idle' | 'downloading' | 'installed' | 'failed' = 'idle';
+
+    // Dismissing mid-download would let the install finish unseen and the
+    // app relaunch out of nowhere.
     const modal = openModal({
       overlay,
       dialog,
       labelledBy: 'ny-update-title',
       initialFocus: updateNow,
+      canDismiss: () => phase !== 'downloading',
       onDismiss: () => void close(),
     });
     later.addEventListener('click', () => void close());
-
-    // One click handler driven by a phase, so a failed or finished install
-    // never leaves the original "download" handler attached underneath.
-    let phase: 'idle' | 'downloading' | 'installed' | 'failed' = 'idle';
     updateNow.addEventListener('click', () => {
       if (phase === 'downloading') return;
 

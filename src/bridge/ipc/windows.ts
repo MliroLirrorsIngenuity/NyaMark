@@ -1,7 +1,7 @@
 import { type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import type { DragDropEvent } from '@tauri-apps/api/webview';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window';
 import { type Event } from '@tauri-apps/api/event';
 
 export type WindowTheme = 'light' | 'dark';
@@ -89,4 +89,16 @@ export async function cancelPendingQuit(): Promise<void> {
 
 export async function printCurrentWindow(): Promise<void> {
   await invoke('print_current_window');
+}
+
+/**
+ * Whether this is the lowest-numbered window still open. App-wide chores
+ * such as the update check run from that one window alone, so restoring
+ * several windows at launch does not show several dialogs.
+ */
+export async function isPrimaryWindow(): Promise<boolean> {
+  const rank = (label: string) => Number(label.replace(/^editor-/, '')) || 0;
+  const current = rank(getCurrentWindow().label);
+  const windows = await getAllWindows();
+  return windows.every((window) => rank(window.label) >= current);
 }

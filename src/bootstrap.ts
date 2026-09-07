@@ -39,7 +39,7 @@ import { ThemeManager, type ThemeMode } from './ui/theme';
 import { Titlebar } from './ui/titlebar';
 import { UpdateDialog } from './ui/update-dialog';
 import { message } from '@tauri-apps/plugin-dialog';
-import { printCurrentWindow } from './bridge/ipc/windows';
+import { isPrimaryWindow, printCurrentWindow } from './bridge/ipc/windows';
 
 export class App {
   private editor: NyaEditor | null = null;
@@ -231,6 +231,9 @@ export class App {
   }
 
   private scheduleUpdateCheck() {
+    // A dev build reports version 0.0.0 and would offer to replace itself
+    // with the latest release on every launch.
+    if (import.meta.env.DEV) return;
     window.setTimeout(() => {
       void this.checkForUpdates().catch((error) => {
         console.error('[updates] Update check failed', error);
@@ -239,6 +242,7 @@ export class App {
   }
 
   private async checkForUpdates() {
+    if (!(await isPrimaryWindow())) return;
     const update = await check();
     if (update) {
       this.updateDialog.open(update);
