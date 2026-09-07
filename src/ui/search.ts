@@ -118,12 +118,8 @@ export class SearchPanel {
     btnNext: HTMLButtonElement,
     btnClose: HTMLButtonElement
   ) {
+    // Opening is a global shortcut (see features/shortcut-controller.ts).
     window.addEventListener('keydown', (e) => {
-      // Cmd/Ctrl + F
-      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyF') {
-        e.preventDefault();
-        this.show();
-      }
       if (e.key === 'Escape' && this.isVisible) {
         this.hide();
       }

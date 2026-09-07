@@ -172,12 +172,8 @@ export class OutlinePanel {
   }
 
   private setupListeners() {
+    // Toggling is a global shortcut (see features/shortcut-controller.ts).
     window.addEventListener('keydown', (e) => {
-      // Cmd/Ctrl + Shift + O
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyO') {
-        e.preventDefault();
-        this.toggle();
-      }
       if (e.key === 'Escape' && this.isVisible) {
         this.hide();
       }

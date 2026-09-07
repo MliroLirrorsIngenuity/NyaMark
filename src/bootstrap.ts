@@ -9,7 +9,10 @@ import { AttachmentController } from './features/attachment-controller';
 import { CloseGuard } from './features/close-guard';
 import { FileController } from './features/file-controller';
 import { MenuController } from './features/menu-controller';
-import { ShortcutController } from './features/shortcut-controller';
+import {
+  hasPrimaryModifier,
+  ShortcutController,
+} from './features/shortcut-controller';
 import { check } from '@tauri-apps/plugin-updater';
 import { store } from './state/store';
 import {
@@ -170,9 +173,9 @@ export class App {
         return;
       }
 
-      // Ctrl/Cmd-click opens links/attachments without hijacking normal
-      // edit clicks that place the caret inside the link text.
-      if (!(e.ctrlKey || e.metaKey)) return;
+      // Cmd-click (Ctrl-click elsewhere) opens links/attachments without
+      // hijacking normal edit clicks that place the caret inside the link.
+      if (!hasPrimaryModifier(e)) return;
       const target = e.target as HTMLElement | null;
       const href = target?.closest('a[href]')?.getAttribute('href');
       if (!href) return;
@@ -186,17 +189,12 @@ export class App {
       onSaveFile: () => this.fileController!.saveFile(),
       onSaveFileAs: () => this.fileController!.saveFileAs(),
       onExportPdf: () => this.openExportPdfDialog(),
-      onToggleOutline: () => {
-        if (!this.outline) {
-          this.outline = new OutlinePanel(this.editor!);
-        }
-        this.outline.toggle();
-      },
+      onToggleOutline: () => this.toggleOutline(),
       onOpenSettings: () => this.settingsPanel.open(),
     });
 
     new Statusbar(store);
-    new SearchPanel();
+    const searchPanel = new SearchPanel();
 
     const menuController = new MenuController({
       'new-file': () => this.fileController!.newFile(),
@@ -214,6 +212,9 @@ export class App {
       saveFile: () => this.fileController!.saveFile(),
       saveFileAs: () => this.fileController!.saveFileAs(),
       print: () => this.openExportPdfDialog(),
+      find: () => searchPanel.show(),
+      toggleOutline: () => this.toggleOutline(),
+      openSettings: () => this.settingsPanel.open(),
     });
     shortcutController.bind();
 
@@ -221,6 +222,12 @@ export class App {
 
     this.updateStats();
     this.scheduleUpdateCheck();
+  }
+
+  private toggleOutline() {
+    if (!this.editor) return;
+    this.outline ??= new OutlinePanel(this.editor);
+    this.outline.toggle();
   }
 
   private scheduleUpdateCheck() {
