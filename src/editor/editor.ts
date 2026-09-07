@@ -55,7 +55,9 @@ export class NyaEditor {
     registerHtmlBlockStyles();
 
     configureMermaid(document.documentElement.dataset.theme === 'dark');
-    this.detachMermaidThemeListener = bindMermaidThemeListener(this.root);
+    this.detachMermaidThemeListener = bindMermaidThemeListener(this.root, () =>
+      this.getView()
+    );
     this.detachDragSelectGuard = installDragSelectGuard(this.root);
 
     const crepe = new Crepe(
