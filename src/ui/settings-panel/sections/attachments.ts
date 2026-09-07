@@ -26,8 +26,7 @@ const POLICIES: Array<{
   {
     value: 'copy-custom-folder',
     label: 'Custom folder',
-    description:
-      'Copy into a folder you choose. Set it from the paste dialog the first time.',
+    description: 'Copy into the folder chosen below.',
   },
   {
     value: 'base64',
@@ -36,9 +35,15 @@ const POLICIES: Array<{
   },
 ];
 
+export type AttachmentsSectionOptions = {
+  /** Native folder picker; resolves to `null` when the user cancels. */
+  pickDirectory: () => Promise<string | null>;
+};
+
 export function renderAttachmentsSection(
   current: ImageSettings,
-  onChange: (next: ImageSettings) => void
+  onChange: (next: ImageSettings) => void,
+  options: AttachmentsSectionOptions
 ): HTMLElement {
   const section = document.createElement('section');
   section.className = 'ny-settings__section';
@@ -49,6 +54,16 @@ export function renderAttachmentsSection(
         <legend data-i18n="settings.attachments.insertPolicy">Insert policy for local images</legend>
         <div class="ny-settings__options" data-group="insertPolicy"></div>
       </fieldset>
+    </div>
+    <div class="ny-settings__row">
+      <div class="ny-settings__field">
+        <span data-i18n="settings.attachments.customDirectory">Custom folder</span>
+        <div class="ny-settings__directory">
+          <span class="ny-settings__directory-path" data-key="customCopyDirectory"></span>
+          <button type="button" class="ny-settings__directory-button" data-action="choose-directory" data-i18n="settings.attachments.chooseDirectory">Choose…</button>
+          <button type="button" class="ny-settings__directory-button" data-action="clear-directory" data-i18n="settings.attachments.clearDirectory">Clear</button>
+        </div>
+      </div>
     </div>
     <div class="ny-settings__row">
       <label class="ny-settings__field ny-settings__field--checkbox">
@@ -88,6 +103,46 @@ export function renderAttachmentsSection(
       policyGroup.appendChild(option);
     });
   }
+
+  const directoryPath = section.querySelector<HTMLElement>(
+    '[data-key="customCopyDirectory"]'
+  )!;
+  const clearDirectory = section.querySelector<HTMLButtonElement>(
+    '[data-action="clear-directory"]'
+  )!;
+  const showDirectory = () => {
+    const directory = current.customCopyDirectory;
+    if (directory) {
+      directoryPath.removeAttribute('data-i18n');
+      directoryPath.textContent = directory;
+      directoryPath.title = directory;
+    } else {
+      directoryPath.setAttribute(
+        'data-i18n',
+        'settings.attachments.noCustomDirectory'
+      );
+      directoryPath.textContent = 'No custom folder selected';
+      directoryPath.removeAttribute('title');
+    }
+    directoryPath.classList.toggle('is-empty', !directory);
+    clearDirectory.hidden = !directory;
+  };
+  const setDirectory = (directory: string | null) => {
+    const next = { ...current, customCopyDirectory: directory };
+    onChange(next);
+    Object.assign(current, next);
+    showDirectory();
+  };
+  showDirectory();
+
+  section
+    .querySelector<HTMLButtonElement>('[data-action="choose-directory"]')!
+    .addEventListener('click', () => {
+      void options.pickDirectory().then((directory) => {
+        if (directory) setDirectory(directory);
+      });
+    });
+  clearDirectory.addEventListener('click', () => setDirectory(null));
 
   section
     .querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-key]')

@@ -1,4 +1,8 @@
 import type { EditorAttachment } from '../editor/editor';
+import type {
+  ImageInsertPolicy,
+  PastedImagePolicy,
+} from '../state/image-settings';
 import {
   type AttachmentReferenceOptions,
   copyLocalAttachment,
@@ -260,7 +264,8 @@ export class AttachmentController {
     const label = basename(path);
 
     if (kind === 'image') {
-      const insertRule = this.resolveExistingLocalImageRule();
+      const insertRule = await this.resolveExistingLocalImageRule();
+      if (!insertRule) return null;
       if (insertRule.mode === 'copy') {
         const filePath = this.options.getDocumentPath();
         if (!filePath) {
@@ -341,16 +346,42 @@ export class AttachmentController {
     };
   }
 
-  private resolveExistingLocalImageRule(): InsertRule {
+  private async resolveExistingLocalImageRule(): Promise<InsertRule | null> {
     const documentTarget = getDocumentCopyTarget(this.options.getMarkdown());
     if (documentTarget) {
       return { mode: 'copy', targetDir: documentTarget };
     }
 
-    return policyToInsertRule(
+    return await this.ruleForPolicy(
       this.imageSettings.insertPolicy,
       this.imageSettings.customCopyDirectory
     );
+  }
+
+  /**
+   * The rule for a policy, asking for the custom folder when the policy
+   * needs one that was never chosen. A cancelled folder dialog cancels the
+   * insertion (`null`).
+   */
+  private async ruleForPolicy(
+    policy: ImageInsertPolicy | PastedImagePolicy,
+    customDirectory: string | null
+  ): Promise<InsertRule | null> {
+    const rule = policyToInsertRule(policy, customDirectory);
+    if (rule) return rule;
+    const directory = await this.requestCustomDirectory();
+    return directory ? { mode: 'copy', targetDir: directory } : null;
+  }
+
+  private async requestCustomDirectory(): Promise<string | null> {
+    const directory = await openDirectoryDialog();
+    if (!directory) return null;
+    const next = { ...this.imageSettings, customCopyDirectory: directory };
+    this.imageSettings = next;
+    updateSettings({ attachments: next }).catch((error) => {
+      console.error('Failed to save attachment settings:', error);
+    });
+    return directory;
   }
 
   private async resolvePastedImageRule(): Promise<InsertRule | null> {
@@ -360,13 +391,10 @@ export class AttachmentController {
     }
 
     if (this.imageSettings.pastedImagePolicy) {
-      const storedRule = policyToInsertRule(
+      return await this.ruleForPolicy(
         this.imageSettings.pastedImagePolicy,
         this.imageSettings.customCopyDirectory
       );
-      if (storedRule.mode !== 'use-path') {
-        return storedRule;
-      }
     }
 
     const choice = await this.imagePolicyDialog.choosePastedImagePolicy({
@@ -388,7 +416,7 @@ export class AttachmentController {
       });
     }
 
-    return policyToInsertRule(
+    return await this.ruleForPolicy(
       choice.policy,
       choice.customDirectory ?? this.imageSettings.customCopyDirectory
     );

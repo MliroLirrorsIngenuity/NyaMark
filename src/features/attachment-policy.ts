@@ -1,7 +1,6 @@
-import {
-  defaultImageSettings,
-  type ImageInsertPolicy,
-  type PastedImagePolicy,
+import type {
+  ImageInsertPolicy,
+  PastedImagePolicy,
 } from '../state/image-settings';
 import {
   type AttachmentReferenceOptions,
@@ -51,10 +50,16 @@ export function getDocumentCopyTarget(markdown: string) {
   return null;
 }
 
+/**
+ * Turn a stored policy into what to do with an image. `copy-custom-folder`
+ * needs a folder; without one the answer is `null` and the caller asks the
+ * user for the folder, since copying somewhere the user never picked would
+ * scatter images silently.
+ */
 export function policyToInsertRule(
   policy: ImageInsertPolicy | PastedImagePolicy,
   customDirectory: string | null
-): InsertRule {
+): InsertRule | null {
   switch (policy) {
     case 'copy-same-folder':
       return { mode: 'copy', targetDir: '.' };
@@ -63,9 +68,7 @@ export function policyToInsertRule(
     case 'copy-custom-folder':
       return customDirectory
         ? { mode: 'copy', targetDir: customDirectory }
-        : defaultImageSettings.insertPolicy === 'use-path'
-          ? { mode: 'use-path' }
-          : { mode: 'copy', targetDir: './assets' };
+        : null;
     case 'base64':
       return { mode: 'base64' };
     default:

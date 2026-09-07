@@ -185,6 +185,10 @@
       "preferRelativePath": "Prefer relative paths",
       "ensureDotSlash": "Prefix relative paths with ./",
       "escapePath": "Escape spaces in paths",
+      "customDirectory": "Custom folder",
+      "noCustomDirectory": "No custom folder selected",
+      "chooseDirectory": "Choose…",
+      "clearDirectory": "Clear",
       "policies": {
         "use-path": {
           "label": "Keep original path",
@@ -200,7 +204,7 @@
         },
         "copy-custom-folder": {
           "label": "Custom folder",
-          "description": "Copy into a folder you choose. Set it from the paste dialog the first time."
+          "description": "Copy into the folder chosen below."
         },
         "base64": {
           "label": "Embed as Base64",

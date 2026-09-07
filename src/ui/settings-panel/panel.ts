@@ -11,7 +11,7 @@ import { renderAppearanceSection } from './sections/appearance';
 import { renderSaveSection } from './sections/save-policy';
 import { renderAttachmentsSection } from './sections/attachments';
 import { translateDOM } from '../../i18n/dom';
-import { errorDialog } from '../../bridge/ipc/files';
+import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
 
 const styles = `
 .ny-settings-overlay {
@@ -198,6 +198,51 @@ const styles = `
 
 .ny-settings__select-trigger:hover {
   border-color: color-mix(in srgb, var(--ny-border-strong), transparent 28%);
+}
+
+.ny-settings__directory {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ny-settings__directory-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
+  color: var(--ny-text-primary);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ny-settings__directory-path.is-empty {
+  color: var(--ny-text-secondary);
+}
+
+.ny-settings__directory-button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
+  color: var(--ny-text-primary);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ny-settings__directory-button:hover {
+  border-color: color-mix(in srgb, var(--ny-border-strong), transparent 28%);
+}
+
+.ny-settings__directory-button[hidden] {
+  display: none;
 }
 
 .ny-settings__select-icon {
@@ -526,7 +571,8 @@ export class SettingsPanel {
       working.attachments,
       (next) => {
         working = { ...working, attachments: next };
-      }
+      },
+      { pickDirectory: () => openDirectoryDialog() }
     );
 
     body.append(general, appearance, save, attachments);

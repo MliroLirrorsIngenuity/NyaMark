@@ -184,6 +184,10 @@
       "preferRelativePath": "優先使用相對路徑",
       "ensureDotSlash": "相對路徑以 ./ 開頭",
       "escapePath": "跳脫路徑中的空格",
+      "customDirectory": "自訂資料夾",
+      "noCustomDirectory": "未選擇自訂資料夾",
+      "chooseDirectory": "選擇…",
+      "clearDirectory": "清除",
       "policies": {
         "use-path": {
           "label": "保留原始路徑",
@@ -199,7 +203,7 @@
         },
         "copy-custom-folder": {
           "label": "自訂資料夾",
-          "description": "複製到您選擇的資料夾中。首次使用時在貼上對話方塊中設定。"
+          "description": "複製到下方選擇的資料夾。"
         },
         "base64": {
           "label": "嵌入為 Base64",

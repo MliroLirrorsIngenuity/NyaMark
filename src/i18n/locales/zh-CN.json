@@ -184,6 +184,10 @@
       "preferRelativePath": "优先使用相对路径",
       "ensureDotSlash": "相对路径以 ./ 开头",
       "escapePath": "转义路径中的空格",
+      "customDirectory": "自定义文件夹",
+      "noCustomDirectory": "未选择自定义文件夹",
+      "chooseDirectory": "选择…",
+      "clearDirectory": "清除",
       "policies": {
         "use-path": {
           "label": "保留原始路径",
@@ -199,7 +203,7 @@
         },
         "copy-custom-folder": {
           "label": "自定义文件夹",
-          "description": "复制到您选择的文件夹中。首次使用时在粘贴对话框中设置。"
+          "description": "复制到下方选择的文件夹。"
         },
         "base64": {
           "label": "嵌入为 Base64",
