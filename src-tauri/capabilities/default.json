@@ -20,8 +20,6 @@
     "core:window:allow-set-effects",
     "core:window:allow-set-theme",
     "fs:allow-read-text-file",
-    "fs:allow-read-file",
-    "fs:allow-write-text-file",
     "fs:allow-write-file",
     "fs:allow-copy-file",
     "fs:allow-exists",

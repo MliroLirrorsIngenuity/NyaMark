@@ -1,5 +1,8 @@
 import {
   confirmDialog,
+  DEFAULT_DOCUMENT_FORMAT,
+  DocumentError,
+  type DocumentFormat,
   errorDialog,
   openFileDialog,
   openMarkdownInNewWindow,
@@ -23,6 +26,8 @@ export class FileController {
   private unwatch: (() => void) | null = null;
   private watchedPath: string | null = null;
   private lastKnownContent: string | null = null;
+  /** BOM / line ending style of the file on disk, restored on every save. */
+  private documentFormat: DocumentFormat = { ...DEFAULT_DOCUMENT_FORMAT };
   private watchVersion = 0;
   private conflictPrompting = false;
 
@@ -43,20 +48,31 @@ export class FileController {
     filePath: string | null;
     markdown: string;
   }> {
+    let filePath: string | null = null;
     try {
-      const filePath = await resolveCurrentWindowFile();
-      if (!filePath) return { filePath: null, markdown: '' };
-      const markdown = await readMarkdown(filePath);
-      this.lastKnownContent = markdown;
-      return { filePath, markdown };
+      filePath = await resolveCurrentWindowFile();
     } catch (error) {
       console.error('Failed to resolve initial document:', error);
       return { filePath: null, markdown: '' };
     }
+    if (!filePath) return { filePath: null, markdown: '' };
+
+    try {
+      const document = await readMarkdown(filePath);
+      this.lastKnownContent = document.text;
+      this.documentFormat = document.format;
+      return { filePath, markdown: document.text };
+    } catch (error) {
+      // The window stays open but untitled; a silent blank editor would look
+      // like the file was empty and invite a save over it.
+      console.error('Failed to read initial document:', error);
+      await errorDialog(this.describeDocumentError(error, filePath, 'open'));
+      return { filePath: null, markdown: '' };
+    }
   }
 
-  private async updateWatcher(path: string | null) {
-    if (this.watchedPath === path) return;
+  private async updateWatcher(path: string | null, force = false) {
+    if (!force && this.watchedPath === path) return;
 
     if (this.unwatch) {
       this.unwatch();
@@ -92,7 +108,11 @@ export class FileController {
 
     let newContent: string;
     try {
-      newContent = await readMarkdown(path);
+      const document = await readMarkdown(path);
+      newContent = document.text;
+      // Whoever rewrote the file may also have changed its BOM or line
+      // endings; the next save follows the file as it is now.
+      this.documentFormat = document.format;
     } catch (error) {
       console.error('Failed to reload changed file:', error);
       return;
@@ -177,7 +197,7 @@ export class FileController {
       });
     } catch (error) {
       console.error('Failed to save file:', error);
-      await errorDialog(String(error));
+      await errorDialog(this.describeDocumentError(error, null, 'save'));
     }
   }
 
@@ -189,9 +209,40 @@ export class FileController {
       });
     } catch (error) {
       console.error('Failed to save file as:', error);
-      await errorDialog(String(error));
+      await errorDialog(this.describeDocumentError(error, null, 'save'));
       return null;
     }
+  }
+
+  private describeDocumentError(
+    error: unknown,
+    fallbackPath: string | null,
+    action: 'open' | 'save'
+  ): string {
+    const path =
+      error instanceof DocumentError ? error.path : (fallbackPath ?? '');
+    const fileName = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+    const reason = error instanceof Error ? error.message : String(error);
+
+    if (error instanceof DocumentError) {
+      if (error.kind === 'not-utf8') {
+        return error.encoding
+          ? i18next.t('dialog.documentError.notUtf8Known', {
+              fileName,
+              encoding: error.encoding,
+            })
+          : i18next.t('dialog.documentError.notUtf8', { fileName });
+      }
+      if (error.kind === 'forbidden') {
+        return i18next.t('dialog.documentError.forbidden', { fileName });
+      }
+    }
+    return i18next.t(
+      action === 'open'
+        ? 'dialog.documentError.openFailed'
+        : 'dialog.documentError.saveFailed',
+      { fileName, reason }
+    );
   }
 
   async autoSaveFile() {
@@ -256,10 +307,16 @@ export class FileController {
     const prevLastKnown = this.lastKnownContent;
     this.lastKnownContent = snapshot;
     try {
-      await saveMarkdown(path, snapshot);
+      await saveMarkdown(path, snapshot, this.documentFormat);
     } catch (error) {
       this.lastKnownContent = prevLastKnown;
       throw error;
+    }
+    // The atomic save renamed a new inode over the old one. inotify watches
+    // the inode, so on Linux the watcher would go quiet from here on; macOS
+    // and Windows watch by path and only pay for a cheap re-subscribe.
+    if (this.watchedPath === path) {
+      void this.updateWatcher(path, true);
     }
     const currentMarkdown = this.getEditor()?.getMarkdown() ?? snapshot;
     if (currentMarkdown !== snapshot) {

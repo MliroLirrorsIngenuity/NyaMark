@@ -1,3 +1,4 @@
+pub mod document;
 #[cfg(target_os = "macos")]
 pub mod menu;
 pub mod quit;
@@ -6,6 +7,7 @@ pub mod windows;
 
 use std::{
     collections::HashMap,
+    path::Path,
     sync::{
         atomic::{AtomicBool, AtomicUsize},
         Mutex,
@@ -14,9 +16,12 @@ use std::{
 
 use tauri::{AppHandle, Manager, Window};
 
-use crate::sessions::{
-    LastFocusedWindow, MainWindowBootstrapComplete, PendingLaunchFiles, RestartPending,
-    WindowCounter, WindowDirtyFlags, WindowSessions,
+use crate::{
+    document::{DocumentError, DocumentFormat, MarkdownDocument},
+    sessions::{
+        LastFocusedWindow, MainWindowBootstrapComplete, PendingLaunchFiles, RestartPending,
+        WindowCounter, WindowDirtyFlags, WindowSessions,
+    },
 };
 
 #[tauri::command]
@@ -76,6 +81,25 @@ fn register_window_document(
         .ok_or_else(|| format!("Not a readable file: {path}"))?;
     sessions::remember_window_file(&app, window.label(), normalized.clone());
     Ok(normalized)
+}
+
+/// Read the document body. Runs off the main thread so a slow volume never
+/// freezes the UI. See `document.rs` for the encoding rules.
+#[tauri::command(async)]
+fn read_markdown_document(app: AppHandle, path: String) -> Result<MarkdownDocument, DocumentError> {
+    document::read(&app, Path::new(&path))
+}
+
+/// Write the document body atomically, restoring the BOM and line endings
+/// recorded when it was read.
+#[tauri::command(async)]
+fn write_markdown_document(
+    app: AppHandle,
+    path: String,
+    text: String,
+    format: DocumentFormat,
+) -> Result<(), DocumentError> {
+    document::write(&app, Path::new(&path), &text, format)
 }
 
 /// Create the directory attachments are copied into and allow it in the fs
@@ -181,6 +205,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             resolve_current_window_file,
             register_window_document,
+            read_markdown_document,
+            write_markdown_document,
             ensure_attachment_directory,
             open_new_window,
             open_markdown_in_new_window,

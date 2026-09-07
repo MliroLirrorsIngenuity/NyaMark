@@ -1,10 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { ask, message, open, save } from '@tauri-apps/plugin-dialog';
-import {
-  readTextFile,
-  watchImmediate,
-  writeTextFile,
-} from '@tauri-apps/plugin-fs';
+import { watchImmediate } from '@tauri-apps/plugin-fs';
 
 export async function openFileDialog(): Promise<string | null> {
   const result = await open({
@@ -66,16 +62,79 @@ export async function unsavedChangesDialog(
   return 'cancel';
 }
 
-export async function readMarkdown(path: string): Promise<string> {
-  return await readTextFile(path);
+export type LineEnding = 'lf' | 'crlf';
+
+/** Byte-level properties of a file that survive a read/write round trip. */
+export interface DocumentFormat {
+  bom: boolean;
+  lineEnding: LineEnding;
 }
 
+export const DEFAULT_DOCUMENT_FORMAT: Readonly<DocumentFormat> = {
+  bom: false,
+  lineEnding: 'lf',
+};
+
+export interface MarkdownDocument {
+  /** Always `\n`-terminated lines; the original style lives in `format`. */
+  text: string;
+  format: DocumentFormat;
+}
+
+export type DocumentErrorKind = 'not-utf8' | 'forbidden' | 'io';
+
+/** Structured failure from the document commands (see `document.rs`). */
+export class DocumentError extends Error {
+  constructor(
+    readonly kind: DocumentErrorKind,
+    readonly path: string,
+    /** Encoding a byte order mark identified, e.g. `UTF-16 LE`. */
+    readonly encoding: string | null,
+    message: string
+  ) {
+    super(message);
+    this.name = 'DocumentError';
+  }
+}
+
+function toDocumentError(error: unknown, path: string): DocumentError {
+  if (error instanceof DocumentError) return error;
+  if (typeof error === 'object' && error !== null && 'kind' in error) {
+    const payload = error as {
+      kind: DocumentErrorKind;
+      encoding?: string | null;
+      message?: string;
+    };
+    return new DocumentError(
+      payload.kind,
+      path,
+      payload.encoding ?? null,
+      payload.message ?? payload.kind
+    );
+  }
+  return new DocumentError('io', path, null, String(error));
+}
+
+/** Read through the Rust command: strict UTF-8, BOM and EOL detection. */
+export async function readMarkdown(path: string): Promise<MarkdownDocument> {
+  try {
+    return await invoke<MarkdownDocument>('read_markdown_document', { path });
+  } catch (error) {
+    throw toDocumentError(error, path);
+  }
+}
+
+/** Atomic write (temp file + rename) that restores the recorded format. */
 export async function saveMarkdown(
   path: string,
-  content: string
-): Promise<string> {
-  await writeTextFile(path, content);
-  return content;
+  text: string,
+  format: DocumentFormat
+): Promise<void> {
+  try {
+    await invoke('write_markdown_document', { path, text, format });
+  } catch (error) {
+    throw toDocumentError(error, path);
+  }
 }
 
 export async function watchMarkdownFile(
