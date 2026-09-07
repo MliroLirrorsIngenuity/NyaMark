@@ -28,10 +28,34 @@ fn base_window_config<R: Runtime>(app: &AppHandle<R>) -> Result<WindowConfig> {
 /// command. See the `WebviewWindowBuilder` documentation ("On Windows, this
 /// function deadlocks when used in a synchronous command and event handlers").
 fn build_window<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Result<()> {
-    let window = WebviewWindowBuilder::from_config(app, config)?.build()?;
+    let window = WebviewWindowBuilder::from_config(app, config)?
+        .on_navigation(is_app_navigation)
+        .build()?;
     let _ = window.show();
     let _ = window.set_focus();
     Ok(())
+}
+
+/// Keep the webview on the app's own origin. Markdown that reaches the editor
+/// can carry raw HTML; a link that slipped past the click handlers must not be
+/// able to navigate the privileged window to an external site (which would
+/// also sever the IPC bridge). The frontend opens links through the opener
+/// plugin instead.
+fn is_app_navigation(url: &tauri::Url) -> bool {
+    match url.scheme() {
+        // Production on macOS / Linux.
+        "tauri" => true,
+        // Production on Windows (`tauri.localhost`) and the Vite dev server.
+        "http" | "https" => matches!(url.host_str(), Some("localhost" | "tauri.localhost")),
+        _ => false,
+    }
+}
+
+/// The main window is declared with `create: false` in `tauri.conf.json` so it
+/// goes through the same builder (and navigation guard) as every other window.
+pub fn create_main_window<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
+    let config = base_window_config(app)?;
+    build_window(app, &config)
 }
 
 /// Open a new editor window bound to an existing markdown file on disk.

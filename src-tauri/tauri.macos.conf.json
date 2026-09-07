@@ -5,6 +5,7 @@
       {
         "label": "main",
         "title": "NyaMark",
+        "create": false,
         "width": 860,
         "height": 720,
         "minWidth": 826,

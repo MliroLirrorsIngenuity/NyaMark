@@ -67,10 +67,11 @@ pub fn remember_window_file<R: Runtime>(app: &AppHandle<R>, label: &str, path: S
         .insert(label.to_string(), path);
 }
 
-/// Grant the webview filesystem access to a document and the directory around it.
+/// Grant the webview filesystem and `asset://` access to a document and the
+/// directory around it.
 ///
-/// The static `fs:scope` in the capability only covers `$HOME` and the app
-/// directories. Files opened through file associations, CLI arguments or
+/// The static `fs:scope` in the capability and the `assetProtocol.scope` in
+/// `tauri.conf.json` only cover `$HOME` and the app directories. Files opened through file associations, CLI arguments or
 /// `RunEvent::Opened` can live anywhere (external volumes, network shares,
 /// `/tmp`), so every path that becomes a window's document is added to the
 /// runtime scope here. The parent directory is allowed recursively because
@@ -78,20 +79,21 @@ pub fn remember_window_file<R: Runtime>(app: &AppHandle<R>, label: &str, path: S
 /// `typora-copy-images-to`) resolve relative to the document. A filesystem
 /// root is never allowed wholesale.
 pub fn allow_document_scope<R: Runtime>(app: &AppHandle<R>, path: &str) {
-    let scope = app.fs_scope();
     let file = Path::new(path);
-    if let Err(error) = scope.allow_file(file) {
-        eprintln!("Failed to allow fs scope for {path}: {error}");
-    }
+    for scope in [app.fs_scope(), app.asset_protocol_scope()] {
+        if let Err(error) = scope.allow_file(file) {
+            eprintln!("Failed to allow scope for {path}: {error}");
+        }
 
-    let Some(parent) = file.parent() else {
-        return;
-    };
-    if parent.parent().is_none() {
-        return;
-    }
-    if let Err(error) = scope.allow_directory(parent, true) {
-        eprintln!("Failed to allow fs scope for {}: {error}", parent.display());
+        let Some(parent) = file.parent() else {
+            continue;
+        };
+        if parent.parent().is_none() {
+            continue;
+        }
+        if let Err(error) = scope.allow_directory(parent, true) {
+            eprintln!("Failed to allow scope for {}: {error}", parent.display());
+        }
     }
 }
 
@@ -113,13 +115,15 @@ pub fn ensure_attachment_directory<R: Runtime>(
         return Err(format!("Not a directory: {path}"));
     }
 
-    let scope = app.fs_scope();
-    scope
-        .allow_directory(dir, true)
-        .map_err(|error| error.to_string())?;
-    scope
-        .allow_directory(&canonical, true)
-        .map_err(|error| error.to_string())?;
+    // The asset protocol scope is granted too so the copied images render.
+    for scope in [app.fs_scope(), app.asset_protocol_scope()] {
+        scope
+            .allow_directory(dir, true)
+            .map_err(|error| error.to_string())?;
+        scope
+            .allow_directory(&canonical, true)
+            .map_err(|error| error.to_string())?;
+    }
 
     Ok(strip_verbatim_prefix(canonical))
 }

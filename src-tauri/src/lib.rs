@@ -222,6 +222,7 @@ pub fn run() {
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
+            windows::create_main_window(app.handle())?;
             #[cfg(target_os = "macos")]
             quit::install_macos_terminate_hook(app.handle());
             Ok(())
