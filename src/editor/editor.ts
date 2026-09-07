@@ -7,8 +7,8 @@
 import { Crepe } from '@milkdown/crepe';
 import { editorViewCtx } from '@milkdown/kit/core';
 import { Fragment, Slice } from '@milkdown/kit/prose/model';
-import { TextSelection } from '@milkdown/kit/prose/state';
-import { outline, replaceAll } from '@milkdown/kit/utils';
+import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
+import { $prose, outline, replaceAll } from '@milkdown/kit/utils';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
@@ -40,6 +40,7 @@ export class NyaEditor {
   private detachMermaidThemeListener: (() => void) | null = null;
   private detachDragSelectGuard: (() => void) | null = null;
   private onChangeCallback?: (markdown: string) => void;
+  private onDocChangedCallback?: () => void;
 
   constructor(
     private readonly root: HTMLElement,
@@ -75,6 +76,7 @@ export class NyaEditor {
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
+    crepe.editor.use(this.docChangedPlugin());
 
     crepe.on((api) => {
       api.markdownUpdated((_ctx, markdown, prev) => {
@@ -89,8 +91,36 @@ export class NyaEditor {
     this.imageMetaPanel.attach();
   }
 
+  /**
+   * Markdown-level change notification. Milkdown's listener plugin debounces
+   * this by 200ms, so it suits statistics but must never gate a save.
+   */
   onChange(callback: (markdown: string) => void) {
     this.onChangeCallback = callback;
+  }
+
+  /**
+   * Fires synchronously as soon as a transaction changed the document, before
+   * control returns to whoever dispatched it. Dirty tracking hangs off this
+   * so a save or close prompt issued right after a keystroke sees the truth.
+   */
+  onDocChanged(callback: () => void) {
+    this.onDocChangedCallback = callback;
+  }
+
+  private docChangedPlugin() {
+    return $prose(
+      () =>
+        new Plugin({
+          key: new PluginKey('nya-doc-changed'),
+          view: () => ({
+            update: (view, prevState) => {
+              if (prevState.doc.eq(view.state.doc)) return;
+              this.onDocChangedCallback?.();
+            },
+          }),
+        })
+    );
   }
 
   getMarkdown(): string {

@@ -122,6 +122,7 @@ export class App {
 
     this.fileController = new FileController(() => this.editor, {
       syncEditorAfterSave: (saved) => this.syncEditorAfterSave(saved),
+      flushPendingEdits: () => this.sourceMode?.flush(),
     });
 
     const initialDocument = await this.fileController.resolveInitialDocument();
@@ -151,6 +152,7 @@ export class App {
 
     await this.editor.init(initialDocument.markdown);
     this.editor.onChange(() => this.handleEditorChange());
+    this.editor.onDocChanged(() => this.markDirty());
 
     this.sourceMode = new SourceModeController(
       editorContainer,
@@ -294,6 +296,11 @@ export class App {
       this.suppressDirtyTracking = false;
     }
     this.refreshStatsSoon();
+  }
+
+  private markDirty() {
+    if (this.suppressDirtyTracking || store.getState().isDirty) return;
+    store.update({ isDirty: true });
   }
 
   private handleEditorChange() {

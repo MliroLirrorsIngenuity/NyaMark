@@ -27,6 +27,7 @@ export class CloseGuard {
 
   /** Resolves `true` when the window may close. */
   async confirmClose(): Promise<boolean> {
+    this.fileController.flushPendingEdits();
     if (!store.getState().isDirty) return true;
     // A second request while the prompt is open (e.g. Cmd+Q after clicking
     // close) must not stack another dialog.

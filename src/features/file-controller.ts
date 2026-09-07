@@ -20,6 +20,8 @@ import { store } from '../state/store';
 
 type Hooks = {
   syncEditorAfterSave: (savedContent: string) => void;
+  /** Push edits buffered outside the editor (the source pane) into it. */
+  flushPendingEdits: () => void;
 };
 
 export class FileController {
@@ -42,6 +44,11 @@ export class FileController {
 
   public getLastKnownContent(): string | null {
     return this.lastKnownContent;
+  }
+
+  /** Make the editor (and thus `store.isDirty`) reflect every keystroke so far. */
+  public flushPendingEdits() {
+    this.hooks.flushPendingEdits();
   }
 
   async resolveInitialDocument(): Promise<{
@@ -263,6 +270,9 @@ export class FileController {
     const editor = this.getEditor();
     if (!editor) return null;
 
+    // The source pane syncs into the editor on a debounce; without this the
+    // snapshot below (and the dirty check) would miss the last keystrokes.
+    this.flushPendingEdits();
     const state = store.getState();
     if (!state.isDirty && !options.forceDialog) {
       return state.filePath;

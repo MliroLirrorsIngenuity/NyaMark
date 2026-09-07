@@ -295,6 +295,8 @@ export class SourceModeController {
   private previewView: ProseMirrorEditorView | null = null;
   private cmThemeCompartment = new Compartment();
   private syncTimer: number | null = null;
+  /** CodeMirror text as of the last push into Crepe; edits since are pending. */
+  private lastSyncedText = '';
   private active = false;
   private lastScrollSource: HTMLElement | null = null;
   private activeScrollSource: HTMLElement | null = null;
@@ -339,6 +341,24 @@ export class SourceModeController {
     };
   }
 
+  /**
+   * Push edits still sitting in the sync debounce into the editor right now.
+   * Anything that snapshots the document (save, close prompt) calls this
+   * first so the last few keystrokes typed in the source pane are included.
+   */
+  flush() {
+    if (this.syncTimer != null) {
+      window.clearTimeout(this.syncTimer);
+      this.syncTimer = null;
+    }
+    if (!this.cmView) return;
+    const text = this.cmView.state.doc.toString();
+    if (text === this.lastSyncedText) return;
+    this.lastSyncedText = text;
+    this.editor.setMarkdown(text);
+    this.invalidateAnchors();
+  }
+
   destroy() {
     if (this.active) this.exit();
     this.unsubscribeStore?.();
@@ -378,6 +398,7 @@ export class SourceModeController {
       this.active = false;
       return;
     }
+    this.lastSyncedText = initialDoc;
 
     // NOTE: we deliberately do NOT call `editor.setReadonly(true)` here.
     // Crepe's TopBar component bails out with `return null` when the view
@@ -526,14 +547,8 @@ export class SourceModeController {
     if (!this.active) return;
     this.active = false;
 
-    if (this.syncTimer != null) {
-      window.clearTimeout(this.syncTimer);
-      this.syncTimer = null;
-    }
-
+    this.flush();
     if (this.cmView) {
-      const text = this.cmView.state.doc.toString();
-      this.editor.setMarkdown(text);
       this.cmView.destroy();
       this.cmView = null;
     }
@@ -551,14 +566,6 @@ export class SourceModeController {
 
   private scheduleSync() {
     if (this.syncTimer != null) window.clearTimeout(this.syncTimer);
-    this.syncTimer = window.setTimeout(() => {
-      this.syncTimer = null;
-      if (!this.cmView) return;
-      const text = this.cmView.state.doc.toString();
-      if (text !== this.editor.getMarkdown()) {
-        this.editor.setMarkdown(text);
-        this.invalidateAnchors();
-      }
-    }, SYNC_DELAY_MS);
+    this.syncTimer = window.setTimeout(() => this.flush(), SYNC_DELAY_MS);
   }
 }
