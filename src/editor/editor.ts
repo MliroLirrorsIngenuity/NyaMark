@@ -241,6 +241,53 @@ export class NyaEditor {
     view.focus();
   }
 
+  /**
+   * Run every image `src` and link `href` through `mapper` and apply the
+   * values it returns (`null` keeps the original). Used when the document
+   * moves so its references keep resolving from the new directory. Kept out
+   * of the undo history: Cmd+Z cannot move the file back.
+   */
+  rewriteLocalReferences(mapper: (reference: string) => string | null) {
+    if (!this.crepe) return 0;
+    const view = this.crepe.editor.ctx.get(editorViewCtx);
+    const { state } = view;
+    const { tr } = state;
+    const linkMarkType = state.schema.marks.link;
+    let rewritten = 0;
+
+    // Attribute and mark changes never move positions, so the positions of
+    // the untouched document stay valid for the whole walk.
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === 'image-block' || node.type.name === 'image') {
+        const src = typeof node.attrs.src === 'string' ? node.attrs.src : '';
+        const next = src ? mapper(src) : null;
+        if (next !== null && next !== src) {
+          tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: next });
+          rewritten += 1;
+        }
+      }
+
+      if (!linkMarkType || !node.isInline) return true;
+      for (const mark of node.marks) {
+        if (mark.type !== linkMarkType) continue;
+        const href = typeof mark.attrs.href === 'string' ? mark.attrs.href : '';
+        const next = href ? mapper(href) : null;
+        if (next === null || next === href) continue;
+        const end = pos + node.nodeSize;
+        tr.removeMark(pos, end, mark).addMark(
+          pos,
+          end,
+          linkMarkType.create({ ...mark.attrs, href: next })
+        );
+        rewritten += 1;
+      }
+      return true;
+    });
+
+    if (rewritten > 0) view.dispatch(tr.setMeta('addToHistory', false));
+    return rewritten;
+  }
+
   destroy() {
     this.detachMermaidThemeListener?.();
     this.detachMermaidThemeListener = null;

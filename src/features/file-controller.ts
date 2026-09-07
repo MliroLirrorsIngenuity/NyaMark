@@ -16,7 +16,9 @@ import {
 } from '../bridge/ipc/files';
 import type { NyaEditor } from '../editor/editor';
 import { i18next } from '../i18n';
+import { getSettings } from '../state/settings';
 import { store } from '../state/store';
+import { relocateLocalReference } from './attachment-policy';
 
 type Hooks = {
   syncEditorAfterSave: (savedContent: string) => void;
@@ -288,6 +290,9 @@ export class FileController {
 
     if (!path) return null;
 
+    if (state.filePath !== path) {
+      this.relocateAttachmentReferences(editor, state.filePath, path);
+    }
     await this.saveToExistingPath(path, editor.getMarkdown());
     if (state.filePath !== path) {
       const registeredPath = await this.registerDocumentPath(path);
@@ -295,6 +300,23 @@ export class FileController {
       return registeredPath;
     }
     return path;
+  }
+
+  /**
+   * The document is about to be written at `nextPath`. Relative references
+   * were resolved against the old directory and would all break; absolute
+   * ones left by inserts into a never-saved document become relative when
+   * the settings prefer that.
+   */
+  private relocateAttachmentReferences(
+    editor: NyaEditor,
+    previousPath: string | null,
+    nextPath: string
+  ) {
+    const options = getSettings().attachments;
+    editor.rewriteLocalReferences((reference) =>
+      relocateLocalReference(reference, previousPath, nextPath, options)
+    );
   }
 
   /**

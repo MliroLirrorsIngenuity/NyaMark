@@ -3,6 +3,14 @@ import {
   type ImageInsertPolicy,
   type PastedImagePolicy,
 } from '../state/image-settings';
+import {
+  type AttachmentReferenceOptions,
+  formatAttachmentReference,
+  isAbsolutePath,
+  normalizePath,
+  resolveAttachmentPath,
+  unescapeMarkdownPath,
+} from './attachment-paths';
 
 export type InsertRule =
   | { mode: 'use-path' }
@@ -115,6 +123,43 @@ export function classifyLinkTarget(href: string): LinkTarget {
   }
 
   return { kind: 'local', reference: value };
+}
+
+/**
+ * The reference a document at `fromDocument` holds, rewritten for the same
+ * document living at `toDocument`. Returns `null` when nothing changes.
+ *
+ * A relative reference is anchored at the old directory and would break after
+ * the move, so it is always re-expressed relative to the new one (absolute
+ * when no relative form exists, such as across Windows drives). An absolute
+ * reference keeps working wherever the document goes; it only turns relative
+ * when the settings prefer that, which is how a document saved for the first
+ * time sheds the absolute paths its images were inserted with.
+ */
+export function relocateLocalReference(
+  reference: string,
+  fromDocument: string | null,
+  toDocument: string,
+  options: AttachmentReferenceOptions
+): string | null {
+  const value = reference.trim();
+  // Fragments and queries point into the document itself.
+  if (!value || value.startsWith('#') || value.startsWith('?')) return null;
+  // `file:` URIs are absolute by construction and stay in that form.
+  if (/^file:/i.test(value)) return null;
+  if (classifyLinkTarget(value).kind !== 'local') return null;
+
+  const wasRelative = !isAbsolutePath(
+    normalizePath(unescapeMarkdownPath(value))
+  );
+  const absolutePath = resolveAttachmentPath(fromDocument, value);
+  if (!absolutePath) return null;
+
+  const next = formatAttachmentReference(toDocument, absolutePath, {
+    ...options,
+    preferRelativePath: options.preferRelativePath || wasRelative,
+  });
+  return next === value ? null : next;
 }
 
 function parseFileUris(payload: string) {
