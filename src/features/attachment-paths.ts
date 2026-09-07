@@ -76,6 +76,45 @@ export function unescapeMarkdownPath(path: string) {
   return path.replace(/\\ /g, ' ');
 }
 
+/**
+ * Markdown link destinations are URLs, so a space or a non-ASCII character
+ * often arrives as `%20` or `%E4%B8%AD`. A `%` that starts no escape (a
+ * literal `100%.png`) leaves the value untouched.
+ */
+export function decodeMarkdownPath(reference: string) {
+  if (!/%[0-9A-Fa-f]{2}/.test(reference)) return reference;
+  try {
+    return decodeURIComponent(reference);
+  } catch {
+    return reference;
+  }
+}
+
+/** The inverse of `decodeMarkdownPath` for the characters it is used for. */
+export function percentEncodeMarkdownPath(path: string) {
+  return path.replace(/%/g, '%25').replace(/ /g, '%20');
+}
+
+/**
+ * Local path behind a `file:` URI, or `null` for anything else. A host other
+ * than `localhost` names a Windows share, so the result is a UNC path.
+ */
+export function fileUriToPath(uri: string): string | null {
+  try {
+    const url = new URL(uri);
+    if (url.protocol !== 'file:') return null;
+
+    let path = decodeURIComponent(url.pathname);
+    if (/^\/[A-Za-z]:\//.test(path)) {
+      path = path.slice(1);
+    }
+    const host = url.hostname;
+    return host && host !== 'localhost' ? `//${host}${path}` : path;
+  } catch {
+    return null;
+  }
+}
+
 export function looksLikeExternalResource(value: string) {
   return /^(?:https?:|data:|blob:|asset:|mailto:|tel:)/i.test(value);
 }
@@ -94,8 +133,23 @@ export function sanitizeFileName(fileName: string) {
   return ext ? `${safeStem}.${ext}` : safeStem;
 }
 
+/**
+ * `${filename}` in a target directory stands for the document's name without
+ * its extension, as in Typora's `typora-copy-images-to`.
+ */
+export function expandStorageDirTemplate(
+  targetDir: string,
+  documentPath: string
+) {
+  const stem = basenamePath(documentPath).replace(/\.[^.]+$/, '');
+  return targetDir.replace(/\$\{filename\}/g, stem);
+}
+
 export function resolveStorageDir(documentPath: string, targetDir: string) {
-  const normalizedTarget = targetDir.trim();
+  const normalizedTarget = expandStorageDirTemplate(
+    targetDir,
+    documentPath
+  ).trim();
   if (
     !normalizedTarget ||
     normalizedTarget === '.' ||
@@ -118,7 +172,14 @@ export function resolveAttachmentPath(
     return null;
   }
 
-  const unescaped = normalizePath(unescapeMarkdownPath(trimmed));
+  if (/^file:/i.test(trimmed)) {
+    const path = fileUriToPath(trimmed);
+    return path ? normalizePath(path) : null;
+  }
+
+  const unescaped = normalizePath(
+    decodeMarkdownPath(unescapeMarkdownPath(trimmed))
+  );
   if (isAbsolutePath(unescaped)) {
     return unescaped;
   }
@@ -210,6 +271,12 @@ function parseRoot(path: string): PathRoot {
   const drive = normalized.match(/^[A-Za-z]:\//);
   if (drive) {
     return { prefix: drive[0].slice(0, -1), absolute: true };
+  }
+  // `//server/share` is the root of a Windows network share; collapsing its
+  // leading slashes would turn it into a local path.
+  const share = normalized.match(/^\/\/[^/]+\/[^/]+/);
+  if (share) {
+    return { prefix: share[0], absolute: true };
   }
   if (normalized.startsWith('/')) {
     return { prefix: '/', absolute: true };

@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  dirnamePath,
   formatAttachmentReference,
+  normalizePath,
   resolveAttachmentPath,
+  resolveStorageDir,
   sanitizeFileName,
 } from '../src/features/attachment-paths';
 
@@ -81,8 +84,89 @@ describe('resolveAttachmentPath', () => {
       './assets/image.png',
       null,
     ],
+    [
+      'decodes percent-encoded references',
+      '/docs/note.md',
+      './My%20Image%20%E4%B8%AD.png',
+      '/docs/My Image 中.png',
+    ],
+    [
+      'keeps a literal percent sign',
+      '/docs/note.md',
+      './100%.png',
+      '/docs/100%.png',
+    ],
+    [
+      'keeps UNC paths intact',
+      '/docs/note.md',
+      '\\\\server\\share\\img.png',
+      '//server/share/img.png',
+    ],
+    [
+      'resolves relative to a document on a share',
+      '//server/share/docs/note.md',
+      '../img.png',
+      '//server/share/img.png',
+    ],
+    [
+      'converts file URIs',
+      '/docs/note.md',
+      'file:///tmp/a%20b.png',
+      '/tmp/a b.png',
+    ],
+    [
+      'converts file URIs with a share host',
+      '/docs/note.md',
+      'file://server/share/a.png',
+      '//server/share/a.png',
+    ],
   ])('%s', (_label, documentPath, assetPath, expected) => {
     expect(resolveAttachmentPath(documentPath, assetPath)).toBe(expected);
+  });
+});
+
+describe('UNC paths', () => {
+  test('normalizePath keeps the share root', () => {
+    expect(normalizePath('\\\\server\\share\\a\\..\\b')).toBe(
+      '//server/share/b'
+    );
+    expect(normalizePath('//server/share')).toBe('//server/share/');
+  });
+
+  test('dirnamePath stops at the share root', () => {
+    expect(dirnamePath('//server/share/docs/a.md')).toBe('//server/share/docs');
+    expect(dirnamePath('//server/share/a.md')).toBe('//server/share/');
+  });
+
+  test('formatAttachmentReference relativizes within a share', () => {
+    expect(
+      formatAttachmentReference(
+        '//server/share/docs/note.md',
+        '//server/share/img.png',
+        { preferRelativePath: true, ensureDotSlash: false, escapePath: false }
+      )
+    ).toBe('../img.png');
+  });
+});
+
+describe('resolveStorageDir', () => {
+  test.each([
+    ['dot means the document folder', '/docs/note.md', '.', '/docs'],
+    ['keeps absolute folders', '/docs/note.md', '/pics', '/pics'],
+    [
+      'expands ${filename} to the document stem',
+      '/docs/my note.md',
+      './${filename}.assets',
+      '/docs/my note.assets',
+    ],
+    [
+      'expands a bare ${filename}',
+      '/docs/note.md',
+      '${filename}',
+      '/docs/note',
+    ],
+  ])('%s', (_label, documentPath, targetDir, expected) => {
+    expect(resolveStorageDir(documentPath, targetDir)).toBe(expected);
   });
 });
 

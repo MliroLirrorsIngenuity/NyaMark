@@ -16,6 +16,11 @@ describe('classifyLinkTarget', () => {
     ['C:\\docs\\a.md', { kind: 'local', reference: 'C:\\docs\\a.md' }],
     ['file:///tmp/a%20b.md', { kind: 'local', reference: '/tmp/a b.md' }],
     ['file:///C:/x/y.md', { kind: 'local', reference: 'C:/x/y.md' }],
+    ['file://localhost/tmp/a.md', { kind: 'local', reference: '/tmp/a.md' }],
+    [
+      'file://server/share/a.md',
+      { kind: 'local', reference: '//server/share/a.md' },
+    ],
     ['javascript:alert(1)', { kind: 'ignore' }],
     ['data:text/html,hi', { kind: 'ignore' }],
     ['blob:tauri://localhost/x', { kind: 'ignore' }],
@@ -125,5 +130,35 @@ describe('relocateLocalReference', () => {
         escapePath: true,
       })
     ).toBe('a/my\\ img.png');
+  });
+});
+
+describe('relocateLocalReference with percent-encoding', () => {
+  const options = {
+    preferRelativePath: true,
+    ensureDotSlash: false,
+    escapePath: true,
+  };
+
+  test('keeps the percent-encoded style instead of backslash escapes', () => {
+    expect(
+      relocateLocalReference(
+        './My%20Image.png',
+        '/docs/note.md',
+        '/docs/sub/note.md',
+        options
+      )
+    ).toBe('../My%20Image.png');
+  });
+
+  test('returns null when the encoded reference still fits', () => {
+    expect(
+      relocateLocalReference(
+        'My%20Image.png',
+        '/docs/note.md',
+        '/docs/copy.md',
+        options
+      )
+    ).toBeNull();
   });
 });

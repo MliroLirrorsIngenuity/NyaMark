@@ -4,9 +4,12 @@ import type {
 } from '../state/image-settings';
 import {
   type AttachmentReferenceOptions,
+  decodeMarkdownPath,
+  fileUriToPath,
   formatAttachmentReference,
   isAbsolutePath,
   normalizePath,
+  percentEncodeMarkdownPath,
   resolveAttachmentPath,
   unescapeMarkdownPath,
 } from './attachment-paths';
@@ -152,16 +155,20 @@ export function relocateLocalReference(
   if (/^file:/i.test(value)) return null;
   if (classifyLinkTarget(value).kind !== 'local') return null;
 
-  const wasRelative = !isAbsolutePath(
-    normalizePath(unescapeMarkdownPath(value))
-  );
+  const decoded = decodeMarkdownPath(unescapeMarkdownPath(value));
+  const wasRelative = !isAbsolutePath(normalizePath(decoded));
+  // A reference written with `%20` keeps that style rather than switching
+  // to the backslash escape the settings may prefer.
+  const percentEncoded = decoded !== value;
   const absolutePath = resolveAttachmentPath(fromDocument, value);
   if (!absolutePath) return null;
 
-  const next = formatAttachmentReference(toDocument, absolutePath, {
+  let next = formatAttachmentReference(toDocument, absolutePath, {
     ...options,
     preferRelativePath: options.preferRelativePath || wasRelative,
+    escapePath: options.escapePath && !percentEncoded,
   });
+  if (percentEncoded) next = percentEncodeMarkdownPath(next);
   return next === value ? null : next;
 }
 
@@ -174,19 +181,4 @@ function parseFileUris(payload: string) {
     .filter((line) => line.startsWith('file://'))
     .map((line) => fileUriToPath(line))
     .filter((line): line is string => Boolean(line));
-}
-
-function fileUriToPath(uri: string) {
-  try {
-    const url = new URL(uri);
-    if (url.protocol !== 'file:') return null;
-
-    let path = decodeURIComponent(url.pathname);
-    if (/^\/[A-Za-z]:\//.test(path)) {
-      path = path.slice(1);
-    }
-    return path;
-  } catch {
-    return null;
-  }
 }
