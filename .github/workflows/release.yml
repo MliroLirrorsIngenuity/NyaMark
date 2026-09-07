@@ -229,6 +229,9 @@ jobs:
       - preparation
       - build
     runs-on: ubuntu-latest
+    env:
+      # This job never checks out the repository, so gh cannot infer the repo from git.
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Download bundled artifacts
         uses: actions/download-artifact@v4
