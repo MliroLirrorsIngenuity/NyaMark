@@ -9,9 +9,13 @@ import {
   openLocalPath,
   openExternalUrl,
 } from '../bridge/ipc/attachments';
-import { openMarkdownInNewWindow } from '../bridge/ipc/files';
+import {
+  errorDialog,
+  openDirectoryDialog,
+  openMarkdownInNewWindow,
+} from '../bridge/ipc/files';
 import { listenWindowFileDrop } from '../bridge/ipc/windows';
-import { openDirectoryDialog } from '../bridge/ipc/files';
+import { i18next } from '../i18n';
 import {
   getSettings,
   updateSettings,
@@ -29,6 +33,12 @@ import {
   policyToInsertRule,
   type InsertRule,
 } from './attachment-policy';
+
+/** One file to insert: a name for the error message and how to load it. */
+type AttachmentSource = {
+  name: string;
+  load: () => Promise<EditorAttachment | null>;
+};
 
 type AttachmentControllerOptions = {
   getMarkdown: () => string;
@@ -82,9 +92,19 @@ export class AttachmentController {
     });
   }
 
+  /**
+   * Upload hook of the image block. Crepe only logs a rejected upload, so
+   * the failure is reported here; an empty URL keeps its placeholder open.
+   */
   async upload(file: File) {
-    const attachment = await this.materializeAttachment(file);
-    return attachment?.href ?? '';
+    try {
+      const attachment = await this.materializeAttachment(file);
+      return attachment?.href ?? '';
+    } catch (error) {
+      console.error('Failed to upload attachment:', error);
+      await this.reportFailure('insert', this.describeFile(file), error);
+      return '';
+    }
   }
 
   async resolvePreviewUrl(src: string) {
@@ -98,6 +118,15 @@ export class AttachmentController {
   }
 
   async openLinkedResource(href: string) {
+    try {
+      await this.openLinkTarget(href);
+    } catch (error) {
+      console.error('Failed to open linked resource:', error);
+      await this.reportFailure('open', href, error);
+    }
+  }
+
+  private async openLinkTarget(href: string) {
     const target = classifyLinkTarget(href);
     if (target.kind === 'ignore') {
       console.warn('Ignoring link with unsupported scheme:', href);
@@ -123,28 +152,25 @@ export class AttachmentController {
     await openLocalPath(absolutePath);
   }
 
-  private async handleDroppedPaths(paths: string[]) {
-    const attachments: EditorAttachment[] = [];
-    for (const path of paths) {
-      const attachment = await this.createAttachmentFromLocalPath(path);
-      if (attachment) {
-        attachments.push(attachment);
-      }
-    }
-
-    this.commitInsertedAttachments(attachments);
+  private handleDroppedPaths(paths: string[]) {
+    return this.insertFromSources(
+      paths.map((path) => ({
+        name: basename(path),
+        load: () => this.createAttachmentFromLocalPath(path),
+      }))
+    );
   }
 
-  private async handleAttachmentPaste(files: File[], filePaths: string[]) {
-    const attachments: EditorAttachment[] = [];
+  private handleAttachmentPaste(files: File[], filePaths: string[]) {
+    const sources: AttachmentSource[] = [];
     const seenPaths = new Set<string>();
 
     for (const path of filePaths) {
       seenPaths.add(path);
-      const attachment = await this.createAttachmentFromLocalPath(path);
-      if (attachment) {
-        attachments.push(attachment);
-      }
+      sources.push({
+        name: basename(path),
+        load: () => this.createAttachmentFromLocalPath(path),
+      });
     }
 
     for (const file of files) {
@@ -152,14 +178,59 @@ export class AttachmentController {
       if (nativePath && seenPaths.has(nativePath)) {
         continue;
       }
+      sources.push({
+        name: this.describeFile(file),
+        load: () => this.materializeAttachment(file),
+      });
+    }
 
-      const attachment = await this.materializeAttachment(file);
-      if (attachment) {
-        attachments.push(attachment);
+    return this.insertFromSources(sources);
+  }
+
+  /**
+   * Load the sources one after another, insert whatever succeeded and show
+   * the first failure. One unreadable file must neither hold back the others
+   * nor vanish into the console: a paste that silently does nothing looks
+   * like a broken editor.
+   */
+  private async insertFromSources(sources: AttachmentSource[]) {
+    const attachments: EditorAttachment[] = [];
+    let failure: { name: string; error: unknown } | null = null;
+
+    for (const source of sources) {
+      try {
+        const attachment = await source.load();
+        if (attachment) attachments.push(attachment);
+      } catch (error) {
+        console.error(`Failed to insert attachment "${source.name}":`, error);
+        failure ??= { name: source.name, error };
       }
     }
 
     this.commitInsertedAttachments(attachments);
+    if (failure) {
+      await this.reportFailure('insert', failure.name, failure.error);
+    }
+  }
+
+  private async reportFailure(
+    action: 'insert' | 'open',
+    name: string,
+    error: unknown
+  ) {
+    const reason = error instanceof Error ? error.message : String(error);
+    await errorDialog(
+      i18next.t(
+        action === 'insert'
+          ? 'dialog.attachmentError.insertFailed'
+          : 'dialog.attachmentError.openFailed',
+        { name, reason }
+      )
+    );
+  }
+
+  private describeFile(file: File) {
+    return file.name || defaultPastedImageName(file);
   }
 
   private async materializeAttachment(
@@ -312,7 +383,9 @@ export class AttachmentController {
           choice.customDirectory ?? this.imageSettings.customCopyDirectory,
       };
       this.imageSettings = next;
-      void updateSettings({ attachments: next });
+      updateSettings({ attachments: next }).catch((error) => {
+        console.error('Failed to save attachment settings:', error);
+      });
     }
 
     return policyToInsertRule(
