@@ -1,6 +1,6 @@
 import { $view } from '@milkdown/kit/utils';
 import { htmlSchema } from '@milkdown/kit/preset/commonmark';
-import DOMPurify from 'dompurify';
+import DOMPurify, { type Config } from 'dompurify';
 import { ensureStyle } from '../../style/register';
 
 /**
@@ -8,9 +8,38 @@ import { ensureStyle } from '../../style/register';
  * untrusted (e.g. a `.md` opened via file association). Sanitize before it ever
  * touches innerHTML so embedded scripts / event handlers cannot execute inside
  * the privileged Tauri webview.
+ *
+ * DOMPurify's defaults still let a `<style>` element through, and a stylesheet
+ * applies to the whole document: a note could hide the title bar or paint a
+ * fake dialog over the editor. Form controls are dropped as well; they cannot
+ * submit anywhere (CSP `form-action 'none'`) and only serve phishing-style
+ * mockups. Inline `style` attributes stay allowed because centred images and
+ * sized tables are everyday Markdown; the preview container uses
+ * `contain: paint`, which turns it into the containing block for fixed and
+ * absolutely positioned descendants, so nothing inside can escape its box.
  */
+const SANITIZE_OPTIONS: Config = {
+  FORBID_TAGS: [
+    'style',
+    'link',
+    'meta',
+    'base',
+    'form',
+    'input',
+    'button',
+    'select',
+    'textarea',
+    'iframe',
+    'object',
+    'embed',
+  ],
+  // Default list minus exotic schemes, plus `asset:` for local images.
+  ALLOWED_URI_REGEXP:
+    /^(?:(?:https?|mailto|tel|asset):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
+};
+
 function sanitizeHtmlBlock(value: string): string {
-  return DOMPurify.sanitize(value);
+  return DOMPurify.sanitize(value, SANITIZE_OPTIONS);
 }
 
 const css = `
@@ -26,6 +55,10 @@ const css = `
   white-space: normal;
   line-height: normal;
   color: var(--ny-text-primary);
+  /* Containing block for fixed/absolute children: untrusted HTML cannot
+     overlay the surrounding UI. Wide content scrolls instead of clipping. */
+  contain: paint;
+  overflow-x: auto;
 }
 
 .ny-html-preview :where(p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote) {
@@ -133,7 +166,14 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
 
     preview.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
-      if (target.closest('a, button, input, select, textarea')) {
+      if (target.closest('a')) {
+        // Never let the webview follow the link itself; that would navigate
+        // the privileged window away and sever the IPC bridge. Ctrl/Cmd-click
+        // bubbles to the editor container, which opens it via the opener.
+        e.preventDefault();
+        return;
+      }
+      if (target.closest('summary, audio, video')) {
         return;
       }
 
