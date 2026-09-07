@@ -90,6 +90,13 @@
       "reload": "Reload",
       "keep": "Keep my version"
     },
+    "unsavedChanges": {
+      "title": "Unsaved changes",
+      "body": "\"{{fileName}}\" has unsaved changes. Save them before closing?",
+      "save": "Save",
+      "discard": "Don't Save",
+      "cancel": "Cancel"
+    },
     "exportPdf": {
       "title": "Export to PDF",
       "subtitle": "Export \"{{fileName}}\" to PDF with the settings below.",
@@ -127,7 +134,9 @@
     "installing": "Installing...",
     "closeDialog": "Close",
     "openDownloadPage": "Open download page",
-    "later": "Later"
+    "later": "Later",
+    "restartNow": "Restart now",
+    "restartLater": "Restart later"
   },
   "settings": {
     "title": "Settings",

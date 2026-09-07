@@ -6,6 +6,7 @@
 import { NyaEditor } from './editor/editor';
 import { SourceModeController } from './editor/source-mode';
 import { AttachmentController } from './features/attachment-controller';
+import { CloseGuard } from './features/close-guard';
 import { FileController } from './features/file-controller';
 import { MenuController } from './features/menu-controller';
 import { ShortcutController } from './features/shortcut-controller';
@@ -125,6 +126,10 @@ export class App {
 
     const initialDocument = await this.fileController.resolveInitialDocument();
     store.update({ filePath: initialDocument.filePath, isDirty: false });
+
+    // Registered before the editor exists so an early close request is never
+    // handled by Tauri's default (destroy without asking).
+    await new CloseGuard(this.fileController).bind();
 
     this.attachments = new AttachmentController({
       getMarkdown: () => this.editor?.getMarkdown() ?? '',

@@ -1,10 +1,10 @@
 #![cfg(target_os = "macos")]
 
+use serde::Deserialize;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
-use serde::Deserialize;
 
-use crate::sessions;
+use crate::{quit, sessions};
 
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +44,7 @@ const MENU_SAVE_ID: &str = "file_save";
 const MENU_SAVE_AS_ID: &str = "file_save_as";
 const MENU_EXPORT_PDF_ID: &str = "file_export_pdf";
 const MENU_SETTINGS_ID: &str = "app_settings";
+const MENU_QUIT_ID: &str = "app_quit";
 
 pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let t = MenuTranslations {
@@ -76,7 +77,10 @@ pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>
     build_custom_macos_menu(app, &t)
 }
 
-pub fn build_custom_macos_menu<R: Runtime>(app: &AppHandle<R>, t: &MenuTranslations) -> tauri::Result<Menu<R>> {
+pub fn build_custom_macos_menu<R: Runtime>(
+    app: &AppHandle<R>,
+    t: &MenuTranslations,
+) -> tauri::Result<Menu<R>> {
     let settings_item = MenuItem::with_id(
         app,
         MENU_SETTINGS_ID,
@@ -98,7 +102,10 @@ pub fn build_custom_macos_menu<R: Runtime>(app: &AppHandle<R>, t: &MenuTranslati
             &PredefinedMenuItem::hide(app, Some(&t.hide))?,
             &PredefinedMenuItem::hide_others(app, Some(&t.hide_others))?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, Some(&t.quit))?,
+            // A custom item instead of `PredefinedMenuItem::quit`: the predefined
+            // one sends `terminate:` straight to NSApp, skipping the unsaved-changes
+            // prompt. This one goes through `quit::request_quit`.
+            &MenuItem::with_id(app, MENU_QUIT_ID, &t.quit, true, Some("CmdOrCtrl+Q"))?,
         ],
     )?;
     let new_item = MenuItem::with_id(app, MENU_NEW_ID, &t.new, true, Some("CmdOrCtrl+N"))?;
@@ -171,13 +178,21 @@ pub fn build_custom_macos_menu<R: Runtime>(app: &AppHandle<R>, t: &MenuTranslati
 }
 
 #[tauri::command]
-pub fn update_macos_menu<R: Runtime>(app: AppHandle<R>, translations: MenuTranslations) -> Result<(), String> {
+pub fn update_macos_menu<R: Runtime>(
+    app: AppHandle<R>,
+    translations: MenuTranslations,
+) -> Result<(), String> {
     let menu = build_custom_macos_menu(&app, &translations).map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 pub fn handle_macos_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
+    if event.id() == MENU_QUIT_ID {
+        quit::request_quit(app);
+        return;
+    }
+
     let action = if event.id() == MENU_NEW_ID {
         Some("new-file")
     } else if event.id() == MENU_OPEN_ID {

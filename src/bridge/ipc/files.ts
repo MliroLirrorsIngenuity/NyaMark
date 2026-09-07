@@ -40,6 +40,32 @@ export async function errorDialog(msg: string): Promise<void> {
   await message(msg, { kind: 'error' });
 }
 
+export type UnsavedChangesAction = 'save' | 'discard' | 'cancel';
+
+/** Native three-button prompt; dismissing the dialog counts as cancel. */
+export async function unsavedChangesDialog(
+  body: string,
+  options: {
+    title: string;
+    saveLabel: string;
+    discardLabel: string;
+    cancelLabel: string;
+  }
+): Promise<UnsavedChangesAction> {
+  const choice = await message(body, {
+    title: options.title,
+    kind: 'warning',
+    buttons: {
+      yes: options.saveLabel,
+      no: options.discardLabel,
+      cancel: options.cancelLabel,
+    },
+  });
+  if (choice === options.saveLabel) return 'save';
+  if (choice === options.discardLabel) return 'discard';
+  return 'cancel';
+}
+
 export async function readMarkdown(path: string): Promise<string> {
   return await readTextFile(path);
 }

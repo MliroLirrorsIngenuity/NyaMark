@@ -89,6 +89,13 @@
       "reload": "重新加载",
       "keep": "保留我的版本"
     },
+    "unsavedChanges": {
+      "title": "未保存的更改",
+      "body": "“{{fileName}}”有未保存的更改。关闭前要保存吗？",
+      "save": "保存",
+      "discard": "不保存",
+      "cancel": "取消"
+    },
     "exportPdf": {
       "title": "导出为 PDF",
       "subtitle": "按下面的设置将“{{fileName}}”导出为 PDF。",
@@ -126,7 +133,9 @@
     "installing": "正在安装...",
     "closeDialog": "关闭",
     "openDownloadPage": "打开下载页",
-    "later": "稍后"
+    "later": "稍后",
+    "restartNow": "立即重启",
+    "restartLater": "稍后重启"
   },
   "settings": {
     "title": "设置",

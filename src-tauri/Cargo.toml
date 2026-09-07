@@ -32,5 +32,10 @@ serde_json = "1"
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# Used to hook `applicationShouldTerminate:` so dock Quit / logout prompt for unsaved changes.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder"] }
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }

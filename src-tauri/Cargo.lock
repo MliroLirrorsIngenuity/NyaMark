@@ -7,6 +7,8 @@ name = "NyaMark"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
+ "objc2",
+ "objc2-app-kit",
  "serde",
  "serde_json",
  "tauri",

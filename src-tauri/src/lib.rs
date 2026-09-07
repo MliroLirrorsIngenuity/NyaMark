@@ -1,5 +1,6 @@
 #[cfg(target_os = "macos")]
 pub mod menu;
+pub mod quit;
 pub mod sessions;
 pub mod windows;
 
@@ -14,8 +15,8 @@ use std::{
 use tauri::{AppHandle, Manager, Window};
 
 use crate::sessions::{
-    LastFocusedWindow, MainWindowBootstrapComplete, PendingLaunchFiles, WindowCounter,
-    WindowSessions,
+    LastFocusedWindow, MainWindowBootstrapComplete, PendingLaunchFiles, RestartPending,
+    WindowCounter, WindowDirtyFlags, WindowSessions,
 };
 
 #[tauri::command]
@@ -85,6 +86,31 @@ fn ensure_attachment_directory(app: AppHandle, path: String) -> Result<String, S
     sessions::ensure_attachment_directory(&app, &path)
 }
 
+/// The webview reports its unsaved-changes state so quit paths that never touch
+/// a single window (Cmd+Q, dock Quit, logout, updater restart) can prompt.
+#[tauri::command]
+fn set_window_dirty(window: Window, app: AppHandle, dirty: bool) {
+    sessions::set_window_dirty(&app, window.label(), dirty);
+}
+
+/// Restart after an update was installed. Dirty windows get their prompt first;
+/// the restart itself happens once the last window closed (see `quit.rs`).
+#[tauri::command]
+fn request_app_restart(app: AppHandle) -> Result<(), String> {
+    if sessions::any_window_dirty(&app) {
+        sessions::set_restart_pending(&app, true);
+        quit::close_all_windows(&app);
+        return Ok(());
+    }
+    app.restart()
+}
+
+/// The user cancelled an unsaved-changes prompt, so a pending restart is off.
+#[tauri::command]
+fn cancel_pending_quit(app: AppHandle) {
+    sessions::set_restart_pending(&app, false);
+}
+
 #[tauri::command]
 fn set_windows_backdrop(window: Window, enabled: bool) -> Result<(), String> {
     windows::set_native_backdrop(&window, enabled).map_err(|error| error.to_string())
@@ -105,6 +131,8 @@ pub fn run() {
         .manage(LastFocusedWindow(Mutex::new(None)))
         .manage(WindowCounter(AtomicUsize::new(1)))
         .manage(MainWindowBootstrapComplete(AtomicBool::new(false)))
+        .manage(WindowDirtyFlags(Mutex::new(HashMap::new())))
+        .manage(RestartPending(AtomicBool::new(false)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -145,6 +173,7 @@ pub fn run() {
             tauri::WindowEvent::Destroyed => {
                 let app = window.app_handle();
                 sessions::forget_window_file(&app, window.label());
+                sessions::forget_window_dirty(&app, window.label());
                 sessions::clear_last_focused_window(&app, window.label());
             }
             _ => {}
@@ -155,6 +184,9 @@ pub fn run() {
             ensure_attachment_directory,
             open_new_window,
             open_markdown_in_new_window,
+            set_window_dirty,
+            request_app_restart,
+            cancel_pending_quit,
             set_windows_backdrop,
             print_current_window,
             #[cfg(target_os = "macos")]
@@ -162,7 +194,10 @@ pub fn run() {
         ])
         .setup(|app| {
             #[cfg(desktop)]
-            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
+            #[cfg(target_os = "macos")]
+            quit::install_macos_terminate_hook(app.handle());
             Ok(())
         });
 
@@ -174,19 +209,19 @@ pub fn run() {
     builder
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app, _event| {
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested { code, api, .. } => {
+                quit::handle_exit_requested(app, code, &api);
+            }
             #[cfg(target_os = "macos")]
-            handle_run_event(_app, _event);
+            tauri::RunEvent::Opened { urls } => handle_opened_urls(app, &urls),
+            _ => {}
         });
 }
 
 #[cfg(target_os = "macos")]
-fn handle_run_event(app: &AppHandle, event: tauri::RunEvent) {
-    let tauri::RunEvent::Opened { urls } = event else {
-        return;
-    };
-
-    let paths = normalize_opened_paths(&urls);
+fn handle_opened_urls(app: &AppHandle, urls: &[tauri::Url]) {
+    let paths = normalize_opened_paths(urls);
     if paths.is_empty() {
         return;
     }

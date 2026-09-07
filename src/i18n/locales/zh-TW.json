@@ -89,6 +89,13 @@
       "reload": "重新載入",
       "keep": "保留我的版本"
     },
+    "unsavedChanges": {
+      "title": "未儲存的變更",
+      "body": "「{{fileName}}」有未儲存的變更。關閉前要儲存嗎？",
+      "save": "儲存",
+      "discard": "不儲存",
+      "cancel": "取消"
+    },
     "exportPdf": {
       "title": "匯出為 PDF",
       "subtitle": "依照下列設定將「{{fileName}}」匯出為 PDF。",
@@ -126,7 +133,9 @@
     "installing": "正在安裝...",
     "closeDialog": "關閉",
     "openDownloadPage": "開啟下載頁",
-    "later": "稍後"
+    "later": "稍後",
+    "restartNow": "立即重新啟動",
+    "restartLater": "稍後重新啟動"
   },
   "settings": {
     "title": "設定",

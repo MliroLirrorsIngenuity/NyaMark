@@ -26,6 +26,14 @@ pub struct MainWindowBootstrapComplete(pub AtomicBool);
 /// Last editor window that held focus, used to target app-menu actions.
 pub struct LastFocusedWindow(pub Mutex<Option<String>>);
 
+/// Unsaved-changes flag per window label, reported by the webview. Quit paths
+/// that bypass a single window (Cmd+Q, dock Quit, logout, updater restart) use
+/// it to decide whether anything still needs a prompt.
+pub struct WindowDirtyFlags(pub Mutex<HashMap<String, bool>>);
+
+/// Set while an updater-triggered restart waits for dirty windows to close.
+pub struct RestartPending(pub AtomicBool);
+
 pub fn normalize_file_path(path: impl AsRef<Path>) -> Option<String> {
     let path = path.as_ref();
     if !path.is_file() {
@@ -83,10 +91,7 @@ pub fn allow_document_scope<R: Runtime>(app: &AppHandle<R>, path: &str) {
         return;
     }
     if let Err(error) = scope.allow_directory(parent, true) {
-        eprintln!(
-            "Failed to allow fs scope for {}: {error}",
-            parent.display()
-        );
+        eprintln!("Failed to allow fs scope for {}: {error}", parent.display());
     }
 }
 
@@ -183,6 +188,41 @@ pub fn clear_last_focused_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
     if current.as_deref() == Some(label) {
         current.take();
     }
+}
+
+pub fn set_window_dirty<R: Runtime>(app: &AppHandle<R>, label: &str, dirty: bool) {
+    app.state::<WindowDirtyFlags>()
+        .0
+        .lock()
+        .unwrap()
+        .insert(label.to_string(), dirty);
+}
+
+pub fn forget_window_dirty<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    app.state::<WindowDirtyFlags>()
+        .0
+        .lock()
+        .unwrap()
+        .remove(label);
+}
+
+/// True when any window that still exists reports unsaved changes.
+pub fn any_window_dirty<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let flags = app.state::<WindowDirtyFlags>();
+    let flags = flags.0.lock().unwrap();
+    app.webview_windows()
+        .keys()
+        .any(|label| flags.get(label).copied().unwrap_or(false))
+}
+
+pub fn set_restart_pending<R: Runtime>(app: &AppHandle<R>, pending: bool) {
+    app.state::<RestartPending>()
+        .0
+        .store(pending, Ordering::Release);
+}
+
+pub fn is_restart_pending<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.state::<RestartPending>().0.load(Ordering::Acquire)
 }
 
 pub fn is_main_bootstrap_complete<R: Runtime>(app: &AppHandle<R>) -> bool {

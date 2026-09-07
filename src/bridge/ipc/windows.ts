@@ -59,6 +59,34 @@ export async function closeWindow(): Promise<void> {
   await getCurrentWindow().close();
 }
 
+/**
+ * Registers the single decision point for closing this window. Returning
+ * `false` from the handler keeps the window open; `true` destroys it. While a
+ * handler is registered Tauri never destroys the window on its own.
+ */
+export async function onWindowCloseRequested(
+  handler: () => Promise<boolean>
+): Promise<UnlistenFn> {
+  return await getCurrentWindow().onCloseRequested(async (event) => {
+    if (!(await handler())) {
+      event.preventDefault();
+    }
+  });
+}
+
+export async function setWindowDirty(dirty: boolean): Promise<void> {
+  await invoke('set_window_dirty', { dirty });
+}
+
+/** Restart after an update; dirty windows prompt first (see `quit.rs`). */
+export async function requestAppRestart(): Promise<void> {
+  await invoke('request_app_restart');
+}
+
+export async function cancelPendingQuit(): Promise<void> {
+  await invoke('cancel_pending_quit');
+}
+
 export async function printCurrentWindow(): Promise<void> {
   await invoke('print_current_window');
 }

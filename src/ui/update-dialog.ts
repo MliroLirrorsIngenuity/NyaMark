@@ -1,5 +1,5 @@
-import { relaunch } from '@tauri-apps/plugin-process';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { requestAppRestart } from '../bridge/ipc/windows';
 import type { Update, DownloadEvent } from '@tauri-apps/plugin-updater';
 import { i18next } from '../i18n';
 import { ensureStyle } from '../style/register';
@@ -371,7 +371,32 @@ export class UpdateDialog {
       if (event.target === overlay) void close();
     });
     later.addEventListener('click', () => void close());
+
+    // One click handler driven by a phase, so a failed or finished install
+    // never leaves the original "download" handler attached underneath.
+    let phase: 'idle' | 'downloading' | 'installed' | 'failed' = 'idle';
     updateNow.addEventListener('click', () => {
+      if (phase === 'downloading') return;
+
+      if (phase === 'installed') {
+        updateNow.disabled = true;
+        void requestAppRestart()
+          .catch(console.error)
+          .finally(() => {
+            updateNow.disabled = false;
+          });
+        return;
+      }
+
+      if (phase === 'failed') {
+        void openUrl(
+          'https://github.com/MliroLirrorsIngenuity/NyaMark/releases'
+        ).catch(console.error);
+        void close();
+        return;
+      }
+
+      phase = 'downloading';
       updateNow.disabled = true;
       later.disabled = true;
       updateNow.textContent = i18next.t('updates.downloading');
@@ -397,23 +422,23 @@ export class UpdateDialog {
               break;
           }
         })
-        .then(() => relaunch())
+        .then(async () => {
+          phase = 'installed';
+          // Only returns when a window with unsaved changes declined to close;
+          // the update is installed either way, so offer to restart again or later.
+          await requestAppRestart();
+          updateNow.textContent = i18next.t('updates.restartNow');
+          updateNow.disabled = false;
+          later.textContent = i18next.t('updates.restartLater');
+          later.disabled = false;
+        })
         .catch((error) => {
           console.error(error);
+          phase = 'failed';
           later.textContent = i18next.t('updates.closeDialog');
           later.disabled = false;
           updateNow.textContent = i18next.t('updates.openDownloadPage');
           updateNow.disabled = false;
-          updateNow.addEventListener(
-            'click',
-            () => {
-              void openUrl(
-                'https://github.com/MliroLirrorsIngenuity/NyaMark/releases'
-              ).catch(console.error);
-              void close();
-            },
-            { once: true }
-          );
         });
     });
   }
