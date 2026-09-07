@@ -198,6 +198,16 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
         }
         return true;
       },
+      // Keys and mouse inside the textarea belong to the textarea. Without
+      // this ProseMirror's keymap sees Enter, Backspace and Mod-Z first and
+      // edits the document around the block instead of the HTML in it.
+      stopEvent: (event) => textarea.contains(event.target as Node),
+      selectNode: () => {
+        dom.classList.add('ProseMirror-selectednode');
+      },
+      deselectNode: () => {
+        dom.classList.remove('ProseMirror-selectednode');
+      },
       ignoreMutation: () => true,
     };
   };
