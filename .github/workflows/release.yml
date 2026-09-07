@@ -134,10 +134,19 @@ jobs:
 
       - name: Update Version in files
         shell: bash
+        env:
+          IS_PRERELEASE: ${{ needs.preparation.outputs.is_prerelease }}
         run: |
           VERSION="${{ needs.preparation.outputs.version }}"
           perl -i -pe "s/\"version\": \".*?\"/\"version\": \"$VERSION\"/" package.json
           perl -i -pe "s/^version = \".*?\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          # `releases/latest` only ever resolves to a stable release, so
+          # pre-release builds follow the rolling `updater-beta` feed instead
+          # (see "Publish updater feed" below). Stable builds keep the default.
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            perl -i -pe 's#releases/latest/download/latest\.json#releases/download/updater-beta/latest.json#' src-tauri/tauri.conf.json
+            grep -q "updater-beta/latest.json" src-tauri/tauri.conf.json
+          fi
 
       - name: Install Linux dependencies
         if: contains(matrix.platform, 'ubuntu')
@@ -211,9 +220,17 @@ jobs:
             exit 1
           fi
 
-          if [ -n "${UPDATE_ASSET:-}" ] && [ -f "${UPDATE_ASSET}.sig" ]; then
-            printf '%s\n' "$(basename "$UPDATE_ASSET")" > "updater_metadata/${UPDATER_KEY}.txt"
+          # Every matrix entry feeds one updater platform; a missing bundle or
+          # signature would silently drop that platform from latest.json.
+          if [ -z "${UPDATE_ASSET:-}" ]; then
+            echo "No updater bundle found for $UPDATER_KEY in $BASE_DIR"
+            exit 1
           fi
+          if [ ! -f "${UPDATE_ASSET}.sig" ]; then
+            echo "Missing updater signature ${UPDATE_ASSET}.sig (is TAURI_SIGNING_PRIVATE_KEY set?)"
+            exit 1
+          fi
+          printf '%s\n' "$(basename "$UPDATE_ASSET")" > "updater_metadata/${UPDATER_KEY}.txt"
 
       - name: Upload bundled artifacts
         uses: actions/upload-artifact@v4
@@ -280,7 +297,6 @@ jobs:
           gh release upload "$TAG_NAME" collected_artifacts/upload_dist/* --clobber
 
       - name: Generate latest.json
-        if: needs.preparation.outputs.is_prerelease != 'true'
         shell: bash
         env:
           TAG_NAME: ${{ needs.preparation.outputs.tag }}
@@ -323,13 +339,38 @@ jobs:
             mv "$TMP_JSON" latest.json
           done
 
-          jq -e '.platforms | length > 0' latest.json >/dev/null
+          # Each matrix entry must have contributed, otherwise one platform
+          # would silently stop receiving updates.
+          for platform in windows-x86_64 windows-aarch64 darwin-x86_64 darwin-aarch64 linux-x86_64 linux-aarch64; do
+            if ! jq -e --arg platform "$platform" '.platforms[$platform]' latest.json >/dev/null; then
+              echo "latest.json is missing platform $platform"
+              exit 1
+            fi
+          done
           jq . latest.json
 
       - name: Upload latest.json
-        if: needs.preparation.outputs.is_prerelease != 'true'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ needs.preparation.outputs.tag }}
         run: gh release upload "$TAG_NAME" latest.json --clobber
+
+      # Stable builds poll `releases/latest/download/latest.json`, which GitHub
+      # keeps pointing at the newest stable release. Pre-release builds poll a
+      # rolling `updater-beta` release that always carries the newest release
+      # of either kind, so beta users are moved to the next stable as well.
+      - name: Publish updater feed for pre-release builds
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FEED_TAG: updater-beta
+          TARGET_COMMITISH: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$FEED_TAG" >/dev/null 2>&1; then
+            gh release create "$FEED_TAG" --target "$TARGET_COMMITISH" --prerelease \
+              --title "Updater feed (beta channel)" \
+              --notes "Rolling metadata consumed by pre-release builds of NyaMark. Not a release; install from the versioned releases."
+          fi
+          gh release upload "$FEED_TAG" latest.json --clobber
