@@ -119,11 +119,34 @@ export class ThemeManager {
     document.documentElement.classList.toggle('dark', mode === 'dark');
     document.documentElement.dataset.theme = mode;
     document.documentElement.style.colorScheme = mode;
-    void setWindowTheme(mode);
+    void this.syncWindowTheme(mode);
     window.dispatchEvent(
       new CustomEvent('nyamark:themechange', { detail: { mode } })
     );
     this.listeners.forEach((listener) => listener(mode));
+  }
+
+  /**
+   * An explicit preference is pushed to the native window so its chrome
+   * matches. `auto` hands the window back to the system: a forced theme is
+   * process-wide on macOS (NSApp appearance) and suppresses the ThemeChanged
+   * events on Windows, so leaving it set would pin every window to whatever
+   * the system looked like at the first apply.
+   */
+  private async syncWindowTheme(mode: ThemeMode) {
+    try {
+      if (this.preference !== 'auto') {
+        await setWindowTheme(mode);
+        return;
+      }
+      await setWindowTheme(null);
+      // Windows reports no event for the reset itself; read the system
+      // theme back in case it changed while the preference was forced.
+      const theme = await getWindowTheme();
+      if (theme && this.preference === 'auto') this.setSystemMode(theme);
+    } catch {
+      // Browser preview: no native window to sync.
+    }
   }
 
   destroy() {
