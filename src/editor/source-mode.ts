@@ -297,6 +297,8 @@ export class SourceModeController {
   private syncTimer: number | null = null;
   /** CodeMirror text as of the last push into Crepe; edits since are pending. */
   private lastSyncedText = '';
+  /** Set while CodeMirror is being overwritten from the editor side. */
+  private applyingEditorText = false;
   private active = false;
   private lastScrollSource: HTMLElement | null = null;
   private activeScrollSource: HTMLElement | null = null;
@@ -356,6 +358,33 @@ export class SourceModeController {
     if (text === this.lastSyncedText) return;
     this.lastSyncedText = text;
     this.editor.setMarkdown(text);
+    this.invalidateAnchors();
+  }
+
+  /**
+   * The editor received a new document from outside the source pane (a reload
+   * after the file changed on disk). CodeMirror follows, dropping whatever it
+   * still held: the reload only happens once the editor was clean or the user
+   * chose the disk version over their edits.
+   */
+  refreshFromEditor() {
+    if (this.syncTimer != null) {
+      window.clearTimeout(this.syncTimer);
+      this.syncTimer = null;
+    }
+    if (!this.cmView) return;
+    const text = this.editor.getMarkdown();
+    this.lastSyncedText = text;
+    const { doc } = this.cmView.state;
+    if (doc.toString() === text) return;
+    this.applyingEditorText = true;
+    try {
+      this.cmView.dispatch({
+        changes: { from: 0, to: doc.length, insert: text },
+      });
+    } finally {
+      this.applyingEditorText = false;
+    }
     this.invalidateAnchors();
   }
 
@@ -426,7 +455,7 @@ export class SourceModeController {
           markdown(),
           this.cmThemeCompartment.of(this.themeExtension()),
           EditorView.updateListener.of((update) => {
-            if (!update.docChanged) return;
+            if (!update.docChanged || this.applyingEditorText) return;
             this.invalidateAnchors();
             this.scheduleSync();
           }),

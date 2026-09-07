@@ -288,13 +288,17 @@ export class App {
   }
 
   private syncEditorAfterSave(savedContent: string) {
-    if (!this.editor || savedContent === this.editor.getMarkdown()) return;
-    this.suppressDirtyTracking = true;
-    try {
-      this.editor.setMarkdown(savedContent);
-    } finally {
-      this.suppressDirtyTracking = false;
+    if (!this.editor) return;
+    if (savedContent !== this.editor.getMarkdown()) {
+      this.suppressDirtyTracking = true;
+      try {
+        this.editor.setMarkdown(savedContent);
+      } finally {
+        this.suppressDirtyTracking = false;
+      }
     }
+    // A stale source pane would write the pre-reload text back on exit.
+    this.sourceMode?.refreshFromEditor();
     this.refreshStatsSoon();
   }
 

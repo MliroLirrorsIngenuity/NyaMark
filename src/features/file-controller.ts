@@ -108,6 +108,9 @@ export class FileController {
   }
 
   private async reloadChangedFile(path: string) {
+    // Keystrokes still buffered in the source pane are unsaved edits too and
+    // must count towards the dirty check below.
+    this.flushPendingEdits();
     const state = store.getState();
     if (state.filePath !== path) {
       return;
