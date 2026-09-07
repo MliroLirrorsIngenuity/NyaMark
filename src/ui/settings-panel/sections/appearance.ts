@@ -2,7 +2,19 @@ import { getPlatform } from '../../../platform/detect';
 import {
   sanitizeAppearanceSettings,
   type AppearanceSettings,
+  type ThemePreference,
 } from '../../../state/settings';
+import { renderSelect } from '../select';
+
+const THEMES: { value: ThemePreference; label: string; i18n: string }[] = [
+  {
+    value: 'auto',
+    label: 'Follow system',
+    i18n: 'settings.appearance.themeAuto',
+  },
+  { value: 'light', label: 'Light', i18n: 'settings.appearance.themeLight' },
+  { value: 'dark', label: 'Dark', i18n: 'settings.appearance.themeDark' },
+];
 
 export function renderAppearanceSection(
   current: AppearanceSettings,
@@ -13,6 +25,12 @@ export function renderAppearanceSection(
   section.className = 'ny-settings__section';
   section.innerHTML = `
     <h4 class="ny-settings__section-title" data-i18n="settings.appearance.title">Appearance</h4>
+    <div class="ny-settings__row">
+      <label class="ny-settings__field">
+        <span data-i18n="settings.appearance.theme">Theme</span>
+        <div class="ny-settings__select" data-key="theme"></div>
+      </label>
+    </div>
     ${
       showTransparency
         ? `
@@ -40,6 +58,20 @@ export function renderAppearanceSection(
       </label>
     </div>
   `;
+
+  const themeSelect = section.querySelector<HTMLElement>(
+    '.ny-settings__select[data-key="theme"]'
+  );
+  if (themeSelect) {
+    renderSelect(themeSelect, THEMES, current.theme, (value) => {
+      const next = sanitizeAppearanceSettings({
+        ...current,
+        theme: value as ThemePreference,
+      });
+      onChange(next, 'commit');
+      Object.assign(current, next);
+    });
+  }
 
   const inputs = section.querySelectorAll<HTMLInputElement>('input[data-key]');
   inputs.forEach((input) => {

@@ -164,7 +164,11 @@
       "fontSize": "Font size",
       "lineHeight": "Line height",
       "readableWidth": "Readable width (px)",
-      "windowTransparency": "Frosted glass effect"
+      "windowTransparency": "Frosted glass effect",
+      "theme": "Theme",
+      "themeAuto": "Follow system",
+      "themeLight": "Light",
+      "themeDark": "Dark"
     },
     "save": {
       "title": "Save Policy",

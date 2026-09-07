@@ -3,124 +3,131 @@ import {
   listenWindowThemeChange,
   setWindowTheme,
 } from '../bridge/ipc/windows';
+import {
+  getSettings,
+  registerThemeApplier,
+  type ThemePreference,
+  updateSettings,
+} from '../state/settings';
 
 export type ThemeMode = 'light' | 'dark';
 
-const STORAGE_KEY = 'nyamark-theme';
+/** Where the toggle used to keep its choice before it moved into settings. */
+const LEGACY_STORAGE_KEY = 'nyamark-theme';
 
 /**
- * Per-app theme controller.
+ * Resolves the theme preference from the settings into the light/dark mode
+ * the document renders in, and keeps it applied.
  *
- * Behaviour:
- *  - On first launch we follow the OS / window's reported theme and keep
- *    listening for system changes — same as a fresh Typora install.
- *  - The moment the user flips the toolbar's light/dark toggle we treat
- *    that as a sticky preference: the choice is written to localStorage
- *    and the OS / window listeners stop overriding it. New windows pick
- *    the same value up at boot, so opening another file no longer snaps
- *    the editor back to the system theme.
+ *  - `auto` follows the operating system through the window's reported
+ *    theme, with the `prefers-color-scheme` media query as the fallback
+ *    outside Tauri.
+ *  - The toolbar toggle writes an explicit `light` / `dark` preference to
+ *    the settings, so every open window and every window opened later show
+ *    the same theme. "Follow system" is available again from the settings
+ *    dialog.
  */
 export class ThemeManager {
-  private mode: ThemeMode;
+  private preference: ThemePreference = 'auto';
+  private systemMode: ThemeMode;
+  private mode: ThemeMode | null = null;
   private listeners = new Set<(mode: ThemeMode) => void>();
   private readonly mediaQuery =
     window.matchMedia?.('(prefers-color-scheme: dark)') ?? null;
   private readonly handleBrowserThemeChange = (event: MediaQueryListEvent) => {
-    if (this.hasManualPreference()) return;
-    this.setMode(event.matches ? 'dark' : 'light');
+    this.setSystemMode(event.matches ? 'dark' : 'light');
   };
   private nativeUnlisten: (() => void) | null = null;
 
   constructor() {
-    const stored = this.readStoredPreference();
-    if (stored) {
-      this.mode = stored;
-    } else {
-      this.mode = this.mediaQuery?.matches ? 'dark' : 'light';
-    }
+    this.systemMode = this.mediaQuery?.matches ? 'dark' : 'light';
     this.mediaQuery?.addEventListener('change', this.handleBrowserThemeChange);
-    this.apply();
+    registerThemeApplier((preference) => this.setPreference(preference));
+    this.importLegacyPreference();
     void this.bindNativeTheme();
   }
 
   toggle() {
-    const next: ThemeMode = this.mode === 'dark' ? 'light' : 'dark';
-    this.setMode(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // localStorage may be unavailable (private browsing); the in-memory
-      // mode is still correct for this window.
-    }
+    const next: ThemeMode = this.getMode() === 'dark' ? 'light' : 'dark';
+    // The applier registered above picks the change up synchronously.
+    void updateSettings({ appearance: { theme: next } }).catch((error) => {
+      console.error('Failed to save theme preference:', error);
+    });
   }
 
   getMode(): ThemeMode {
-    return this.mode;
+    return this.mode ?? this.resolveMode();
   }
 
   onChange(listener: (mode: ThemeMode) => void) {
     this.listeners.add(listener);
-    listener(this.mode);
+    listener(this.getMode());
     return () => {
       this.listeners.delete(listener);
     };
   }
 
-  private hasManualPreference(): boolean {
-    return this.readStoredPreference() !== null;
+  private setPreference(preference: ThemePreference) {
+    this.preference = preference;
+    this.apply();
   }
 
-  private readStoredPreference(): ThemeMode | null {
+  private setSystemMode(mode: ThemeMode) {
+    this.systemMode = mode;
+    this.apply();
+  }
+
+  private resolveMode(): ThemeMode {
+    return this.preference === 'auto' ? this.systemMode : this.preference;
+  }
+
+  /** A choice made with the toggle before 1.0 moves into the settings once. */
+  private importLegacyPreference() {
+    let stored: string | null = null;
     try {
-      const value = localStorage.getItem(STORAGE_KEY);
-      return value === 'light' || value === 'dark' ? value : null;
+      stored = localStorage.getItem(LEGACY_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
     } catch {
-      return null;
+      return;
     }
+    if (stored !== 'light' && stored !== 'dark') return;
+    if (getSettings().appearance.theme !== 'auto') return;
+    void updateSettings({ appearance: { theme: stored } }).catch((error) => {
+      console.error('Failed to migrate theme preference:', error);
+    });
   }
 
   private async bindNativeTheme() {
     try {
-      // The Tauri-reported theme should only act as a default fallback.
-      // If the user has already chosen a theme, do nothing — that choice
-      // wins until they toggle again (or clear localStorage).
-      if (!this.hasManualPreference()) {
-        const theme = await getWindowTheme();
-        if (theme && !this.hasManualPreference()) {
-          this.setMode(theme);
-        }
-      }
-
+      const theme = await getWindowTheme();
+      if (theme) this.setSystemMode(theme);
       this.nativeUnlisten = await listenWindowThemeChange((nextTheme) => {
-        if (this.hasManualPreference()) return;
-        this.setMode(nextTheme);
+        this.setSystemMode(nextTheme);
       });
     } catch {
       // Browser preview falls back to matchMedia only.
     }
   }
 
-  private setMode(mode: ThemeMode) {
+  private apply() {
+    const mode = this.resolveMode();
     if (this.mode === mode && document.documentElement.dataset.theme === mode) {
       return;
     }
-
     this.mode = mode;
-    this.apply();
-  }
 
-  private apply() {
-    document.documentElement.classList.toggle('dark', this.mode === 'dark');
-    document.documentElement.dataset.theme = this.mode;
-    document.documentElement.style.colorScheme = this.mode;
-    void setWindowTheme(this.mode);
+    document.documentElement.classList.toggle('dark', mode === 'dark');
+    document.documentElement.dataset.theme = mode;
+    document.documentElement.style.colorScheme = mode;
+    void setWindowTheme(mode);
     window.dispatchEvent(
-      new CustomEvent('nyamark:themechange', { detail: { mode: this.mode } })
+      new CustomEvent('nyamark:themechange', { detail: { mode } })
     );
-    this.listeners.forEach((listener) => listener(this.mode));
+    this.listeners.forEach((listener) => listener(mode));
   }
 
   destroy() {
+    registerThemeApplier(null);
     this.mediaQuery?.removeEventListener(
       'change',
       this.handleBrowserThemeChange

@@ -163,7 +163,11 @@
       "fontSize": "字体大小",
       "lineHeight": "行高",
       "readableWidth": "最佳阅读宽度 (px)",
-      "windowTransparency": "毛玻璃效果"
+      "windowTransparency": "毛玻璃效果",
+      "theme": "主题",
+      "themeAuto": "跟随系统",
+      "themeLight": "浅色",
+      "themeDark": "深色"
     },
     "save": {
       "title": "保存",

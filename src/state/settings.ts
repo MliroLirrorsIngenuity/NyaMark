@@ -2,13 +2,18 @@ import { type ImageSettings, defaultImageSettings } from './image-settings';
 import {
   hasPersistedLanguage as hasStoredLanguage,
   loadPersistedSettings,
+  onPersistedSettingsChange,
   savePersistedSettings,
 } from '../bridge/ipc/settings';
 import { getPlatform } from '../platform/detect';
 import { getCurrentWindow, Effect, EffectState } from '@tauri-apps/api/window';
 import { setNativeWindowBackdrop } from '../bridge/ipc/windows';
 
+/** `auto` follows the operating system. */
+export type ThemePreference = 'auto' | 'light' | 'dark';
+
 export type AppearanceSettings = {
+  theme: ThemePreference;
   fontSize: number;
   lineHeight: number;
   readableMaxWidth: number;
@@ -38,6 +43,7 @@ export const defaultSettings: Settings = {
     language: 'auto',
   },
   appearance: {
+    theme: 'auto',
     fontSize: 14,
     lineHeight: 1.52,
     readableMaxWidth: 720,
@@ -52,6 +58,19 @@ export const defaultSettings: Settings = {
 
 let cached: Settings = structuredClone(defaultSettings);
 let hydrated = false;
+let themeApplier: ((theme: ThemePreference) => void) | null = null;
+
+/**
+ * The theme controller registers here so the theme is applied together with
+ * the rest of the appearance: on load, on save, on a live preview from the
+ * settings dialog, and when another window changes it.
+ */
+export function registerThemeApplier(
+  applier: ((theme: ThemePreference) => void) | null
+) {
+  themeApplier = applier;
+  applier?.(cached.appearance.theme);
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -96,7 +115,12 @@ async function applyWindowEffects(transparency: boolean) {
 export function sanitizeAppearanceSettings(
   appearance: Partial<AppearanceSettings> | undefined
 ): AppearanceSettings {
+  const theme = appearance?.theme;
   return {
+    theme:
+      theme === 'light' || theme === 'dark'
+        ? theme
+        : defaultSettings.appearance.theme,
     fontSize: clamp(
       Number(appearance?.fontSize ?? defaultSettings.appearance.fontSize),
       11,
@@ -159,6 +183,7 @@ function applyAppearance(appearance: AppearanceSettings) {
     `${appearance.readableMaxWidth}px`
   );
   void applyWindowEffects(appearance.windowTransparency);
+  themeApplier?.(appearance.theme);
 }
 
 export function previewAppearance(appearance: AppearanceSettings) {
@@ -180,12 +205,11 @@ function normalizeSettings(
 }
 
 export function getSettings(): Settings {
-  applyAppearance(cached.appearance);
   return cached;
 }
 
 export async function hydrateSettings(): Promise<Settings> {
-  if (hydrated) return getSettings();
+  if (hydrated) return cached;
   try {
     cached = normalizeSettings(await loadPersistedSettings());
   } catch (error) {
@@ -195,7 +219,30 @@ export async function hydrateSettings(): Promise<Settings> {
 
   hydrated = true;
   applyAppearance(cached.appearance);
+  void followOtherWindows();
   return cached;
+}
+
+/**
+ * Every window keeps its own copy of the settings; a write from any window
+ * replaces the copies everywhere so no window later saves a stale snapshot
+ * over the change. The writing window receives its own event too and
+ * ignores it because the copy already matches.
+ */
+async function followOtherWindows() {
+  try {
+    await onPersistedSettingsChange((persisted) => {
+      const next = normalizeSettings(persisted);
+      if (JSON.stringify(next) === JSON.stringify(cached)) return;
+      cached = next;
+      applyAppearance(cached.appearance);
+      window.dispatchEvent(
+        new CustomEvent<Settings>(SETTINGS_EVENT, { detail: cached })
+      );
+    });
+  } catch (error) {
+    console.error('Failed to subscribe to settings changes:', error);
+  }
 }
 
 export async function hasPersistedLanguage() {
@@ -219,7 +266,11 @@ export async function saveSettings(next: Settings) {
   );
 }
 
-export async function updateSettings(partial: Partial<Settings>) {
+export type SettingsPatch = {
+  [Section in keyof Settings]?: Partial<Settings[Section]>;
+};
+
+export async function updateSettings(partial: SettingsPatch) {
   const current = getSettings();
   const merged: Settings = {
     general: { ...current.general, ...(partial.general ?? {}) },

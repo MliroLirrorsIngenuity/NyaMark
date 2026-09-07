@@ -1,3 +1,4 @@
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { BaseDirectory, exists, readTextFile } from '@tauri-apps/plugin-fs';
 import { load, type Store } from '@tauri-apps/plugin-store';
 import type { Settings } from '../../state/settings';
@@ -28,6 +29,18 @@ export async function savePersistedSettings(settings: Settings): Promise<void> {
     }
     throw error;
   }
+}
+
+/**
+ * Fires for every write to the settings key, from any window: the store lives
+ * on the Rust side and is shared by every window that loads the same file,
+ * and its change event is broadcast app-wide.
+ */
+export async function onPersistedSettingsChange(
+  handler: (settings: Partial<Settings> | undefined) => void
+): Promise<UnlistenFn> {
+  const store = await settingsStore();
+  return await store.onKeyChange<Partial<Settings>>(STORE_KEY, handler);
 }
 
 export async function hasPersistedLanguage(): Promise<boolean> {
