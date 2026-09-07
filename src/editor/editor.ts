@@ -40,7 +40,7 @@ export class NyaEditor {
   private detachMermaidThemeListener: (() => void) | null = null;
   private detachDragSelectGuard: (() => void) | null = null;
   private onChangeCallback?: (markdown: string) => void;
-  private onDocChangedCallback?: () => void;
+  private readonly docChangedListeners = new Set<() => void>();
 
   constructor(
     private readonly root: HTMLElement,
@@ -106,8 +106,12 @@ export class NyaEditor {
    * control returns to whoever dispatched it. Dirty tracking hangs off this
    * so a save or close prompt issued right after a keystroke sees the truth.
    */
-  onDocChanged(callback: () => void) {
-    this.onDocChangedCallback = callback;
+  /** Runs after every transaction that changed the document; returns the unsubscribe. */
+  onDocChanged(callback: () => void): () => void {
+    this.docChangedListeners.add(callback);
+    return () => {
+      this.docChangedListeners.delete(callback);
+    };
   }
 
   private docChangedPlugin() {
@@ -118,7 +122,7 @@ export class NyaEditor {
           view: () => ({
             update: (view, prevState) => {
               if (prevState.doc.eq(view.state.doc)) return;
-              this.onDocChangedCallback?.();
+              for (const listener of this.docChangedListeners) listener();
             },
           }),
         })

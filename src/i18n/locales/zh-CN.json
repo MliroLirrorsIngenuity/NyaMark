@@ -58,6 +58,7 @@
     "close": "关闭搜索"
   },
   "outline": {
+    "title": "大纲",
     "empty": "未找到标题"
   },
   "editor": {

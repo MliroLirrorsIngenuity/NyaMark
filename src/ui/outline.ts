@@ -142,11 +142,18 @@ const outlineStyles = `
 }
 `;
 
+/** Pause after the last document change before the list is refreshed. */
+const RENDER_DELAY_MS = 150;
+
 export class OutlinePanel {
   private elPanel: HTMLElement;
   private elList: HTMLElement;
   private isVisible = false;
   private activeHeadingId: string | null = null;
+  /** Identity of the rendered headings; equal headings keep the DOM. */
+  private renderedSignature: string | null = null;
+  private renderTimer: number | null = null;
+  private readonly unsubscribe: () => void;
 
   constructor(private editor: NyaEditor) {
     ensureStyle('outline-panel', outlineStyles);
@@ -160,6 +167,7 @@ export class OutlinePanel {
     const header = document.createElement('div');
     header.className = 'ny-outline__header';
     header.textContent = 'Outline';
+    header.setAttribute('data-i18n', 'outline.title');
 
     this.elList = document.createElement('div');
     this.elList.className = 'ny-outline__list';
@@ -167,24 +175,30 @@ export class OutlinePanel {
     this.elPanel.appendChild(header);
     this.elPanel.appendChild(this.elList);
     document.body.appendChild(this.elPanel);
+    translateDOM(this.elPanel);
 
-    this.setupListeners();
-  }
-
-  private setupListeners() {
     // Toggling is a global shortcut (see features/shortcut-controller.ts).
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.isVisible) {
         this.hide();
       }
     });
+    this.unsubscribe = editor.onDocChanged(() => this.scheduleRender());
+  }
 
-    // Update outline periodically when visible
-    setInterval(() => {
-      if (this.isVisible) {
-        this.renderOutline();
-      }
-    }, 1000);
+  destroy() {
+    this.unsubscribe();
+    if (this.renderTimer != null) window.clearTimeout(this.renderTimer);
+    this.elPanel.remove();
+  }
+
+  /** A burst of keystrokes is rendered once, after it ends. */
+  private scheduleRender() {
+    if (!this.isVisible || this.renderTimer != null) return;
+    this.renderTimer = window.setTimeout(() => {
+      this.renderTimer = null;
+      this.renderOutline();
+    }, RENDER_DELAY_MS);
   }
 
   toggle() {
@@ -207,8 +221,20 @@ export class OutlinePanel {
     this.elPanel.style.transform = 'translateY(-6px)';
   }
 
+  /**
+   * Rebuild the list only when the headings differ from what is shown, and
+   * keep the scroll position when they do; a rebuild on every change would
+   * yank the list back to the top while the user is reading it.
+   */
   private renderOutline() {
     const items = this.editor.getOutline();
+    const signature = items
+      .map((item) => `${item.level}\u0000${item.id}\u0000${item.text}`)
+      .join('\n');
+    if (signature === this.renderedSignature) return;
+    this.renderedSignature = signature;
+
+    const scrollTop = this.elList.scrollTop;
     this.elList.innerHTML = '';
 
     if (items.length === 0) {
@@ -225,6 +251,7 @@ export class OutlinePanel {
       const el = document.createElement('div');
       el.className = 'ny-outline__item';
       el.dataset.level = String(item.level);
+      el.dataset.id = item.id;
       el.style.setProperty(
         '--outline-indent',
         `${Math.max(0, item.level - 2) * 14}px`
@@ -236,12 +263,19 @@ export class OutlinePanel {
       }
 
       el.addEventListener('click', () => {
-        this.activeHeadingId = item.id;
-        this.renderOutline();
+        this.setActive(item.id);
         this.editor.scrollToHeading(item.id);
       });
 
       this.elList.appendChild(el);
+    }
+    this.elList.scrollTop = scrollTop;
+  }
+
+  private setActive(id: string) {
+    this.activeHeadingId = id;
+    for (const el of this.elList.children) {
+      el.classList.toggle('is-active', (el as HTMLElement).dataset.id === id);
     }
   }
 }

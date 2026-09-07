@@ -59,6 +59,7 @@
     "close": "Close search"
   },
   "outline": {
+    "title": "Outline",
     "empty": "No headings found"
   },
   "editor": {
