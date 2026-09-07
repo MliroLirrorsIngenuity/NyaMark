@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { copyFile, exists, writeFile } from '@tauri-apps/plugin-fs';
-import { openPath, openUrl } from '@tauri-apps/plugin-opener';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   type AttachmentReferenceOptions,
   basenamePath,
@@ -68,8 +68,9 @@ export function toAssetUrl(path: string): string {
   return convertFileSrc(path);
 }
 
+/** Opens through a Rust command that checks the runtime fs scope. */
 export async function openLocalPath(path: string): Promise<void> {
-  await openPath(path);
+  await invoke('open_document_resource', { path });
 }
 
 export async function openExternalUrl(url: string): Promise<void> {

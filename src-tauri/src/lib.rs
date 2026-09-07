@@ -15,6 +15,7 @@ use std::{
 };
 
 use tauri::{AppHandle, Manager, Window};
+use tauri_plugin_fs::FsExt;
 
 use crate::{
     document::{DocumentError, DocumentFormat, MarkdownDocument},
@@ -100,6 +101,24 @@ fn write_markdown_document(
     format: DocumentFormat,
 ) -> Result<(), DocumentError> {
     document::write(&app, Path::new(&path), &text, format)
+}
+
+/// Open a local file or folder a document links to with its default app.
+///
+/// The opener plugin's own `open_path` has a static scope; this command uses
+/// the runtime fs scope instead, so attachments next to a document on an
+/// external volume open while everything outside the granted directories
+/// stays closed to the webview.
+#[tauri::command(async)]
+fn open_document_resource(app: AppHandle, path: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    if !app.fs_scope().is_allowed(target) {
+        return Err(format!("Not allowed to open {path}"));
+    }
+    if !target.exists() {
+        return Err(format!("No such file or directory: {path}"));
+    }
+    tauri_plugin_opener::open_path(target, None::<&str>).map_err(|error| error.to_string())
 }
 
 /// Create the directory attachments are copied into and allow it in the fs
@@ -207,6 +226,7 @@ pub fn run() {
             register_window_document,
             read_markdown_document,
             write_markdown_document,
+            open_document_resource,
             ensure_attachment_directory,
             open_new_window,
             open_markdown_in_new_window,

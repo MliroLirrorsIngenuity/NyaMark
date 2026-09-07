@@ -20,6 +20,7 @@ import {
 import { ImagePolicyDialog } from '../ui/image-policy-dialog';
 import {
   basename,
+  classifyLinkTarget,
   defaultPastedImageName,
   extractClipboardFilePaths,
   getDocumentCopyTarget,
@@ -97,17 +98,20 @@ export class AttachmentController {
   }
 
   async openLinkedResource(href: string) {
-    const normalizedHref = href.trim();
-    if (!normalizedHref) return;
+    const target = classifyLinkTarget(href);
+    if (target.kind === 'ignore') {
+      console.warn('Ignoring link with unsupported scheme:', href);
+      return;
+    }
 
-    if (isExternalResource(normalizedHref)) {
-      await openExternalUrl(normalizedHref);
+    if (target.kind === 'url') {
+      await openExternalUrl(target.url);
       return;
     }
 
     const absolutePath = await resolveDocumentAssetPath(
       this.options.getDocumentPath(),
-      normalizedHref
+      target.reference
     );
     if (!absolutePath) return;
 

@@ -83,6 +83,40 @@ export function isExternalResource(value: string) {
   );
 }
 
+export type LinkTarget =
+  | { kind: 'url'; url: string }
+  | { kind: 'local'; reference: string }
+  | { kind: 'ignore' };
+
+/**
+ * Decide what a clicked `href` may open. Only the schemes the opener plugin's
+ * default scope accepts go to the OS; `file:` URIs become local paths; every
+ * other scheme (`javascript:`, `data:`, `blob:`, custom handlers) is dropped
+ * rather than handed to the system. Scheme-less values are document-relative
+ * or absolute paths.
+ */
+export function classifyLinkTarget(href: string): LinkTarget {
+  const value = href.trim();
+  if (!value) return { kind: 'ignore' };
+
+  if (/^(https?|mailto|tel):/i.test(value)) {
+    return { kind: 'url', url: value };
+  }
+
+  if (/^file:/i.test(value)) {
+    const path = fileUriToPath(value);
+    return path ? { kind: 'local', reference: path } : { kind: 'ignore' };
+  }
+
+  // A Windows drive letter looks like a scheme; anything else with one is not
+  // something the OS should be asked to open.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^[a-zA-Z]:[\\/]/.test(value)) {
+    return { kind: 'ignore' };
+  }
+
+  return { kind: 'local', reference: value };
+}
+
 function parseFileUris(payload: string) {
   if (!payload) return [];
 
