@@ -1,8 +1,8 @@
 import { getPlatform } from '../../../platform/detect';
 import {
-  sanitizeAppearanceSettings,
   type AppearanceSettings,
   type ThemePreference,
+  sanitizeAppearanceSettings,
 } from '../../../state/settings';
 import { renderSelect } from '../select';
 

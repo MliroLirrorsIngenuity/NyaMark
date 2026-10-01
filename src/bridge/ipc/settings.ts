@@ -6,7 +6,7 @@ import {
   exists,
   readTextFile,
 } from '@tauri-apps/plugin-fs';
-import { load, type Store } from '@tauri-apps/plugin-store';
+import { type Store, load } from '@tauri-apps/plugin-store';
 import type { Settings } from '../../state/settings';
 
 /**

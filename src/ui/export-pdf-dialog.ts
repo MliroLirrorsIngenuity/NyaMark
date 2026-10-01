@@ -1,7 +1,7 @@
-import { ensureStyle } from '../style/register';
-import { translateDOM } from '../i18n/dom';
-import { openModal } from './modal';
 import { i18next } from '../i18n';
+import { translateDOM } from '../i18n/dom';
+import { ensureStyle } from '../style/register';
+import { openModal } from './modal';
 
 export type ExportPdfSettings = {
   pageSize: 'Letter' | 'A4' | 'Legal';

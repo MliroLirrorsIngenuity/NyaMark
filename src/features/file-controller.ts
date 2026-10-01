@@ -1,8 +1,8 @@
 import {
-  confirmDialog,
   DEFAULT_DOCUMENT_FORMAT,
   DocumentError,
   type DocumentFormat,
+  confirmDialog,
   errorDialog,
   openFileDialog,
   openMarkdownInNewWindow,

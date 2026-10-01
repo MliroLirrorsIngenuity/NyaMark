@@ -1,17 +1,12 @@
-import type { EditorAttachment } from '../editor/editor';
-import type {
-  ImageInsertPolicy,
-  PastedImagePolicy,
-} from '../state/image-settings';
 import {
   type AttachmentReferenceOptions,
   copyLocalAttachment,
   formatMarkdownReference,
+  openExternalUrl,
+  openLocalPath,
   resolveDocumentAssetPath,
   storeAttachmentInDirectory,
   toAssetUrl,
-  openLocalPath,
-  openExternalUrl,
 } from '../bridge/ipc/attachments';
 import {
   confirmDialog,
@@ -21,11 +16,16 @@ import {
   openMarkdownInNewWindow,
 } from '../bridge/ipc/files';
 import { listenWindowFileDrop } from '../bridge/ipc/windows';
+import type { EditorAttachment } from '../editor/editor';
 import { i18next } from '../i18n';
+import type {
+  ImageInsertPolicy,
+  PastedImagePolicy,
+} from '../state/image-settings';
 import {
   getSettings,
-  updateSettings,
   subscribeSettings,
+  updateSettings,
 } from '../state/settings';
 import { ImagePolicyDialog } from '../ui/image-policy-dialog';
 import {
@@ -36,14 +36,14 @@ import {
   resolveStorageDir,
 } from './attachment-paths';
 import {
+  IMAGE_EXTENSIONS,
+  type InsertRule,
   classifyLinkTarget,
   defaultPastedImageName,
   extractClipboardFilePaths,
   getDocumentCopyTarget,
-  IMAGE_EXTENSIONS,
   isImagePath,
   policyToInsertRule,
-  type InsertRule,
 } from './attachment-policy';
 
 /**

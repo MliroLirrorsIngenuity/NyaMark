@@ -1,5 +1,5 @@
-import { ensureStyle } from '../style/register';
 import { translateDOM } from '../i18n/dom';
+import { ensureStyle } from '../style/register';
 import { openModal } from './modal';
 
 export type PastedImagePolicyChoice = {

@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
 
 // @ts-expect-error process is a nodejs global
 const env = process.env;

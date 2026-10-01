@@ -1,8 +1,8 @@
-import { type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import type { UnlistenFn } from '@tauri-apps/api/event';
+import type { Event } from '@tauri-apps/api/event';
 import type { DragDropEvent } from '@tauri-apps/api/webview';
 import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window';
-import { type Event } from '@tauri-apps/api/event';
 
 export type WindowTheme = 'light' | 'dark';
 

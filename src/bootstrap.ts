@@ -3,6 +3,11 @@
  * modules — no logic of its own beyond glue.
  */
 
+import { message } from '@tauri-apps/plugin-dialog';
+import { check } from '@tauri-apps/plugin-updater';
+import { warningDialog } from './bridge/ipc/files';
+import { updateMacosMenu } from './bridge/ipc/menu';
+import { isPrimaryWindow, printCurrentWindow } from './bridge/ipc/windows';
 import { NyaEditor } from './editor/editor';
 import { SourceModeController } from './editor/source-mode';
 import { AttachmentController } from './features/attachment-controller';
@@ -10,11 +15,12 @@ import { CloseGuard } from './features/close-guard';
 import { FileController } from './features/file-controller';
 import { MenuController } from './features/menu-controller';
 import {
-  hasPrimaryModifier,
   ShortcutController,
+  hasPrimaryModifier,
 } from './features/shortcut-controller';
-import { check } from '@tauri-apps/plugin-updater';
-import { store } from './state/store';
+import { i18next, initI18n, resolveLanguage } from './i18n';
+import { translateDOM } from './i18n/dom';
+import { isMacOS } from './platform/detect';
 import {
   getSettings,
   hydrateSettings,
@@ -22,26 +28,20 @@ import {
   subscribeSettings,
   takeUnreadableSettingsBackup,
 } from './state/settings';
-import { initI18n, i18next, resolveLanguage } from './i18n';
-import { translateDOM } from './i18n/dom';
-import { updateMacosMenu } from './bridge/ipc/menu';
-import { isMacOS } from './platform/detect';
-import { warningDialog } from './bridge/ipc/files';
+import { store } from './state/store';
+import { documentFileName } from './ui/document-name';
+import {
+  ExportPdfDialog,
+  type ExportPdfSettings,
+} from './ui/export-pdf-dialog';
 import { OutlinePanel } from './ui/outline';
 import { SearchPanel } from './ui/search';
-import {
-  type ExportPdfSettings,
-  ExportPdfDialog,
-} from './ui/export-pdf-dialog';
-import { renderAppShell, registerShellStyles } from './ui/shell';
 import { SettingsPanel } from './ui/settings-panel/panel';
+import { registerShellStyles, renderAppShell } from './ui/shell';
 import { Statusbar } from './ui/statusbar';
 import { ThemeManager, type ThemeMode } from './ui/theme';
-import { documentFileName } from './ui/document-name';
 import { Titlebar } from './ui/titlebar';
 import { UpdateDialog } from './ui/update-dialog';
-import { message } from '@tauri-apps/plugin-dialog';
-import { isPrimaryWindow, printCurrentWindow } from './bridge/ipc/windows';
 
 export class App {
   private editor: NyaEditor | null = null;

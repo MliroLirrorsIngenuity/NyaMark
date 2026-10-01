@@ -1,18 +1,18 @@
+import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
+import { translateDOM } from '../../i18n/dom';
 import {
+  type Settings,
   getSettings,
   previewAppearance,
-  saveSettings,
   resetSettings,
-  type Settings,
+  saveSettings,
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
-import { renderGeneralSection } from './sections/general';
-import { renderAppearanceSection } from './sections/appearance';
-import { renderSaveSection } from './sections/save-policy';
-import { renderAttachmentsSection } from './sections/attachments';
-import { translateDOM } from '../../i18n/dom';
-import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
 import { animationsSettled, openModal } from '../modal';
+import { renderAppearanceSection } from './sections/appearance';
+import { renderAttachmentsSection } from './sections/attachments';
+import { renderGeneralSection } from './sections/general';
+import { renderSaveSection } from './sections/save-policy';
 
 const styles = `
 .ny-settings-overlay {

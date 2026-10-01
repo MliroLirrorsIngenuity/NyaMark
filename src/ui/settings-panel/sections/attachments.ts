@@ -1,6 +1,6 @@
 import type {
-  ImageSettings,
   ImageInsertPolicy,
+  ImageSettings,
 } from '../../../state/image-settings';
 
 const POLICIES: Array<{

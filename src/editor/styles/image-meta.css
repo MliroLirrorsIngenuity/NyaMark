@@ -36,9 +36,18 @@
     color 0.15s ease !important;
 }
 
-.ny-editor-root .milkdown .milkdown-image-block:hover .nyamark-image-meta-toggle,
-.ny-editor-root .milkdown .milkdown-image-block .nyamark-image-meta-toggle:hover,
-.ny-editor-root .milkdown .milkdown-image-block.nyamark-image-meta-open .nyamark-image-meta-toggle {
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block:hover
+  .nyamark-image-meta-toggle,
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .nyamark-image-meta-toggle:hover,
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block.nyamark-image-meta-open
+  .nyamark-image-meta-toggle {
   opacity: 0.96 !important;
   pointer-events: auto !important;
   transform: translateY(0) scale(1) !important;
@@ -79,16 +88,19 @@
     box-shadow 0.18s ease !important;
 }
 
-.ny-editor-root .milkdown .milkdown-image-block.nyamark-image-meta-open > .image-wrapper .nyamark-image-meta {
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block.nyamark-image-meta-open
+  > .image-wrapper
+  .nyamark-image-meta {
   padding: 10px 12px !important;
   max-height: 180px !important;
   opacity: 1 !important;
   pointer-events: auto !important;
   transform: translateY(0) scale(1) !important;
   border-color: var(--ny-editor-panel-border) !important;
-  box-shadow:
-    0 20px 48px rgba(15, 23, 42, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18), inset 0 1px 0
+    rgba(255, 255, 255, 0.04) !important;
 }
 
 .ny-editor-root .milkdown .milkdown-image-block .nyamark-image-meta__field {
@@ -119,28 +131,45 @@
   -webkit-user-drag: none !important;
 }
 
-.ny-editor-root .milkdown .milkdown-image-block .nyamark-image-meta__input:focus {
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .nyamark-image-meta__input:focus {
   border-color: color-mix(in srgb, var(--nyamark-accent), transparent 35%) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nyamark-accent), transparent 82%) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--nyamark-accent), transparent 82%) !important;
 }
 
-.ny-editor-root .milkdown .milkdown-image-block .nyamark-image-meta__input::placeholder {
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .nyamark-image-meta__input::placeholder {
   color: var(--ny-editor-button-text) !important;
   opacity: 1 !important;
 }
 
-.ny-editor-root .milkdown .milkdown-image-block .nyamark-image-meta__input--caption {
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .nyamark-image-meta__input--caption {
   font-size: 13px !important;
   line-height: 1.35 !important;
   font-weight: 520 !important;
 }
 
-.ny-editor-root .milkdown .milkdown-image-block .nyamark-image-meta__input--path {
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .nyamark-image-meta__input--path {
   font-family: var(--ny-font-mono) !important;
   font-size: 11px !important;
   line-height: 1.35 !important;
   color: var(--ny-editor-chip-text) !important;
-  background: color-mix(in srgb, var(--ny-editor-floating-bg), var(--ny-editor-codeblock-bg) 28%) !important;
+  background: color-mix(
+    in srgb,
+    var(--ny-editor-floating-bg),
+    var(--ny-editor-codeblock-bg) 28%
+  ) !important;
 }
 
 .ny-editor-root .milkdown .milkdown-image-block .link-importer {
@@ -151,9 +180,9 @@
 
 .ny-editor-root .milkdown .milkdown-image-block .link-importer.focus {
   border-color: color-mix(in srgb, var(--nyamark-accent), transparent 35%) !important;
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--nyamark-accent), transparent 82%),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--nyamark-accent), transparent 82%), inset 0 1px 0
+    rgba(255, 255, 255, 0.04) !important;
 }
 
 .ny-editor-root .milkdown .milkdown-image-block .link-input-area,
@@ -180,14 +209,39 @@
   color: var(--ny-editor-text-primary) !important;
 }
 
-:root[data-theme="dark"] .ny-editor-root .milkdown .milkdown-image-block .caption-input,
-:root[data-theme="dark"] .ny-editor-root .milkdown .milkdown-image-block .link-input-area {
+:root[data-theme="dark"]
+  .ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .caption-input,
+:root[data-theme="dark"]
+  .ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .link-input-area {
   color: #edf3f8 !important;
 }
 
-:root[data-theme="dark"] .ny-editor-root .milkdown .milkdown-image-block .placeholder,
-:root[data-theme="dark"] .ny-editor-root .milkdown .milkdown-image-block .placeholder .text,
-:root[data-theme="dark"] .ny-editor-root .milkdown .milkdown-image-block .confirm,
-:root[data-theme="dark"] .ny-editor-root .milkdown .milkdown-image-block .image-icon {
+:root[data-theme="dark"]
+  .ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .placeholder,
+:root[data-theme="dark"]
+  .ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .placeholder
+  .text,
+:root[data-theme="dark"]
+  .ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .confirm,
+:root[data-theme="dark"]
+  .ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .image-icon {
   color: #b5c1cf !important;
 }

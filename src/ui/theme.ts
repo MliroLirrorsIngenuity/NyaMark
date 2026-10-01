@@ -4,9 +4,9 @@ import {
   setWindowTheme,
 } from '../bridge/ipc/windows';
 import {
+  type ThemePreference,
   getSettings,
   registerThemeApplier,
-  type ThemePreference,
   updateSettings,
 } from '../state/settings';
 

@@ -1,6 +1,6 @@
 import { openUrl } from '@tauri-apps/plugin-opener';
+import type { DownloadEvent, Update } from '@tauri-apps/plugin-updater';
 import { requestAppRestart } from '../bridge/ipc/windows';
-import type { Update, DownloadEvent } from '@tauri-apps/plugin-updater';
 import { i18next } from '../i18n';
 import { ensureStyle } from '../style/register';
 import { animationsSettled, openModal } from './modal';

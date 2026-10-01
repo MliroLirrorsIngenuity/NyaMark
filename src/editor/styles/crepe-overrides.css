@@ -28,7 +28,11 @@
 
 .ny-editor-root .milkdown .ProseMirror a {
   color: var(--nyamark-accent) !important;
-  text-decoration-color: color-mix(in srgb, var(--nyamark-accent), transparent 62%) !important;
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--nyamark-accent),
+    transparent 62%
+  ) !important;
   text-decoration-thickness: 1px !important;
   text-underline-offset: 0.18em !important;
 }
@@ -347,7 +351,10 @@
   margin: 0.3em 0 0 !important;
 }
 
-.ny-editor-root .milkdown .editor .milkdown-list-item-block
+.ny-editor-root
+  .milkdown
+  .editor
+  .milkdown-list-item-block
   + .milkdown-list-item-block {
   margin-top: 0.3em !important;
 }
@@ -408,7 +415,12 @@
  * padding-left cancels the trailing period's side bearing, which would
  * otherwise push the digit a couple of pixels left of that centre line.
  */
-.ny-editor-root .milkdown .editor li.list-item > .label-wrapper > .label.ordered {
+.ny-editor-root
+  .milkdown
+  .editor
+  li.list-item
+  > .label-wrapper
+  > .label.ordered {
   display: block !important;
   text-align: center !important;
   padding-left: 0.26em !important;
@@ -464,7 +476,8 @@
   margin-bottom: 0.75rem !important;
   min-height: 40px !important;
   padding: 0 clamp(14px, 1.8vw, 28px) !important;
-  border: 1px solid color-mix(in srgb, var(--crepe-color-outline), transparent 40%) !important;
+  border: 1px solid
+    color-mix(in srgb, var(--crepe-color-outline), transparent 40%) !important;
   border-radius: var(--ny-surface-radius) !important;
   background: var(--ny-editor-toolbar-bg) !important;
   backdrop-filter: blur(20px) saturate(1.8) !important;
@@ -537,7 +550,8 @@
 }
 
 .ny-editor-root .milkdown .milkdown-toolbar {
-  border: 1px solid color-mix(in srgb, var(--crepe-color-outline), transparent 84%) !important;
+  border: 1px solid
+    color-mix(in srgb, var(--crepe-color-outline), transparent 84%) !important;
   border-radius: 10px !important;
   background: var(--ny-editor-floating-bg) !important;
   box-shadow: var(--ny-editor-floating-shadow) !important;
@@ -659,9 +673,7 @@
   transform: translateY(-3px) scale(0.94) !important;
   transform-origin: 100% 0 !important;
   pointer-events: none !important;
-  transition:
-    opacity 0.16s ease,
-    transform 0.18s cubic-bezier(0.32, 0.72, 0, 1) !important;
+  transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
 
 /*
@@ -746,7 +758,12 @@
   color: var(--ny-editor-text-primary) !important;
 }
 
-.ny-editor-root .milkdown .milkdown-code-block .tools .language-button .expand-icon {
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .tools
+  .language-button
+  .expand-icon {
   width: 14px !important;
   height: 14px !important;
 }
@@ -772,7 +789,12 @@
  * icons -- at this size the labels are what push the pill wide enough to cover
  * real code on the first line.
  */
-.ny-editor-root .milkdown .milkdown-code-block .tools .tools-button-group button {
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .tools
+  .tools-button-group
+  button {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -805,7 +827,12 @@
   fill: currentColor !important;
 }
 
-.ny-editor-root .milkdown .milkdown-code-block .tools .tools-button-group button:hover {
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .tools
+  .tools-button-group
+  button:hover {
   background: var(--ny-editor-codetools-hover) !important;
   color: var(--ny-editor-text-primary) !important;
 }
@@ -827,7 +854,10 @@
 }
 
 /* Mermaid & friends: the preview panel takes over the bottom of the block. */
-.ny-editor-root .milkdown .milkdown-code-block:has(.preview-panel) .codemirror-host {
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block:has(.preview-panel)
+  .codemirror-host {
   border-radius: 12px 12px 0 0 !important;
 }
 
@@ -967,7 +997,8 @@
   .milkdown
   .milkdown-code-block
   .cm-editor:not(.cm-focused)
-  .cm-line ::selection,
+  .cm-line
+  ::selection,
 .ny-editor-root
   .milkdown
   .milkdown-code-block
@@ -1075,7 +1106,7 @@
  * See language-badges.ts for the colour table and the rules it emits below.
  */
 .ny-editor-root .milkdown .milkdown-code-block .language-list-item::before {
-  content: var(--ny-lang-label, '{}');
+  content: var(--ny-lang-label, "{}");
   flex: none;
   display: flex;
   align-items: center;
@@ -1098,7 +1129,7 @@
  * (LESS, Lua, Crystal) lose their edge against the panel, so outline them from
  * the light side instead.
  */
-:root[data-theme='dark']
+:root[data-theme="dark"]
   .ny-editor-root
   .milkdown
   .milkdown-code-block
@@ -1107,7 +1138,10 @@
 }
 
 /* The empty-search row carries no language, so it must not get a badge. */
-.ny-editor-root .milkdown .milkdown-code-block .language-list-item.no-result::before {
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .language-list-item.no-result::before {
   content: none;
 }
 
@@ -1115,13 +1149,18 @@
 .ny-editor-root
   .milkdown
   .milkdown-code-block
-  .language-list-item[aria-selected='true'] {
+  .language-list-item[aria-selected="true"] {
   color: var(--nyamark-accent) !important;
   background: color-mix(in srgb, var(--nyamark-accent), transparent 90%) !important;
 }
 
 .ny-editor-root .milkdown .milkdown-code-block .language-list-item .leading,
-.ny-editor-root .milkdown .milkdown-code-block .language-list-item .leading svg {
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .language-list-item
+  .leading
+  svg {
   width: 16px !important;
   height: 16px !important;
 }
@@ -1138,7 +1177,8 @@
 
 .ny-editor-root .milkdown .milkdown-code-block .search-box:has(input:focus) {
   border-color: color-mix(in srgb, var(--nyamark-accent), transparent 35%) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nyamark-accent), transparent 84%) !important;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--nyamark-accent), transparent 84%) !important;
   outline: none !important;
 }
 
@@ -1268,9 +1308,21 @@
 
 :root[data-ny-drag-select] .milkdown-block-handle,
 :root[data-ny-drag-select] .milkdown-toolbar,
-:root[data-ny-drag-select] .ny-editor-root .milkdown .milkdown-table-block .button-group,
-:root[data-ny-drag-select] .ny-editor-root .milkdown .milkdown-table-block .cell-handle,
-:root[data-ny-drag-select] .ny-editor-root .milkdown .milkdown-table-block .line-handle {
+:root[data-ny-drag-select]
+  .ny-editor-root
+  .milkdown
+  .milkdown-table-block
+  .button-group,
+:root[data-ny-drag-select]
+  .ny-editor-root
+  .milkdown
+  .milkdown-table-block
+  .cell-handle,
+:root[data-ny-drag-select]
+  .ny-editor-root
+  .milkdown
+  .milkdown-table-block
+  .line-handle {
   opacity: 0 !important;
   pointer-events: none !important;
   transition: none !important;
@@ -1300,8 +1352,16 @@
  * Scoped to "prose": a drag that STARTED inside a code block is CodeMirror's
  * own selection gesture and must stay fully selectable.
  */
-:root[data-ny-drag-select="prose"] .ny-editor-root .milkdown .ProseMirror .milkdown-code-block,
-:root[data-ny-drag-select="prose"] .ny-editor-root .milkdown .ProseMirror .ny-html-block {
+:root[data-ny-drag-select="prose"]
+  .ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-code-block,
+:root[data-ny-drag-select="prose"]
+  .ny-editor-root
+  .milkdown
+  .ProseMirror
+  .ny-html-block {
   -webkit-user-select: none !important;
   user-select: none !important;
 }
@@ -1323,9 +1383,18 @@
  * background, border and radius underneath, and sits below the tool pill
  * (z-index 10) so nothing that is still interactive gets tinted.
  */
-.ny-editor-root .milkdown .ProseMirror .milkdown-code-block.ny-block-selected::after,
-.ny-editor-root .milkdown .ProseMirror .milkdown-table-block.ny-block-selected::after,
-.ny-editor-root .milkdown .ProseMirror .milkdown-image-block.ny-block-selected::after,
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-code-block.ny-block-selected::after,
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-table-block.ny-block-selected::after,
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-image-block.ny-block-selected::after,
 .ny-editor-root .milkdown .ProseMirror .ny-html-block.ny-block-selected::after {
   content: "";
   position: absolute;
@@ -1346,7 +1415,14 @@
  * With the whole card washed, the native selection still showing through the
  * code lines would tint those rows twice and bring the hole back inverted.
  */
-.ny-editor-root .milkdown .milkdown-code-block.ny-block-selected .cm-line ::selection,
-.ny-editor-root .milkdown .milkdown-code-block.ny-block-selected .cm-line::selection {
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block.ny-block-selected
+  .cm-line
+  ::selection,
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block.ny-block-selected
+  .cm-line::selection {
   background-color: transparent !important;
 }

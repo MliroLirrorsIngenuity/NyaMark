@@ -1,5 +1,5 @@
-import { Store } from '../state/store';
 import { i18next } from '../i18n';
+import type { Store } from '../state/store';
 
 export class Statusbar {
   private elWords: HTMLElement;

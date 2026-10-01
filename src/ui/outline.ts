@@ -1,6 +1,6 @@
-import { NyaEditor } from '../editor/editor';
-import { ensureStyle } from '../style/register';
+import type { NyaEditor } from '../editor/editor';
 import { translateDOM } from '../i18n/dom';
+import { ensureStyle } from '../style/register';
 import { pushEscapeLayer } from './escape-layers';
 
 const outlineStyles = `

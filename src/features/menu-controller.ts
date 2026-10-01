@@ -1,4 +1,4 @@
-import { listenAppMenuAction, type AppMenuAction } from '../bridge/ipc/menu';
+import { type AppMenuAction, listenAppMenuAction } from '../bridge/ipc/menu';
 
 type MenuHandlers = Record<AppMenuAction, () => void>;
 

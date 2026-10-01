@@ -1,4 +1,3 @@
-import { Store } from '../state/store';
 import {
   closeWindow,
   isWindowMaximized,
@@ -7,6 +6,7 @@ import {
   toggleMaximizeWindow,
   unmaximizeWindow,
 } from '../bridge/ipc/windows';
+import type { Store } from '../state/store';
 
 import { i18next } from '../i18n';
 import { isMacOS } from '../platform/detect';

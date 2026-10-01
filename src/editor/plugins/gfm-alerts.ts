@@ -19,9 +19,9 @@
  * the markdown source is preserved byte-for-byte.
  */
 
+import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { Plugin, PluginKey, type Transaction } from '@milkdown/kit/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
-import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { $prose } from '@milkdown/kit/utils';
 import i18next from 'i18next';
 import { ensureStyle } from '../../style/register';

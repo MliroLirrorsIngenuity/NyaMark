@@ -1,16 +1,16 @@
-import {
-  type ImageInsertPolicy,
-  type ImageSettings,
-  defaultImageSettings,
-} from './image-settings';
+import { Effect, EffectState, getCurrentWindow } from '@tauri-apps/api/window';
 import {
   loadPersistedSettings,
   onPersistedSettingsChange,
   savePersistedSettings,
 } from '../bridge/ipc/settings';
-import { getPlatform } from '../platform/detect';
-import { getCurrentWindow, Effect, EffectState } from '@tauri-apps/api/window';
 import { setNativeWindowBackdrop } from '../bridge/ipc/windows';
+import { getPlatform } from '../platform/detect';
+import {
+  type ImageInsertPolicy,
+  type ImageSettings,
+  defaultImageSettings,
+} from './image-settings';
 
 /** `auto` follows the operating system. */
 export type ThemePreference = 'auto' | 'light' | 'dark';

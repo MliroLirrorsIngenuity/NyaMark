@@ -1,4 +1,4 @@
-import { type GeneralSettings } from '../../../state/settings';
+import type { GeneralSettings } from '../../../state/settings';
 import { renderSelect } from '../select';
 
 const LANGUAGES = [

@@ -24,8 +24,12 @@
   --ny-editor-quote-bar: rgba(148, 163, 178, 0.42);
   --ny-editor-rule: rgba(148, 163, 178, 0.3);
   --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(255, 255, 255, 0.82));
-  --ny-editor-toolbar-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
-  --ny-editor-floating-bg: var(--ny-window-floating-bg, rgba(255, 255, 255, 0.96));
+  --ny-editor-toolbar-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 8px
+    rgba(15, 23, 42, 0.04);
+  --ny-editor-floating-bg: var(
+    --ny-window-floating-bg,
+    rgba(255, 255, 255, 0.96)
+  );
   --ny-editor-floating-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
   /*
    * A code block is a differently-textured paragraph, not a card parked on the
@@ -37,7 +41,8 @@
   --ny-editor-chip-bg: linear-gradient(180deg, #ffffff 0%, #f8f8f6 100%);
   --ny-editor-chip-border: rgba(223, 227, 235, 0.95);
   --ny-editor-chip-text: #5e6673;
-  --ny-editor-chip-shadow: 0 1px 1px rgba(15, 23, 42, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --ny-editor-chip-shadow: 0 1px 1px rgba(15, 23, 42, 0.03), inset 0 1px 0
+    rgba(255, 255, 255, 0.92);
   --ny-editor-button-bg: rgba(255, 255, 255, 0.82);
   --ny-editor-button-border: rgba(223, 227, 235, 0.9);
   --ny-editor-button-text: #69707c;
@@ -49,7 +54,8 @@
    */
   --ny-editor-codetools-bg: rgba(255, 255, 255, 0.92);
   --ny-editor-codetools-border: rgba(15, 23, 42, 0.09);
-  --ny-editor-codetools-shadow: 0 4px 14px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --ny-editor-codetools-shadow: 0 4px 14px rgba(15, 23, 42, 0.1), 0 1px 3px
+    rgba(15, 23, 42, 0.06);
   --ny-editor-codetools-hover: rgba(15, 23, 42, 0.06);
   --ny-editor-panel-bg: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
   --ny-editor-panel-border: #e6ebf2;
@@ -92,16 +98,22 @@
   --ny-editor-floating-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
   --ny-editor-codeblock-border: rgba(255, 255, 255, 0.07);
   --ny-editor-codeblock-bg: rgba(255, 255, 255, 0.042);
-  --ny-editor-chip-bg: linear-gradient(180deg, rgba(33, 42, 54, 0.98) 0%, rgba(26, 34, 44, 0.98) 100%);
+  --ny-editor-chip-bg: linear-gradient(
+    180deg,
+    rgba(33, 42, 54, 0.98) 0%,
+    rgba(26, 34, 44, 0.98) 100%
+  );
   --ny-editor-chip-border: rgba(101, 117, 139, 0.26);
   --ny-editor-chip-text: #b0bcc9;
-  --ny-editor-chip-shadow: 0 1px 0 rgba(255, 255, 255, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  --ny-editor-chip-shadow: 0 1px 0 rgba(255, 255, 255, 0.02), inset 0 1px 0
+    rgba(255, 255, 255, 0.02);
   --ny-editor-button-bg: rgba(28, 36, 46, 0.84);
   --ny-editor-button-border: rgba(96, 112, 132, 0.28);
   --ny-editor-button-text: #c8d2dd;
   --ny-editor-codetools-bg: rgba(46, 58, 72, 0.94);
   --ny-editor-codetools-border: rgba(255, 255, 255, 0.1);
-  --ny-editor-codetools-shadow: 0 6px 18px rgba(0, 0, 0, 0.36), 0 1px 3px rgba(0, 0, 0, 0.24);
+  --ny-editor-codetools-shadow: 0 6px 18px rgba(0, 0, 0, 0.36), 0 1px 3px
+    rgba(0, 0, 0, 0.24);
   --ny-editor-codetools-hover: rgba(255, 255, 255, 0.1);
   --ny-editor-panel-bg: linear-gradient(180deg, #1a212a 0%, #161c24 100%);
   --ny-editor-panel-border: rgba(96, 112, 132, 0.24);
