@@ -28,6 +28,7 @@ import { installDragSelectGuard } from './plugins/drag-guard';
 import { fenceInput } from './plugins/fence-input';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
+import { headingInput } from './plugins/heading-input';
 import { hrInput } from './plugins/hr-input';
 import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
 import { keepImageAlt } from './plugins/image-alt';
@@ -127,6 +128,7 @@ export class NyaEditor {
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(blockEdges);
     crepe.editor.use(hrInput);
+    crepe.editor.use(headingInput);
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(linkInput);
     crepe.editor.use(fenceInput);
