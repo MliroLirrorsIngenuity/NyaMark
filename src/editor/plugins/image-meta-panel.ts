@@ -46,6 +46,12 @@ export class ImageMetaPanel {
     }).observe(this.root, { childList: true, subtree: true });
   }
 
+  /**
+   * Opening puts the caret in the description, the field the panel is for.
+   * Closing hands the caret back to the document: the panel only fades out,
+   * and its field kept the focus, so typing after Escape went on into a
+   * description no longer on screen.
+   */
   private setOpen(host: HTMLElement, open: boolean) {
     host.classList.toggle('nyamark-image-meta-open', open);
     const release = this.openPanels.get(host);
@@ -57,6 +63,14 @@ export class ImageMetaPanel {
     } else if (!open && release) {
       release();
       this.openPanels.delete(host);
+    }
+    const panel = host.querySelector('.nyamark-image-meta');
+    if (open) {
+      panel
+        ?.querySelector<HTMLInputElement>('.nyamark-image-meta__input--caption')
+        ?.focus();
+    } else if (host.isConnected && panel?.contains(document.activeElement)) {
+      this.getCrepe()?.editor.ctx.get(editorViewCtx).focus();
     }
   }
 
@@ -245,6 +259,13 @@ export class ImageMetaPanel {
         if (!(event as InputEvent).isComposing) scheduleCaptionCommit();
       });
       captionInput.addEventListener('compositionend', scheduleCaptionCommit);
+      // Enter is done: the panel closes, and the blur commits the field.
+      const closeOnEnter = (event: KeyboardEvent) => {
+        if (event.key !== 'Enter' || event.isComposing) return;
+        event.preventDefault();
+        this.setOpen(host, false);
+      };
+      captionInput.addEventListener('keydown', closeOnEnter);
       captionInput.addEventListener('blur', () => {
         if (captionTimer) {
           window.clearTimeout(captionTimer);
@@ -253,14 +274,7 @@ export class ImageMetaPanel {
         commitCaption();
       });
 
-      pathInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' && !event.isComposing) {
-          event.preventDefault();
-          const nextSrc = pathInput.value.trim();
-          if (nextSrc) this.updateImageNodeAttrs(host, { src: nextSrc });
-          pathInput.blur();
-        }
-      });
+      pathInput.addEventListener('keydown', closeOnEnter);
       pathInput.addEventListener('blur', () => {
         const nextSrc = pathInput.value.trim();
         if (nextSrc) this.updateImageNodeAttrs(host, { src: nextSrc });
