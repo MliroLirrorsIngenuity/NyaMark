@@ -3,7 +3,7 @@ import { requestAppRestart } from '../bridge/ipc/windows';
 import type { Update, DownloadEvent } from '@tauri-apps/plugin-updater';
 import { i18next } from '../i18n';
 import { ensureStyle } from '../style/register';
-import { openModal } from './modal';
+import { animationsSettled, openModal } from './modal';
 
 const updateDialogStyles = `
 .ny-update-overlay {
@@ -277,10 +277,6 @@ export class UpdateDialog {
     ensureStyle('ny-update-dialog', updateDialogStyles);
   }
 
-  private wait(ms: number) {
-    return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
-  }
-
   open(update: Update) {
     if (this.overlay) return;
 
@@ -355,7 +351,7 @@ export class UpdateDialog {
       closing = true;
       modal.release();
       overlay.classList.add('is-closing');
-      await this.wait(150);
+      await animationsSettled(overlay);
       overlay.remove();
       this.overlay = null;
     };

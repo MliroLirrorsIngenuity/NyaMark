@@ -12,7 +12,7 @@ import { renderSaveSection } from './sections/save-policy';
 import { renderAttachmentsSection } from './sections/attachments';
 import { translateDOM } from '../../i18n/dom';
 import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
-import { openModal } from '../modal';
+import { animationsSettled, openModal } from '../modal';
 
 const styles = `
 .ny-settings-overlay {
@@ -507,10 +507,6 @@ export class SettingsPanel {
     ensureStyle('ny-settings-panel', styles);
   }
 
-  private wait(ms: number) {
-    return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
-  }
-
   open() {
     if (this.overlay) {
       return;
@@ -624,7 +620,7 @@ export class SettingsPanel {
       previewAppearance(getSettings().appearance);
       modal.release();
       overlay.classList.add('is-closing');
-      await this.wait(150);
+      await animationsSettled(overlay);
       overlay.remove();
       this.overlay = null;
     };
@@ -679,7 +675,7 @@ export class SettingsPanel {
         closing = true;
         modal.release();
         confirm.classList.add('is-closing');
-        await this.wait(130);
+        await animationsSettled(confirm);
         confirm.remove();
         resolve(accepted);
       };

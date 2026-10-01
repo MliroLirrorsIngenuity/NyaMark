@@ -145,3 +145,25 @@ export function openModal(options: ModalOptions): ModalHandle {
     },
   };
 }
+
+/**
+ * Resolves once the animations running on `element` or inside it have
+ * finished, so a closing dialog is removed exactly when its exit animation
+ * ends, whatever the stylesheet (or reduced motion) made it last. Capped in
+ * case an animation never ends.
+ */
+export async function animationsSettled(element: HTMLElement, capMs = 1000) {
+  if (typeof element.getAnimations !== 'function') return;
+  const animations = element
+    .getAnimations({ subtree: true })
+    .filter(
+      (animation) =>
+        animation.effect?.getComputedTiming().endTime !==
+        Number.POSITIVE_INFINITY
+    );
+  if (!animations.length) return;
+  await Promise.race([
+    Promise.allSettled(animations.map((animation) => animation.finished)),
+    new Promise<void>((resolve) => window.setTimeout(resolve, capMs)),
+  ]);
+}
