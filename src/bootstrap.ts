@@ -25,6 +25,7 @@ import {
 import { initI18n, i18next, resolveLanguage } from './i18n';
 import { translateDOM } from './i18n/dom';
 import { updateMacosMenu } from './bridge/ipc/menu';
+import { isMacOS } from './platform/detect';
 import { warningDialog } from './bridge/ipc/files';
 import { OutlinePanel } from './ui/outline';
 import { SearchPanel } from './ui/search';
@@ -77,15 +78,7 @@ export class App {
     this.currentLanguage = settings.general.language;
     await initI18n(this.currentLanguage);
 
-    if (
-      document.documentElement.dataset.platform === 'macos' ||
-      /Mac/.test(navigator.platform)
-    ) {
-      void updateMacosMenu(
-        i18next.getResourceBundle(i18next.language, 'translation').menu
-      );
-    }
-
+    this.syncMacosMenu();
     translateDOM(document.body);
 
     const unreadableSettings = takeUnreadableSettingsBackup();
@@ -338,15 +331,15 @@ export class App {
     if (language === i18next.language) return;
     void i18next.changeLanguage(language).then(() => {
       translateDOM(document.body);
-      if (
-        document.documentElement.dataset.platform === 'macos' ||
-        /Mac/.test(navigator.platform)
-      ) {
-        void updateMacosMenu(
-          i18next.getResourceBundle(i18next.language, 'translation').menu
-        );
-      }
+      this.syncMacosMenu();
     });
+  }
+
+  private syncMacosMenu() {
+    if (!isMacOS()) return;
+    void updateMacosMenu(
+      i18next.getResourceBundle(i18next.language, 'translation').menu
+    );
   }
 
   private getPrintableFileTitle() {

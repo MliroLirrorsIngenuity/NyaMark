@@ -31,6 +31,11 @@ fn base_window_config<R: Runtime>(app: &AppHandle<R>) -> Result<WindowConfig> {
 fn build_window<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Result<()> {
     let window = WebviewWindowBuilder::from_config(app, config)?
         .on_navigation(is_app_navigation)
+        // `platform/detect.ts` reads this; the webview's user agent is a guess.
+        .initialization_script(format!(
+            "window.__NYAMARK_PLATFORM__ = {:?};",
+            std::env::consts::OS
+        ))
         .build()?;
     let _ = window.show();
     let _ = window.set_focus();
