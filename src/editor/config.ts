@@ -13,6 +13,7 @@ import { i18next } from '../i18n';
 import { closeFenceOnEnter } from './plugins/code-fence-exit';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
+import { rememberCodeCopy } from './plugins/paste-code';
 
 export type CrepeConfigOptions = {
   root: HTMLElement;
@@ -45,6 +46,7 @@ function codeBlockExtensions(getView: () => EditorView | null) {
     codeBlockSelectAll(getView),
     closeFenceOnEnter(getView),
     codeSearchMatches,
+    rememberCodeCopy(getView),
   ];
 }
 

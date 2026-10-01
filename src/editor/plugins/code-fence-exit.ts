@@ -51,7 +51,10 @@ export function leaveCodeAt(
     .scrollIntoView();
 }
 
-function codeBlockPos(view: EditorView, dom: HTMLElement): number | null {
+export function codeBlockPos(
+  view: EditorView,
+  dom: HTMLElement
+): number | null {
   const found: number[] = [];
   view.state.doc.descendants((node, pos) => {
     if (found.length) return false;

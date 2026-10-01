@@ -64,6 +64,7 @@ import {
 import { dollarInput, dollarTextParse } from './plugins/math-dollars';
 import { mathInlineKeys } from './plugins/math-inline-keys';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
+import { pasteCodeAsCode } from './plugins/paste-code';
 import { pasteOnEmptyLine } from './plugins/paste-line';
 import {
   type SearchMeta,
@@ -176,6 +177,7 @@ export class NyaEditor {
     crepe.editor.use(fenceInput);
     crepe.editor.use(listItemView);
     crepe.editor.use(pasteOnEmptyLine);
+    crepe.editor.use(pasteCodeAsCode);
     crepe.editor.use(mathInlineKeys);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(htmlBlockSelection);
