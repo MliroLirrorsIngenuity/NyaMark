@@ -137,8 +137,15 @@
   margin: 0.84em 0 0.2em !important;
 }
 
+/*
+ * Columns take the room their text asks for. Laid out fixed, every column
+ * was as wide as the next: a column of short flags kept as much room as the
+ * one of long notes, which wrapped onto three lines beside the empty space.
+ * A long word or link breaks anywhere, so no column holds the table wider
+ * than the page.
+ */
 .ny-editor-root .milkdown .ProseMirror table {
-  table-layout: fixed !important;
+  table-layout: auto !important;
   width: 100% !important;
 }
 
@@ -146,6 +153,7 @@
 .ny-editor-root .milkdown .ProseMirror th,
 .ny-editor-root .milkdown .ProseMirror td {
   text-align: left;
+  overflow-wrap: anywhere;
   min-width: 0 !important;
   padding: 0.4em 0.8em !important;
   vertical-align: top !important;
