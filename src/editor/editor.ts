@@ -17,6 +17,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange } from './doc-diff';
+import { blockBackspace } from './plugins/block-backspace';
 import { blockSelection } from './plugins/block-selection';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
@@ -102,6 +103,7 @@ export class NyaEditor {
     crepe.editor.config(keepImageAlt);
     crepe.editor.use(markdownOutput);
     crepe.editor.use(gfmAlerts);
+    crepe.editor.use(blockBackspace);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
     crepe.editor.use(imageRatio);
