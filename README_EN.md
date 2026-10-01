@@ -39,15 +39,29 @@
 
 * **Useful essentials included**:
 
-  * **Mathematical Formulas**: Built-in KaTeX support for perfect LaTeX rendering.
+  * **Mathematical Formulas**: Built-in KaTeX for LaTeX rendering.
 
   * **Diagram Rendering**: Integrated Mermaid support for flowcharts, sequence diagrams, Gantt charts, and more.
 
-  * **Source Mode**: Powered by CodeMirror 6, so you can switch to source editing whenever you need it.
+  * **GitHub Alerts**: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]` and `> [!CAUTION]` render the way GitHub shows them.
+
+  * **Inline HTML**: HTML in a document is sanitized and rendered in place; inline tags stay inline.
+
+  * **Source Mode**: Powered by CodeMirror 6, with source and preview side by side and scrolled together.
+
+  * **Images and Attachments**: Pasted, dropped or picked local images keep their original path, or are copied next to the document, into `./assets` or a custom folder, or embedded as Base64, as you choose in settings.
+
+  * **Outline, Find and PDF Export**: Jump between headings, highlight every match of a search, and export to PDF.
+
+* **Safe Saving**: Optional auto-save, a prompt when another program changes the file, and the file's BOM and line endings kept on save.
+
+* **Automatic Updates**: New versions are checked for, downloaded and installed from inside the app.
+
+* **Localized Interface**: English, Simplified Chinese and Traditional Chinese, following the system language by default.
 
 * **Cross-Platform**: Native support for Windows, macOS, and Linux.
 
-* **Clean interface**: Built with TailwindCSS v4 to keep the UI simple and leave the focus on your writing.
+* **Clean interface**: Light and dark themes that follow the system, an optional frosted-glass look, and the focus left on your writing.
 
 <p align="center">
   <a href="https://nm.lolicon.best/hero-editor.webp">
@@ -76,7 +90,7 @@ bun tauri build
 
 ## License
 
-The source code of this project is licensed under the [MIT License](LICENSE).
+Except for the icon artwork listed below, this project is licensed under the [MIT License](LICENSE).
 
 ### License Notes
 
@@ -84,7 +98,7 @@ The source code of this project is licensed under the [MIT License](LICENSE).
 2. **Disclaimer**: This project is provided "as is," and the author assumes no legal liability for any issues arising from its use.
 3. **Icon Resource Ownership (Important)**:
 
-   * All icon files in the root directory (`.svg`, `.png`, `.icns`, `.icon`, etc.) and all resources in the `src-tauri/icons` directory **are not distributed under the MIT License**.
+   * The NyaMark logo and icon artwork (every file in the `src-tauri/icons` directory and `public/favicon.svg`) **is not distributed under the MIT License**.
 
    * **The aforementioned icon resources are "All Rights Reserved"**. Unauthorized use, modification, or redistribution of these assets in other projects is strictly prohibited.
 
@@ -95,5 +109,3 @@ The source code of this project is licensed under the [MIT License](LICENSE).
 * [Milkdown](https://milkdown.dev/): A modular WYSIWYG Markdown editor framework.
 
 * [CodeMirror](https://codemirror.net/): The industry-leading code editor component.
-
-* [TailwindCSS](https://tailwindcss.com/): A utility-first CSS framework for efficient UI development.

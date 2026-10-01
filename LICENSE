@@ -22,5 +22,13 @@ SOFTWARE.
 
 ---
 
-SPECIAL NOTE ON ASSETS:
-The icons and visual assets located in the root directory (including but not limited to .svg, .png, .icns, .icon files) and the "src-tauri/icons" directory are EXCLUDED from this MIT License. These specific assets are "All Rights Reserved" and may not be used, modified, or redistributed without explicit written permission from the copyright holder.
+LOGO AND ICON ARTWORK
+
+The MIT License above covers every file in this repository except the NyaMark
+logo and icon artwork, which is not part of the "Software" it licenses:
+
+  - every file in the src-tauri/icons directory
+  - public/favicon.svg
+
+This artwork is All Rights Reserved. It may not be used, modified or
+redistributed without explicit written permission from the copyright holder.

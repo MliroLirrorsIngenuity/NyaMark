@@ -39,15 +39,29 @@
 
 * **常用能力一次配齐**：
 
-  * **数学公式**：内置 KaTeX 支持，完美渲染 LaTeX 公式。
+  * **数学公式**：内置 KaTeX，渲染 LaTeX 公式。
 
   * **图表渲染**：集成 Mermaid，支持流程图、时序图、甘特图等多种图表。
 
-  * **源码模式**：底层采用 CodeMirror 6，随时切回源码继续写。
+  * **GitHub 提示块**：`> [!NOTE]`、`> [!TIP]`、`> [!IMPORTANT]`、`> [!WARNING]`、`> [!CAUTION]` 按 GitHub 的样式显示。
+
+  * **内嵌 HTML**：文档里的 HTML 经过清理后直接渲染，行内标签留在行内。
+
+  * **源码模式**：底层采用 CodeMirror 6，源码与预览分栏显示，滚动同步。
+
+  * **图片与附件**：粘贴、拖入或选择本地图片时，按设置保留原路径、复制到文档旁、`./assets` 或自定义文件夹，也可以嵌入为 Base64。
+
+  * **大纲、查找与 PDF 导出**：大纲跳转标题，查找高亮全部匹配，可导出为 PDF。
+
+* **放心保存**：可开启自动保存；其他程序改动文件时会提醒；保存时保留原文件的 BOM 与换行符。
+
+* **自动更新**：应用内检查、下载并安装新版本。
+
+* **多语言界面**：简体中文、繁體中文、English，默认跟随系统语言。
 
 * **跨平台支持**：原生支持 Windows、macOS 和 Linux。
 
-* **界面克制**：基于 TailwindCSS v4 构建，界面干净，重点留给内容。
+* **界面克制**：浅色与深色主题跟随系统，可开启毛玻璃效果，重点留给内容。
 
 <p align="center">
   <a href="https://nm.lolicon.best/hero-editor.webp">
@@ -76,7 +90,7 @@ bun tauri build
 
 ## 开源协议
 
-本项目代码部分遵循 [MIT License](LICENSE) 开源协议。
+除下文所列的图标资源外，本项目遵循 [MIT License](LICENSE) 开源协议。
 
 ### 协议注意事项
 
@@ -84,7 +98,7 @@ bun tauri build
 2. **免责声明**：本项目按“原样”提供，作者不承担任何因使用本项目而产生的法律责任。
 3. **图标资源所有权声明 (重要)**：
 
-   * 根目录下的所有图标文件 (`.svg`, `.png`, `.icns`, `.icon` 等) 以及 `src-tauri/icons` 目录下的所有资源**不随 MIT 许可证一同发放**。
+   * NyaMark 的图标与标志图形（`src-tauri/icons` 目录下的全部文件和 `public/favicon.svg`）**不随 MIT 许可证一同发放**。
 
    * **上述图标资源保留所有权利 (All Rights Reserved)**，未经原作者明确许可，严禁在其他项目中使用、修改或重新分发这些图标资源。
 
@@ -95,5 +109,3 @@ bun tauri build
 * [Milkdown](https://milkdown.dev/)：模块化的所见即所得 Markdown 编辑器框架
 
 * [CodeMirror](https://codemirror.net/)：业界领先的代码编辑器组件
-
-* [TailwindCSS](https://tailwindcss.com/)：让界面开发更高效的 CSS 框架
