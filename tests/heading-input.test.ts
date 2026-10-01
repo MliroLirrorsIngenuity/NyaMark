@@ -3,6 +3,8 @@ import { type Node, Schema } from '@milkdown/kit/prose/model';
 import { EditorState } from '@milkdown/kit/prose/state';
 import {
   HEADING_LEVEL,
+  NOT_A_HEADING,
+  keepHashes,
   typedHeadingLevel,
 } from '../src/editor/plugins/heading-input';
 
@@ -48,5 +50,17 @@ describe('typedHeadingLevel', () => {
 
   test('takes no more than six', () => {
     expect('####### '.match(HEADING_LEVEL)).toBeNull();
+  });
+});
+
+describe('keepHashes', () => {
+  test('leaves seven hashes as text', () => {
+    const start = doc(p('#######'));
+    const state = EditorState.create({ doc: start });
+    const match = '####### '.match(NOT_A_HEADING);
+    if (!match) throw new Error('no match');
+    const tr = keepHashes(state, match, 1, 8);
+    expect(tr.doc.toJSON()).toEqual(doc(p('####### ')).toJSON());
+    expect('###### '.match(NOT_A_HEADING)).toBeNull();
   });
 });
