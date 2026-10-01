@@ -1330,6 +1330,100 @@
 }
 
 /*
+ * A block of text selected whole, from its handle or as it is dropped, is
+ * ringed round its text a little clear of it, as an HTML block is. Square on
+ * its box the ring stood against the first letter, and round a paragraph it
+ * took in the gap above, which is padding, so the text sat on its bottom edge.
+ */
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  :where(
+    p:not(:has(> .ny-html-block)),
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    blockquote,
+    li
+  ).ProseMirror-selectednode {
+  position: relative;
+  isolation: isolate;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  :where(
+    p:not(:has(> .ny-html-block)),
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    blockquote,
+    li
+  ).ProseMirror-selectednode::after {
+  all: unset;
+  content: "";
+  position: absolute;
+  inset: -6px -4px;
+  z-index: -1;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--crepe-color-selected), transparent 60%);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ny-accent), transparent 55%);
+  pointer-events: none;
+}
+
+/* Rows of a list stand 4px apart: the ring keeps to its own. */
+.ny-editor-root .milkdown .ProseMirror li.ProseMirror-selectednode::after {
+  inset: -2px -4px;
+  border-radius: 8px;
+}
+
+/* paragraph gap: the ring starts where the text does. */
+.ny-editor-root .milkdown .editor p.ProseMirror-selectednode::after {
+  top: calc(0.72em - 6px);
+}
+
+.ny-editor-root
+  .milkdown
+  .editor
+  .content-dom
+  > p
+  + p.ProseMirror-selectednode::after {
+  top: calc(0.45em - 6px);
+}
+
+.ny-editor-root
+  .milkdown
+  .editor
+  > p.ProseMirror-selectednode:first-child::after,
+.ny-editor-root
+  .milkdown
+  .editor
+  > .ProseMirror-gapcursor:first-child
+  + p.ProseMirror-selectednode::after,
+.ny-editor-root .milkdown .editor hr + p.ProseMirror-selectednode::after,
+.ny-editor-root
+  .milkdown
+  .editor
+  blockquote
+  > p.ProseMirror-selectednode:first-child::after,
+.ny-editor-root
+  .milkdown
+  .editor
+  .content-dom
+  > p.ProseMirror-selectednode:first-child::after {
+  top: -6px;
+}
+
+/*
  * A selected HTML block, or the paragraph that holds it as the block handle
  * selects it, is ringed round the block itself, a little clear of its content.
  * The paragraph runs from the line above to the line below: on it the ring and
