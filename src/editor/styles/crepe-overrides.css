@@ -1755,6 +1755,43 @@
 }
 
 /*
+ * A code block, a table or a picture picked up whole, from its handle or a
+ * picture by a click, is ringed in the accent as a block of text is. Crepe
+ * drew a code block's in a hard line of its own colour, and a table and a
+ * picture took the deep wash of a selection running over them, the picture
+ * with no ring at all. The wash stays off: over the block it greyed the code,
+ * the cells and the picture alike.
+ */
+.ny-editor-root .milkdown .ProseMirror .milkdown-code-block.selected {
+  outline: none !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ny-accent), transparent 55%) !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-code-block.selected.ny-block-selected::after,
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-table-block.ProseMirror-selectednode.ny-block-selected::after,
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-image-block.selected
+  > .image-wrapper::before {
+  background: transparent !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-image-block.selected
+  > .image-wrapper::before {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ny-accent), transparent 55%);
+}
+
+/*
  * Crepe sets an inline image in an inline-flex box sized by the picture, and
  * the picture's `max-width: 100%` by that box in turn. An SVG with only a
  * viewBox has no width of its own to break the circle, so it came out 0 wide
