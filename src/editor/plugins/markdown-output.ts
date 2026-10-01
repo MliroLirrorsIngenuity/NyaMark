@@ -1,0 +1,79 @@
+/**
+ * Keeps the markdown NyaMark writes close to what the user wrote. Runs on the
+ * mdast tree right before it is stringified; parsing is left alone.
+ *
+ * Lists: Milkdown 7.20 parses a list's `spread` flag into a string ("false"),
+ * and mdast-util-to-markdown only honours a boolean there, so every saved list
+ * came back loose -- a blank line between items and before each nested list.
+ * An item typed in the editor starts out with `spread: true`, which did the
+ * same to every nested list the user typed. The flags are turned back into
+ * booleans, and a typed item only stays loose inside a loose list.
+ *
+ * Alerts: the `[!NOTE]` marker that opens a GFM alert was escaped to
+ * `\[!NOTE]`, which GitHub then shows as plain text. It is written verbatim,
+ * and a hard break typed after it becomes a plain line break: GitHub does not
+ * accept `[!NOTE]\` as a marker line.
+ */
+
+import { $remark } from '@milkdown/kit/utils';
+import type { Processor } from 'unified';
+
+type MdNode = {
+  type: string;
+  value?: string;
+  spread?: unknown;
+  children?: MdNode[];
+};
+
+const ALERT_MARKER = /^\[!(?:note|tip|important|warning|caution)\]/i;
+
+function normalizeList(list: MdNode) {
+  const loose = list.spread === true || list.spread === 'true';
+  list.spread = loose;
+  for (const item of list.children ?? []) {
+    // A parsed item carries the string; a boolean `true` is the schema
+    // default of an item typed in the editor.
+    item.spread = item.spread === 'true' || (item.spread === true && loose);
+  }
+}
+
+function unescapeAlertMarker(blockquote: MdNode) {
+  const paragraph = blockquote.children?.[0];
+  if (paragraph?.type !== 'paragraph') return;
+  const text = paragraph.children?.[0];
+  if (text?.type !== 'text' || !text.value) return;
+  const marker = text.value.match(ALERT_MARKER)?.[0];
+  if (!marker || !paragraph.children) return;
+  // An html node is written out as is, so the brackets stay unescaped.
+  const rest = text.value.slice(marker.length);
+  const hardBreak = !rest && paragraph.children[1]?.type === 'break';
+  paragraph.children.splice(
+    0,
+    hardBreak ? 2 : 1,
+    { type: 'html', value: hardBreak ? `${marker}\n` : marker },
+    ...(rest ? [{ type: 'text', value: rest }] : [])
+  );
+}
+
+export function normalizeForOutput<T extends MdNode>(tree: T): T {
+  const visit = (node: MdNode) => {
+    if (node.type === 'list') normalizeList(node);
+    if (node.type === 'blockquote') unescapeAlertMarker(node);
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(tree);
+  return tree;
+}
+
+/** Unified plugin: runs `normalizeForOutput` on every tree it stringifies. */
+export function normalizeOutput(this: Processor) {
+  const compile = this.compiler;
+  if (!compile) return;
+  this.compiler = (tree, file) =>
+    compile(normalizeForOutput(tree as MdNode) as typeof tree, file);
+}
+
+export const markdownOutput = $remark(
+  'nyamark-markdown-output',
+  () => normalizeOutput
+);

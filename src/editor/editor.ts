@@ -5,7 +5,11 @@
  */
 
 import { Crepe } from '@milkdown/crepe';
-import { editorViewCtx, parserCtx } from '@milkdown/kit/core';
+import {
+  editorViewCtx,
+  parserCtx,
+  remarkStringifyOptionsCtx,
+} from '@milkdown/kit/core';
 import { Fragment, Slice } from '@milkdown/kit/prose/model';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import { $prose, outline } from '@milkdown/kit/utils';
@@ -18,6 +22,7 @@ import { installDragSelectGuard } from './plugins/drag-guard';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
 import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
+import { markdownOutput } from './plugins/markdown-output';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import {
   type SearchMeta,
@@ -79,6 +84,16 @@ export class NyaEditor {
       })
     );
 
+    // `-` bullets and `---` rules, the markers most notes are written with;
+    // remark's defaults rewrote every one of them to `*` on save.
+    crepe.editor.config((ctx) => {
+      ctx.update(remarkStringifyOptionsCtx, (options) => ({
+        ...options,
+        bullet: '-' as const,
+        rule: '-' as const,
+      }));
+    });
+    crepe.editor.use(markdownOutput);
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
