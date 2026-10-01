@@ -10,6 +10,7 @@ import {
   parserCtx,
   remarkStringifyOptionsCtx,
 } from '@milkdown/kit/core';
+import { remarkGFMPlugin } from '@milkdown/kit/preset/gfm';
 import { Fragment, Slice } from '@milkdown/kit/prose/model';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import { $prose, outline } from '@milkdown/kit/utils';
@@ -26,7 +27,7 @@ import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
 import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
-import { markdownOutput } from './plugins/markdown-output';
+import { displayWidth, markdownOutput } from './plugins/markdown-output';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import {
   type SearchMeta,
@@ -99,6 +100,11 @@ export class NyaEditor {
         ...options,
         bullet: '-' as const,
         rule: '-' as const,
+      }));
+      // Table pipes line up by display width (see markdown-output).
+      ctx.update(remarkGFMPlugin.options.key, (options) => ({
+        ...options,
+        stringLength: displayWidth,
       }));
     });
     crepe.editor.config(keepImageAlt);

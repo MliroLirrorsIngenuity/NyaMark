@@ -26,6 +26,12 @@
  * way it would read when the file is opened again. Two or more at the start of
  * a paragraph are an indent the user made (Tab inserts four) and keep their
  * entities; a heading has no indent to keep.
+ *
+ * Tables: the pipes of a saved table are lined up by padding each cell, and
+ * remark measured a cell by its character count. A Chinese character takes two
+ * columns in a monospace editor, so a CJK table came out ragged, with odd
+ * gaps after short cells. `displayWidth` counts wide characters as two, the
+ * way Prettier does; it goes to remark-gfm as `stringLength`.
  */
 
 import { $remark } from '@milkdown/kit/utils';
@@ -40,6 +46,10 @@ type MdNode = {
 
 const ALERT_MARKER = /^\[!(?:note|tip|important|warning|caution)\]/i;
 const LINE_BREAK = /^<br\s*\/?>$/i;
+// East Asian wide and fullwidth ranges: CJK, kana, Hangul, fullwidth forms,
+// and the emoji blocks terminals draw two columns wide.
+const WIDE =
+  /[\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6\u{1f300}-\u{1f64f}\u{1f900}-\u{1f9ff}\u{20000}-\u{3fffd}]/u;
 
 function normalizeList(list: MdNode) {
   const loose = list.spread === true || list.spread === 'true';
@@ -88,6 +98,13 @@ function isEmptyParagraph(node: MdNode) {
         (child.type === 'html' && LINE_BREAK.test(child.value?.trim() ?? ''))
     )
   );
+}
+
+/** Columns `value` takes in a monospace font. */
+export function displayWidth(value: string): number {
+  let width = 0;
+  for (const char of value) width += WIDE.test(char) ? 2 : 1;
+  return width;
 }
 
 export function normalizeForOutput<T extends MdNode>(tree: T): T {

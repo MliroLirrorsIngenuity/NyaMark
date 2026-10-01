@@ -3,7 +3,10 @@ import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
-import { normalizeOutput } from '../src/editor/plugins/markdown-output';
+import {
+  displayWidth,
+  normalizeOutput,
+} from '../src/editor/plugins/markdown-output';
 
 type Tree = { type: string; spread?: unknown; children?: Tree[] };
 
@@ -105,5 +108,17 @@ describe('normalizeOutput', () => {
     expect(processor.stringify(tree as never)).toBe(
       '## 二\n\nworld\n\n&#x20;   缩进\n\n　全角\n'
     );
+  });
+
+  test('lines up a CJK table by display width', () => {
+    const processor = unified()
+      .use(remarkParse)
+      .use(remarkGfm, { stringLength: displayWidth })
+      .use(remarkStringify);
+    const table = '| 名称 | 数量 |\n| --- | --- |\n| 梨 | 7 |\n';
+    expect(processor.processSync(table).toString()).toBe(
+      '| 名称 | 数量 |\n| ---- | ---- |\n| 梨   | 7    |\n'
+    );
+    expect(displayWidth('a，b😀')).toBe(6);
   });
 });
