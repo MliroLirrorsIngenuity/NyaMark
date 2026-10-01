@@ -176,6 +176,15 @@ describe('writeText', () => {
     expect(write('\\_一\\_ 与 a \\_b\n')).toBe('\\_一\\_ 与 a \\_b\n');
   });
 
+  test('keeps a star or underscore between spaces', () => {
+    const markdown = '3 * 4 * 5 与 a _ b\n';
+    expect(write(markdown)).toBe(markdown);
+  });
+
+  test('escapes a star that would start a list item', () => {
+    expect(write('\\* 不是列表\n')).toBe('\\* 不是列表\n');
+  });
+
   test('keeps a hash that starts no heading', () => {
     const markdown = '#标签 文本\n\n####### 七个\n\n- #tag\n';
     expect(write(markdown)).toBe(markdown);

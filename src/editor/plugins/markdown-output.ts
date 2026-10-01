@@ -39,9 +39,10 @@
  *
  * Escapes: remark escapes every `_` in text and every `#` that starts a line,
  * so a saved file had `snake\_case` and `\#tag` in place of what was typed,
- * in every paragraph the file held. An underscore between two letters or
- * digits never opens or closes emphasis, and hashes start a heading only when
- * six or fewer are followed by a space: `writeText` leaves those unescaped.
+ * in every paragraph the file held, and `3 \* 4` for `3 * 4`. An underscore
+ * between two letters or digits never opens or closes emphasis, nor does a
+ * star or underscore between spaces, and hashes start a heading only when six
+ * or fewer are followed by a space: `writeText` leaves those unescaped.
  *
  * Dollars: remark-math escapes every `$` in text, so `$5` was saved as `\$5`.
  * A paragraph whose dollars all come back as text when the file is opened
@@ -133,12 +134,16 @@ function clearEmptyCell(cell: MdNode) {
 }
 
 const INTRAWORD_UNDERSCORE = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
+// A star or underscore with spaces on both sides opens and closes nothing;
+// one that starts a line would begin a list item.
+const SPACED_MARKER = /(?<=\S[ \t]+)\\([*_])(?=[ \t\n])/g;
 const ESCAPED_HASHES = /(^|\n)([ \t]*)\\(#+)(.?)/g;
 
 /** `markdown`, written by remark, without the escapes it needs none of. */
 export function relaxEscapes(markdown: string): string {
   return markdown
     .replace(INTRAWORD_UNDERSCORE, '_')
+    .replace(SPACED_MARKER, '$1')
     .replace(ESCAPED_HASHES, (escaped, line, indent, hashes, next) =>
       hashes.length > 6 || (next !== '' && !/[ \t]/.test(next))
         ? `${line}${indent}${hashes}${next}`
