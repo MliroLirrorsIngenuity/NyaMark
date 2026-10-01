@@ -25,6 +25,7 @@ import { restHiddenBlockHandle } from './plugins/block-handle-rest';
 import { blockSelection } from './plugins/block-selection';
 import { codePreview } from './plugins/code-preview';
 import { installDragSelectGuard } from './plugins/drag-guard';
+import { fenceInput } from './plugins/fence-input';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
 import { hrInput } from './plugins/hr-input';
@@ -120,6 +121,7 @@ export class NyaEditor {
     crepe.editor.use(blockEdges);
     crepe.editor.use(hrInput);
     crepe.editor.use(linkInput);
+    crepe.editor.use(fenceInput);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
     crepe.editor.use(codePreview);
