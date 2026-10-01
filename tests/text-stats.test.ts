@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { countWords } from '../src/editor/text-stats';
+import { countLines, countWords } from '../src/editor/text-stats';
 
 describe('countWords', () => {
   test('counts Latin words between spaces', () => {
@@ -19,5 +19,17 @@ describe('countWords', () => {
   test('ignores punctuation and empty text', () => {
     expect(countWords('—— … !!')).toBe(0);
     expect(countWords('   ')).toBe(0);
+  });
+});
+
+describe('countLines', () => {
+  test('does not count the final newline as a line', () => {
+    expect(countLines('one\n')).toBe(1);
+    expect(countLines('one\r\ntwo\r\n')).toBe(2);
+    expect(countLines('one\n\nthree')).toBe(3);
+  });
+
+  test('an empty document has one line', () => {
+    expect(countLines('')).toBe(1);
   });
 });

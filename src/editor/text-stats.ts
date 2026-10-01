@@ -16,3 +16,8 @@ export function countWords(text: string): number {
   }
   return words;
 }
+
+/** Lines in `source`; the newline that ends the last line opens no new one. */
+export function countLines(source: string): number {
+  return source.replace(/\r?\n$/, '').split(/\r?\n/).length;
+}
