@@ -105,8 +105,8 @@ export class NyaEditor {
    * Fires synchronously as soon as a transaction changed the document, before
    * control returns to whoever dispatched it. Dirty tracking hangs off this
    * so a save or close prompt issued right after a keystroke sees the truth.
+   * Returns the unsubscribe.
    */
-  /** Runs after every transaction that changed the document; returns the unsubscribe. */
   onDocChanged(callback: () => void): () => void {
     this.docChangedListeners.add(callback);
     return () => {
@@ -177,14 +177,15 @@ export class NyaEditor {
     return this.crepe.editor.action(outline());
   }
 
-  getStats() {
+  /** Pass `markdown` when it is already at hand to skip serializing the document again. */
+  getStats(markdown?: string) {
     if (!this.crepe) return { words: 0, lines: 1 };
     const view = this.crepe.editor.ctx.get(editorViewCtx);
     const text = view.state.doc.textContent.trim();
-    const markdown = this.getMarkdown().replace(/\r\n/g, '\n');
+    const source = markdown ?? this.getMarkdown();
     return {
       words: text ? text.split(/\s+/).length : 0,
-      lines: markdown ? markdown.split('\n').length : 1,
+      lines: source ? source.split(/\r?\n/).length : 1,
     };
   }
 

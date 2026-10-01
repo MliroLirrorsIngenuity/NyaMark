@@ -24,6 +24,8 @@ export class Store {
   }
 
   update(partial: Partial<AppState>) {
+    const keys = Object.keys(partial) as (keyof AppState)[];
+    if (keys.every((key) => this.state[key] === partial[key])) return;
     this.state = { ...this.state, ...partial };
     this.notify();
   }

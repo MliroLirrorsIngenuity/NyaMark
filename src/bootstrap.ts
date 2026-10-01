@@ -165,7 +165,9 @@ export class App {
     });
 
     await this.editor.init(initialDocument.markdown);
-    this.editor.onChange(() => this.handleEditorChange());
+    // Dirty state comes from onDocChanged alone. The debounced onChange can
+    // land after a save that already captured the latest keystroke.
+    this.editor.onChange((markdown) => this.updateStats(markdown));
     this.editor.onDocChanged(() => this.markDirty());
 
     this.sourceMode = new SourceModeController(
@@ -230,8 +232,6 @@ export class App {
     shortcutController.bind();
 
     this.refreshStatsSoon();
-
-    this.updateStats();
     this.scheduleUpdateCheck();
   }
 
@@ -329,28 +329,10 @@ export class App {
     store.update({ isDirty: true });
   }
 
-  private handleEditorChange() {
-    if (this.suppressDirtyTracking) {
-      this.refreshStatsSoon();
-      return;
-    }
-
-    const stats = this.editor?.getStats() ?? { words: 0, lines: 1 };
-    store.update({
-      wordCount: stats.words,
-      lineCount: stats.lines,
-      isDirty: true,
-    });
-  }
-
-  private updateStats() {
+  private updateStats(markdown?: string) {
     if (!this.editor) return;
-    const stats = this.editor.getStats();
-    store.update({
-      wordCount: stats.words,
-      lineCount: stats.lines,
-      isDirty: this.suppressDirtyTracking ? false : store.getState().isDirty,
-    });
+    const stats = this.editor.getStats(markdown);
+    store.update({ wordCount: stats.words, lineCount: stats.lines });
   }
 
   private refreshStatsSoon() {
