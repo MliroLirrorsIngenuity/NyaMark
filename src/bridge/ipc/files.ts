@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { ask, message, open, save } from '@tauri-apps/plugin-dialog';
-import { watchImmediate } from '@tauri-apps/plugin-fs';
+import { watch } from '@tauri-apps/plugin-fs';
 
 export async function openFileDialog(): Promise<string | null> {
   const result = await open({
@@ -145,11 +145,18 @@ export async function saveMarkdown(
   }
 }
 
+/**
+ * Quiet period before a change is reported. Editors that save by truncating
+ * and rewriting emit several events per save; reading on the first one can
+ * catch the file half-written.
+ */
+const WATCH_DEBOUNCE_MS = 300;
+
 export async function watchMarkdownFile(
   path: string,
   handler: () => void
 ): Promise<() => void> {
-  return await watchImmediate(path, () => handler());
+  return await watch(path, () => handler(), { delayMs: WATCH_DEBOUNCE_MS });
 }
 
 export async function resolveCurrentWindowFile(): Promise<string | null> {
