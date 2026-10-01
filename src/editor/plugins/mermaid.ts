@@ -1,3 +1,4 @@
+import { EditorView as CodeMirror } from '@codemirror/view';
 import DOMPurify from 'dompurify';
 import type { MermaidConfig } from 'mermaid';
 import type { EditorView } from 'prosemirror-view';
@@ -139,12 +140,24 @@ function editorBeingTyped(): Element | null {
   return active?.closest('.milkdown-code-block .cm-editor') ?? null;
 }
 
+/** Whether `editor` no longer holds `content`: its render is out of date. */
+function changedSince(editor: Element, content: string): boolean {
+  const cm =
+    editor instanceof HTMLElement ? CodeMirror.findFromDOM(editor) : null;
+  return cm != null && cm.state.doc.toString() !== content;
+}
+
 /**
  * `renderPreview` hook of Crepe's code block. Called with every change to
  * the block's text; rendering is asynchronous (returns `undefined`) and, while
  * the block is being typed in, waits for a pause so each keystroke does not
  * cost a full parse and layout. A render whose block changed again before
  * it finished is dropped rather than shown over the newer one.
+ *
+ * A change made from outside the code, as the closing fence typed and taken
+ * out on Enter, comes after the caret has left it and renders at once. The
+ * render still waiting from the last keystroke in it is dropped too: it
+ * drew the fence into the diagram over the right one.
  */
 export function renderMermaidPreview(
   language: string,
@@ -166,6 +179,7 @@ export function renderMermaidPreview(
     void renderWhileTyping(content, editor).then((markup) => {
       if (pendingRenders.get(editor)?.sequence !== sequence) return;
       pendingRenders.delete(editor);
+      if (changedSince(editor, content)) return;
       applyPreview(markup);
     });
   }, RENDER_DELAY_MS);
