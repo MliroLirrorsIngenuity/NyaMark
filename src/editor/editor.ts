@@ -69,6 +69,7 @@ import { mathInlineKeys } from './plugins/math-inline-keys';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import { pasteCodeAsCode } from './plugins/paste-code';
 import { pasteOnEmptyLine } from './plugins/paste-line';
+import { pasteTextLines } from './plugins/paste-text-lines';
 import {
   type SearchMeta,
   findMatches,
@@ -194,6 +195,7 @@ export class NyaEditor {
     crepe.editor.use(keepListItemSelected);
     crepe.editor.use(pasteOnEmptyLine);
     crepe.editor.use(pasteCodeAsCode);
+    crepe.editor.use(pasteTextLines);
     crepe.editor.use(mathInlineKeys);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(htmlBlockSelection);
