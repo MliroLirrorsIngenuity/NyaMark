@@ -20,6 +20,7 @@ import { closeFenceOnEnter } from './plugins/code-fence-exit';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
 import { rememberCodeCopy } from './plugins/paste-code';
+import { pasteApart } from './plugins/undo-lines';
 
 export type CrepeConfigOptions = {
   root: HTMLElement;
@@ -142,7 +143,8 @@ const codeHighlight = HighlightStyle.define([
  * code block came back twice, in the block and below it.
  *
  * An undo that puts the caret outside the block focuses the document, so the
- * caret is where the undo put it; it stayed in the block before.
+ * caret is where the undo put it; it stayed in the block before. A paste in
+ * the block is a step of its own, as it is in text.
  */
 function codeBlockHistory(getView: () => EditorView | null) {
   const run = (command: Command) => () => {
@@ -158,6 +160,11 @@ function codeBlockHistory(getView: () => EditorView | null) {
     ]),
     // Edit > Undo in the menu bar arrives as an input event.
     CodeMirror.domEventHandlers({
+      paste: () => {
+        const view = getView();
+        if (view) pasteApart(view);
+        return false;
+      },
       beforeinput: (event) => {
         const command =
           event.inputType === 'historyUndo'
