@@ -17,12 +17,10 @@ import { check } from '@tauri-apps/plugin-updater';
 import { store } from './state/store';
 import {
   getSettings,
-  hasPersistedLanguage,
   hydrateSettings,
   previewAppearance,
   subscribeSettings,
   takeUnreadableSettingsBackup,
-  updateSettings,
 } from './state/settings';
 import { initI18n, i18next, resolveLanguage } from './i18n';
 import { translateDOM } from './i18n/dom';
@@ -76,14 +74,7 @@ export class App {
     await hydrateSettings();
     const settings = getSettings();
 
-    if (!(await hasPersistedLanguage())) {
-      const detected = resolveLanguage('auto');
-      await updateSettings({ general: { language: detected } });
-      this.currentLanguage = detected;
-    } else {
-      this.currentLanguage = settings.general.language;
-    }
-
+    this.currentLanguage = settings.general.language;
     await initI18n(this.currentLanguage);
 
     if (
@@ -115,18 +106,12 @@ export class App {
     subscribeSettings((newSettings) => {
       if (newSettings.general.language !== this.currentLanguage) {
         this.currentLanguage = newSettings.general.language;
-        i18next.changeLanguage(this.currentLanguage).then(() => {
-          translateDOM(document.body);
-          if (
-            document.documentElement.dataset.platform === 'macos' ||
-            /Mac/.test(navigator.platform)
-          ) {
-            void updateMacosMenu(
-              i18next.getResourceBundle(i18next.language, 'translation').menu
-            );
-          }
-        });
+        this.applyLanguage();
       }
+    });
+    // `auto` follows the system, including a change made while running.
+    window.addEventListener('languagechange', () => {
+      if (this.currentLanguage === 'auto') this.applyLanguage();
     });
 
     const editorContainer = document.getElementById('editor-container');
@@ -346,6 +331,22 @@ export class App {
     if (this.autoSaveTimer === null) return;
     window.clearTimeout(this.autoSaveTimer);
     this.autoSaveTimer = null;
+  }
+
+  private applyLanguage() {
+    const language = resolveLanguage(this.currentLanguage);
+    if (language === i18next.language) return;
+    void i18next.changeLanguage(language).then(() => {
+      translateDOM(document.body);
+      if (
+        document.documentElement.dataset.platform === 'macos' ||
+        /Mac/.test(navigator.platform)
+      ) {
+        void updateMacosMenu(
+          i18next.getResourceBundle(i18next.language, 'translation').menu
+        );
+      }
+    });
   }
 
   private getPrintableFileTitle() {

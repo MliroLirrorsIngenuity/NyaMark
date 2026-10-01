@@ -64,4 +64,14 @@ describe('normalizeSettings', () => {
       defaultSettings.appearance.windowTransparency
     );
   });
+
+  test.each([
+    ['auto', 'auto'],
+    ['zh-TW', 'zh-TW'],
+    ['fr', 'auto'],
+    [42, 'auto'],
+  ])('reads language %p as %p', (language, expected) => {
+    const settings = normalizeSettings({ general: { language } } as never);
+    expect(settings.general.language).toBe(expected);
+  });
 });

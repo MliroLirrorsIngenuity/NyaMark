@@ -2,6 +2,11 @@ import { type GeneralSettings } from '../../../state/settings';
 import { renderSelect } from '../select';
 
 const LANGUAGES = [
+  {
+    value: 'auto',
+    label: 'Auto (System Default)',
+    i18n: 'settings.general.autoLabel',
+  },
   { value: 'en', label: 'English' },
   { value: 'zh-CN', label: '简体中文 (Simplified Chinese)' },
   { value: 'zh-TW', label: '繁體中文 (Traditional Chinese)' },

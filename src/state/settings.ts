@@ -4,7 +4,6 @@ import {
   defaultImageSettings,
 } from './image-settings';
 import {
-  hasPersistedLanguage as hasStoredLanguage,
   loadPersistedSettings,
   onPersistedSettingsChange,
   savePersistedSettings,
@@ -169,7 +168,7 @@ export function sanitizeAppearanceSettings(
 function sanitizeGeneralSettings(
   general: Partial<GeneralSettings> | undefined
 ): GeneralSettings {
-  const allowedLanguages = ['en', 'zh-CN', 'zh-TW'];
+  const allowedLanguages = ['auto', 'en', 'zh-CN', 'zh-TW'];
   const lang = general?.language;
   return {
     language:
@@ -310,10 +309,6 @@ export function takeUnreadableSettingsBackup(): string | null {
   const backup = unreadableSettingsBackup;
   unreadableSettingsBackup = null;
   return backup;
-}
-
-export async function hasPersistedLanguage() {
-  return await hasStoredLanguage();
 }
 
 export async function saveSettings(next: Settings) {

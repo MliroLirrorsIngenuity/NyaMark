@@ -71,20 +71,6 @@ export async function onPersistedSettingsChange(
   return await store.onKeyChange<Partial<Settings>>(STORE_KEY, handler);
 }
 
-export async function hasPersistedLanguage(): Promise<boolean> {
-  try {
-    const { store } = await settingsStore();
-    const settings = await store.get<Partial<Settings>>(STORE_KEY);
-    return typeof settings?.general?.language === 'string';
-  } catch (error) {
-    // Answering "no" would make the first-run language detection save over
-    // a settings file that merely failed to load. The default language is
-    // `auto`, so this session still follows the system.
-    console.error('Failed to inspect persisted language:', error);
-    return true;
-  }
-}
-
 function settingsStore(): Promise<OpenedStore> {
   storePromise ??= openStore().catch((error) => {
     storePromise = null;
