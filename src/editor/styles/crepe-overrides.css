@@ -277,11 +277,13 @@
  *
  * Matching each widget's successor pins the spacing across all of those
  * states. The two can never both be present: one needs a text selection, the
- * other a GapCursor selection.
+ * other a GapCursor selection. Only a widget in first place counts: a gap
+ * cursor between a table and a rule took the rule's margin away and pulled
+ * everything below it up by one gap.
  */
 .ny-editor-root .milkdown .editor > *:first-child,
-.ny-editor-root .milkdown .editor > .prosemirror-virtual-cursor + *,
-.ny-editor-root .milkdown .editor > .ProseMirror-gapcursor + * {
+.ny-editor-root .milkdown .editor > .prosemirror-virtual-cursor:first-child + *,
+.ny-editor-root .milkdown .editor > .ProseMirror-gapcursor:first-child + * {
   margin-top: 0 !important;
 }
 
@@ -291,9 +293,30 @@
  * opening the document would lose the inset its card is drawn with.
  */
 .ny-editor-root .milkdown .editor > p:first-child,
-.ny-editor-root .milkdown .editor > .prosemirror-virtual-cursor + p,
-.ny-editor-root .milkdown .editor > .ProseMirror-gapcursor + p {
+.ny-editor-root .milkdown .editor > .prosemirror-virtual-cursor:first-child + p,
+.ny-editor-root .milkdown .editor > .ProseMirror-gapcursor:first-child + p {
   padding-top: 0 !important;
+}
+
+/*
+ * The gap cursor is positioned absolutely so it takes no room, and in block
+ * flow that left it where it stood. A flex container places an absolute child
+ * at its own start instead, so the caret between a table and a rule was drawn
+ * at the top of the document, out of sight. As a zero-height flex item it
+ * stays in the gap, and the line is drawn in the middle of it.
+ */
+.ny-editor-root .milkdown .editor .ProseMirror-gapcursor {
+  position: relative !important;
+  flex: 0 0 0 !important;
+  height: 0 !important;
+}
+
+.ny-editor-root .milkdown .editor .ProseMirror-gapcursor::after {
+  top: 0.3em !important;
+}
+
+.ny-editor-root .milkdown .editor .ProseMirror-gapcursor:first-child::after {
+  top: -0.3em !important;
 }
 
 /*
@@ -306,13 +329,23 @@
 }
 
 .ny-editor-root .milkdown .editor blockquote > *:first-child,
-.ny-editor-root .milkdown .editor blockquote > .ProseMirror-gapcursor + * {
+.ny-editor-root
+  .milkdown
+  .editor
+  blockquote
+  > .ProseMirror-gapcursor:first-child
+  + * {
   margin-top: 0 !important;
 }
 
 /* paragraph gap, inside a quote. */
 .ny-editor-root .milkdown .editor blockquote > p:first-child,
-.ny-editor-root .milkdown .editor blockquote > .ProseMirror-gapcursor + p {
+.ny-editor-root
+  .milkdown
+  .editor
+  blockquote
+  > .ProseMirror-gapcursor:first-child
+  + p {
   padding-top: 0 !important;
 }
 
