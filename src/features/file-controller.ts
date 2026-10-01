@@ -80,8 +80,8 @@ export class FileController {
     }
   }
 
-  private async updateWatcher(path: string | null, force = false) {
-    if (!force && this.watchedPath === path) return;
+  private async updateWatcher(path: string | null) {
+    if (this.watchedPath === path) return;
 
     if (this.unwatch) {
       this.unwatch();
@@ -351,12 +351,6 @@ export class FileController {
     } catch (error) {
       this.lastKnownContent = prevLastKnown;
       throw error;
-    }
-    // The atomic save renamed a new inode over the old one. inotify watches
-    // the inode, so on Linux the watcher would go quiet from here on; macOS
-    // and Windows watch by path and only pay for a cheap re-subscribe.
-    if (this.watchedPath === path) {
-      void this.updateWatcher(path, true);
     }
     const currentMarkdown = this.getEditor()?.getMarkdown() ?? snapshot;
     if (currentMarkdown !== snapshot) {

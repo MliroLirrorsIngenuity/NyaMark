@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { dirname } from '@tauri-apps/api/path';
 import { ask, message, open, save } from '@tauri-apps/plugin-dialog';
 import { watch } from '@tauri-apps/plugin-fs';
 
@@ -152,11 +153,31 @@ export async function saveMarkdown(
  */
 const WATCH_DEBOUNCE_MS = 300;
 
+/**
+ * Watch the folder rather than the file: inotify follows the inode, so once
+ * another editor saves by writing a temporary file and renaming it over the
+ * document, a watch on the file itself never fires again.
+ */
 export async function watchMarkdownFile(
   path: string,
   handler: () => void
 ): Promise<() => void> {
-  return await watch(path, () => handler(), { delayMs: WATCH_DEBOUNCE_MS });
+  const target = comparablePath(path);
+  return await watch(
+    await dirname(path),
+    (event) => {
+      if (event.paths.some((changed) => comparablePath(changed) === target)) {
+        handler();
+      }
+    },
+    { delayMs: WATCH_DEBOUNCE_MS, recursive: false }
+  );
+}
+
+/** Separator- and, for drive-letter paths, case-insensitive form of a path. */
+function comparablePath(path: string): string {
+  const unified = path.replace(/\\/g, '/');
+  return /^[a-z]:\//i.test(unified) ? unified.toLowerCase() : unified;
 }
 
 export async function resolveCurrentWindowFile(): Promise<string | null> {
