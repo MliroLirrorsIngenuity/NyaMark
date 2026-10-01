@@ -30,6 +30,7 @@ import {
   searchKey,
   searchPlugin,
 } from './plugins/search';
+import { tableCells } from './plugins/table-cells';
 import { registerEditorStyles } from './styles';
 import { countLines, countWords } from './text-stats';
 
@@ -98,6 +99,7 @@ export class NyaEditor {
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
+    crepe.editor.use(tableCells);
     crepe.editor.use(searchPlugin);
     crepe.editor.use(this.docChangedPlugin());
 
