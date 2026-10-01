@@ -23,9 +23,14 @@
  * the table's keymap typed four spaces into the cell. It adds a row and moves
  * into it, the way Tab grows a table in other editors.
  *
- * Enter: Milkdown leaves the table onto a new empty paragraph every time, so
- * a table already followed by one -- always the case at the end of a document
- * -- gained another, saved as a stray `<br />`. The one already there is used.
+ * Enter: Milkdown left the table from any cell, the header's too, so Enter
+ * while filling in a row threw the caret out under the table. It goes down a
+ * row in the same column instead, and from the last row adds one, the way
+ * Enter goes through a list; on a last row still empty it takes that row away
+ * and leaves the table, as Enter on an empty item ends a list. Cmd+Enter
+ * leaves from anywhere. Leaving onto a table already followed by an empty
+ * paragraph -- always the case at the end of a document -- uses that one:
+ * Milkdown added another, saved as a stray `<br />`.
  *
  * A line typed as a table's top row, `| 名称 | 数量 |`, stayed text on Enter:
  * the table's own shortcut is `|2x2|`, which nobody types. Enter at its end
@@ -34,6 +39,7 @@
  */
 
 import type { Ctx } from '@milkdown/kit/ctx';
+import { paragraphSchema } from '@milkdown/kit/preset/commonmark';
 import {
   addRowWithAlignment,
   tableCellSchema,
@@ -43,8 +49,9 @@ import {
   tableSchema,
 } from '@milkdown/kit/preset/gfm';
 import { GapCursor } from '@milkdown/kit/prose/gapcursor';
-import type { Fragment, Node } from '@milkdown/kit/prose/model';
+import type { Fragment, Node, ResolvedPos } from '@milkdown/kit/prose/model';
 import {
+  type EditorState,
   NodeSelection,
   Plugin,
   PluginKey,
@@ -202,21 +209,82 @@ function moveVertically(view: EditorView, dir: 1 | -1): boolean {
   return !CELL_TYPES.has(selection.$from.parent.type.name);
 }
 
-/** Tab from the last cell: a new row below, the caret in its first cell. */
-function addRowFromLastCell(ctx: Ctx, view: EditorView): boolean {
-  const { state } = view;
-  if (!(state.selection instanceof TextSelection)) return false;
+/** The cell holding the whole selection, as a position in its row. */
+function selectedCell(state: EditorState): ResolvedPos | null {
+  if (!(state.selection instanceof TextSelection)) return null;
   const $cell = cellAround(state.selection.$head);
   if (!$cell || cellAround(state.selection.$anchor)?.pos !== $cell.pos) {
-    return false;
+    return null;
   }
+  return $cell;
+}
+
+/** A new row under the table, the caret in its cell in column `col`. */
+function addRowBelow(ctx: Ctx, view: EditorView, col: number): void {
+  const rect = selectedRect(view.state);
+  const tr = addRowWithAlignment(ctx, view.state.tr, rect, rect.map.height);
+  let cellPos = rect.tableStart + rect.table.content.size + 1;
+  const row = tr.doc.nodeAt(cellPos - 1);
+  for (let i = 0; row && i < Math.min(col, row.childCount - 1); i += 1) {
+    cellPos += row.child(i).nodeSize;
+  }
+  tr.setSelection(Selection.near(tr.doc.resolve(cellPos + 1), 1));
+  view.dispatch(tr.scrollIntoView());
+}
+
+/** Tab from the last cell: a new row below, the caret in its first cell. */
+function addRowFromLastCell(ctx: Ctx, view: EditorView): boolean {
+  const $cell = selectedCell(view.state);
+  if (!$cell) return false;
   const table = $cell.node(-1);
   const lastRow = $cell.index(-1) === table.childCount - 1;
   if (!lastRow || $cell.index() !== $cell.parent.childCount - 1) return false;
-  const rect = selectedRect(state);
-  const tr = addRowWithAlignment(ctx, state.tr, rect, rect.map.height);
-  const rowPos = rect.tableStart + rect.table.content.size;
-  tr.setSelection(Selection.near(tr.doc.resolve(rowPos + 1), 1));
+  addRowBelow(ctx, view, 0);
+  return true;
+}
+
+/** A row with nothing typed in any of its cells. */
+export function isEmptyRow(row: Node): boolean {
+  let empty = true;
+  row.descendants((node) => {
+    if (node.isInline) empty = false;
+    return empty;
+  });
+  return empty;
+}
+
+/**
+ * Enter in a cell: to the end of the cell below. From the last row, a new row
+ * to fill in; from a last row left empty, out of the table, the row gone.
+ */
+function enterCellBelow(ctx: Ctx, view: EditorView): boolean {
+  const { state } = view;
+  const $cell = selectedCell(state);
+  if (!$cell) return false;
+  const $below = nextCell($cell, 'vert', 1);
+  if ($below) {
+    const end = $below.pos + ($below.nodeAfter?.nodeSize ?? 2) - 1;
+    view.dispatch(
+      state.tr
+        .setSelection(Selection.near(state.doc.resolve(end), -1))
+        .scrollIntoView()
+    );
+    return true;
+  }
+  const row = $cell.parent;
+  if (!isEmptyRow(row)) {
+    addRowBelow(ctx, view, $cell.index());
+    return true;
+  }
+  const tr = state.tr;
+  // The header and one row are as few as a table has.
+  if ($cell.node(-1).childCount > 2) tr.delete($cell.before(), $cell.after());
+  const below = tr.mapping.map($cell.after(-1));
+  const next = tr.doc.nodeAt(below);
+  if (next?.type.name !== 'paragraph' || next.content.size > 0) {
+    tr.insert(below, paragraphSchema.type(ctx).create());
+  }
+  tr.setSelection(TextSelection.create(tr.doc, below + 1));
   view.dispatch(tr.scrollIntoView());
   return true;
 }
@@ -342,6 +410,7 @@ export const tableCells = $prose(
             return addRowFromLastCell(ctx, view);
           }
           if (event.key === 'Enter') {
+            if (!event.metaKey && enterCellBelow(ctx, view)) return true;
             return enterParagraphBelow(view) || tableFromLine(ctx, view);
           }
           return false;

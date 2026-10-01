@@ -5,7 +5,11 @@ import {
   NodeSelection,
   TextSelection,
 } from '@milkdown/kit/prose/state';
-import { keepsCellCaret, rowCells } from '../src/editor/plugins/table-cells';
+import {
+  isEmptyRow,
+  keepsCellCaret,
+  rowCells,
+} from '../src/editor/plugins/table-cells';
 
 const schema = new Schema({
   nodes: {
@@ -90,5 +94,15 @@ describe('a line typed as a table row', () => {
       expect(rowCells(p(text))).toBeNull();
     }
     expect(rowCells(schema.node('paragraph'))).toBeNull();
+  });
+});
+
+describe('a row Enter leaves the table from', () => {
+  const blank = schema.node('table_cell', null, [schema.node('paragraph')]);
+
+  test('has nothing typed in any of its cells', () => {
+    expect(isEmptyRow(row(blank, blank))).toBe(true);
+    expect(isEmptyRow(row(blank, cell('table_cell', ' ')))).toBe(false);
+    expect(isEmptyRow(row(cell('table_cell', '苹果'), blank))).toBe(false);
   });
 });
