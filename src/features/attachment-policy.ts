@@ -97,15 +97,22 @@ export function policyToInsertRule(
   }
 }
 
-export function extractClipboardFilePaths(clipboard: DataTransfer) {
-  const payloads = [
-    clipboard.getData('text/uri-list'),
-    clipboard.getData('text/plain'),
-  ];
-
-  return Array.from(
-    new Set(payloads.flatMap((payload) => parseFileUris(payload)))
-  );
+/**
+ * Local files on the clipboard, as paths. `text/uri-list` is meant for exactly
+ * this. Plain text only counts when it is nothing but `file://` lines (some
+ * file managers put the list there); prose that merely mentions a file URI
+ * stays an ordinary text paste.
+ */
+export function extractClipboardFilePaths(
+  clipboard: Pick<DataTransfer, 'getData'>
+) {
+  const uriList = parseFileUris(clipboard.getData('text/uri-list'), {
+    requireAll: false,
+  });
+  const plainText = parseFileUris(clipboard.getData('text/plain'), {
+    requireAll: true,
+  });
+  return Array.from(new Set([...uriList, ...plainText]));
 }
 
 export function isExternalResource(value: string) {
@@ -190,13 +197,21 @@ export function relocateLocalReference(
   return next === value ? null : next;
 }
 
-function parseFileUris(payload: string) {
+function parseFileUris(
+  payload: string,
+  { requireAll }: { requireAll: boolean }
+) {
   if (!payload) return [];
 
-  return payload
+  // RFC 2483: lines starting with `#` are comments.
+  const lines = payload
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => line.startsWith('file://'))
+    .filter((line) => line && !line.startsWith('#'));
+  const fileLines = lines.filter((line) => /^file:\/\//i.test(line));
+  if (requireAll && fileLines.length !== lines.length) return [];
+
+  return fileLines
     .map((line) => fileUriToPath(line))
     .filter((line): line is string => Boolean(line));
 }

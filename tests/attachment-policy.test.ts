@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   classifyLinkTarget,
+  extractClipboardFilePaths,
   relocateLocalReference,
 } from '../src/features/attachment-policy';
 
@@ -160,5 +161,34 @@ describe('relocateLocalReference with percent-encoding', () => {
         options
       )
     ).toBeNull();
+  });
+});
+
+describe('extractClipboardFilePaths', () => {
+  const clipboard = (data: Record<string, string>) => ({
+    getData: (type: string) => data[type] ?? '',
+  });
+
+  test('reads every file URI of a uri-list and skips comments', () => {
+    expect(
+      extractClipboardFilePaths(
+        clipboard({
+          'text/uri-list': '# copied\nfile:///tmp/a.png\r\nhttps://x.y/z\n',
+        })
+      )
+    ).toEqual(['/tmp/a.png']);
+  });
+
+  test('takes plain text only when it is purely a file list', () => {
+    expect(
+      extractClipboardFilePaths(
+        clipboard({ 'text/plain': 'file:///tmp/a.png\nfile:///tmp/b.png' })
+      )
+    ).toEqual(['/tmp/a.png', '/tmp/b.png']);
+    expect(
+      extractClipboardFilePaths(
+        clipboard({ 'text/plain': 'See the log at\nfile:///tmp/log.txt' })
+      )
+    ).toEqual([]);
   });
 });
