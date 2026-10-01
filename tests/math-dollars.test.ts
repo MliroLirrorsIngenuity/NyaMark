@@ -39,6 +39,11 @@ function typeDollar(before: string) {
   return keepDollar(state, match, start, end);
 }
 
+const codeSchema = new Schema({
+  nodes: schema.spec.nodes,
+  marks: { code: { code: true } },
+});
+
 type Tree = { type: string; value?: string; children?: Tree[] };
 
 function parse(markdown: string) {
@@ -74,6 +79,20 @@ describe('keepDollar', () => {
   test('leaves a dollar right after one to the rule for math', () => {
     expect(typeDollar('设 $x')).toBeNull();
     expect(typeDollar('设 $x^2')).toBeNull();
+  });
+
+  test('types it as text in inline code', () => {
+    const code = codeSchema.text('设 $x', [codeSchema.mark('code')]);
+    const doc = codeSchema.node('doc', null, [
+      codeSchema.node('paragraph', null, code),
+    ]);
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, 5),
+    });
+    const match = '设 $x$'.match(TYPED_MATH);
+    if (!match) throw new Error('no match');
+    expect(keepDollar(state, match, 3, 5)?.doc.textContent).toBe('设 $x$');
   });
 
   test('types it as text when the math would open on a space', () => {

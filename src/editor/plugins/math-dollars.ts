@@ -6,6 +6,7 @@
  * same happened as the second one was typed. Math between dollars starts and
  * ends with something other than a space, as Pandoc and Typora read it;
  * dollars around a space at either end stay text, both typed and opened.
+ * Dollars typed in inline code stay text as well.
  *
  * Saving such a paragraph writes its dollars as they were typed: see
  * `markdown-output`, where remark would escape every one of them.
@@ -31,7 +32,7 @@ export function isDollarText(between: string): boolean {
 /** Crepe's rule for inline math, as the closing dollar is typed. */
 export const TYPED_MATH = /\$([^$]+)\$$/;
 
-/** The closing dollar typed as text when what it closes is no math. */
+/** The closing dollar typed as text when what it closes is no math, or code. */
 export function keepDollar(
   state: EditorState,
   match: RegExpMatchArray,
@@ -39,7 +40,10 @@ export function keepDollar(
   end: number
 ) {
   const [typed, between = ''] = match;
-  if (!isDollarText(between)) return null;
+  // Typed into inline code, Crepe made math of it there too.
+  const marks = state.storedMarks ?? state.doc.resolve(end).marks();
+  const inCode = marks.some((mark) => mark.type.spec.code);
+  if (!inCode && !isDollarText(between)) return null;
   return state.tr.insertText('$', start + typed.length - 1, end);
 }
 

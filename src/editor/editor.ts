@@ -12,6 +12,12 @@ import {
   remarkStringifyOptionsCtx,
 } from '@milkdown/kit/core';
 import {
+  emphasisStarInputRule,
+  emphasisUnderscoreInputRule,
+  insertImageInputRule,
+  strongInputRule,
+} from '@milkdown/kit/preset/commonmark';
+import {
   remarkGFMPlugin,
   strikethroughInputRule,
 } from '@milkdown/kit/preset/gfm';
@@ -47,6 +53,7 @@ import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
 import { linkInput } from './plugins/link-input';
 import { listItemView } from './plugins/list-item-view';
+import { markInput } from './plugins/mark-input';
 import {
   displayWidth,
   markdownOutput,
@@ -65,7 +72,6 @@ import {
 import { tabFocus } from './plugins/tab-focus';
 import { keepCellAlignment } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
-import { strikethroughInput } from './plugins/tilde-text';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
 import { type BlockSpan, blockSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
@@ -135,7 +141,7 @@ export class NyaEditor {
         handlers: { ...options.handlers, text: writeText },
       }));
       // Table pipes line up by display width (see markdown-output), and a
-      // strikethrough takes two tildes (see tilde-text).
+      // strikethrough takes two tildes (see mark-input).
       ctx.update(remarkGFMPlugin.options.key, (options) => ({
         ...options,
         stringLength: displayWidth,
@@ -152,9 +158,15 @@ export class NyaEditor {
     crepe.editor.use(hrInput);
     crepe.editor.use(headingInput);
     crepe.editor.use(dollarInput);
-    // Removed before the editor is created, so at once (see tilde-text).
-    void crepe.editor.remove(strikethroughInputRule);
-    crepe.editor.use(strikethroughInput);
+    // Removed before the editor is created, so at once (see mark-input).
+    void crepe.editor.remove([
+      strongInputRule,
+      emphasisStarInputRule,
+      emphasisUnderscoreInputRule,
+      insertImageInputRule,
+      strikethroughInputRule,
+    ]);
+    crepe.editor.use(markInput);
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(linkInput);
     crepe.editor.use(fenceInput);

@@ -151,7 +151,7 @@ const dollarText = new WeakSet<object>();
 
 /**
  * `text`, written by remark, with a tilde unescaped where it stands alone:
- * a strikethrough takes two (see `tilde-text`). `before` and `after` are the
+ * a strikethrough takes two (see `mark-input`). `before` and `after` are the
  * characters written around it.
  */
 export function relaxTildes(text: string, before = '', after = ''): string {

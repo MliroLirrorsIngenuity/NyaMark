@@ -1,17 +1,16 @@
 import { describe, expect, test } from 'bun:test';
-import { markRule } from '@milkdown/kit/prose';
 import { Schema } from '@milkdown/kit/prose/model';
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
+import { STRIKETHROUGH, markText } from '../src/editor/plugins/mark-input';
 import {
   normalizeOutput,
   relaxTildes,
   writeText,
 } from '../src/editor/plugins/markdown-output';
-import { STRIKETHROUGH } from '../src/editor/plugins/tilde-text';
 
 const schema = new Schema({
   nodes: {
@@ -34,10 +33,12 @@ function typeTilde(before: string) {
   });
   const match = `${before}~`.match(STRIKETHROUGH);
   if (!match) return null;
-  const rule = markRule(STRIKETHROUGH, schema.marks.strike_through);
-  // biome-ignore lint/suspicious/noExplicitAny: the handler is internal to InputRule
-  const handler = (rule as any).handler;
-  const tr = handler(state, match, end - (match[0].length - 1), end);
+  const tr = markText('strike_through')(
+    state,
+    match,
+    end - (match[0].length - 1),
+    end
+  );
   return tr?.doc.toJSON().content[0].content;
 }
 
