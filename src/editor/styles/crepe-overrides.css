@@ -1,9 +1,5 @@
-import { ensureStyle } from '../../style/register';
-import { languageBadgeCss } from './language-badges';
-
-const css = `
 /*
- * Inline code. Crepe's reset makes it an \`inline-block\` at 87.5% with its own
+ * Inline code. Crepe's reset makes it an `inline-block` at 87.5% with its own
  * line-height, so the chip becomes taller than the line it sits in and pushes
  * the surrounding text apart. Render it as a real inline run instead: the
  * background box then stays inside the line box and the code reads as part of
@@ -38,7 +34,7 @@ const css = `
 }
 
 /*
- * Crepe's reset gives paragraphs \`padding: 4px 0\` and headings \`padding: 2px 0\`
+ * Crepe's reset gives paragraphs `padding: 4px 0` and headings `padding: 2px 0`
  * on top of whatever margins we set, so every block carries two independent
  * spacing systems. Zero the padding and drive the rhythm from margins alone.
  */
@@ -155,7 +151,7 @@ const css = `
 }
 
 /*
- * Block rhythm. Every value below is in \`em\` so the whole document rescales
+ * Block rhythm. Every value below is in `em` so the whole document rescales
  * with the reader's font-size setting instead of drifting apart from it.
  *
  * The containers are flex columns, not block flow, and that is a selection
@@ -167,7 +163,7 @@ const css = `
  *
  * The cost is that flex items no longer collapse their margins: a 0.72em
  * bottom next to a 0.72em top would become 1.44em instead of 0.72em. So the
- * rhythm is driven from \`margin-top\` alone and every bottom margin is zeroed
+ * rhythm is driven from `margin-top` alone and every bottom margin is zeroed
  * below. That reproduces the old collapsed spacing exactly -- with collapsing,
  * the following block's top margin was already the value that won -- and it
  * stays correct for node types this file never enumerates.
@@ -196,8 +192,8 @@ const css = `
  * rather than a spacing one.
  *
  * A margin lives outside the border box, so the band between two paragraphs
- * belongs to no block at all: \`elementFromPoint\` in it returns the flex
- * container, and WebKit can only answer \`caretRangeFromPoint\` with a *block
+ * belongs to no block at all: `elementFromPoint` in it returns the flex
+ * container, and WebKit can only answer `caretRangeFromPoint` with a *block
  * boundary*. Measured on a 10.08px gap: the top 6px resolve to the end of the
  * paragraph above, the bottom 4px to the start of the one below, and neither
  * looks at the column you clicked. That is "点击中间这个空白位置时光标有概率到
@@ -252,13 +248,13 @@ const css = `
  * Crepe puts two caret widgets in the document, and a widget decoration is a
  * real element in the flow's DOM even when it paints absolutely:
  *
- *   - prosemirror-virtual-cursor renders \`Decoration.widget(0, ...)\`, i.e.
- *     child #1 of .editor, and only while \`selection.empty\`.
- *   - the gap cursor renders \`Decoration.widget(selection.head, ...)\`, so it
+ *   - prosemirror-virtual-cursor renders `Decoration.widget(0, ...)`, i.e.
+ *     child #1 of .editor, and only while `selection.empty`.
+ *   - the gap cursor renders `Decoration.widget(selection.head, ...)`, so it
  *     lands as child #1 wherever the gap is -- top level in front of a leading
  *     code block, or in front of a blockquote's first child.
  *
- * Either one knocks the real first block out of \`:first-child\`, so this rule
+ * Either one knocks the real first block out of `:first-child`, so this rule
  * stops matching and the whole document shifts by one paragraph margin, then
  * shifts back when the widget goes away. With the virtual cursor that happens
  * on every single selection/deselection -- 10.08px each way, measured -- which
@@ -276,7 +272,7 @@ const css = `
 }
 
 /*
- * paragraph gap: the same three cases. Kept separate and typed to \`p\` because
+ * paragraph gap: the same three cases. Kept separate and typed to `p` because
  * the blocks that are not paragraphs need their own padding -- a code block
  * opening the document would lose the inset its card is drawn with.
  */
@@ -288,8 +284,8 @@ const css = `
 
 /*
  * A gap cursor at the end of the document does displace this one -- but every
- * block above already has \`margin-bottom: 0\`, so there is no margin to reveal
- * and nothing moves. Left as a plain \`:last-child\` on purpose.
+ * block above already has `margin-bottom: 0`, so there is no margin to reveal
+ * and nothing moves. Left as a plain `:last-child` on purpose.
  */
 .ny-editor-root .milkdown .editor > *:last-child {
   margin-bottom: 0 !important;
@@ -634,7 +630,7 @@ const css = `
  *    way to the paragraph above covers the text you were aiming for.
  *
  * Sizing is load-bearing: a single code line is ~17.5px (13px / 1.35), so the
- * pill is kept at 24px and \`.codemirror-host\` carries a min-height that
+ * pill is kept at 24px and `.codemirror-host` carries a min-height that
  * guarantees it fits. Grow either one without the other and the pill pokes out
  * the bottom of a one-line block, which re-creates the exact bug above.
  */
@@ -669,8 +665,8 @@ const css = `
 }
 
 /*
- * \`:has(...)\` keeps the pill alive while the language list is open -- the list
- * renders outside the pill's box, so the pointer leaves \`:hover\` the moment you
+ * `:has(...)` keeps the pill alive while the language list is open -- the list
+ * renders outside the pill's box, so the pointer leaves `:hover` the moment you
  * reach for an entry.
  */
 .ny-editor-root .milkdown .milkdown-code-block:hover .tools,
@@ -772,7 +768,7 @@ const css = `
 }
 
 /*
- * \`font-size: 0\` drops the "Copy" / "Hide" / "Edit" labels while keeping the
+ * `font-size: 0` drops the "Copy" / "Hide" / "Edit" labels while keeping the
  * icons -- at this size the labels are what push the pill wide enough to cover
  * real code on the first line.
  */
@@ -854,7 +850,7 @@ const css = `
    * source mode uses, and at 1.35 the code ran visibly denser than the 1.52
    * body text right above it, which is half of why the block read as a foreign
    * pane. A line is now 13 * 1.45 = 18.85px, still inside the 30px floor
-   * \`.codemirror-host\` needs for the 24px tool pill.
+   * `.codemirror-host` needs for the 24px tool pill.
    */
   line-height: 1.45 !important;
 }
@@ -939,17 +935,17 @@ const css = `
 /*
  * Selection, caret and the rest of CodeMirror's IDE furniture.
  *
- * \`drawSelection()\` (bundled in basicSetup, which Crepe hard-codes) does two
- * things that matter here: it paints the selection as \`.cm-selectionBackground\`
+ * `drawSelection()` (bundled in basicSetup, which Crepe hard-codes) does two
+ * things that matter here: it paints the selection as `.cm-selectionBackground`
  * divs in its own colours -- #d7d4f0 light, #233 dark, matching nothing in this
- * app -- and it force-hides the NATIVE selection inside \`.cm-line\` at
- * \`Prec.highest\`. So selecting inside the block gave a lilac band that looked
+ * app -- and it force-hides the NATIVE selection inside `.cm-line` at
+ * `Prec.highest`. So selecting inside the block gave a lilac band that looked
  * nothing like the accent-tinted selection one line above it, and dragging a
  * selection ACROSS the block from the surrounding prose left the code
  * apparently untouched, because the only selection ProseMirror can paint there
  * is the native one CodeMirror suppresses.
  *
- * Both are fixed against the same accent as the app-wide \`::selection\`.
+ * Both are fixed against the same accent as the app-wide `::selection`.
  */
 .ny-editor-root .milkdown .milkdown-code-block .cm-selectionBackground,
 .ny-editor-root
@@ -964,7 +960,7 @@ const css = `
 
 /*
  * Restore the native selection, but only while CodeMirror is NOT focused --
- * that is exactly the cross-block case. With focus, \`drawSelection\` is painting
+ * that is exactly the cross-block case. With focus, `drawSelection` is painting
  * and letting the native one through would double up.
  */
 .ny-editor-root
@@ -981,7 +977,7 @@ const css = `
 }
 
 /*
- * The visible caret is a drawn \`border-left\`, not a real one -- \`caret-color\`
+ * The visible caret is a drawn `border-left`, not a real one -- `caret-color`
  * on .cm-content is overridden to transparent by drawSelection and does
  * nothing.
  */
@@ -991,7 +987,7 @@ const css = `
 }
 
 /*
- * basicSetup also brings \`highlightSelectionMatches\` and \`bracketMatching\`.
+ * basicSetup also brings `highlightSelectionMatches` and `bracketMatching`.
  * Both are calibrated for an IDE: matching brackets get a teal wash, a
  * mismatched one flashes red, and every other copy of the selected word lights
  * up. In a note that is noise on top of noise, so they are reduced to a hint
@@ -1074,7 +1070,7 @@ const css = `
  * Language badge. The rows are otherwise a wall of same-weight 12px text, and
  * colour is the fastest channel to scan by -- the monogram is what carries the
  * long tail where there is no brand colour to recognise. It has to be a
- * pseudo-element: Crepe's \`renderLanguage\` hook returns a string that Vue
+ * pseudo-element: Crepe's `renderLanguage` hook returns a string that Vue
  * renders as an escaped text node, so markup injected there shows up literally.
  * See language-badges.ts for the colour table and the rules it emits below.
  */
@@ -1130,8 +1126,6 @@ const css = `
   height: 16px !important;
 }
 
-${languageBadgeCss}
-
 .ny-editor-root .milkdown .milkdown-code-block .search-box {
   margin: 0 8px 6px !important;
   gap: 6px !important;
@@ -1162,8 +1156,8 @@ ${languageBadgeCss}
 
 /*
  * Selecting a whole block (a code block, an image, a table) draws
- * \`.ProseMirror-selectednode\`, which upstream styles as \`outline: 2px solid
- * #8cf\` -- a hard-coded sky blue that belongs to no theme here and, being an
+ * `.ProseMirror-selectednode`, which upstream styles as `outline: 2px solid
+ * #8cf` -- a hard-coded sky blue that belongs to no theme here and, being an
  * outline, ignores the block's border-radius on the corners. Same idea,
  * app palette, and it follows the rounding.
  */
@@ -1178,12 +1172,12 @@ ${languageBadgeCss}
  * fires while typing -- see config.ts -- but the popup can still be opened on
  * demand, so give it the same surface as every other floating panel.
  *
- * Deliberately NOT scoped under \`.ny-editor-root .milkdown\`: the code block
+ * Deliberately NOT scoped under `.ny-editor-root .milkdown`: the code block
  * clips its own content for the rounded corners, so the popup is rendered into
- * \`document.body\` instead (\`tooltips({ parent })\` in config.ts) and any
- * editor-scoped selector would miss it -- as would the \`--ny-editor-*\`
- * variables, which are declared on \`.milkdown\`. Everything below therefore
- * uses the \`:root\` tokens. The unscoped selectors also pick up source mode's
+ * `document.body` instead (`tooltips({ parent })` in config.ts) and any
+ * editor-scoped selector would miss it -- as would the `--ny-editor-*`
+ * variables, which are declared on `.milkdown`. Everything below therefore
+ * uses the `:root` tokens. The unscoped selectors also pick up source mode's
  * CodeMirror, which shares the same defaults.
  */
 .cm-tooltip {
@@ -1213,7 +1207,7 @@ ${languageBadgeCss}
   background: color-mix(in srgb, var(--ny-accent), transparent 78%) !important;
 }
 
-/* The kind glyphs are emoji injected through \`content\`; drop the column. */
+/* The kind glyphs are emoji injected through `content`; drop the column. */
 .cm-completionIcon {
   display: none !important;
 }
@@ -1249,16 +1243,16 @@ ${languageBadgeCss}
 }
 
 /*
- * Drag-selection guard -- see \`plugins/drag-guard.ts\`.
+ * Drag-selection guard -- see `plugins/drag-guard.ts`.
  *
- * While \`data-ny-drag-select\` is up on <html>, every hover-triggered overlay
+ * While `data-ny-drag-select` is up on <html>, every hover-triggered overlay
  * steps aside. They used to materialise under a pointer that was only passing
- * through, and an overlay that takes \`pointer-events\` mid-gesture becomes the
+ * through, and an overlay that takes `pointer-events` mid-gesture becomes the
  * drag target, which is what cut the selection short.
  *
- * \`transition: none\` is load-bearing: fading out over 160ms would leave the
+ * `transition: none` is load-bearing: fading out over 160ms would leave the
  * overlay live under the cursor for exactly the window we are closing. The
- * pill's resting \`transform\` is repeated so it does not slide back in from a
+ * pill's resting `transform` is repeated so it does not slide back in from a
  * half-way position when the drag ends.
  */
 :root[data-ny-drag-select]
@@ -1291,17 +1285,17 @@ ${languageBadgeCss}
  * blinking on a code line and nothing selected.
  *
  * So for the duration of the drag the whole block is made unselectable. That
- * is \`user-select\`, deliberately not \`pointer-events\`: killing pointer events
+ * is `user-select`, deliberately not `pointer-events`: killing pointer events
  * puts the pointer on the wrapper, and WebKit resolves a point on a
- * \`contenteditable=false\` box to *before* or *after* it depending on which
+ * `contenteditable=false` box to *before* or *after* it depending on which
  * half you are over -- so a few px of movement inside the block flips the
  * endpoint back and forth on every mousemove, which is the shaking. With
- * \`user-select: none\` WebKit skips the subtree entirely when extending a
+ * `user-select: none` WebKit skips the subtree entirely when extending a
  * selection: the endpoint walks from the paragraph above straight to the one
  * below, no hit test inside, no flip.
  *
  * The model selection still spans the node, so copy and delete are unchanged;
- * the block reads as selected because \`.ny-block-selected\` paints it.
+ * the block reads as selected because `.ny-block-selected` paints it.
  *
  * Scoped to "prose": a drag that STARTED inside a code block is CodeMirror's
  * own selection gesture and must stay fully selectable.
@@ -1321,11 +1315,11 @@ ${languageBadgeCss}
 }
 
 /*
- * Blocks fully inside the selection -- see \`plugins/block-selection.ts\`.
+ * Blocks fully inside the selection -- see `plugins/block-selection.ts`.
  *
  * A node view paints its own surface, so a selection running across it left a
  * lighter hole in the middle of the band. One flat wash in the same accent as
- * \`::selection\` closes it. It rides on \`::after\` so the card keeps its own
+ * `::selection` closes it. It rides on `::after` so the card keeps its own
  * background, border and radius underneath, and sits below the tool pill
  * (z-index 10) so nothing that is still interactive gets tinted.
  */
@@ -1355,9 +1349,4 @@ ${languageBadgeCss}
 .ny-editor-root .milkdown .milkdown-code-block.ny-block-selected .cm-line ::selection,
 .ny-editor-root .milkdown .milkdown-code-block.ny-block-selected .cm-line::selection {
   background-color: transparent !important;
-}
-`;
-
-export function registerCrepeOverrideStyles() {
-  ensureStyle('editor-crepe-overrides', css);
 }

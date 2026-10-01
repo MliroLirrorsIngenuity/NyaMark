@@ -1,7 +1,11 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getPlatform } from '../platform/detect';
+import { ensureStyle } from '../style/register';
+import shellStyles from './shell.css?inline';
 
-export { registerShellStyles } from './shell.css';
+export function registerShellStyles() {
+  ensureStyle('app-shell', shellStyles);
+}
 
 type ResizeDirection =
   | 'East'

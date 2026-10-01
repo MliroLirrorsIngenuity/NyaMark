@@ -188,9 +188,12 @@ export class NyaEditor {
 
   scrollToHeading(id: string) {
     if (!this.crepe) return;
-    document
-      .getElementById(id)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById(id)?.scrollIntoView({
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth',
+      block: 'start',
+    });
   }
 
   focusAtEnd() {

@@ -1,6 +1,3 @@
-import { ensureStyle } from '../../style/register';
-
-const css = `
 .ny-editor-root .milkdown .milkdown-image-block .image-edit,
 .ny-editor-root .milkdown .milkdown-image-block .image-wrapper {
   color: var(--ny-editor-text-primary) !important;
@@ -193,9 +190,4 @@ const css = `
 :root[data-theme="dark"] .ny-editor-root .milkdown .milkdown-image-block .confirm,
 :root[data-theme="dark"] .ny-editor-root .milkdown .milkdown-image-block .image-icon {
   color: #b5c1cf !important;
-}
-`;
-
-export function registerImageMetaStyles() {
-  ensureStyle('editor-image-meta', css);
 }

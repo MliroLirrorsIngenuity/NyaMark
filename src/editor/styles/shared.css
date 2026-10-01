@@ -1,6 +1,3 @@
-import { ensureStyle } from '../../style/register';
-
-const css = `
 .ny-editor-root .milkdown {
   --nyamark-accent: var(--ny-accent);
   --nyamark-accent-soft: var(--ny-accent-soft);
@@ -114,9 +111,4 @@ const css = `
   --ny-editor-preview-bg: linear-gradient(180deg, #151c24 0%, #11171f 100%);
   --ny-editor-preview-border: rgba(89, 105, 126, 0.28);
   --ny-editor-preview-text: #e9f0f6;
-}
-`;
-
-export function registerSharedStyles() {
-  ensureStyle('editor-shared-vars', css);
 }
