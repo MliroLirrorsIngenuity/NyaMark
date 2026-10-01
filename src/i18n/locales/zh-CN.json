@@ -84,6 +84,7 @@
   "dialog": {
     "close": "关闭",
     "imageFilter": "图片",
+    "unexpectedError": "NyaMark 遇到意外错误：{{message}}\n\n如果有功能失灵，请保存文档后重启 NyaMark。",
     "imagePolicy": {
       "title": "粘贴的图片需要保存位置",
       "subtitle": "请选择一个规则，以后的截图粘贴将静默遵循该规则。",

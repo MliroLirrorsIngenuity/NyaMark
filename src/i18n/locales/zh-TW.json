@@ -84,6 +84,7 @@
   "dialog": {
     "close": "關閉",
     "imageFilter": "圖片",
+    "unexpectedError": "NyaMark 發生未預期的錯誤：{{message}}\n\n如果有功能失靈，請儲存文件後重新啟動 NyaMark。",
     "imagePolicy": {
       "title": "貼上的圖片需要儲存位置",
       "subtitle": "請選擇一個規則，之後的截圖貼上將預設遵循此規則。",

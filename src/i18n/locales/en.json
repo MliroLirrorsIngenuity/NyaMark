@@ -85,6 +85,7 @@
   "dialog": {
     "close": "Close",
     "imageFilter": "Images",
+    "unexpectedError": "NyaMark ran into an unexpected error: {{message}}\n\nIf something stops working, save your document and restart NyaMark.",
     "imagePolicy": {
       "title": "Pasted images need a save location",
       "subtitle": "Pick a rule once. Later screenshot paste will follow it silently.",
