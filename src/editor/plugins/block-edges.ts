@@ -23,6 +23,11 @@
  * the table with them. The caret goes into the table instead, to the end of
  * its last cell or the start of its first, as it goes into code.
  *
+ * Delete at the end of a paragraph took a rule or an image below it at once,
+ * where Backspace under one selects it first. Delete selects it too, so the
+ * next press is the one that takes it, and the caret is left at the end of
+ * the paragraph again: Milkdown put it on the line after.
+ *
  * At the start of a heading Milkdown took both keys to step the level down,
  * h2 to h1 and h1 to text: `## ` typed by mistake and Backspace gave a bigger
  * heading, and Delete there never took the letter after the caret. Backspace
@@ -34,6 +39,7 @@ import { headingKeymap } from '@milkdown/kit/preset/commonmark';
 import { liftListItem } from '@milkdown/kit/prose/schema-list';
 import {
   type EditorState,
+  NodeSelection,
   Plugin,
   PluginKey,
   Selection,
@@ -161,6 +167,21 @@ function startOfTextblockAfter(state: EditorState) {
   return node ? { node, start } : null;
 }
 
+/** A rule or an image right after the caret's textblock, selected. */
+function selectAtomAfter(state: EditorState): Transaction | null {
+  const { $from } = state.selection;
+  // From an empty line Milkdown removes the line and selects what follows.
+  if ($from.parent.content.size === 0) return null;
+  const index = $from.index(-1) + 1;
+  const parent = $from.node(-1);
+  if (index >= parent.childCount) return null;
+  const next = parent.child(index);
+  if (!next.isAtom || !next.isBlock || !NodeSelection.isSelectable(next)) {
+    return null;
+  }
+  return state.tr.setSelection(NodeSelection.create(state.doc, $from.after()));
+}
+
 export function deleteAtBlockEnd(state: EditorState): Transaction | null {
   const { selection } = state;
   if (!(selection instanceof TextSelection) || !selection.empty) return null;
@@ -170,7 +191,9 @@ export function deleteAtBlockEnd(state: EditorState): Transaction | null {
     return null;
   }
   const after = startOfTextblockAfter(state);
-  if (!after?.node.type.spec.code) return intoTable(state, 1);
+  if (!after?.node.type.spec.code) {
+    return selectAtomAfter(state) ?? intoTable(state, 1);
+  }
   const tr = state.tr;
   if (parent.content.size === 0 && $from.node(-1).childCount > 1) {
     tr.delete($from.before(), $from.after());
@@ -178,6 +201,16 @@ export function deleteAtBlockEnd(state: EditorState): Transaction | null {
   return tr.setSelection(
     TextSelection.create(tr.doc, tr.mapping.map(after.start))
   );
+}
+
+/** Delete on a selected rule or image keeps the caret on the line before it. */
+export function deleteSelectedAtom(state: EditorState): Transaction | null {
+  const { selection } = state;
+  if (!(selection instanceof NodeSelection)) return null;
+  if (!selection.node.isAtom || !selection.node.isBlock) return null;
+  const tr = state.tr.deleteSelection();
+  const $at = tr.doc.resolve(tr.mapping.map(selection.from));
+  return tr.setSelection(Selection.near($at, -1));
 }
 
 export const blockEdges = $prose(
@@ -191,7 +224,8 @@ export const blockEdges = $prose(
             event.key === 'Backspace'
               ? backspaceAtBlockStart(view.state)
               : event.key === 'Delete'
-                ? deleteAtBlockEnd(view.state)
+                ? (deleteAtBlockEnd(view.state) ??
+                  deleteSelectedAtom(view.state))
                 : null;
           if (!tr) return false;
           view.dispatch(tr.scrollIntoView());

@@ -1,9 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
-import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import {
+  EditorState,
+  NodeSelection,
+  TextSelection,
+} from '@milkdown/kit/prose/state';
 import {
   backspaceAtBlockStart,
   deleteAtBlockEnd,
+  deleteSelectedAtom,
 } from '../src/editor/plugins/block-edges';
 
 const schema = new Schema({
@@ -23,6 +28,7 @@ const schema = new Schema({
     table: { group: 'block', content: 'table_row+', isolating: true },
     table_row: { content: 'table_cell+' },
     table_cell: { content: 'paragraph+', isolating: true },
+    hr: { group: 'block' },
     text: { group: 'inline' },
   },
 });
@@ -38,6 +44,7 @@ const item = (...blocks: Node[]) => schema.node('list_item', null, blocks);
 const bullets = (...items: Node[]) => schema.node('bullet_list', null, items);
 const numbers = (...items: Node[]) => schema.node('ordered_list', null, items);
 const doc = (...blocks: Node[]) => schema.node('doc', null, blocks);
+const hr = () => schema.node('hr');
 const table = (...rows: string[][]) =>
   schema.node(
     'table',
@@ -169,7 +176,26 @@ describe('deleteAtBlockEnd', () => {
     expect(tr?.selection.$from.parentOffset).toBe(0);
   });
 
+  test('selects a rule below before taking it', () => {
+    const tr = deleteAfter(doc(p('before'), hr(), p('after')), 'before');
+    expect(tr?.docChanged).toBe(false);
+    expect(tr?.selection).toBeInstanceOf(NodeSelection);
+    expect(tr?.selection.from).toBe('before'.length + 2);
+  });
+
+  test('takes a selected rule and keeps the caret above it', () => {
+    const start = doc(p('before'), hr(), p('after'));
+    const selected = deleteAfter(start, 'before');
+    if (!selected) throw new Error('nothing selected');
+    const tr = deleteSelectedAtom(
+      EditorState.create({ doc: start }).apply(selected)
+    );
+    expect(tr?.doc.toJSON()).toEqual(doc(p('before'), p('after')).toJSON());
+    expect(tr?.selection.from).toBe('before'.length + 1);
+  });
+
   test('leaves other blocks to the join', () => {
+    expect(deleteAfter(doc(p('a'), p(''), hr()), '')).toBeNull();
     expect(deleteAfter(doc(p('a'), p('b')), 'a')).toBeNull();
     expect(deleteAfter(doc(p('a'), quote(p('b'))), 'a')).toBeNull();
   });
