@@ -1094,7 +1094,6 @@
 }
 
 .ny-editor-root .milkdown .milkdown-code-block .preview-panel .preview {
-  min-height: 132px;
   padding: 10px 12px 12px !important;
   border: 0 !important;
   border-radius: 0 !important;

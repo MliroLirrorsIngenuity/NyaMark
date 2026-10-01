@@ -8,11 +8,15 @@
   background: transparent !important;
 }
 
+/*
+ * Mermaid sizes the SVG as `width: 100%` capped by an inline `max-width` of
+ * the diagram's own width, so it is drawn at its natural size and shrinks
+ * only to fit the column. A height cap scaled a six-node flowchart down until
+ * its labels could not be read.
+ */
 .ny-editor-root .milkdown .nyamark-mermaid-preview svg {
   display: block;
-  width: auto !important;
-  max-width: 100%;
-  max-height: 152px !important;
+  width: 100% !important;
   height: auto !important;
   margin-left: auto;
   margin-right: auto;
