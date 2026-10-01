@@ -1401,7 +1401,15 @@
   -webkit-user-select: none !important;
 }
 
-.milkdown-toolbar {
+/*
+ * The link and formula boxes open over the text like the selection toolbar.
+ * Under their own z-index a link on the first line showed its box behind the
+ * top bar, its address and buttons covered.
+ */
+.milkdown-toolbar,
+.milkdown-link-preview,
+.milkdown-link-edit,
+.milkdown-latex-inline-edit {
   z-index: var(--ny-layer-editor-toolbar) !important;
 }
 
