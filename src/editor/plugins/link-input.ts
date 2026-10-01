@@ -13,6 +13,7 @@
 import { InputRule, inputRules } from '@milkdown/kit/prose/inputrules';
 import { type EditorState, TextSelection } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
+import { caretBelowTypedBlock } from './typed-block-enter';
 
 /** `](url)` or `](url "title")` at the end of the text typed so far. */
 const TARGET = String.raw`\]\(([^()\s]+)(?:\s+"([^"]*)")?\)$`;
@@ -72,7 +73,7 @@ export function typedImage(
       block.create({ src, alt, caption: title }),
       line.type.create(),
     ]);
-    return tr
+    return caretBelowTypedBlock(tr, at + 2)
       .setSelection(TextSelection.create(tr.doc, at + 2))
       .scrollIntoView();
   }
