@@ -26,10 +26,18 @@
  * above it for the caret: up from its top went nowhere, and there was no way
  * to start a line in front of it. There the caret becomes a gap cursor above
  * the block; typing or Enter there starts a paragraph.
+ *
+ * Shift and an arrow from the edge of the text next to one of these blocks
+ * left the selection to the browser, which reached into the block's own view
+ * where ProseMirror could not follow: the highlight showed one range and
+ * Backspace deleted another -- the rest of the document past a formula, or a
+ * code block turned into a paragraph. The selection now takes the block whole
+ * and its head goes on to the text past it, under the caret going up or down.
  */
 
 import { EditorView as CodeMirror } from '@codemirror/view';
 import { GapCursor } from '@milkdown/kit/prose/gapcursor';
+import type { Node, ResolvedPos } from '@milkdown/kit/prose/model';
 import {
   type EditorState,
   NodeSelection,
@@ -179,6 +187,91 @@ function underX(
   return TextSelection.create(view.state.doc, hit.pos);
 }
 
+/** The depth of the table `$pos` is in, or -1. */
+function tableDepth($pos: ResolvedPos): number {
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    if ($pos.node(depth).type.spec.tableRole === 'table') return depth;
+  }
+  return -1;
+}
+
+/** Whether the caret at `$head` is on the line of its text facing `dir`. */
+function atEdge(
+  view: EditorView,
+  $head: ResolvedPos,
+  dir: 1 | -1,
+  vertical: boolean
+): boolean {
+  const end = dir > 0 ? $head.end() : $head.start();
+  if (!vertical) return $head.pos === end;
+  const caret = view.coordsAtPos($head.pos);
+  const edge = view.coordsAtPos(end);
+  const middle = (caret.top + caret.bottom) / 2;
+  return dir > 0 ? middle > edge.top : middle < edge.bottom;
+}
+
+/**
+ * The text past the code, tables, images and rules that lie from `pos` in
+ * `dir`, or the last text there is when they end the document. Null when no
+ * such block comes first.
+ */
+function pastBlocks(doc: Node, pos: number, dir: 1 | -1): Selection | null {
+  let from = pos;
+  let crossed = false;
+  for (;;) {
+    const next = Selection.findFrom(doc.resolve(from), dir);
+    if (!next) {
+      if (!crossed) return null;
+      const edge = doc.resolve(dir > 0 ? doc.content.size : 0);
+      return Selection.findFrom(edge, -dir as 1 | -1, true);
+    }
+    if (next instanceof NodeSelection) {
+      from = dir > 0 ? next.to : next.from;
+    } else {
+      const { $head } = next;
+      const depth = isCode(next) ? $head.depth : tableDepth($head);
+      if (depth < 0) return crossed ? next : null;
+      from = dir > 0 ? $head.after(depth) : $head.before(depth);
+    }
+    crossed = true;
+  }
+}
+
+/** Shift and an arrow at the edge of the text, over the block next to it. */
+function extendPastBlock(
+  view: EditorView,
+  dir: 1 | -1,
+  vertical: boolean
+): boolean {
+  const { state } = view;
+  const { selection } = state;
+  if (!(selection instanceof TextSelection)) return false;
+  const { $head } = selection;
+  if (isCode(selection) || tableDepth($head) >= 0) return false;
+  if (!atEdge(view, $head, dir, vertical)) return false;
+  const past = pastBlocks(
+    state.doc,
+    dir > 0 ? $head.after() : $head.before(),
+    dir
+  );
+  if (!past) return false;
+
+  let head = past.head;
+  if (vertical && !isCode(past) && tableDepth(past.$head) < 0) {
+    const x = view.coordsAtPos($head.pos).left;
+    head = underX(view, past, x, dir)?.head ?? head;
+  }
+  // Nothing past a block that ends the document: as far as the text goes.
+  if (dir > 0 ? head <= $head.pos : head >= $head.pos) {
+    head = dir > 0 ? $head.end() : $head.start();
+  }
+  const tr = state.tr.setSelection(
+    TextSelection.create(state.doc, selection.anchor, head)
+  );
+  view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
 export const blockArrows = $prose(() => {
   let pending: Arrow | null = null;
   let editor: EditorView | null = null;
@@ -278,7 +371,13 @@ export const blockArrows = $prose(() => {
         if (lineAtGap(view, event)) return;
         const arrow = ARROWS[event.key];
         if (!arrow || event.isComposing || view.composing) return;
-        if (event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) {
+        if (event.altKey || event.metaKey || event.ctrlKey) return;
+        if (event.shiftKey) {
+          if (extendPastBlock(view, arrow[0], arrow[1])) {
+            // ProseMirror listens on the same element.
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
           return;
         }
         // Ahead of the code block's own keys, which keep the caret in it.
