@@ -46,6 +46,27 @@ describe('formatAttachmentReference', () => {
       'D:/assets/image.png',
     ],
     [
+      'ignores case on Windows drives',
+      'C:/Docs/note.md',
+      'c:/docs/Assets/image.png',
+      options,
+      'Assets/image.png',
+    ],
+    [
+      'ignores case on network shares',
+      '//Server/Share/docs/note.md',
+      '//server/share/Docs/image.png',
+      options,
+      'image.png',
+    ],
+    [
+      'keeps case on POSIX paths',
+      '/Docs/note.md',
+      '/docs/image.png',
+      options,
+      '../docs/image.png',
+    ],
+    [
       'turns file URIs into relative paths',
       '/docs/note.md',
       'file:///docs/assets/My%20Image.png',

@@ -282,10 +282,15 @@ function diffPaths(path: string, base: string) {
   const normalizedBase = normalizePath(base);
   const pathRoot = parseRoot(normalizedPath);
   const baseRoot = parseRoot(normalizedBase);
+  // Drive letters and network shares are Windows paths, which ignore case;
+  // `C:/Docs` and `c:/docs/img.png` must still meet in a relative path.
+  const ignoreCase = pathRoot.prefix !== '/' && pathRoot.prefix !== '';
+  const same = (a: string, b: string) =>
+    ignoreCase ? a.toLowerCase() === b.toLowerCase() : a === b;
 
   if (
     pathRoot.absolute !== baseRoot.absolute ||
-    pathRoot.prefix !== baseRoot.prefix
+    !same(pathRoot.prefix, baseRoot.prefix)
   ) {
     return null;
   }
@@ -297,7 +302,7 @@ function diffPaths(path: string, base: string) {
   while (
     commonLength < pathPartsValue.length &&
     commonLength < basePartsValue.length &&
-    pathPartsValue[commonLength] === basePartsValue[commonLength]
+    same(pathPartsValue[commonLength], basePartsValue[commonLength])
   ) {
     commonLength += 1;
   }
