@@ -2,6 +2,7 @@ import { autocompletion } from '@codemirror/autocomplete';
 import { languages as codeLanguages } from '@codemirror/language-data';
 import { tooltips } from '@codemirror/view';
 import { type Crepe, CrepeFeature } from '@milkdown/crepe';
+import { i18next } from '../i18n';
 import { renderMermaidPreview } from './plugins/mermaid';
 
 export type CrepeConfigOptions = {
@@ -72,6 +73,85 @@ function textBoxRect({ active }: { active: { el: HTMLElement } }) {
 }
 
 /**
+ * Crepe ships its menus, placeholders and buttons in English. They are read
+ * once when the editor is built, so a language switch reaches them the next
+ * time a window opens.
+ */
+function blockLabel(key: string) {
+  return i18next.t(`editor.blocks.${key}`);
+}
+
+const HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const;
+
+function headingLabel(level: number) {
+  return i18next.t('editor.blocks.heading', { level });
+}
+
+function localizedFeatureConfigs() {
+  const [h1, h2, h3, h4, h5, h6] = HEADING_LEVELS.map((level) => ({
+    label: headingLabel(level),
+  }));
+  return {
+    [CrepeFeature.TopBar]: {
+      headingOptions: [
+        { label: blockLabel('paragraph'), level: null },
+        ...HEADING_LEVELS.map((level) => ({
+          label: headingLabel(level),
+          level,
+        })),
+      ],
+    },
+    [CrepeFeature.BlockEdit]: {
+      textGroup: {
+        label: blockLabel('groupText'),
+        text: { label: blockLabel('text') },
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6,
+        quote: { label: blockLabel('quote') },
+        divider: { label: blockLabel('divider') },
+      },
+      listGroup: {
+        label: blockLabel('groupList'),
+        bulletList: { label: blockLabel('bulletList') },
+        orderedList: { label: blockLabel('orderedList') },
+        taskList: { label: blockLabel('taskList') },
+      },
+      advancedGroup: {
+        label: blockLabel('groupAdvanced'),
+        image: { label: blockLabel('image') },
+        codeBlock: { label: blockLabel('codeBlock') },
+        table: { label: blockLabel('table') },
+        math: { label: blockLabel('math') },
+      },
+    },
+    [CrepeFeature.CodeMirror]: {
+      searchPlaceholder: blockLabel('searchLanguage'),
+      noResultText: blockLabel('noLanguage'),
+      copyText: blockLabel('copy'),
+      previewToggleText: (previewOnly: boolean) =>
+        blockLabel(previewOnly ? 'editCode' : 'hideCode'),
+      previewLabel: blockLabel('preview'),
+      previewLoading: blockLabel('loading'),
+    },
+    [CrepeFeature.ImageBlock]: {
+      inlineUploadButton: blockLabel('upload'),
+      inlineUploadPlaceholderText: blockLabel('pasteImageLink'),
+      blockUploadButton: blockLabel('uploadFile'),
+      blockConfirmButton: blockLabel('confirm'),
+      blockCaptionPlaceholderText: blockLabel('imageCaption'),
+      blockUploadPlaceholderText: blockLabel('pasteImageLink'),
+    },
+    [CrepeFeature.LinkTooltip]: {
+      inputPlaceholder: blockLabel('pasteLink'),
+    },
+  };
+}
+
+/**
  * Single source of truth for the Crepe builder config used by NyaEditor.
  * Anything that wants to tweak features goes here, not in `editor.ts`.
  *
@@ -83,6 +163,7 @@ function textBoxRect({ active }: { active: { el: HTMLElement } }) {
 export function buildCrepeConfig(
   opts: CrepeConfigOptions
 ): ConstructorParameters<typeof Crepe>[0] {
+  const labels = localizedFeatureConfigs();
   return {
     root: opts.root,
     defaultValue: opts.defaultValue,
@@ -91,15 +172,19 @@ export function buildCrepeConfig(
       [CrepeFeature.TopBar]: true,
     },
     featureConfigs: {
+      ...labels,
       [CrepeFeature.BlockEdit]: {
+        ...labels[CrepeFeature.BlockEdit],
         blockHandle: { getOffset: () => 8, getPosition: textBoxRect },
       },
       [CrepeFeature.CodeMirror]: {
+        ...labels[CrepeFeature.CodeMirror],
         languages: codeLanguages,
         renderPreview: renderMermaidPreview,
         extensions: codeBlockExtensions,
       },
       [CrepeFeature.ImageBlock]: {
+        ...labels[CrepeFeature.ImageBlock],
         onUpload: opts.onUpload,
         proxyDomURL: opts.proxyDomURL,
       },
