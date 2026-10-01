@@ -9,19 +9,23 @@ import { editorViewCtx } from '@milkdown/kit/core';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { translateDOM } from '../../i18n/dom';
 
+const IMAGE_BLOCK = 'image-block';
+
 export class ImageMetaPanel {
+  private decorateFrame = 0;
+
   private readonly handleRootPointerDown = (event: PointerEvent) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     const activeHost = target?.closest(
       '.milkdown-image-block.nyamark-image-meta-open'
     );
-    this.root
-      .querySelectorAll('.milkdown-image-block.nyamark-image-meta-open')
-      .forEach((host) => {
-        if (host !== activeHost) {
-          host.classList.remove('nyamark-image-meta-open');
-        }
-      });
+    for (const host of this.root.querySelectorAll(
+      '.milkdown-image-block.nyamark-image-meta-open'
+    )) {
+      if (host !== activeHost) {
+        host.classList.remove('nyamark-image-meta-open');
+      }
+    }
   };
 
   constructor(
@@ -32,16 +36,23 @@ export class ImageMetaPanel {
   attach() {
     this.root.addEventListener('pointerdown', this.handleRootPointerDown);
     this.decorateAll();
-    new MutationObserver(() => this.decorateAll()).observe(this.root, {
-      childList: true,
-      subtree: true,
-    });
+    // Typing mutates the editor DOM on nearly every keystroke; one pass per
+    // frame is plenty for panels that only follow image blocks.
+    new MutationObserver(() => {
+      if (this.decorateFrame) return;
+      this.decorateFrame = requestAnimationFrame(() => {
+        this.decorateFrame = 0;
+        this.decorateAll();
+      });
+    }).observe(this.root, { childList: true, subtree: true });
   }
 
   private decorateAll() {
-    this.root.querySelectorAll('.milkdown-image-block').forEach((host) => {
-      this.syncPanel(host as HTMLElement);
-    });
+    for (const host of this.root.querySelectorAll<HTMLElement>(
+      '.milkdown-image-block'
+    )) {
+      this.syncPanel(host);
+    }
   }
 
   private findImageNodeState(
@@ -50,24 +61,9 @@ export class ImageMetaPanel {
     const crepe = this.getCrepe();
     if (!crepe) return null;
 
+    // Located through the DOM, never by counting: inline images and images in
+    // other containers would shift any index-based pairing onto the wrong node.
     const view = crepe.editor.ctx.get(editorViewCtx);
-    const hosts = Array.from(
-      this.root.querySelectorAll('.milkdown-image-block')
-    );
-    const hostIndex = hosts.indexOf(host);
-    if (hostIndex >= 0) {
-      const imageNodes: Array<{ pos: number; node: ProseNode }> = [];
-      view.state.doc.descendants((node, pos) => {
-        if (node.type.name === 'image-block' || node.type.name === 'image') {
-          imageNodes.push({ pos, node });
-        }
-      });
-
-      if (hostIndex < imageNodes.length) {
-        return imageNodes[hostIndex];
-      }
-    }
-
     const docSize = view.state.doc.content.size;
     const anchorTargets = [
       host.querySelector('img[data-type]'),
@@ -87,27 +83,18 @@ export class ImageMetaPanel {
     for (const pos of candidates) {
       if (pos < 0 || pos > docSize) continue;
       const node = view.state.doc.nodeAt(pos);
-      if (
-        node &&
-        (node.type.name === 'image-block' || node.type.name === 'image')
-      ) {
+      if (node?.type.name === IMAGE_BLOCK) {
         return { pos, node };
       }
 
       const $pos = view.state.doc.resolve(pos);
       const after = $pos.nodeAfter;
-      if (
-        after &&
-        (after.type.name === 'image-block' || after.type.name === 'image')
-      ) {
+      if (after?.type.name === IMAGE_BLOCK) {
         return { pos: $pos.pos, node: after };
       }
 
       const before = $pos.nodeBefore;
-      if (
-        before &&
-        (before.type.name === 'image-block' || before.type.name === 'image')
-      ) {
+      if (before?.type.name === IMAGE_BLOCK) {
         return { pos: $pos.pos - before.nodeSize, node: before };
       }
     }
@@ -172,7 +159,9 @@ export class ImageMetaPanel {
       toggle.draggable = false;
       toggle.setAttribute('contenteditable', 'false');
       toggle.textContent = 'Info';
+      toggle.dataset.i18n = 'editor.image.info';
       toggle.setAttribute('aria-label', 'Toggle image details');
+      toggle.dataset.i18nAriaLabel = 'editor.image.toggleInfo';
       toggle.addEventListener('pointerdown', (event) =>
         event.stopPropagation()
       );
@@ -229,10 +218,16 @@ export class ImageMetaPanel {
         this.updateImageNodeAttrs(host, { caption: nextCaption });
       };
 
-      captionInput.addEventListener('input', () => {
+      const scheduleCaptionCommit = () => {
         if (captionTimer) window.clearTimeout(captionTimer);
         captionTimer = window.setTimeout(commitCaption, 220);
+      };
+      // An IME composition is not text yet; committing it mid-way would
+      // write half-composed syllables into the document.
+      captionInput.addEventListener('input', (event) => {
+        if (!(event as InputEvent).isComposing) scheduleCaptionCommit();
       });
+      captionInput.addEventListener('compositionend', scheduleCaptionCommit);
       captionInput.addEventListener('blur', () => {
         if (captionTimer) {
           window.clearTimeout(captionTimer);
@@ -242,7 +237,7 @@ export class ImageMetaPanel {
       });
 
       pathInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
+        if (event.key === 'Enter' && !event.isComposing) {
           event.preventDefault();
           const nextSrc = pathInput.value.trim();
           if (nextSrc) this.updateImageNodeAttrs(host, { src: nextSrc });
@@ -259,8 +254,6 @@ export class ImageMetaPanel {
           host.classList.remove('nyamark-image-meta-open');
         }
       });
-      translateDOM(wrapper);
-    } else if (!toggle) {
       translateDOM(wrapper);
     }
 
