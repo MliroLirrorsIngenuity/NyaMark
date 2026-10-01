@@ -19,6 +19,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange } from './doc-diff';
 import { blockEdges } from './plugins/block-edges';
+import { restHiddenBlockHandle } from './plugins/block-handle-rest';
 import { blockSelection } from './plugins/block-selection';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
@@ -131,6 +132,7 @@ export class NyaEditor {
     await crepe.create();
     this.imageMetaPanel.attach();
     keepFloatingOffEdge(this.root);
+    restHiddenBlockHandle(this.root);
   }
 
   /**

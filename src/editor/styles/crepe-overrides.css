@@ -1368,7 +1368,8 @@
  * flow after the document, its 32px hanging below the end: the page scrolled
  * that much further, and scrolled to the bottom, the first hover took it back
  * and the text dropped under the pointer. `bottom` keeps it inside; `auto` to
- * a length does not transition, so the first show does not slide in.
+ * a length does not transition, so the first show does not slide in. A hidden
+ * handle has its offsets cleared too -- see `plugins/block-handle-rest.ts`.
  */
 .ny-editor-root .milkdown .milkdown-block-handle:not([style]) {
   bottom: 0;
