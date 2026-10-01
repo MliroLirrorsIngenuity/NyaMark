@@ -19,6 +19,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange } from './doc-diff';
+import { blockArrows } from './plugins/block-arrows';
 import { blockEdges } from './plugins/block-edges';
 import { restHiddenBlockHandle } from './plugins/block-handle-rest';
 import { blockSelection } from './plugins/block-selection';
@@ -118,6 +119,7 @@ export class NyaEditor {
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
     crepe.editor.use(codePreview);
+    crepe.editor.use(blockArrows);
     crepe.editor.use(imageRatio);
     crepe.editor.use(tableCells);
     crepe.editor.use(tabFocus);
