@@ -132,6 +132,11 @@ export class NyaEditor {
 
     this.crepe = crepe;
     await crepe.create();
+    // The format bar reads the block at the caret only once the editor counts
+    // as created, which comes after its first render: until the next update
+    // it called the opening heading "Body".
+    const view = this.getView();
+    view?.dispatch(view.state.tr);
     this.imageMetaPanel.attach();
     keepFloatingOffEdge(this.root);
     restHiddenBlockHandle(this.root);
