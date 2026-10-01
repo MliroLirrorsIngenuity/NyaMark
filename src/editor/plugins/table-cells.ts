@@ -26,7 +26,9 @@
  * Enter: Milkdown left the table from any cell, the header's too, so Enter
  * while filling in a row threw the caret out under the table. It goes down a
  * row in the same column instead, and from the last row adds one, the way
- * Enter goes through a list; on a last row still empty it takes that row away
+ * Enter goes through a list. The new row is filled in from its first cell, as
+ * after Tab: a row typed cell by cell and ended with Enter had the next one
+ * start under its last cell. On a last row still empty it takes that row away
  * and leaves the table, as Enter on an empty item ends a list. Cmd+Enter
  * leaves from anywhere. Leaving onto a table already followed by an empty
  * paragraph -- always the case at the end of a document -- uses that one:
@@ -219,15 +221,11 @@ function selectedCell(state: EditorState): ResolvedPos | null {
   return $cell;
 }
 
-/** A new row under the table, the caret in its cell in column `col`. */
-function addRowBelow(ctx: Ctx, view: EditorView, col: number): void {
+/** A new row under the table, the caret in its first cell. */
+function addRowBelow(ctx: Ctx, view: EditorView): void {
   const rect = selectedRect(view.state);
   const tr = addRowWithAlignment(ctx, view.state.tr, rect, rect.map.height);
-  let cellPos = rect.tableStart + rect.table.content.size + 1;
-  const row = tr.doc.nodeAt(cellPos - 1);
-  for (let i = 0; row && i < Math.min(col, row.childCount - 1); i += 1) {
-    cellPos += row.child(i).nodeSize;
-  }
+  const cellPos = rect.tableStart + rect.table.content.size + 1;
   tr.setSelection(Selection.near(tr.doc.resolve(cellPos + 1), 1));
   view.dispatch(tr.scrollIntoView());
 }
@@ -239,7 +237,7 @@ function addRowFromLastCell(ctx: Ctx, view: EditorView): boolean {
   const table = $cell.node(-1);
   const lastRow = $cell.index(-1) === table.childCount - 1;
   if (!lastRow || $cell.index() !== $cell.parent.childCount - 1) return false;
-  addRowBelow(ctx, view, 0);
+  addRowBelow(ctx, view);
   return true;
 }
 
@@ -255,7 +253,8 @@ export function isEmptyRow(row: Node): boolean {
 
 /**
  * Enter in a cell: to the end of the cell below. From the last row, a new row
- * to fill in; from a last row left empty, out of the table, the row gone.
+ * to fill in from its first cell; from a last row left empty, out of the
+ * table, the row gone.
  */
 function enterCellBelow(ctx: Ctx, view: EditorView): boolean {
   const { state } = view;
@@ -273,7 +272,7 @@ function enterCellBelow(ctx: Ctx, view: EditorView): boolean {
   }
   const row = $cell.parent;
   if (!isEmptyRow(row)) {
-    addRowBelow(ctx, view, $cell.index());
+    addRowBelow(ctx, view);
     return true;
   }
   const tr = state.tr;
