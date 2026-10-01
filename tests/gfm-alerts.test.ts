@@ -9,6 +9,7 @@ import type { DecorationSet } from '@milkdown/kit/prose/view';
 import {
   buildDecorations,
   keepCaretOutOfMarker,
+  onEmptyBodyLine,
   removeMarkerOnBackspace,
   updateDecorations,
 } from '../src/editor/plugins/gfm-alerts';
@@ -136,6 +137,32 @@ describe('the caret around a hidden marker', () => {
     expect(moveCaret(inline(), 6, 17)).toBe(17);
     expect(moveCaret(inline(), 17, 19)).toBe(19);
     expect(moveCaret(inline(), 17, 3)).toBe(3);
+  });
+
+  test('an alert with nothing under its label gets a line for the caret', () => {
+    // `> [!TIP]` as typed: the marker fills the quote's only paragraph, 8-16.
+    const start = doc(p('intro'), quote(p('[!TIP')), p('outro'));
+    const state = EditorState.create({
+      doc: start,
+      selection: TextSelection.create(start, 14),
+    });
+    const tr = state.tr.insertText(']');
+    const fix = keepCaretOutOfMarker([tr], state, state.apply(tr));
+    const line = schema.node('hardbreak');
+    expect(
+      fix?.doc.eq(
+        doc(
+          p('intro'),
+          quote(schema.node('paragraph', null, [schema.text('[!TIP]'), line])),
+          p('outro')
+        )
+      )
+    ).toBe(true);
+    expect(fix?.selection.head).toBe(16);
+    if (!fix) return;
+    const typed = state.apply(tr).apply(fix);
+    expect(onEmptyBodyLine(typed)).toBe(true);
+    expect(onEmptyBodyLine(EditorState.create({ doc: inline() }))).toBe(false);
   });
 
   function backspace(start: Node, at: number) {

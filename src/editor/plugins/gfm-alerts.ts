@@ -46,6 +46,8 @@ interface MarkerHit {
   kind: AlertKind;
   /** Length, in document positions, of the inline range to hide. */
   range: number;
+  /** The range ends with the line break, so the body goes on in the paragraph. */
+  breaks: boolean;
 }
 
 /**
@@ -76,16 +78,17 @@ function findMarker(paragraph: ProseNode): MarkerHit | null {
       const next = paragraph.child(1);
       if (next.type.name === 'hard_break' || next.type.name === 'hardbreak') {
         consumed += 1; // hard_break occupies a single position
+        return { kind, range: consumed, breaks: true };
       }
     }
-    return { kind, range: consumed };
+    return { kind, range: consumed, breaks: false };
   }
 
   // After the marker comes whitespace ⇒ accept and absorb it.
   const wsLine = tail.match(/^[ \t]*\n/);
   if (wsLine) {
     consumed += wsLine[0].length;
-    return { kind, range: consumed };
+    return { kind, range: consumed, breaks: true };
   }
 
   const wsOnly = tail.match(/^[ \t]+$/);
@@ -95,9 +98,10 @@ function findMarker(paragraph: ProseNode): MarkerHit | null {
       const next = paragraph.child(1);
       if (next.type.name === 'hard_break' || next.type.name === 'hardbreak') {
         consumed += 1;
+        return { kind, range: consumed, breaks: true };
       }
     }
-    return { kind, range: consumed };
+    return { kind, range: consumed, breaks: false };
   }
 
   // Marker followed by inline content on the same line — not a valid
@@ -139,7 +143,7 @@ function decorationsBetween(
     // When the marker takes up the entire first paragraph (e.g. `> [!NOTE]`
     // with the body in a SEPARATE blockquote paragraph), collapse the host
     // paragraph too — otherwise we'd leave an empty line above the body.
-    if (hit.range >= firstChild.content.size) {
+    if (hit.range >= firstChild.content.size && !hit.breaks) {
       decorations.push(
         Decoration.node(paragraphFrom, paragraphTo, {
           class: 'ny-alert-marker-line',
@@ -218,8 +222,11 @@ export interface AlertMarkerRange {
   /** First and last position of the hidden marker. */
   from: number;
   to: number;
-  /** Where the visible body begins: the caret's first stop inside the alert. */
-  body: number;
+  /**
+   * Where the visible body begins: the caret's first stop inside the alert.
+   * Null while the alert has nothing under its label.
+   */
+  body: number | null;
 }
 
 export function alertMarkerAt(
@@ -238,15 +245,16 @@ export function alertMarkerAt(
     const from = quote + 2;
     const to = from + hit.range;
     // A marker that fills its paragraph leaves the body in the next one.
-    const ownLine = hit.range >= first.content.size;
-    const body = ownLine
-      ? (TextSelection.findFrom(
-          doc.resolve(quote + 1 + first.nodeSize),
-          1,
-          true
-        )?.from ?? to)
-      : to;
-    return { quote, from, to, body };
+    if (hit.range < first.content.size || hit.breaks) {
+      return { quote, from, to, body: to };
+    }
+    const next = TextSelection.findFrom(
+      doc.resolve(quote + 1 + first.nodeSize),
+      1,
+      true
+    );
+    const inside = next && next.from < quote + node.nodeSize;
+    return { quote, from, to, body: inside ? next.from : null };
   }
   return null;
 }
@@ -256,6 +264,11 @@ export function alertMarkerAt(
  * user types lands in the marker and breaks the alert. Arrow keys and clicks
  * that end up there are moved on to the body, or, when the caret was heading
  * backwards out of the body, to the block before the alert.
+ *
+ * An alert with nothing under its label, `> [!TIP]` as it is typed, has no
+ * body to go to: the caret left the alert for the next block and the text
+ * meant for the tip went there. It gets a line under the label, the soft
+ * break `> [!TIP]` and its body are written with, and the caret goes on it.
  */
 export function keepCaretOutOfMarker(
   transactions: readonly Transaction[],
@@ -268,7 +281,18 @@ export function keepCaretOutOfMarker(
   const marker = alertMarkerAt(doc, selection.head);
   if (!marker) return null;
   const { head } = selection;
-  if (head < marker.from || head >= marker.body) return null;
+  if (head < marker.from) return null;
+  if (marker.body === null) {
+    const { schema } = newState;
+    const lineBreak = schema.nodes.hardbreak ?? schema.nodes.hard_break;
+    if (!lineBreak) return null;
+    const tr = newState.tr.insert(
+      marker.to,
+      lineBreak.create({ isInline: true })
+    );
+    return tr.setSelection(TextSelection.create(tr.doc, marker.to + 1));
+  }
+  if (head >= marker.body) return null;
 
   const backwards =
     !transactions.some((tr) => tr.docChanged) &&
@@ -305,6 +329,24 @@ export function removeMarkerOnBackspace(
   );
 }
 
+/**
+ * Enter on the empty line under the label, where `> [!TIP]` leaves the caret
+ * as it is typed, is kept from adding a second one: the caret is on the body
+ * line already, and the Enter that follows the marker out of habit put a
+ * blank line between the label and the body.
+ */
+export function onEmptyBodyLine(state: EditorState): boolean {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  const marker = alertMarkerAt(state.doc, selection.head);
+  if (!marker || marker.body !== marker.to) return false;
+  const { $head } = selection;
+  return (
+    selection.head === marker.to &&
+    $head.parentOffset === $head.parent.content.size
+  );
+}
+
 export const gfmAlerts = $prose(
   () =>
     new Plugin<DecorationSet>({
@@ -320,9 +362,11 @@ export const gfmAlerts = $prose(
           return pluginKey.getState(state);
         },
         handleKeyDown(view, event) {
-          if (event.key !== 'Backspace' || event.metaKey || event.altKey) {
-            return false;
+          if (event.metaKey || event.altKey || event.isComposing) return false;
+          if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey) {
+            return onEmptyBodyLine(view.state);
           }
+          if (event.key !== 'Backspace') return false;
           const tr = removeMarkerOnBackspace(view.state);
           if (!tr) return false;
           view.dispatch(tr.scrollIntoView());
