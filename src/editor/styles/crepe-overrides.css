@@ -1540,6 +1540,21 @@
 }
 
 /*
+ * A rule inside the selection: the line takes the accent, in a band of the
+ * wash kept to the width of the text. WebKit paints its own selection over
+ * the rule's box, a pale line through the middle of it.
+ */
+.ny-editor-root .milkdown .ProseMirror hr.ny-block-selected {
+  background-color: color-mix(in srgb, var(--ny-accent), transparent 30%) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ny-accent), transparent 72%);
+  clip-path: inset(-3px 0);
+}
+
+.ny-editor-root .milkdown .ProseMirror hr.ny-block-selected::selection {
+  background-color: transparent;
+}
+
+/*
  * An image block runs the width of the page with the picture centred in it, so
  * the wash covers the picture alone: across the whole block it was a grey band
  * from margin to margin. Crepe tints a clicked image the same way, in its own

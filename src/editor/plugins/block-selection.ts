@@ -34,10 +34,11 @@ const COVERED_CLASS = 'ny-block-selected';
 /**
  * Only blocks that render their own surface need the wash. Everything else
  * already looks right, and touching its classList on every selection change
- * would be churn for nothing.
+ * would be churn for nothing. A rule has no text for the selection to paint,
+ * so one inside it showed nothing of being about to go with the rest.
  */
 const WASHABLE_SELECTOR =
-  '.milkdown-code-block,.milkdown-table-block,.milkdown-image-block,.ny-html-block';
+  '.milkdown-code-block,.milkdown-table-block,.milkdown-image-block,.ny-html-block,hr';
 
 function coveredBlocks(view: EditorView): HTMLElement[] {
   const { selection, doc } = view.state;
