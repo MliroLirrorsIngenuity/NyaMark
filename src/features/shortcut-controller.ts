@@ -33,21 +33,29 @@ export class ShortcutController {
   constructor(private readonly handlers: ShortcutHandlers) {}
 
   bind() {
+    // Captured: a code block's CodeMirror binds Mod-F itself and would act
+    // before the event bubbled up here.
+    window.addEventListener('keydown', (event) => this.find(event), true);
     window.addEventListener('keydown', (event) => this.dispatch(event));
+  }
+
+  /**
+   * Mod-F searches the document, from a code block too: CodeMirror's own
+   * panel opened inside the block, English and unstyled, and searched only
+   * that block. The source pane keeps it; it searches the markdown on show.
+   */
+  private find(event: KeyboardEvent) {
+    if (!hasPrimaryModifier(event) || event.altKey || event.shiftKey) return;
+    if (event.code !== 'KeyF' || event.isComposing) return;
+    if (this.targetsSourcePane(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.repeat) this.handlers.find();
   }
 
   private dispatch(event: KeyboardEvent) {
     if (!hasPrimaryModifier(event) || event.altKey) return;
     if (event.repeat || event.isComposing) return;
-
-    // CodeMirror (the source pane and code blocks) has its own search panel
-    // on Mod-F; opening the document search on top of it helps nobody.
-    if (event.code === 'KeyF' && !event.shiftKey) {
-      if (this.targetsCodeMirror(event)) return;
-      event.preventDefault();
-      this.handlers.find();
-      return;
-    }
 
     if (event.code === 'KeyO' && event.shiftKey) {
       event.preventDefault();
@@ -91,8 +99,11 @@ export class ShortcutController {
     }
   }
 
-  private targetsCodeMirror(event: KeyboardEvent) {
+  private targetsSourcePane(event: KeyboardEvent) {
     const target = event.target;
-    return target instanceof Element && target.closest('.cm-editor') !== null;
+    return (
+      target instanceof Element &&
+      target.closest('.ny-source-pane .cm-editor') !== null
+    );
   }
 }
