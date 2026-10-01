@@ -4,12 +4,25 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
-        Mutex,
+        Mutex, MutexGuard, PoisonError,
     },
 };
 
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_fs::FsExt;
+
+/// Every value behind these mutexes stays consistent between statements, so a
+/// panic on another thread leaves nothing half-written. Recover the guard
+/// instead of turning one panic into a panic in every later IPC call.
+trait LockOrRecover<T> {
+    fn lock_or_recover(&self) -> MutexGuard<'_, T>;
+}
+
+impl<T> LockOrRecover<T> for Mutex<T> {
+    fn lock_or_recover(&self) -> MutexGuard<'_, T> {
+        self.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
 
 /// Files passed via CLI args / `RunEvent::Opened` before the main window finished bootstrap.
 pub struct PendingLaunchFiles(pub Mutex<Vec<String>>);
@@ -62,8 +75,7 @@ pub fn remember_window_file<R: Runtime>(app: &AppHandle<R>, label: &str, path: S
     allow_document_scope(app, &path);
     app.state::<WindowSessions>()
         .0
-        .lock()
-        .unwrap()
+        .lock_or_recover()
         .insert(label.to_string(), path);
 }
 
@@ -140,31 +152,28 @@ fn strip_verbatim_prefix(path: PathBuf) -> String {
 pub fn forget_window_file<R: Runtime>(app: &AppHandle<R>, label: &str) {
     app.state::<WindowSessions>()
         .0
-        .lock()
-        .unwrap()
+        .lock_or_recover()
         .remove(label);
 }
 
 pub fn assigned_window_file<R: Runtime>(app: &AppHandle<R>, label: &str) -> Option<String> {
     app.state::<WindowSessions>()
         .0
-        .lock()
-        .unwrap()
+        .lock_or_recover()
         .get(label)
         .cloned()
 }
 
 pub fn take_pending_launch_files<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
     let state = app.state::<PendingLaunchFiles>();
-    let mut pending = state.0.lock().unwrap();
+    let mut pending = state.0.lock_or_recover();
     std::mem::take(&mut *pending)
 }
 
 pub fn extend_pending_launch_files<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>) {
     app.state::<PendingLaunchFiles>()
         .0
-        .lock()
-        .unwrap()
+        .lock_or_recover()
         .extend(paths);
 }
 
@@ -177,18 +186,17 @@ pub fn mark_main_bootstrap_complete<R: Runtime>(app: &AppHandle<R>) {
 pub fn remember_last_focused_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
     app.state::<LastFocusedWindow>()
         .0
-        .lock()
-        .unwrap()
+        .lock_or_recover()
         .replace(label.to_string());
 }
 
 pub fn last_focused_window<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
-    app.state::<LastFocusedWindow>().0.lock().unwrap().clone()
+    app.state::<LastFocusedWindow>().0.lock_or_recover().clone()
 }
 
 pub fn clear_last_focused_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
     let state = app.state::<LastFocusedWindow>();
-    let mut current = state.0.lock().unwrap();
+    let mut current = state.0.lock_or_recover();
     if current.as_deref() == Some(label) {
         current.take();
     }
@@ -197,23 +205,21 @@ pub fn clear_last_focused_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
 pub fn set_window_dirty<R: Runtime>(app: &AppHandle<R>, label: &str, dirty: bool) {
     app.state::<WindowDirtyFlags>()
         .0
-        .lock()
-        .unwrap()
+        .lock_or_recover()
         .insert(label.to_string(), dirty);
 }
 
 pub fn forget_window_dirty<R: Runtime>(app: &AppHandle<R>, label: &str) {
     app.state::<WindowDirtyFlags>()
         .0
-        .lock()
-        .unwrap()
+        .lock_or_recover()
         .remove(label);
 }
 
 /// True when any window that still exists reports unsaved changes.
 pub fn any_window_dirty<R: Runtime>(app: &AppHandle<R>) -> bool {
     let flags = app.state::<WindowDirtyFlags>();
-    let flags = flags.0.lock().unwrap();
+    let flags = flags.0.lock_or_recover();
     app.webview_windows()
         .keys()
         .any(|label| flags.get(label).copied().unwrap_or(false))
