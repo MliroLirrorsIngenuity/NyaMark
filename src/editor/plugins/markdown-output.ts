@@ -22,8 +22,10 @@
  *
  * Leading spaces: Enter just before a space splits "一 二" into "一" and " 二",
  * and markdown drops the space at the start of a paragraph or heading, so it
- * was written as `&#x20;二` to survive. It is left out instead, the way it
- * would read when the file is opened again.
+ * was written as `&#x20;二` to survive. That one space is left out instead, the
+ * way it would read when the file is opened again. Two or more at the start of
+ * a paragraph are an indent the user made (Tab inserts four) and keep their
+ * entities; a heading has no indent to keep.
  */
 
 import { $remark } from '@milkdown/kit/utils';
@@ -70,7 +72,10 @@ function unescapeAlertMarker(blockquote: MdNode) {
 function trimLeadingSpace(block: MdNode) {
   const first = block.children?.[0];
   if (first?.type !== 'text' || !first.value) return;
-  first.value = first.value.replace(/^[ \t]+/, '');
+  first.value = first.value.replace(
+    block.type === 'heading' ? /^[ \t]+/ : /^ (?![ \t])/,
+    ''
+  );
 }
 
 /** Empty, or holding only the `<br />` Milkdown writes for an empty line. */

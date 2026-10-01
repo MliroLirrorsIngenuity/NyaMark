@@ -87,7 +87,7 @@ describe('normalizeOutput', () => {
     expect(processor.stringify(tree as never)).toBe('<br />\n\nend\n');
   });
 
-  test('leaves out spaces at the start of a block', () => {
+  test('leaves out the space a split leaves at the start of a block', () => {
     const tree = {
       type: 'root',
       children: [
@@ -96,13 +96,14 @@ describe('normalizeOutput', () => {
           depth: 2,
           children: [{ type: 'text', value: ' 二' }],
         },
-        { type: 'paragraph', children: [{ type: 'text', value: '\t world' }] },
-        { type: 'paragraph', children: [{ type: 'text', value: '　缩进' }] },
+        { type: 'paragraph', children: [{ type: 'text', value: ' world' }] },
+        { type: 'paragraph', children: [{ type: 'text', value: '    缩进' }] },
+        { type: 'paragraph', children: [{ type: 'text', value: '　全角' }] },
       ],
     };
     const processor = unified().use(remarkStringify).use(normalizeOutput);
     expect(processor.stringify(tree as never)).toBe(
-      '## 二\n\nworld\n\n　缩进\n'
+      '## 二\n\nworld\n\n&#x20;   缩进\n\n　全角\n'
     );
   });
 });
