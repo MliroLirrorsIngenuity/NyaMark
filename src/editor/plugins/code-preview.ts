@@ -5,7 +5,9 @@
  * Crepe shows both, the source above the drawing, with a button to hide the
  * source by hand. A note with a few formulas read as a page of code with the
  * formulas tucked under it. Arrow keys and clicks that enter the block bring
- * the source back; leaving it puts it away again.
+ * the source back; leaving it puts it away again. A block picked up whole,
+ * from its handle to be moved, keeps to its drawing: it opened under the hand
+ * and grew by the height of its source as the drag began.
  *
  * The block holding the caret gets a node decoration rather than a class set
  * by a plugin view: the decoration is on the block before ProseMirror hands
@@ -35,11 +37,7 @@ const EDITING_CLASS = 'ny-code-editing';
 
 function editingRange(state: EditorState): [number, number] | null {
   const { selection } = state;
-  if (selection instanceof NodeSelection) {
-    return selection.node.type.name === 'code_block'
-      ? [selection.from, selection.to]
-      : null;
-  }
+  if (selection instanceof NodeSelection) return null;
   const { $from, $to } = selection;
   if ($from.parent.type.name !== 'code_block' || !$from.sameParent($to)) {
     return null;
