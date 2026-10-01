@@ -4,9 +4,12 @@
  * and a click on the backdrop to dismiss. Markup and styling stay with each
  * dialog; this wires only the parts they all need the same way.
  *
- * Open modals form a stack and keys reach the top-most one, so a
- * confirmation opened over a dialog takes Escape without closing its parent.
+ * Open modals form a stack and Tab stays in the top-most one. Escape goes
+ * through `escape-layers`, so a confirmation opened over a dialog takes it
+ * without closing its parent.
  */
+
+import { pushEscapeLayer } from './escape-layers';
 
 const FOCUSABLE = [
   'a[href]',
@@ -41,7 +44,6 @@ export type ModalHandle = {
 
 type Entry = {
   options: ModalOptions;
-  onBackdropClick: (event: MouseEvent) => void;
 };
 
 const stack: Entry[] = [];
@@ -77,14 +79,7 @@ function trapTab(event: KeyboardEvent, dialog: HTMLElement) {
 
 function onKeyDown(event: KeyboardEvent) {
   const top = stack[stack.length - 1];
-  if (!top) return;
-  if (event.key === 'Escape') {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    if (top.options.canDismiss?.() ?? true) top.options.onDismiss();
-    return;
-  }
-  if (event.key === 'Tab') trapTab(event, top.options.dialog);
+  if (top && event.key === 'Tab') trapTab(event, top.options.dialog);
 }
 
 /** Call once the dialog is attached to the document. */
@@ -116,8 +111,12 @@ export function openModal(options: ModalOptions): ModalHandle {
   if (stack.length === 0) {
     document.addEventListener('keydown', onKeyDown, true);
   }
-  const entry: Entry = { options, onBackdropClick };
+  const entry: Entry = { options };
   stack.push(entry);
+  const releaseEscape = pushEscapeLayer({
+    dismiss: options.onDismiss,
+    canDismiss: options.canDismiss,
+  });
 
   (options.initialFocus ?? focusableIn(dialog)[0] ?? dialog).focus();
 
@@ -126,6 +125,7 @@ export function openModal(options: ModalOptions): ModalHandle {
     release() {
       if (released) return;
       released = true;
+      releaseEscape();
       overlay.removeEventListener('click', onBackdropClick);
       const index = stack.indexOf(entry);
       if (index >= 0) stack.splice(index, 1);

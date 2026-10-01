@@ -8,23 +8,22 @@ import type { Crepe } from '@milkdown/crepe';
 import { editorViewCtx } from '@milkdown/kit/core';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { translateDOM } from '../../i18n/dom';
+import { pushEscapeLayer } from '../../ui/escape-layers';
 
 const IMAGE_BLOCK = 'image-block';
 
 export class ImageMetaPanel {
   private decorateFrame = 0;
+  /** Escape layers of the open panels, by image block. */
+  private readonly openPanels = new Map<HTMLElement, () => void>();
 
   private readonly handleRootPointerDown = (event: PointerEvent) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     const activeHost = target?.closest(
       '.milkdown-image-block.nyamark-image-meta-open'
     );
-    for (const host of this.root.querySelectorAll(
-      '.milkdown-image-block.nyamark-image-meta-open'
-    )) {
-      if (host !== activeHost) {
-        host.classList.remove('nyamark-image-meta-open');
-      }
+    for (const host of [...this.openPanels.keys()]) {
+      if (host !== activeHost) this.setOpen(host, false);
     }
   };
 
@@ -47,7 +46,25 @@ export class ImageMetaPanel {
     }).observe(this.root, { childList: true, subtree: true });
   }
 
+  private setOpen(host: HTMLElement, open: boolean) {
+    host.classList.toggle('nyamark-image-meta-open', open);
+    const release = this.openPanels.get(host);
+    if (open && !release) {
+      this.openPanels.set(
+        host,
+        pushEscapeLayer({ dismiss: () => this.setOpen(host, false) })
+      );
+    } else if (!open && release) {
+      release();
+      this.openPanels.delete(host);
+    }
+  }
+
   private decorateAll() {
+    // An image deleted with its panel open must not keep taking Escape.
+    for (const host of [...this.openPanels.keys()]) {
+      if (!host.isConnected) this.setOpen(host, false);
+    }
     for (const host of this.root.querySelectorAll<HTMLElement>(
       '.milkdown-image-block'
     )) {
@@ -172,7 +189,7 @@ export class ImageMetaPanel {
       toggle.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        host.classList.toggle('nyamark-image-meta-open');
+        this.setOpen(host, !host.classList.contains('nyamark-image-meta-open'));
       });
       wrapper.appendChild(toggle);
     }
@@ -247,12 +264,6 @@ export class ImageMetaPanel {
       pathInput.addEventListener('blur', () => {
         const nextSrc = pathInput.value.trim();
         if (nextSrc) this.updateImageNodeAttrs(host, { src: nextSrc });
-      });
-
-      panel.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          host.classList.remove('nyamark-image-meta-open');
-        }
       });
       translateDOM(wrapper);
     }

@@ -1,6 +1,7 @@
 import { NyaEditor } from '../editor/editor';
 import { ensureStyle } from '../style/register';
 import { translateDOM } from '../i18n/dom';
+import { pushEscapeLayer } from './escape-layers';
 
 const outlineStyles = `
 .ny-outline {
@@ -154,6 +155,7 @@ export class OutlinePanel {
   private renderedSignature: string | null = null;
   private renderTimer: number | null = null;
   private readonly unsubscribe: () => void;
+  private releaseEscape: (() => void) | null = null;
 
   constructor(private editor: NyaEditor) {
     ensureStyle('outline-panel', outlineStyles);
@@ -178,15 +180,11 @@ export class OutlinePanel {
     translateDOM(this.elPanel);
 
     // Toggling is a global shortcut (see features/shortcut-controller.ts).
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.isVisible) {
-        this.hide();
-      }
-    });
     this.unsubscribe = editor.onDocChanged(() => this.scheduleRender());
   }
 
   destroy() {
+    this.releaseEscape?.();
     this.unsubscribe();
     if (this.renderTimer != null) window.clearTimeout(this.renderTimer);
     this.elPanel.remove();
@@ -207,7 +205,9 @@ export class OutlinePanel {
   }
 
   show() {
+    if (this.isVisible) return;
     this.isVisible = true;
+    this.releaseEscape = pushEscapeLayer({ dismiss: () => this.hide() });
     this.elPanel.style.opacity = '1';
     this.elPanel.style.pointerEvents = 'auto';
     this.elPanel.style.transform = 'translateY(0)';
@@ -216,6 +216,8 @@ export class OutlinePanel {
 
   hide() {
     this.isVisible = false;
+    this.releaseEscape?.();
+    this.releaseEscape = null;
     this.elPanel.style.opacity = '0';
     this.elPanel.style.pointerEvents = 'none';
     this.elPanel.style.transform = 'translateY(-6px)';

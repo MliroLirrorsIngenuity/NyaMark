@@ -11,6 +11,7 @@ import {
 import { i18next } from '../i18n';
 import { isMacOS } from '../platform/detect';
 import { documentFileName } from './document-name';
+import { pushEscapeLayer } from './escape-layers';
 
 type TitlebarActions = {
   onNewFile: () => Promise<unknown> | void;
@@ -129,9 +130,27 @@ export class Titlebar {
     const menuButton = this.elFileMenuButton;
     const menu = this.elFileMenu;
 
+    let releaseEscape: (() => void) | null = null;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (menu.contains(target) || menuButton.contains(target)) return;
+      setOpen(false);
+    };
+    // The outside-click listener and the Escape layer exist only while the
+    // menu is open.
     const setOpen = (open: boolean) => {
+      if (open === !menu.hidden) return;
       menu.hidden = !open;
       menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) {
+        document.addEventListener('click', closeOnOutsideClick);
+        releaseEscape = pushEscapeLayer({ dismiss: () => setOpen(false) });
+      } else {
+        document.removeEventListener('click', closeOnOutsideClick);
+        releaseEscape?.();
+        releaseEscape = null;
+      }
     };
 
     menuButton.addEventListener('click', (event) => {
@@ -169,17 +188,6 @@ export class Titlebar {
         setOpen(false);
         void Promise.resolve(this.actions.onExportPdf()).catch(console.error);
       });
-
-    document.addEventListener('click', (event) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (menu.contains(target) || menuButton.contains(target)) return;
-      setOpen(false);
-    });
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') setOpen(false);
-    });
   }
 
   private bindAction(id: string, handler: () => Promise<unknown> | void) {

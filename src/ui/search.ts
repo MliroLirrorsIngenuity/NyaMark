@@ -1,5 +1,6 @@
 import { ensureStyle } from '../style/register';
 import { translateDOM } from '../i18n/dom';
+import { pushEscapeLayer } from './escape-layers';
 
 const searchStyles = `
 .ny-search {
@@ -66,6 +67,7 @@ export class SearchPanel {
   private elPanel: HTMLElement;
   private elInput: HTMLInputElement;
   private isVisible = false;
+  private releaseEscape: (() => void) | null = null;
 
   constructor() {
     ensureStyle('search-panel', searchStyles);
@@ -119,12 +121,6 @@ export class SearchPanel {
     btnClose: HTMLButtonElement
   ) {
     // Opening is a global shortcut (see features/shortcut-controller.ts).
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.isVisible) {
-        this.hide();
-      }
-    });
-
     btnClose.addEventListener('click', () => this.hide());
 
     this.elInput.addEventListener('keydown', (e) => {
@@ -139,6 +135,9 @@ export class SearchPanel {
   }
 
   show() {
+    if (!this.isVisible) {
+      this.releaseEscape = pushEscapeLayer({ dismiss: () => this.hide() });
+    }
     this.isVisible = true;
     this.elPanel.style.opacity = '1';
     this.elPanel.style.pointerEvents = 'auto';
@@ -148,6 +147,8 @@ export class SearchPanel {
 
   hide() {
     this.isVisible = false;
+    this.releaseEscape?.();
+    this.releaseEscape = null;
     this.elPanel.style.opacity = '0';
     this.elPanel.style.pointerEvents = 'none';
     // Clear selection
