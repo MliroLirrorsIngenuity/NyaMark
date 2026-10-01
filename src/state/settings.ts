@@ -1,10 +1,12 @@
-import { Effect, EffectState, getCurrentWindow } from '@tauri-apps/api/window';
 import {
   loadPersistedSettings,
   onPersistedSettingsChange,
   savePersistedSettings,
 } from '../bridge/ipc/settings';
-import { setNativeWindowBackdrop } from '../bridge/ipc/windows';
+import {
+  setNativeWindowBackdrop,
+  setWindowVibrancy,
+} from '../bridge/ipc/windows';
 import { getPlatform } from '../platform/detect';
 import {
   type ImageInsertPolicy,
@@ -103,13 +105,9 @@ async function applyWindowEffects(transparency: boolean) {
   }
 
   try {
-    const win = getCurrentWindow();
     if (transparency) {
       if (platform === 'macos') {
-        await win.setEffects({
-          effects: [Effect.Sidebar],
-          state: EffectState.Active,
-        });
+        await setWindowVibrancy(true);
       } else if (platform === 'windows') {
         await setNativeWindowBackdrop(true);
       }
@@ -120,7 +118,7 @@ async function applyWindowEffects(transparency: boolean) {
         await setNativeWindowBackdrop(false);
         return;
       }
-      await win.clearEffects();
+      await setWindowVibrancy(false);
       document.documentElement.classList.remove('ny-shell--transparent');
     }
   } catch (e) {

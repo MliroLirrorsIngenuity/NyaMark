@@ -1,5 +1,5 @@
-import { openUrl } from '@tauri-apps/plugin-opener';
-import type { DownloadEvent, Update } from '@tauri-apps/plugin-updater';
+import { openExternalUrl } from '../bridge/ipc/attachments';
+import type { DownloadEvent, Update } from '../bridge/ipc/updates';
 import { requestAppRestart } from '../bridge/ipc/windows';
 import { i18next } from '../i18n';
 import { ensureStyle } from '../style/register';
@@ -385,7 +385,7 @@ export class UpdateDialog {
       }
 
       if (phase === 'failed') {
-        void openUrl(
+        void openExternalUrl(
           'https://github.com/MliroLirrorsIngenuity/NyaMark/releases'
         ).catch(console.error);
         void close();

@@ -3,10 +3,9 @@
  * modules — no logic of its own beyond glue.
  */
 
-import { message } from '@tauri-apps/plugin-dialog';
-import { check } from '@tauri-apps/plugin-updater';
-import { warningDialog } from './bridge/ipc/files';
+import { errorDialog, warningDialog } from './bridge/ipc/files';
 import { updateMacosMenu } from './bridge/ipc/menu';
+import { checkForUpdate } from './bridge/ipc/updates';
 import { isPrimaryWindow, printCurrentWindow } from './bridge/ipc/windows';
 import { NyaEditor } from './editor/editor';
 import { SourceModeController } from './editor/source-mode';
@@ -64,7 +63,7 @@ export class App {
 
     const appRoot = document.getElementById('app');
     if (!appRoot) {
-      void message('App root not found', { kind: 'error' });
+      void errorDialog('App root not found');
       return;
     }
 
@@ -109,7 +108,7 @@ export class App {
 
     const editorContainer = document.getElementById('editor-container');
     if (!editorContainer) {
-      void message('Editor container not found', { kind: 'error' });
+      void errorDialog('Editor container not found');
       return;
     }
 
@@ -235,7 +234,7 @@ export class App {
 
   private async checkForUpdates() {
     if (!(await isPrimaryWindow())) return;
-    const update = await check();
+    const update = await checkForUpdate();
     if (update) {
       this.updateDialog.open(update);
     }
@@ -340,7 +339,7 @@ export class App {
     if (!isMacOS()) return;
     void updateMacosMenu(
       i18next.getResourceBundle(i18next.language, 'translation').menu
-    );
+    ).catch((error) => console.warn('Failed to update the macOS menu', error));
   }
 
   private getPrintableFileTitle() {

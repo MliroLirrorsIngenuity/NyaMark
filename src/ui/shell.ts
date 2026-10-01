@@ -1,4 +1,4 @@
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { type ResizeDirection, startWindowResize } from '../bridge/ipc/windows';
 import { getPlatform } from '../platform/detect';
 import { ensureStyle } from '../style/register';
 import shellStyles from './shell.css?inline';
@@ -6,16 +6,6 @@ import shellStyles from './shell.css?inline';
 export function registerShellStyles() {
   ensureStyle('app-shell', shellStyles);
 }
-
-type ResizeDirection =
-  | 'East'
-  | 'North'
-  | 'NorthEast'
-  | 'NorthWest'
-  | 'South'
-  | 'SouthEast'
-  | 'SouthWest'
-  | 'West';
 
 const linuxResizeHandles: Array<{
   direction: ResizeDirection;
@@ -54,9 +44,7 @@ function bindLinuxResizeHandles(host: HTMLElement) {
         | undefined;
       if (!direction) return;
 
-      void getCurrentWindow()
-        .startResizeDragging(direction)
-        .catch(console.error);
+      void startWindowResize(direction).catch(console.error);
     });
   }
 }

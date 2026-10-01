@@ -24,7 +24,7 @@ const KNOWN_ACTIONS = new Set<AppMenuAction>([
 export async function listenAppMenuAction(
   handler: (action: AppMenuAction) => void
 ): Promise<UnlistenFn> {
-  return getCurrentWindow().listen<AppMenuAction>(
+  return await getCurrentWindow().listen<AppMenuAction>(
     APP_MENU_ACTION_EVENT,
     (event) => {
       if (KNOWN_ACTIONS.has(event.payload)) {
@@ -37,9 +37,5 @@ export async function listenAppMenuAction(
 export async function updateMacosMenu(
   translations: Record<string, string>
 ): Promise<void> {
-  try {
-    await invoke('update_macos_menu', { translations });
-  } catch (error) {
-    console.warn('Failed to update macOS menu:', error);
-  }
+  await invoke('update_macos_menu', { translations });
 }

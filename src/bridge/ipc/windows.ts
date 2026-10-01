@@ -2,9 +2,24 @@ import { invoke } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import type { Event } from '@tauri-apps/api/event';
 import type { DragDropEvent } from '@tauri-apps/api/webview';
-import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window';
+import {
+  Effect,
+  EffectState,
+  getAllWindows,
+  getCurrentWindow,
+} from '@tauri-apps/api/window';
 
 export type WindowTheme = 'light' | 'dark';
+
+export type ResizeDirection =
+  | 'East'
+  | 'North'
+  | 'NorthEast'
+  | 'NorthWest'
+  | 'South'
+  | 'SouthEast'
+  | 'SouthWest'
+  | 'West';
 
 export async function setWindowTitle(title: string): Promise<void> {
   await getCurrentWindow().setTitle(title);
@@ -22,7 +37,7 @@ export async function setWindowTheme(theme: WindowTheme | null): Promise<void> {
 export async function listenWindowThemeChange(
   handler: (theme: WindowTheme) => void
 ): Promise<UnlistenFn> {
-  return getCurrentWindow().onThemeChanged(({ payload }) => {
+  return await getCurrentWindow().onThemeChanged(({ payload }) => {
     if (payload === 'light' || payload === 'dark') {
       handler(payload);
     }
@@ -35,8 +50,29 @@ export async function listenWindowFileDrop(
   return await getCurrentWindow().onDragDropEvent(handler);
 }
 
+/** Windows: the DWM backdrop behind the transparent webview. */
 export async function setNativeWindowBackdrop(enabled: boolean): Promise<void> {
   await invoke('set_windows_backdrop', { enabled });
+}
+
+/** macOS: the sidebar vibrancy behind the transparent webview. */
+export async function setWindowVibrancy(enabled: boolean): Promise<void> {
+  const window = getCurrentWindow();
+  if (enabled) {
+    await window.setEffects({
+      effects: [Effect.Sidebar],
+      state: EffectState.Active,
+    });
+  } else {
+    await window.clearEffects();
+  }
+}
+
+/** Resize from an edge of an undecorated window, following the pointer. */
+export async function startWindowResize(
+  direction: ResizeDirection
+): Promise<void> {
+  await getCurrentWindow().startResizeDragging(direction);
 }
 
 export async function minimizeWindow(): Promise<void> {
