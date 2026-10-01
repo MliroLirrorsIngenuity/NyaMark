@@ -28,6 +28,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange } from './doc-diff';
+import { bareLinkParse, keepBareLinks, writeLink } from './plugins/bare-links';
 import { blockArrows } from './plugins/block-arrows';
 import { blockEdges, freeHeadingEdges } from './plugins/block-edges';
 import { handleBlocksOnly } from './plugins/block-handle-blocks';
@@ -139,13 +140,18 @@ export class NyaEditor {
     // `-` bullets and `---` rules, the markers most notes are written with;
     // remark's defaults rewrote every one of them to `*` on save. Text keeps
     // the underscores, hashes and ampersands it needs no escape for (see
-    // markdown-output).
+    // markdown-output), and a link written bare stays bare (see bare-links).
     crepe.editor.config((ctx) => {
       ctx.update(remarkStringifyOptionsCtx, (options) => ({
         ...options,
         bullet: '-' as const,
         rule: '-' as const,
-        handlers: { ...options.handlers, root: writeRoot, text: writeText },
+        handlers: {
+          ...options.handlers,
+          root: writeRoot,
+          text: writeText,
+          link: writeLink,
+        },
       }));
       // Table pipes line up by display width (see markdown-output), and a
       // strikethrough takes two tildes (see mark-input).
@@ -156,12 +162,14 @@ export class NyaEditor {
       }));
     });
     crepe.editor.config(keepImageAlt);
+    crepe.editor.config(keepBareLinks);
     crepe.editor.config(keepCellAlignment);
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.config(handleBlocksOnly);
     crepe.editor.use(caretScroll);
     crepe.editor.use(markdownOutput);
     crepe.editor.use(dollarTextParse);
+    crepe.editor.use(bareLinkParse);
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(blockEdges);
     crepe.editor.use(hrInput);
