@@ -275,6 +275,8 @@ function extendPastBlock(
 export const blockArrows = $prose(() => {
   let pending: Arrow | null = null;
   let editor: EditorView | null = null;
+  /** A move into a block whose source shows only once the caret is in it. */
+  let unmeasured: { x: number; dir: 1 | -1 } | null = null;
 
   return new Plugin({
     key: new PluginKey('nyamark/block-arrows'),
@@ -359,6 +361,9 @@ export const blockArrows = $prose(() => {
         arrow.vertical && arrow.x != null
           ? underX(editor, target, arrow.x, arrow.dir)
           : null;
+      if (!placed && isCode(target) && arrow.x != null) {
+        unmeasured = { x: arrow.x, dir: arrow.dir };
+      }
       if (!placed && target === state.selection) return null;
       return state.tr.setSelection(placed ?? target).scrollIntoView();
     },
@@ -408,6 +413,30 @@ export const blockArrows = $prose(() => {
       view.dom.addEventListener('keydown', onKeyDown, true);
       window.addEventListener('keydown', done);
       return {
+        // A math or diagram block hides its source until the caret is in it,
+        // so the line under the caret is found once it shows -- a frame on,
+        // when CodeMirror has taken focus and set its own caret.
+        update: () => {
+          const move = unmeasured;
+          unmeasured = null;
+          if (!move) return;
+          const { doc, selection: entered } = view.state;
+          requestAnimationFrame(() => {
+            const { selection } = view.state;
+            if (view.state.doc !== doc || !selection.eq(entered)) return;
+            if (!(selection instanceof TextSelection) || !isCode(selection)) {
+              return;
+            }
+            const code = codeMirrorAt(view, selection.$head.before());
+            const placed = underX(view, selection, move.x, move.dir);
+            if (!code || !placed || placed.head === selection.head) return;
+            // ProseMirror leaves the caret to CodeMirror once it has focus.
+            code.cm.dispatch({
+              selection: { anchor: placed.head - selection.$head.start() },
+              scrollIntoView: true,
+            });
+          });
+        },
         destroy: () => {
           view.dom.removeEventListener('keydown', onKeyDown, true);
           window.removeEventListener('keydown', done);
