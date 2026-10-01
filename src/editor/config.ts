@@ -20,6 +20,7 @@ import { closeFenceOnEnter } from './plugins/code-fence-exit';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
 import { rememberCodeCopy } from './plugins/paste-code';
+import { intoInsertedBlocks } from './plugins/toolbar-insert';
 import { pasteApart } from './plugins/undo-lines';
 
 export type CrepeConfigOptions = {
@@ -297,6 +298,7 @@ function localizedFeatureConfigs() {
   }));
   return {
     [CrepeFeature.TopBar]: {
+      buildTopBar: intoInsertedBlocks,
       headingOptions: [
         { label: blockLabel('paragraph'), level: null },
         ...HEADING_LEVELS.map((level) => ({
