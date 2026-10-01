@@ -22,6 +22,7 @@ import { replaceChangedRange } from './doc-diff';
 import { blockEdges } from './plugins/block-edges';
 import { restHiddenBlockHandle } from './plugins/block-handle-rest';
 import { blockSelection } from './plugins/block-selection';
+import { codePreview } from './plugins/code-preview';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
@@ -116,6 +117,7 @@ export class NyaEditor {
     crepe.editor.use(blockEdges);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
+    crepe.editor.use(codePreview);
     crepe.editor.use(imageRatio);
     crepe.editor.use(tableCells);
     crepe.editor.use(tabFocus);

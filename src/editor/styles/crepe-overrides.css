@@ -1127,6 +1127,37 @@
   overflow: hidden !important;
 }
 
+/*
+ * Away from the caret, a block that draws something shows only the drawing
+ * (plugins/code-preview.ts); the caret takes the place of Crepe's Hide / Edit
+ * button.
+ */
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block:not(.ny-code-editing):not(:focus-within):has(
+    > .preview-panel
+  )
+  > .codemirror-host {
+  display: none !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block:not(.ny-code-editing):not(:focus-within)
+  > .preview-panel {
+  border-top: 0 !important;
+  border-radius: 12px !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .tools
+  .tools-button-group
+  .preview-toggle-button {
+  display: none !important;
+}
+
 .ny-editor-root .milkdown .milkdown-code-block .preview-panel .preview-divider,
 .ny-editor-root .milkdown .milkdown-code-block .preview-panel .preview-label {
   display: none !important;
