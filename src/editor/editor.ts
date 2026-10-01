@@ -284,9 +284,28 @@ export class NyaEditor {
     const match = matches[active];
     if (match) {
       tr.setSelection(TextSelection.create(tr.doc, match.from, match.to));
-      tr.scrollIntoView();
     }
     view.dispatch(tr);
+    if (match) this.revealMatch(view, match.from);
+  }
+
+  /**
+   * Scrolls a match off screen to the middle of the page, the lines around it
+   * being its context. ProseMirror scrolls to its selection only while it has
+   * the focus, and the search field keeps it: stepping to a match above or
+   * below the page left the page where it was.
+   */
+  private revealMatch(view: ProseMirrorEditorView, pos: number) {
+    const scroller = view.dom.closest<HTMLElement>('.ny-shell__body');
+    if (!scroller) return;
+    const box = scroller.getBoundingClientRect();
+    const top =
+      box.top +
+      (Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop) || 0);
+    const match = view.coordsAtPos(pos);
+    if (match.top >= top && match.bottom <= box.bottom) return;
+    scroller.scrollTop +=
+      (match.top + match.bottom) / 2 - (top + box.bottom) / 2;
   }
 
   /** The current match (1-based, 0 for none) and how many there are. */
