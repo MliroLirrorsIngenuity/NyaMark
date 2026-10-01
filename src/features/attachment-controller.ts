@@ -330,7 +330,7 @@ export class AttachmentController {
       if (!filePath) return null;
     }
 
-    const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
+    const bytes = new Uint8Array(await file.arrayBuffer());
     const stored = await storeAttachmentInDirectory(
       filePath,
       insertRule.targetDir,
