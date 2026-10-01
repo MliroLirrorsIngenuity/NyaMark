@@ -30,6 +30,7 @@ import { buildCrepeConfig } from './config';
 import { replaceChangedRange } from './doc-diff';
 import { blockArrows } from './plugins/block-arrows';
 import { blockEdges, freeHeadingEdges } from './plugins/block-edges';
+import { handleBlocksOnly } from './plugins/block-handle-blocks';
 import { restHiddenBlockHandle } from './plugins/block-handle-rest';
 import { blockSelection } from './plugins/block-selection';
 import { codePreview } from './plugins/code-preview';
@@ -155,6 +156,7 @@ export class NyaEditor {
     crepe.editor.config(keepImageAlt);
     crepe.editor.config(keepCellAlignment);
     crepe.editor.config(freeHeadingEdges);
+    crepe.editor.config(handleBlocksOnly);
     crepe.editor.use(markdownOutput);
     crepe.editor.use(dollarTextParse);
     crepe.editor.use(gfmAlerts);
