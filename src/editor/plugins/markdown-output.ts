@@ -43,6 +43,8 @@
  * between two letters or digits never opens or closes emphasis, nor does a
  * star or underscore between spaces, and hashes start a heading only when six
  * or fewer are followed by a space: `writeText` leaves those unescaped.
+ * remark escaped `&` before any letter as well, `AT\&T` and `?a=1\&b=2` in a
+ * link; `writeRoot` escapes it where it would start a character reference.
  *
  * Dollars: remark-math escapes every `$` in text, so `$5` was saved as `\$5`.
  * A paragraph whose dollars all come back as text when the file is opened
@@ -56,7 +58,11 @@
  */
 
 import { $remark } from '@milkdown/kit/utils';
-import type { Handle } from 'mdast-util-to-markdown';
+import {
+  type ConstructName,
+  type Handle,
+  defaultHandlers,
+} from 'mdast-util-to-markdown';
 import type { Processor } from 'unified';
 import { isDollarText } from './math-dollars';
 
@@ -232,6 +238,24 @@ function markDollarText(block: MdNode) {
   };
   mark(block);
 }
+
+// An ampersand starts a character reference only as `&amp;`, `&#38;` or
+// `&#x26;`, the semicolon and all.
+const REFERENCE_AMPERSAND = {
+  character: '&',
+  after: '(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9A-Fa-f]+);',
+  inConstruct: 'phrasing' as ConstructName,
+};
+
+/** remark's handler for the whole document, `&` escaped only where needed. */
+export const writeRoot: Handle = (node, parent, state, info) => {
+  state.unsafe = state.unsafe.map((pattern) =>
+    pattern.character === '&' && pattern.after === '[#A-Za-z]'
+      ? REFERENCE_AMPERSAND
+      : pattern
+  );
+  return defaultHandlers.root(node, parent, state, info);
+};
 
 /** Columns `value` takes in a monospace font. */
 export function displayWidth(value: string): number {

@@ -57,6 +57,7 @@ import { markInput } from './plugins/mark-input';
 import {
   displayWidth,
   markdownOutput,
+  writeRoot,
   writeText,
 } from './plugins/markdown-output';
 import { dollarInput, dollarTextParse } from './plugins/math-dollars';
@@ -132,13 +133,14 @@ export class NyaEditor {
 
     // `-` bullets and `---` rules, the markers most notes are written with;
     // remark's defaults rewrote every one of them to `*` on save. Text keeps
-    // the underscores and hashes it needs no escape for (see markdown-output).
+    // the underscores, hashes and ampersands it needs no escape for (see
+    // markdown-output).
     crepe.editor.config((ctx) => {
       ctx.update(remarkStringifyOptionsCtx, (options) => ({
         ...options,
         bullet: '-' as const,
         rule: '-' as const,
-        handlers: { ...options.handlers, text: writeText },
+        handlers: { ...options.handlers, root: writeRoot, text: writeText },
       }));
       // Table pipes line up by display width (see markdown-output), and a
       // strikethrough takes two tildes (see mark-input).

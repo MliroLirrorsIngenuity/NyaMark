@@ -6,6 +6,7 @@ import { unified } from 'unified';
 import {
   displayWidth,
   normalizeOutput,
+  writeRoot,
   writeText,
 } from '../src/editor/plugins/markdown-output';
 
@@ -163,7 +164,10 @@ describe('writeText', () => {
     unified()
       .use(remarkParse)
       .use(remarkGfm)
-      .use(remarkStringify, { bullet: '-', handlers: { text: writeText } })
+      .use(remarkStringify, {
+        bullet: '-',
+        handlers: { root: writeRoot, text: writeText },
+      })
       .processSync(markdown)
       .toString();
 
@@ -183,6 +187,17 @@ describe('writeText', () => {
 
   test('escapes a star that would start a list item', () => {
     expect(write('\\* 不是列表\n')).toBe('\\* 不是列表\n');
+  });
+
+  test('keeps ampersands that start no character reference', () => {
+    const markdown =
+      'AT&T 和 R&D，[查询](https://x.com/?a=1&b=2) 与 <https://x.com/?a&b>\n';
+    expect(write(markdown)).toBe(markdown);
+  });
+
+  test('escapes an ampersand that would start one', () => {
+    const markdown = '写成 \\&amp; 或 \\&#38; 才是字面\n';
+    expect(write(markdown)).toBe(markdown);
   });
 
   test('keeps a hash that starts no heading', () => {
