@@ -47,34 +47,59 @@ const MENU_SETTINGS_ID: &str = "app_settings";
 const MENU_QUIT_ID: &str = "app_quit";
 
 pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let t = MenuTranslations {
-        preferences: "Preferences…".to_string(),
-        about: format!("About {}", app.package_info().name),
-        services: "Services".to_string(),
-        hide: format!("Hide {}", app.package_info().name),
-        hide_others: "Hide Others".to_string(),
-        quit: format!("Quit {}", app.package_info().name),
-        new: "New".to_string(),
-        open: "Open...".to_string(),
-        save: "Save".to_string(),
-        save_as: "Save As...".to_string(),
-        export_pdf: "Export as PDF...".to_string(),
-        file: "File".to_string(),
-        close_window: "Close Window".to_string(),
-        edit: "Edit".to_string(),
-        undo: "Undo".to_string(),
-        redo: "Redo".to_string(),
-        cut: "Cut".to_string(),
-        copy: "Copy".to_string(),
-        paste: "Paste".to_string(),
-        select_all: "Select All".to_string(),
-        view: "View".to_string(),
-        fullscreen: "Toggle Full Screen".to_string(),
-        window: "Window".to_string(),
-        minimize: "Minimize".to_string(),
-        maximize: "Zoom".to_string(),
-    };
-    build_custom_macos_menu(app, &t)
+    build_custom_macos_menu(app, &startup_translations())
+}
+
+/// The frontend's locale files; their `menu` sections are what the webview
+/// sends through `update_macos_menu` once it has loaded.
+const LOCALES: [(&str, &str); 3] = [
+    ("en", include_str!("../../src/i18n/locales/en.json")),
+    ("zh-CN", include_str!("../../src/i18n/locales/zh-CN.json")),
+    ("zh-TW", include_str!("../../src/i18n/locales/zh-TW.json")),
+];
+
+#[derive(Deserialize)]
+struct LocaleFile {
+    menu: MenuTranslations,
+}
+
+/// The menu shown before the webview reports the user's language: the first
+/// supported system language, as `resolveLanguage` in `src/i18n` picks it.
+fn startup_translations() -> MenuTranslations {
+    let preferred: Vec<String> = objc2_foundation::NSLocale::preferredLanguages()
+        .iter()
+        .map(|language| language.to_string())
+        .collect();
+    let locale = match_language(preferred.iter().map(String::as_str)).unwrap_or("en");
+    bundled_translations(locale)
+}
+
+fn match_language<'a>(languages: impl IntoIterator<Item = &'a str>) -> Option<&'static str> {
+    languages.into_iter().find_map(|tag| {
+        let tag = tag.to_ascii_lowercase();
+        if ["zh-tw", "zh-hk", "zh-hant"]
+            .iter()
+            .any(|prefix| tag.starts_with(prefix))
+        {
+            Some("zh-TW")
+        } else if tag.starts_with("zh") {
+            Some("zh-CN")
+        } else if tag.starts_with("en") {
+            Some("en")
+        } else {
+            None
+        }
+    })
+}
+
+fn bundled_translations(locale: &str) -> MenuTranslations {
+    let source = LOCALES
+        .iter()
+        .find(|(tag, _)| *tag == locale)
+        .map_or(LOCALES[0].1, |(_, source)| source);
+    serde_json::from_str::<LocaleFile>(source)
+        .expect("bundled locale files carry a complete menu section")
+        .menu
 }
 
 pub fn build_custom_macos_menu<R: Runtime>(
@@ -229,5 +254,26 @@ pub fn handle_macos_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent)
         if let Some(window) = app.webview_windows().values().next() {
             let _ = app.emit_to(window.label(), APP_MENU_ACTION_EVENT, action);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_bundled_locale_has_a_menu() {
+        for (locale, _) in LOCALES {
+            assert!(!bundled_translations(locale).file.is_empty(), "{locale}");
+        }
+    }
+
+    #[test]
+    fn system_languages_map_like_the_frontend() {
+        assert_eq!(match_language(["zh-Hant-TW"]), Some("zh-TW"));
+        assert_eq!(match_language(["zh-HK"]), Some("zh-TW"));
+        assert_eq!(match_language(["zh-Hans-CN"]), Some("zh-CN"));
+        assert_eq!(match_language(["ja-JP", "en-US"]), Some("en"));
+        assert_eq!(match_language(["fr-FR"]), None);
     }
 }
