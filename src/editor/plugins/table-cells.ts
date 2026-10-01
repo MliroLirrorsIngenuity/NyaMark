@@ -15,7 +15,9 @@
  * of "苹果". It moves from a collapsed caret only, and WebKit's own move from
  * selected text jumped to the first column of the next row. The caret now keeps
  * its horizontal position, the way it does between lines of text, and selected
- * text collapses towards the arrow first.
+ * text collapses towards the arrow first. It keeps it on the way into a table
+ * and out of one too: WebKit took ArrowUp from under a table to its last
+ * cell, and leaving a table put the caret at an end of the line it reached.
  */
 
 import {
@@ -62,13 +64,69 @@ function caretInCell(
   return TextSelection.create(view.state.doc, hit.pos);
 }
 
+/** The caret under `x` on the first or last line of the textblock at `pos`. */
+function caretInTextblock(
+  view: EditorView,
+  pos: number,
+  x: number,
+  line: 'first' | 'last'
+): Selection | null {
+  const node = view.state.doc.nodeAt(pos);
+  if (!node?.isTextblock) return null;
+  // The line's own box: a paragraph's padding holds the gap above it.
+  const end = view.coordsAtPos(
+    line === 'first' ? pos + 1 : pos + node.nodeSize - 1
+  );
+  const hit = view.posAtCoords({ left: x, top: (end.top + end.bottom) / 2 });
+  if (!hit || hit.pos <= pos || hit.pos >= pos + node.nodeSize) return null;
+  return TextSelection.create(view.state.doc, hit.pos);
+}
+
+/** ArrowUp/ArrowDown from the line next to a table into the cell under it. */
+function enterTable(view: EditorView, dir: 1 | -1): boolean {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  const { $head } = selection;
+  if (!$head.parent.isTextblock || cellAround($head)) return false;
+  if (!view.endOfTextblock(dir > 0 ? 'down' : 'up')) return false;
+  const $edge = view.state.doc.resolve(
+    dir > 0 ? $head.after() : $head.before()
+  );
+  const table = dir > 0 ? $edge.nodeAfter : $edge.nodeBefore;
+  if (table?.type.name !== 'table') return false;
+
+  const tablePos = dir > 0 ? $edge.pos : $edge.pos - table.nodeSize;
+  const row = dir > 0 ? table.firstChild : table.lastChild;
+  if (!row) return false;
+  const rowPos =
+    tablePos + 1 + (dir > 0 ? 0 : table.content.size - row.nodeSize);
+  const x = view.coordsAtPos($head.pos).left;
+  let cellPos = rowPos + 1;
+  let distance = Number.POSITIVE_INFINITY;
+  row.forEach((_cell, offset) => {
+    const dom = view.nodeDOM(rowPos + 1 + offset);
+    if (!(dom instanceof HTMLElement)) return;
+    const box = dom.getBoundingClientRect();
+    const away = x < box.left ? box.left - x : Math.max(0, x - box.right);
+    if (away < distance) {
+      distance = away;
+      cellPos = rowPos + 1 + offset;
+    }
+  });
+  const target =
+    caretInCell(view, cellPos, x, dir) ??
+    Selection.near(view.state.doc.resolve(cellPos + 1), 1);
+  view.dispatch(view.state.tr.setSelection(target).scrollIntoView());
+  return true;
+}
+
 function moveVertically(view: EditorView, dir: 1 | -1): boolean {
   const { state } = view;
   const { selection } = state;
   if (!(selection instanceof TextSelection)) return false;
   const $head = dir > 0 ? selection.$to : selection.$from;
   const $cell = cellAround($head);
-  if (!$cell) return false;
+  if (!$cell) return enterTable(view, dir);
   const $tail = dir > 0 ? selection.$from : selection.$to;
   if (cellAround($tail)?.pos !== $cell.pos) return false;
 
@@ -82,14 +140,27 @@ function moveVertically(view: EditorView, dir: 1 | -1): boolean {
     return false;
   }
 
+  const x = view.coordsAtPos($head.pos).left;
   const $next = nextCell($cell, 'vert', dir);
-  const target = $next
-    ? (caretInCell(view, $next.pos, view.coordsAtPos($head.pos).left, dir) ??
-      Selection.near($next, 1))
-    : Selection.near(
-        state.doc.resolve(dir > 0 ? $cell.after(-1) : $cell.before(-1)),
-        dir
-      );
+  let target: Selection | null;
+  if ($next) {
+    target = caretInCell(view, $next.pos, x, dir) ?? Selection.near($next, 1);
+  } else {
+    // Out of the table, onto the line next to it.
+    const $out = state.doc.resolve(
+      dir > 0 ? $cell.after(-1) : $cell.before(-1)
+    );
+    const block = dir > 0 ? $out.nodeAfter : $out.nodeBefore;
+    target =
+      (block &&
+        caretInTextblock(
+          view,
+          dir > 0 ? $out.pos : $out.pos - block.nodeSize,
+          x,
+          dir > 0 ? 'first' : 'last'
+        )) ??
+      Selection.near($out, dir);
+  }
   view.dispatch(state.tr.setSelection(target).scrollIntoView());
   return !CELL_TYPES.has(selection.$from.parent.type.name);
 }
