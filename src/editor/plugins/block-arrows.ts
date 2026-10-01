@@ -22,6 +22,11 @@
  * the left edge of the block, where the text around it starts, so the start
  * of a line of code leads to the start of a paragraph and back.
  *
+ * An HTML block sits alone in a paragraph, and the caret stopped there beside
+ * it, a bar the height of the block; the next letter typed turned the block
+ * into its source in a line of text. The caret goes past it as it goes past
+ * an image. One that ends the document is selected whole.
+ *
  * A document that opens with code, a table, an image or a rule had no place
  * above it for the caret: up from its top went nowhere, and there was no way
  * to start a line in front of it. There the caret becomes a gap cursor above
@@ -45,9 +50,15 @@ import {
   PluginKey,
   Selection,
   TextSelection,
+  type Transaction,
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import {
+  isHtmlBlock,
+  isHtmlBlockSelected,
+  selectHtmlBlockAt,
+} from './html-block';
 
 type Arrow = {
   dir: 1 | -1;
@@ -101,24 +112,49 @@ function gapAtTop(state: EditorState): GapCursor | null {
     : null;
 }
 
-/**
- * A key that types, pressed at a gap cursor: the line it goes on is made
- * before the browser takes the key. An IME composes into the line that holds
- * the caret when it starts, and at a gap there was none -- the text was lost.
- */
-function lineAtGap(view: EditorView, event: KeyboardEvent): boolean {
-  const { state } = view;
+/** A line at the gap cursor, the caret in it. */
+function lineAtGap(state: EditorState): Transaction | null {
   const { selection } = state;
-  if (!(selection instanceof GapCursor)) return false;
+  if (!(selection instanceof GapCursor)) return null;
+  const { $head } = selection;
+  const line = $head.parent.contentMatchAt($head.index()).defaultType;
+  if (!line?.isTextblock) return null;
+  const tr = state.tr.insert($head.pos, line.create());
+  return tr.setSelection(TextSelection.create(tr.doc, $head.pos + 1));
+}
+
+/** A line in place of the rule, image or HTML block selected, the caret in it. */
+function lineOverBlock(state: EditorState): Transaction | null {
+  const { selection } = state;
+  if (!(selection instanceof NodeSelection)) return null;
+  const { from, to, $from, node } = selection;
+  if (isHtmlBlockSelected(selection)) {
+    const tr = state.tr.delete(from, to);
+    return tr.setSelection(TextSelection.create(tr.doc, from));
+  }
+  if (!node.isBlock || !node.isAtom) return null;
+  const line = $from.parent.contentMatchAt($from.index()).defaultType;
+  if (!line?.isTextblock) return null;
+  const tr = state.tr.replaceWith(from, to, line.create());
+  return tr.setSelection(TextSelection.create(tr.doc, from + 1));
+}
+
+/**
+ * A key that types, pressed at a gap cursor or on a block selected whole: the
+ * line it goes on is made before the browser takes the key. An IME composes
+ * into the line that holds the caret when it starts: at a gap there was none
+ * and the text was lost, and over a rule, an image or an HTML block it went
+ * to the start of the line after or the end of the line before.
+ */
+function lineToType(view: EditorView, event: KeyboardEvent): boolean {
+  // Keys typed into a field of the block's own, as an image's caption.
+  if (event.target !== view.dom) return false;
   if (event.metaKey || event.ctrlKey) return false;
   const types =
     event.key.length === 1 || event.key === 'Process' || event.keyCode === 229;
   if (!types) return false;
-  const { $head } = selection;
-  const line = $head.parent.contentMatchAt($head.index()).defaultType;
-  if (!line?.isTextblock) return false;
-  const tr = state.tr.insert($head.pos, line.create());
-  tr.setSelection(TextSelection.create(tr.doc, $head.pos + 1));
+  const tr = lineAtGap(view.state) ?? lineOverBlock(view.state);
+  if (!tr) return false;
   view.dispatch(tr.scrollIntoView());
   return true;
 }
@@ -135,6 +171,26 @@ function leavesCodeAtTop(view: EditorView, key: string): boolean {
   return key === 'ArrowUp'
     ? code.cm.state.doc.lineAt(main.head).number === 1
     : main.head === 0;
+}
+
+/** The caret beside an HTML block, in the paragraph that holds it. */
+const besideHtml = (selection: Selection) =>
+  selection instanceof TextSelection && isHtmlBlock(selection.$head.parent);
+
+/**
+ * The text past the HTML blocks `selection` lies beside, going `dir`; the last
+ * of them selected whole when no text follows.
+ */
+function pastHtml(doc: Node, selection: Selection, dir: 1 | -1): Selection {
+  let target = selection;
+  while (besideHtml(target)) {
+    const { $head } = target;
+    const side = doc.resolve(dir > 0 ? $head.after() : $head.before());
+    const next = Selection.findFrom(side, dir, true);
+    if (!next) return selectHtmlBlockAt(doc, $head.before());
+    target = next;
+  }
+  return target;
 }
 
 /** An image or a rule as a selected node, or a gap cursor next to one. */
@@ -227,6 +283,8 @@ function pastBlocks(doc: Node, pos: number, dir: 1 | -1): Selection | null {
     }
     if (next instanceof NodeSelection) {
       from = dir > 0 ? next.to : next.from;
+    } else if (besideHtml(next)) {
+      from = dir > 0 ? next.$head.after() : next.$head.before();
     } else {
       const { $head } = next;
       const depth = isCode(next) ? $head.depth : tableDepth($head);
@@ -283,13 +341,17 @@ export const blockArrows = $prose(() => {
     props: {
       handleDOMEvents: {
         // Text that comes with no key, as from dictation or the character
-        // viewer, lands at the gap the same way.
+        // viewer, lands at the gap or over the block the same way.
         beforeinput(view, event) {
           const { state } = view;
-          if (!(state.selection instanceof GapCursor)) return false;
           if (event.inputType !== 'insertText' || !event.data) return false;
+          const tr =
+            state.selection instanceof GapCursor
+              ? state.tr
+              : lineOverBlock(state);
+          if (!tr) return false;
           event.preventDefault();
-          view.dispatch(state.tr.insertText(event.data).scrollIntoView());
+          view.dispatch(tr.insertText(event.data).scrollIntoView());
           return true;
         },
         // For a moment after it takes focus, ProseMirror reads a caret at the
@@ -312,8 +374,9 @@ export const blockArrows = $prose(() => {
           return false;
         },
       },
-      // WebKit's own move into code, which lands at the start of a line.
-      handleKeyDown(view, event) {
+      // WebKit's own moves into code, which lands at the start of a line,
+      // and beside an HTML block, which leaves no transaction to take over.
+      handleKeyDown(view) {
         // Nothing above the gap at the top. Unhandled, the key moved the
         // browser's hidden selection into the block below, and the caret
         // followed it there a moment later.
@@ -326,23 +389,52 @@ export const blockArrows = $prose(() => {
           return true;
         }
         const arrow = pending;
-        if (!arrow?.vertical) return false;
+        if (!arrow) return false;
         const { selection } = view.state;
+        // From an HTML block selected whole, on to the text past it; at the
+        // end of the document it stays, where ProseMirror put the caret
+        // beside it.
+        if (isHtmlBlockSelected(selection)) {
+          const { doc } = view.state;
+          const { $from } = selection;
+          const side = doc.resolve(
+            arrow.dir > 0 ? $from.after() : $from.before()
+          );
+          const next = Selection.findFrom(side, arrow.dir, true);
+          const past = next ? pastHtml(doc, next, arrow.dir) : selection;
+          if (!past.eq(selection)) {
+            view.dispatch(view.state.tr.setSelection(past).scrollIntoView());
+          }
+          return true;
+        }
         if (!(selection instanceof TextSelection) || !selection.empty) {
           return false;
         }
-        if (
-          isCode(selection) ||
-          !view.endOfTextblock(event.key === 'ArrowUp' ? 'up' : 'down')
-        ) {
-          return false;
-        }
+        const edge = arrow.vertical
+          ? arrow.dir > 0
+            ? 'down'
+            : 'up'
+          : arrow.dir > 0
+            ? 'forward'
+            : 'backward';
+        if (isCode(selection) || !view.endOfTextblock(edge)) return false;
         const { $head } = selection;
         const $side = view.state.doc.resolve(
           arrow.dir > 0 ? $head.after() : $head.before()
         );
         const next = Selection.findFrom($side, arrow.dir, true);
-        if (!next || !isCode(next)) return false;
+        if (next && besideHtml(next)) {
+          const past = pastHtml(view.state.doc, next, arrow.dir);
+          const placed =
+            arrow.x != null && past instanceof TextSelection && !isCode(past)
+              ? underX(view, past, arrow.x, arrow.dir)
+              : null;
+          view.dispatch(
+            view.state.tr.setSelection(placed ?? past).scrollIntoView()
+          );
+          return true;
+        }
+        if (!arrow.vertical || !next || !isCode(next)) return false;
         view.dispatch(view.state.tr.setSelection(next).scrollIntoView());
         return true;
       },
@@ -367,7 +459,9 @@ export const blockArrows = $prose(() => {
           const gap = arrow.dir < 0 && gapAtTop(state);
           return gap ? state.tr.setSelection(gap) : null;
         }
-        target = past;
+        target = pastHtml(state.doc, past, arrow.dir);
+      } else if (besideHtml(target)) {
+        target = pastHtml(state.doc, target, arrow.dir);
       } else if (
         !arrow.vertical ||
         !(target instanceof TextSelection) ||
@@ -377,7 +471,7 @@ export const blockArrows = $prose(() => {
         return null;
       }
       const placed =
-        arrow.vertical && arrow.x != null
+        arrow.vertical && arrow.x != null && target instanceof TextSelection
           ? underX(editor, target, arrow.x, arrow.dir)
           : null;
       if (!placed && isCode(target) && arrow.x != null) {
@@ -392,7 +486,7 @@ export const blockArrows = $prose(() => {
       // ProseMirror runs.
       const onKeyDown = (event: KeyboardEvent) => {
         pending = null;
-        if (lineAtGap(view, event)) return;
+        if (lineToType(view, event)) return;
         const arrow = ARROWS[event.key];
         if (!arrow || event.isComposing || view.composing) return;
         if (event.altKey || event.metaKey || event.ctrlKey) return;

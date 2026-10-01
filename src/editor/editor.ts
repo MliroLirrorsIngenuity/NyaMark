@@ -34,7 +34,11 @@ import {
 } from './plugins/gfm-alerts';
 import { headingInput } from './plugins/heading-input';
 import { hrInput } from './plugins/hr-input';
-import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
+import {
+  htmlBlockSelection,
+  htmlBlockView,
+  registerHtmlBlockStyles,
+} from './plugins/html-block';
 import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
@@ -140,6 +144,7 @@ export class NyaEditor {
     crepe.editor.use(pasteOnEmptyLine);
     crepe.editor.use(mathInlineKeys);
     crepe.editor.use(htmlBlockView);
+    crepe.editor.use(htmlBlockSelection);
     crepe.editor.use(blockSelection);
     crepe.editor.use(codePreview);
     crepe.editor.use(blockArrows);

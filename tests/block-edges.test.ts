@@ -29,6 +29,12 @@ const schema = new Schema({
     table_row: { content: 'table_cell+' },
     table_cell: { content: 'paragraph+', isolating: true },
     hr: { group: 'block' },
+    html: {
+      group: 'inline',
+      inline: true,
+      atom: true,
+      attrs: { value: { default: '' } },
+    },
     text: { group: 'inline' },
   },
 });
@@ -45,6 +51,9 @@ const bullets = (...items: Node[]) => schema.node('bullet_list', null, items);
 const numbers = (...items: Node[]) => schema.node('ordered_list', null, items);
 const doc = (...blocks: Node[]) => schema.node('doc', null, blocks);
 const hr = () => schema.node('hr');
+/** An HTML block: the html atom alone in a paragraph, as Milkdown parses it. */
+const html = (value: string) =>
+  schema.node('paragraph', null, schema.node('html', { value }));
 const table = (...rows: string[][]) =>
   schema.node(
     'table',
@@ -144,6 +153,31 @@ describe('backspaceAtBlockStart', () => {
     );
   });
 
+  test('selects the HTML block above instead of joining it', () => {
+    const tr = backspaceBefore(
+      doc(p('above'), html('<div>x</div>'), p('b')),
+      'b'
+    );
+    expect(tr?.docChanged).toBe(false);
+    expect(tr?.selection).toBeInstanceOf(NodeSelection);
+    expect((tr?.selection as NodeSelection).node.type.name).toBe('html');
+    expect(tr?.selection.from).toBe('above'.length + 3);
+  });
+
+  test('removes an empty line under an HTML block on the way', () => {
+    const start = doc(html('<div>x</div>'), p(''), p('b'));
+    const tr = backspaceAtBlockStart(
+      EditorState.create({
+        doc: start,
+        selection: TextSelection.create(start, 4),
+      })
+    );
+    expect(tr?.doc.toJSON()).toEqual(
+      doc(html('<div>x</div>'), p('b')).toJSON()
+    );
+    expect(tr?.selection.from).toBe(1);
+  });
+
   test('ignores a caret inside the text', () => {
     const start = doc(p('above'), quote(p('q1')));
     const state = EditorState.create({
@@ -192,6 +226,31 @@ describe('deleteAtBlockEnd', () => {
     );
     expect(tr?.doc.toJSON()).toEqual(doc(p('before'), p('after')).toJSON());
     expect(tr?.selection.from).toBe('before'.length + 1);
+  });
+
+  test('selects the HTML block below instead of joining it', () => {
+    const tr = deleteAfter(
+      doc(p('before'), html('<div>x</div>'), p('after')),
+      'before'
+    );
+    expect(tr?.docChanged).toBe(false);
+    expect((tr?.selection as NodeSelection).node.type.name).toBe('html');
+    expect(tr?.selection.from).toBe('before'.length + 3);
+  });
+
+  test('takes a selected HTML block with its line', () => {
+    const start = doc(p('before'), html('<div>x</div>'), p('after'));
+    const selected = EditorState.create({
+      doc: start,
+      selection: NodeSelection.create(start, 'before'.length + 3),
+    });
+    const kept = doc(p('before'), p('after')).toJSON();
+    const back = deleteSelectedAtom(selected);
+    expect(back?.doc.toJSON()).toEqual(kept);
+    expect(back?.selection.from).toBe('before'.length + 1);
+    const on = deleteSelectedAtom(selected, 1);
+    expect(on?.doc.toJSON()).toEqual(kept);
+    expect(on?.selection.from).toBe('before'.length + 3);
   });
 
   test('leaves other blocks to the join', () => {

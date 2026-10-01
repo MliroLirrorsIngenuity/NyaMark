@@ -28,6 +28,12 @@
  * next press is the one that takes it, and the caret is left at the end of
  * the paragraph again: Milkdown put it on the line after.
  *
+ * An HTML block sits alone in a paragraph, and either key next to it ran the
+ * text beside it into that paragraph: the block turned into its source in a
+ * line of text. It is selected instead, as a rule or an image is, and taken
+ * on the next press. An empty line next to it goes first, as it does next to
+ * an image.
+ *
  * At the start of a heading Milkdown took both keys to step the level down,
  * h2 to h1 and h1 to text: `## ` typed by mistake and Backspace gave a bigger
  * heading, and Delete there never took the letter after the caret. Backspace
@@ -48,6 +54,11 @@ import {
 } from '@milkdown/kit/prose/state';
 import { liftTarget } from '@milkdown/kit/prose/transform';
 import { $prose } from '@milkdown/kit/utils';
+import {
+  isHtmlBlock,
+  isHtmlBlockSelected,
+  selectHtmlBlockAt,
+} from './html-block';
 
 function headingToParagraph(state: EditorState): Transaction | null {
   const { $from } = state.selection;
@@ -131,6 +142,21 @@ function intoTable(state: EditorState, dir: 1 | -1): Transaction | null {
   return target ? tr.setSelection(target) : null;
 }
 
+/** The HTML block next to the caret's textblock, on the side of `dir`, selected. */
+function selectHtmlBlock(state: EditorState, dir: 1 | -1): Transaction | null {
+  const { $from } = state.selection;
+  const index = $from.index(-1) + dir;
+  const parent = $from.node(-1);
+  if (index < 0 || index >= parent.childCount) return null;
+  const block = parent.child(index);
+  if (!isHtmlBlock(block)) return null;
+  const tr = state.tr;
+  if ($from.parent.content.size === 0) tr.delete($from.before(), $from.after());
+  const pos =
+    dir > 0 ? tr.mapping.map($from.after()) : $from.before() - block.nodeSize;
+  return tr.setSelection(selectHtmlBlockAt(tr.doc, pos));
+}
+
 export function backspaceAtBlockStart(state: EditorState): Transaction | null {
   const { selection } = state;
   if (!(selection instanceof TextSelection) || !selection.empty) return null;
@@ -141,7 +167,8 @@ export function backspaceAtBlockStart(state: EditorState): Transaction | null {
     liftFirstItem(state) ??
     liftOutOfQuote(state) ??
     stopAtCode(state) ??
-    intoTable(state, -1)
+    intoTable(state, -1) ??
+    selectHtmlBlock(state, -1)
   );
 }
 
@@ -192,7 +219,9 @@ export function deleteAtBlockEnd(state: EditorState): Transaction | null {
   }
   const after = startOfTextblockAfter(state);
   if (!after?.node.type.spec.code) {
-    return selectAtomAfter(state) ?? intoTable(state, 1);
+    return (
+      selectAtomAfter(state) ?? intoTable(state, 1) ?? selectHtmlBlock(state, 1)
+    );
   }
   const tr = state.tr;
   if (parent.content.size === 0 && $from.node(-1).childCount > 1) {
@@ -203,14 +232,25 @@ export function deleteAtBlockEnd(state: EditorState): Transaction | null {
   );
 }
 
-/** Delete on a selected rule or image keeps the caret on the line before it. */
-export function deleteSelectedAtom(state: EditorState): Transaction | null {
+/**
+ * A selected rule, image or HTML block taken, the caret on the side of
+ * `bias`: Delete keeps it on the line before, Backspace moves on to the line
+ * after, as ProseMirror has it. An HTML block goes with its paragraph, which
+ * stayed behind as an empty line.
+ */
+export function deleteSelectedAtom(
+  state: EditorState,
+  bias: 1 | -1 = -1
+): Transaction | null {
   const { selection } = state;
   if (!(selection instanceof NodeSelection)) return null;
-  if (!selection.node.isAtom || !selection.node.isBlock) return null;
-  const tr = state.tr.deleteSelection();
-  const $at = tr.doc.resolve(tr.mapping.map(selection.from));
-  return tr.setSelection(Selection.near($at, -1));
+  const { node, $from } = selection;
+  const html = isHtmlBlockSelected(selection);
+  if (!html && !(node.isAtom && node.isBlock)) return null;
+  const from = html ? $from.before() : selection.from;
+  const tr = state.tr.delete(from, html ? $from.after() : selection.to);
+  const $at = tr.doc.resolve(tr.mapping.map(from));
+  return tr.setSelection(Selection.near($at, bias));
 }
 
 export const blockEdges = $prose(
@@ -222,7 +262,8 @@ export const blockEdges = $prose(
           if (event.metaKey || event.altKey || event.isComposing) return false;
           const tr =
             event.key === 'Backspace'
-              ? backspaceAtBlockStart(view.state)
+              ? (backspaceAtBlockStart(view.state) ??
+                deleteSelectedAtom(view.state, 1))
               : event.key === 'Delete'
                 ? (deleteAtBlockEnd(view.state) ??
                   deleteSelectedAtom(view.state))

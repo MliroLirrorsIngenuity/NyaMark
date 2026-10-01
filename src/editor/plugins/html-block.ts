@@ -1,6 +1,14 @@
 import { htmlSchema } from '@milkdown/kit/preset/commonmark';
+import type { Node as ProseNode } from '@milkdown/kit/prose/model';
+import {
+  NodeSelection,
+  Plugin,
+  PluginKey,
+  Selection,
+  TextSelection,
+} from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { $view } from '@milkdown/kit/utils';
+import { $prose, $view } from '@milkdown/kit/utils';
 import DOMPurify, { type Config } from 'dompurify';
 import { ensureStyle } from '../../style/register';
 
@@ -115,10 +123,11 @@ const css = `
   display: block;
   width: 100%;
   min-height: 50px;
-  padding: 0.5rem;
-  border: 1px solid var(--ny-border);
-  border-radius: 4px;
-  background: var(--ny-bg-secondary);
+  padding: 0.5rem 0.75rem;
+  /* The surface of a code block, as the source it is. */
+  border: 1px solid var(--ny-editor-codeblock-border);
+  border-radius: 12px;
+  background: var(--ny-editor-codeblock-bg);
   color: var(--ny-text-primary);
   font-family: var(--ny-font-mono);
   font-size: 13px;
@@ -139,11 +148,60 @@ export function registerHtmlBlockStyles() {
  * is a single tag inside running text, such as the `<kbd>` of `<kbd>K</kbd>`,
  * which cannot render on its own and is shown as source instead.
  */
+export function isHtmlBlock(node: ProseNode): boolean {
+  return (
+    node.type.name === 'paragraph' &&
+    node.childCount === 1 &&
+    node.firstChild?.type.name === 'html'
+  );
+}
+
+/**
+ * The HTML block in the paragraph at `pos`, selected. The block is chosen
+ * over its paragraph: a letter typed over it takes its place in the line, and
+ * over the paragraph it ran the lines above and below into one.
+ */
+export function selectHtmlBlockAt(doc: ProseNode, pos: number): NodeSelection {
+  return NodeSelection.create(doc, pos + 1);
+}
+
+/** Whether `selection` is an HTML block selected whole. */
+export function isHtmlBlockSelected(selection: Selection): boolean {
+  return (
+    selection instanceof NodeSelection &&
+    selection.node.type.name === 'html' &&
+    isHtmlBlock(selection.$from.parent)
+  );
+}
+
+/**
+ * A caret beside an HTML block, in the paragraph that holds it, as a click in
+ * the gap above the block put it, selects the block instead. Text typed there
+ * joined the block's paragraph and turned the block into its source.
+ */
+export const htmlBlockSelection = $prose(
+  () =>
+    new Plugin({
+      key: new PluginKey('nyamark/html-block-selection'),
+      appendTransaction(trs, _old, state) {
+        if (!trs.some((tr) => tr.selectionSet || tr.docChanged)) return null;
+        const { selection } = state;
+        if (!(selection instanceof TextSelection) || !selection.empty) {
+          return null;
+        }
+        const { $head } = selection;
+        if (!isHtmlBlock($head.parent)) return null;
+        return state.tr.setSelection(
+          selectHtmlBlockAt(state.doc, $head.before())
+        );
+      },
+    })
+);
+
 function isBlockHtml(view: EditorView, getPos: () => number | undefined) {
   const pos = getPos();
   if (pos === undefined) return true;
-  const { parent } = view.state.doc.resolve(pos);
-  return parent.type.name === 'paragraph' && parent.childCount === 1;
+  return isHtmlBlock(view.state.doc.resolve(pos).parent);
 }
 
 export const htmlBlockView = $view(htmlSchema.node, () => {
@@ -200,27 +258,78 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
 
     editor.addEventListener('input', autoResize);
 
-    if (!block) {
-      (editor as HTMLElement).addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.isComposing) {
-          e.preventDefault();
-          editor.blur();
+    /** The source written back; a block emptied of it goes with its line. */
+    const commit = () => {
+      if (editor.value === node.attrs.value) return;
+      const pos = getPos();
+      if (pos === undefined) return;
+      const { tr } = view.state;
+      if (editor.value.trim()) {
+        tr.setNodeMarkup(pos, undefined, { value: editor.value });
+      } else if (block) {
+        const $pos = tr.doc.resolve(pos);
+        tr.delete($pos.before(), $pos.after());
+      } else {
+        tr.delete(pos, pos + node.nodeSize);
+      }
+      view.dispatch(tr);
+    };
+
+    /**
+     * Out of the source, back to the document: to the text past the block on
+     * the side of `dir`, or with 0 onto the block, selected. A tag in running
+     * text leaves the caret after it.
+     */
+    const leave = (dir: 1 | -1 | 0) => {
+      const emptied = !editor.value.trim();
+      editor.blur();
+      const pos = getPos();
+      if (!emptied && pos !== undefined) {
+        const { doc } = view.state;
+        const $pos = doc.resolve(pos);
+        let target: Selection | null = null;
+        if (!block) {
+          target = TextSelection.create(doc, pos + node.nodeSize);
+        } else if (dir !== 0) {
+          const side = doc.resolve(dir > 0 ? $pos.after() : $pos.before());
+          target = Selection.findFrom(side, dir, true);
         }
-      });
-    }
+        target ??= selectHtmlBlockAt(doc, $pos.before());
+        view.dispatch(view.state.tr.setSelection(target).scrollIntoView());
+      }
+      view.focus();
+    };
+
+    // Escape, and Enter in a tag, end the editing; the arrows leave a block
+    // past its first or last line, as they leave code.
+    (editor as HTMLElement).addEventListener('keydown', (e) => {
+      if (e.isComposing) return;
+      if (e.key === 'Escape' || (!block && e.key === 'Enter')) {
+        e.preventDefault();
+        e.stopPropagation();
+        leave(0);
+        return;
+      }
+      if (!block || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+      const { value } = editor;
+      const from = editor.selectionStart ?? 0;
+      const to = editor.selectionEnd ?? value.length;
+      if (from !== to) return;
+      const up =
+        (e.key === 'ArrowUp' && !value.slice(0, from).includes('\n')) ||
+        (e.key === 'ArrowLeft' && from === 0);
+      const down =
+        (e.key === 'ArrowDown' && !value.slice(to).includes('\n')) ||
+        (e.key === 'ArrowRight' && to === value.length);
+      if (!up && !down) return;
+      e.preventDefault();
+      leave(up ? -1 : 1);
+    });
 
     editor.addEventListener('blur', () => {
       focused = false;
       updateDisplay();
-      if (editor.value !== node.attrs.value) {
-        const pos = getPos();
-        if (pos !== undefined) {
-          const tr = view.state.tr.setNodeMarkup(pos, undefined, {
-            value: editor.value,
-          });
-          view.dispatch(tr);
-        }
-      }
+      commit();
     });
 
     editor.addEventListener('focus', () => {

@@ -1330,6 +1330,49 @@
 }
 
 /*
+ * A selected HTML block, or the paragraph that holds it as the block handle
+ * selects it, is ringed round the block itself, a little clear of its content.
+ * The paragraph runs from the line above to the line below: on it the ring and
+ * wash took in the gaps around the block and stood square against the text.
+ */
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  p.ProseMirror-selectednode:has(> .ny-html-block) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  p.ProseMirror-selectednode
+  > .ny-html-block,
+.ny-editor-root .milkdown .ProseMirror .ny-html-block.ProseMirror-selectednode {
+  --ny-html-wash: color-mix(
+    in srgb,
+    var(--crepe-color-selected),
+    transparent 60%
+  );
+  border-radius: 4px;
+  background: var(--ny-html-wash);
+  box-shadow: 0 0 0 6px var(--ny-html-wash) !important;
+  /* An outline: a second shadow under the wash showed through it. */
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 55%);
+  outline-offset: 6px;
+}
+
+/* Its source open, the box it is typed in is frame enough. */
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .ny-html-block.ProseMirror-selectednode:has(> .ny-html-editor:focus) {
+  background: transparent;
+  box-shadow: none !important;
+  outline: none;
+}
+
+/*
  * CodeMirror's tooltips (the completion popup, mostly) ship an unstyled grey
  * panel with emoji glyphs for the completion kinds. Autocompletion no longer
  * fires while typing -- see config.ts -- but the popup can still be opened on
