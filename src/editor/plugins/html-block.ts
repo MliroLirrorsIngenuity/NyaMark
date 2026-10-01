@@ -58,6 +58,12 @@ const css = `
   transition: background-color 0.2s;
 }
 
+/* What ProseMirror leaves after an atom that ends a line stood under the
+   block as a blank line. The caret never rests beside the block. */
+p:has(> .ny-html-block) > :is(.ProseMirror-separator, .ProseMirror-trailingBreak) {
+  display: none !important;
+}
+
 .ny-html-preview {
   padding: 0.2rem 0;
   cursor: pointer;
