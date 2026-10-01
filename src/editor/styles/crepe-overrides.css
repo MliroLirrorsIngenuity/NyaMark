@@ -1575,15 +1575,6 @@
   pointer-events: none;
 }
 
-/* The native selection over the picture would tint it a second time. */
-.ny-editor-root
-  .milkdown
-  .ProseMirror
-  .milkdown-image-block.ny-block-selected
-  img::selection {
-  background: transparent !important;
-}
-
 /*
  * Crepe sets an inline image in an inline-flex box sized by the picture, and
  * the picture's `max-width: 100%` by that box in turn. An SVG with only a
@@ -1596,17 +1587,23 @@
 }
 
 /*
- * With the whole card washed, the native selection still showing through the
- * code lines would tint those rows twice and bring the hole back inverted.
+ * Under the wash the native selection would tint a second time: the code's
+ * text runs and line numbers, the picture, and table cells and a formula's
+ * rendering, whose boxes WebKit fills whole once they are selected. The code
+ * lines need the longer selector to outrank the rule above that lets the
+ * native selection through there.
  */
+.ny-editor-root .milkdown .ProseMirror .ny-block-selected ::selection,
 .ny-editor-root
   .milkdown
   .milkdown-code-block.ny-block-selected
+  .cm-editor:not(.cm-focused)
   .cm-line
   ::selection,
 .ny-editor-root
   .milkdown
   .milkdown-code-block.ny-block-selected
+  .cm-editor:not(.cm-focused)
   .cm-line::selection {
   background-color: transparent !important;
 }
