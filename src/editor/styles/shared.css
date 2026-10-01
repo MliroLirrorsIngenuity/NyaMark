@@ -1,4 +1,6 @@
-.ny-editor-root .milkdown {
+/* The source pane colours its markdown with the same tokens. */
+.ny-editor-root .milkdown,
+.ny-editor-root .ny-source-pane {
   --nyamark-accent: var(--ny-accent);
   --nyamark-accent-soft: var(--ny-accent-soft);
   --crepe-color-primary: var(--ny-accent);
@@ -72,7 +74,8 @@
   line-height: var(--ny-editor-line-height, 1.52);
 }
 
-:root[data-theme="dark"] .ny-editor-root .milkdown {
+:root[data-theme="dark"] .ny-editor-root .milkdown,
+:root[data-theme="dark"] .ny-editor-root .ny-source-pane {
   --crepe-color-inline-code: #c6dce8;
   --crepe-color-hover: rgba(141, 180, 200, 0.12);
   --crepe-color-selected: rgba(141, 180, 200, 0.18);

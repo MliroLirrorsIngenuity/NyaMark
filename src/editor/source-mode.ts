@@ -17,9 +17,14 @@
 
 import { autocompletion } from '@codemirror/autocomplete';
 import { markdown } from '@codemirror/lang-markdown';
-import { syntaxTree } from '@codemirror/language';
+import {
+  HighlightStyle,
+  syntaxHighlighting,
+  syntaxTree,
+} from '@codemirror/language';
 import { Compartment, EditorState } from '@codemirror/state';
-import { oneDark } from '@codemirror/theme-one-dark';
+import { oneDarkTheme } from '@codemirror/theme-one-dark';
+import { tags } from '@lezer/highlight';
 import { EditorView, basicSetup } from 'codemirror';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
@@ -135,6 +140,38 @@ const css = `
   caret-color: var(--ny-editor-text-primary);
 }
 `;
+
+/**
+ * Markdown colours from the app's own tokens, so both themes follow them.
+ * CodeMirror's default style underlined every heading and link, which in a
+ * page of markdown read as a wall of links.
+ */
+const markdownHighlight = HighlightStyle.define([
+  { tag: tags.heading, fontWeight: '700', color: 'var(--ny-editor-heading)' },
+  { tag: tags.strong, fontWeight: '700' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: [tags.link, tags.url], color: 'var(--ny-accent)' },
+  { tag: tags.monospace, color: 'var(--ny-editor-code-text)' },
+  { tag: tags.quote, color: 'var(--ny-text-secondary)' },
+  {
+    // `#`, `*`, `>`, `[x]`, fences, rules, escapes and html tags.
+    tag: [
+      tags.processingInstruction,
+      tags.contentSeparator,
+      tags.labelName,
+      tags.atom,
+      tags.escape,
+      tags.meta,
+      tags.comment,
+      tags.angleBracket,
+      tags.tagName,
+      tags.attributeName,
+      tags.attributeValue,
+    ],
+    color: 'var(--ny-editor-marker)',
+  },
+]);
 
 function registerSourceModeStyles() {
   ensureStyle('editor-source-mode', css);
@@ -269,7 +306,10 @@ export class SourceModeController {
   }
 
   private themeExtension() {
-    return document.documentElement.dataset.theme === 'dark' ? [oneDark] : [];
+    // The chrome only: the colours come from `markdownHighlight`.
+    return document.documentElement.dataset.theme === 'dark'
+      ? [oneDarkTheme]
+      : [];
   }
 
   private invalidateAnchors() {
@@ -325,6 +365,8 @@ export class SourceModeController {
           // is pure interruption. Still available on demand.
           autocompletion({ activateOnTyping: false }),
           markdown(),
+          syntaxHighlighting(markdownHighlight),
+          EditorView.lineWrapping,
           this.cmThemeCompartment.of(this.themeExtension()),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged || this.applyingEditorText) return;
