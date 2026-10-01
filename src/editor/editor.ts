@@ -44,7 +44,11 @@ import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
 import { linkInput } from './plugins/link-input';
 import { listItemView } from './plugins/list-item-view';
-import { displayWidth, markdownOutput } from './plugins/markdown-output';
+import {
+  displayWidth,
+  markdownOutput,
+  writeText,
+} from './plugins/markdown-output';
 import { mathInlineKeys } from './plugins/math-inline-keys';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import { pasteOnEmptyLine } from './plugins/paste-line';
@@ -116,12 +120,14 @@ export class NyaEditor {
     );
 
     // `-` bullets and `---` rules, the markers most notes are written with;
-    // remark's defaults rewrote every one of them to `*` on save.
+    // remark's defaults rewrote every one of them to `*` on save. Text keeps
+    // the underscores and hashes it needs no escape for (see markdown-output).
     crepe.editor.config((ctx) => {
       ctx.update(remarkStringifyOptionsCtx, (options) => ({
         ...options,
         bullet: '-' as const,
         rule: '-' as const,
+        handlers: { ...options.handlers, text: writeText },
       }));
       // Table pipes line up by display width (see markdown-output).
       ctx.update(remarkGFMPlugin.options.key, (options) => ({

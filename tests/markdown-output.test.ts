@@ -6,6 +6,7 @@ import { unified } from 'unified';
 import {
   displayWidth,
   normalizeOutput,
+  writeText,
 } from '../src/editor/plugins/markdown-output';
 
 type Tree = { type: string; spread?: unknown; children?: Tree[] };
@@ -154,5 +155,34 @@ describe('normalizeOutput', () => {
       '| 名称 | 数量 |\n| ---- | ---- |\n| 梨   | 7    |\n'
     );
     expect(displayWidth('a，b😀')).toBe(6);
+  });
+});
+
+describe('writeText', () => {
+  const write = (markdown: string) =>
+    unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .use(remarkStringify, { bullet: '-', handlers: { text: writeText } })
+      .processSync(markdown)
+      .toString();
+
+  test('keeps underscores inside a word', () => {
+    const markdown = 'a_b_c 和 snake_case_name 与 1_000 和 中_文\n';
+    expect(write(markdown)).toBe(markdown);
+  });
+
+  test('escapes underscores that could start emphasis', () => {
+    expect(write('\\_一\\_ 与 a \\_b\n')).toBe('\\_一\\_ 与 a \\_b\n');
+  });
+
+  test('keeps a hash that starts no heading', () => {
+    const markdown = '#标签 文本\n\n####### 七个\n\n- #tag\n';
+    expect(write(markdown)).toBe(markdown);
+  });
+
+  test('escapes hashes that would start a heading', () => {
+    const markdown = '\\# 不是标题\n\n\\###### 也不是\n\n\\#\n';
+    expect(write(markdown)).toBe(markdown);
   });
 });

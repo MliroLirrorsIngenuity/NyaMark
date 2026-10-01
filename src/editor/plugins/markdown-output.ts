@@ -36,9 +36,16 @@
  * columns in a monospace editor, so a CJK table came out ragged, with odd
  * gaps after short cells. `displayWidth` counts wide characters as two, the
  * way Prettier does; it goes to remark-gfm as `stringLength`.
+ *
+ * Escapes: remark escapes every `_` in text and every `#` that starts a line,
+ * so a saved file had `snake\_case` and `\#tag` in place of what was typed,
+ * in every paragraph the file held. An underscore between two letters or
+ * digits never opens or closes emphasis, and hashes start a heading only when
+ * six or fewer are followed by a space: `writeText` leaves those unescaped.
  */
 
 import { $remark } from '@milkdown/kit/utils';
+import type { Handle } from 'mdast-util-to-markdown';
 import type { Processor } from 'unified';
 
 type MdNode = {
@@ -113,6 +120,27 @@ function clearEmptyCell(cell: MdNode) {
     cell.children = [];
   }
 }
+
+const INTRAWORD_UNDERSCORE = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
+const ESCAPED_HASHES = /(^|\n)([ \t]*)\\(#+)(.?)/g;
+
+/** `markdown`, written by remark, without the escapes it needs none of. */
+export function relaxEscapes(markdown: string): string {
+  return markdown
+    .replace(INTRAWORD_UNDERSCORE, '_')
+    .replace(ESCAPED_HASHES, (escaped, line, indent, hashes, next) =>
+      hashes.length > 6 || (next !== '' && !/[ \t]/.test(next))
+        ? `${line}${indent}${hashes}${next}`
+        : escaped
+    );
+}
+
+/** Milkdown's handler for text, its escapes relaxed. */
+export const writeText: Handle = (node, _parent, state, info) => {
+  const value: string = node.value;
+  if (/^[^*_\\]*\s+$/.test(value)) return value;
+  return relaxEscapes(state.safe(value, { ...info, encode: [] }));
+};
 
 /** Columns `value` takes in a monospace font. */
 export function displayWidth(value: string): number {
