@@ -18,10 +18,6 @@ export type InsertRule =
   | { mode: 'copy'; targetDir: string }
   | { mode: 'base64' };
 
-export function basename(path: string) {
-  return path.split(/[\\/]/).pop() || path;
-}
-
 export const IMAGE_EXTENSIONS = [
   'avif',
   'bmp',

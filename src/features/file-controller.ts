@@ -18,6 +18,7 @@ import type { NyaEditor } from '../editor/editor';
 import { i18next } from '../i18n';
 import { getSettings } from '../state/settings';
 import { store } from '../state/store';
+import { basenamePath } from './attachment-paths';
 import { relocateLocalReference } from './attachment-policy';
 
 type Hooks = {
@@ -176,7 +177,7 @@ export class FileController {
   }
 
   private async confirmExternalReload(path: string): Promise<boolean> {
-    const fileName = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+    const fileName = basenamePath(path);
     return await confirmDialog(
       i18next.t('dialog.fileConflict.body', { fileName }),
       {
@@ -238,7 +239,7 @@ export class FileController {
   ): string {
     const path =
       error instanceof DocumentError ? error.path : (fallbackPath ?? '');
-    const fileName = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+    const fileName = basenamePath(path);
     const reason = error instanceof Error ? error.message : String(error);
 
     if (error instanceof DocumentError) {

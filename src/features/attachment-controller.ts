@@ -29,13 +29,13 @@ import {
 } from '../state/settings';
 import { ImagePolicyDialog } from '../ui/image-policy-dialog';
 import {
+  basenamePath,
   dirnamePath,
   isWithinDirectory,
   looksLikeExternalResource,
   resolveStorageDir,
 } from './attachment-paths';
 import {
-  basename,
   classifyLinkTarget,
   defaultPastedImageName,
   extractClipboardFilePaths,
@@ -145,7 +145,7 @@ export class AttachmentController {
       );
     } catch (error) {
       console.error('Failed to insert picked image:', error);
-      await this.reportFailure('insert', basename(path), error);
+      await this.reportFailure('insert', basenamePath(path), error);
     }
   }
 
@@ -221,7 +221,7 @@ export class AttachmentController {
   private handleDroppedPaths(paths: string[]) {
     return this.insertFromSources(
       paths.map((path) => ({
-        name: basename(path),
+        name: basenamePath(path),
         load: () => this.createAttachmentFromLocalPath(path),
       }))
     );
@@ -234,9 +234,9 @@ export class AttachmentController {
     const pathNames = new Set<string>();
 
     for (const path of filePaths) {
-      pathNames.add(basename(path));
+      pathNames.add(basenamePath(path));
       sources.push({
-        name: basename(path),
+        name: basenamePath(path),
         load: () => this.createAttachmentFromLocalPath(path),
       });
     }
@@ -314,7 +314,7 @@ export class AttachmentController {
     path: string
   ): Promise<EditorAttachment | null> {
     const kind = isImagePath(path) ? 'image' : 'file';
-    const label = basename(path);
+    const label = basenamePath(path);
 
     if (kind === 'image') {
       const insertRule = await this.resolveExistingLocalImageRule();
@@ -395,7 +395,7 @@ export class AttachmentController {
     return {
       kind: 'image',
       href: stored.markdownPath,
-      label: file.name || basename(stored.markdownPath),
+      label: file.name || basenamePath(stored.markdownPath),
     };
   }
 
