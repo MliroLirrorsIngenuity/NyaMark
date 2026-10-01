@@ -127,18 +127,53 @@ export function looksLikeExternalResource(value: string) {
   return /^(?:https?:|data:|blob:|asset:|mailto:|tel:)/i.test(value);
 }
 
+// Leaves room under the common 255-byte limit for the `-1000` suffix that
+// `createUniqueFile` may append.
+const MAX_FILE_NAME_BYTES = 200;
+const MAX_EXTENSION_LENGTH = 16;
+// Windows treats these as devices whenever they come before the first dot,
+// so `nul.tar.gz` is as unusable as `NUL`.
+const WINDOWS_DEVICE_NAME = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])$/i;
+
 export function sanitizeFileName(fileName: string) {
   const rawName = basenamePath(fileName) || 'attachment';
   const dot = rawName.lastIndexOf('.');
   const stem = dot > 0 ? rawName.slice(0, dot) : rawName;
-  const ext = dot > 0 ? rawName.slice(dot + 1) : '';
-  const sanitizedStem = Array.from(stem)
-    .map((ch) => (/[\p{Letter}\p{Number}._-]/u.test(ch) ? ch : '-'))
-    .join('')
-    .replace(/^-+|-+$/g, '');
-  const safeStem = sanitizedStem || 'attachment';
+  const ext = Array.from(dot > 0 ? rawName.slice(dot + 1) : '')
+    .filter((ch) => /[\p{Letter}\p{Number}]/u.test(ch))
+    .slice(0, MAX_EXTENSION_LENGTH)
+    .join('');
+  // A leading dot hides the file and Windows drops trailing dots.
+  let safeStem =
+    Array.from(stem)
+      .map((ch) => (/[\p{Letter}\p{Number}._-]/u.test(ch) ? ch : '-'))
+      .join('')
+      .replace(/^[-.]+|[-.]+$/g, '') || 'attachment';
+  const device = safeStem.split('.')[0];
+  if (WINDOWS_DEVICE_NAME.test(device)) {
+    safeStem = `${device}_${safeStem.slice(device.length)}`;
+  }
 
-  return ext ? `${safeStem}.${ext}` : safeStem;
+  const suffix = ext ? `.${ext}` : '';
+  const budget = MAX_FILE_NAME_BYTES - utf8Length(suffix);
+  const fitted =
+    truncateUtf8(safeStem, budget).replace(/[-.]+$/, '') || 'attachment';
+  return `${fitted}${suffix}`;
+}
+
+function utf8Length(value: string) {
+  return new TextEncoder().encode(value).length;
+}
+
+function truncateUtf8(value: string, maxBytes: number) {
+  let result = '';
+  let bytes = 0;
+  for (const ch of value) {
+    bytes += utf8Length(ch);
+    if (bytes > maxBytes) break;
+    result += ch;
+  }
+  return result;
 }
 
 /**

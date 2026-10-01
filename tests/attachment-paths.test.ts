@@ -184,7 +184,21 @@ describe('sanitizeFileName', () => {
     ['strips parent paths', '../nested/image.png', 'image.png'],
     ['keeps duplicate suffixes intact', 'image-2.png', 'image-2.png'],
     ['falls back for empty stems', '???', 'attachment'],
+    ['sanitizes the extension', 'image.p?n g', 'image.png'],
+    ['drops leading and trailing dots', '.hidden..png', 'hidden.png'],
+    ['avoids Windows device names', 'CON.png', 'CON_.png'],
+    ['avoids device names before a later dot', 'nul.tar.gz', 'nul_.tar.gz'],
+    ['keeps names that only start like devices', 'console.png', 'console.png'],
   ])('%s', (_label, input, expected) => {
     expect(sanitizeFileName(input)).toBe(expected);
+  });
+
+  test('caps the name length in bytes', () => {
+    expect(sanitizeFileName(`${'a'.repeat(300)}.png`)).toBe(
+      `${'a'.repeat(196)}.png`
+    );
+    expect(sanitizeFileName(`${'中'.repeat(100)}.png`)).toBe(
+      `${'中'.repeat(65)}.png`
+    );
   });
 });
