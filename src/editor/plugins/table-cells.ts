@@ -18,8 +18,18 @@
  * text collapses towards the arrow first. It keeps it on the way into a table
  * and out of one too: WebKit took ArrowUp from under a table to its last
  * cell, and leaving a table put the caret at an end of the line it reached.
+ *
+ * Tab in the last cell: there is no next cell, and the indent plugin behind
+ * the table's keymap typed four spaces into the cell. It adds a row and moves
+ * into it, the way Tab grows a table in other editors.
+ *
+ * Enter: Milkdown leaves the table onto a new empty paragraph every time, so
+ * a table already followed by one -- always the case at the end of a document
+ * -- gained another, saved as a stray `<br />`. The one already there is used.
  */
 
+import type { Ctx } from '@milkdown/kit/ctx';
+import { addRowWithAlignment } from '@milkdown/kit/preset/gfm';
 import {
   NodeSelection,
   Plugin,
@@ -28,7 +38,7 @@ import {
   TextSelection,
   type Transaction,
 } from '@milkdown/kit/prose/state';
-import { cellAround, nextCell } from '@milkdown/kit/prose/tables';
+import { cellAround, nextCell, selectedRect } from '@milkdown/kit/prose/tables';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 
@@ -165,8 +175,43 @@ function moveVertically(view: EditorView, dir: 1 | -1): boolean {
   return !CELL_TYPES.has(selection.$from.parent.type.name);
 }
 
+/** Tab from the last cell: a new row below, the caret in its first cell. */
+function addRowFromLastCell(ctx: Ctx, view: EditorView): boolean {
+  const { state } = view;
+  if (!(state.selection instanceof TextSelection)) return false;
+  const $cell = cellAround(state.selection.$head);
+  if (!$cell || cellAround(state.selection.$anchor)?.pos !== $cell.pos) {
+    return false;
+  }
+  const table = $cell.node(-1);
+  const lastRow = $cell.index(-1) === table.childCount - 1;
+  if (!lastRow || $cell.index() !== $cell.parent.childCount - 1) return false;
+  const rect = selectedRect(state);
+  const tr = addRowWithAlignment(ctx, state.tr, rect, rect.map.height);
+  const rowPos = rect.tableStart + rect.table.content.size;
+  tr.setSelection(Selection.near(tr.doc.resolve(rowPos + 1), 1));
+  view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
+/** Enter in a cell onto the empty paragraph already under the table. */
+function enterParagraphBelow(view: EditorView): boolean {
+  const { state } = view;
+  const $cell = cellAround(state.selection.$head);
+  if (!$cell) return false;
+  const below = $cell.after(-1);
+  const next = state.doc.resolve(below).nodeAfter;
+  if (next?.type.name !== 'paragraph' || next.content.size > 0) return false;
+  view.dispatch(
+    state.tr
+      .setSelection(TextSelection.create(state.doc, below + 1))
+      .scrollIntoView()
+  );
+  return true;
+}
+
 export const tableCells = $prose(
-  () =>
+  (ctx) =>
     new Plugin({
       key: new PluginKey('nyamark/table-cells'),
       filterTransaction: keepsCellCaret,
@@ -184,6 +229,15 @@ export const tableCells = $prose(
             event.preventDefault();
             return true;
           },
+        },
+        handleKeyDown(view, event) {
+          if (event.isComposing || view.composing) return false;
+          if (event.shiftKey || event.altKey || event.ctrlKey) return false;
+          if (event.key === 'Tab' && !event.metaKey) {
+            return addRowFromLastCell(ctx, view);
+          }
+          if (event.key === 'Enter') return enterParagraphBelow(view);
+          return false;
         },
       },
     })
