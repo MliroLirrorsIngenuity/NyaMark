@@ -10,7 +10,6 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { translateDOM } from '../../i18n/dom';
 
 export class ImageMetaPanel {
-  private observer: MutationObserver | null = null;
   private readonly handleRootPointerDown = (event: PointerEvent) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     const activeHost = target?.closest(
@@ -33,14 +32,10 @@ export class ImageMetaPanel {
   attach() {
     this.root.addEventListener('pointerdown', this.handleRootPointerDown);
     this.decorateAll();
-    this.observer = new MutationObserver(() => this.decorateAll());
-    this.observer.observe(this.root, { childList: true, subtree: true });
-  }
-
-  detach() {
-    this.root.removeEventListener('pointerdown', this.handleRootPointerDown);
-    this.observer?.disconnect();
-    this.observer = null;
+    new MutationObserver(() => this.decorateAll()).observe(this.root, {
+      childList: true,
+      subtree: true,
+    });
   }
 
   private decorateAll() {

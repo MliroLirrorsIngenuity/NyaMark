@@ -37,8 +37,6 @@ export type NyaEditorOptions = {
 export class NyaEditor {
   private crepe: Crepe | null = null;
   private readonly imageMetaPanel: ImageMetaPanel;
-  private detachMermaidThemeListener: (() => void) | null = null;
-  private detachDragSelectGuard: (() => void) | null = null;
   private onChangeCallback?: (markdown: string) => void;
   private readonly docChangedListeners = new Set<() => void>();
 
@@ -55,10 +53,9 @@ export class NyaEditor {
     registerHtmlBlockStyles();
 
     configureMermaid(document.documentElement.dataset.theme === 'dark');
-    this.detachMermaidThemeListener = bindMermaidThemeListener(this.root, () =>
-      this.getView()
-    );
-    this.detachDragSelectGuard = installDragSelectGuard(this.root);
+    // One editor lives as long as its window, so these are never torn down.
+    bindMermaidThemeListener(this.root, () => this.getView());
+    installDragSelectGuard(this.root);
 
     const crepe = new Crepe(
       buildCrepeConfig({
@@ -293,17 +290,5 @@ export class NyaEditor {
 
     if (rewritten > 0) view.dispatch(tr.setMeta('addToHistory', false));
     return rewritten;
-  }
-
-  destroy() {
-    this.detachMermaidThemeListener?.();
-    this.detachMermaidThemeListener = null;
-    this.detachDragSelectGuard?.();
-    this.detachDragSelectGuard = null;
-    this.imageMetaPanel.detach();
-    if (this.crepe) {
-      this.crepe.destroy();
-      this.crepe = null;
-    }
   }
 }
