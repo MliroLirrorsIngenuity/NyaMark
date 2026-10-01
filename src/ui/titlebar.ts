@@ -14,12 +14,12 @@ import { documentFileName } from './document-name';
 import { pushEscapeLayer } from './escape-layers';
 
 type TitlebarActions = {
-  onNewFile: () => Promise<unknown> | void;
-  onOpenFile: () => Promise<unknown> | void;
-  onSaveFile: () => Promise<unknown> | void;
-  onSaveFileAs: () => Promise<unknown> | void;
-  onExportPdf: () => Promise<unknown> | void;
-  onToggleOutline: () => Promise<unknown> | void;
+  onNewFile: () => unknown;
+  onOpenFile: () => unknown;
+  onSaveFile: () => unknown;
+  onSaveFileAs: () => unknown;
+  onExportPdf: () => unknown;
+  onToggleOutline: () => unknown;
   onOpenSettings: () => void;
 };
 
@@ -190,7 +190,7 @@ export class Titlebar {
       });
   }
 
-  private bindAction(id: string, handler: () => Promise<unknown> | void) {
+  private bindAction(id: string, handler: () => unknown) {
     document.getElementById(id)?.addEventListener('click', () => {
       Promise.resolve(handler()).catch(console.error);
     });

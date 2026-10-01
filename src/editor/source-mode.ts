@@ -503,12 +503,13 @@ export class SourceModeController {
           this.lastScrollSource = null;
           return;
         }
+        const cmView = this.cmView;
 
         const fromAnchors =
           source === cmScroller
             ? this.sourceAnchors.map((anchor) => ({
                 key: anchor.key,
-                top: this.cmView!.lineBlockAt(anchor.from).top,
+                top: cmView.lineBlockAt(anchor.from).top,
               }))
             : this.previewAnchors.map((anchor) => ({
                 key: anchor.key,
@@ -522,7 +523,7 @@ export class SourceModeController {
               }))
             : this.sourceAnchors.map((anchor) => ({
                 key: anchor.key,
-                top: this.cmView!.lineBlockAt(anchor.from).top,
+                top: cmView.lineBlockAt(anchor.from).top,
               }));
 
         const guide = buildScrollGuidePoints(

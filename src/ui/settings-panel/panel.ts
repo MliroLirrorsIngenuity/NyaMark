@@ -9,6 +9,7 @@ import {
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
 import { animationsSettled, openModal } from '../modal';
+import { requireElement } from '../require-element';
 import { renderAppearanceSection } from './sections/appearance';
 import { renderAttachmentsSection } from './sections/attachments';
 import { renderGeneralSection } from './sections/general';
@@ -692,9 +693,7 @@ export class SettingsPanel {
       translateDOM(confirm);
       const modal = openModal({
         overlay: confirm,
-        dialog: confirm.querySelector<HTMLElement>(
-          '.ny-settings-confirm__panel'
-        )!,
+        dialog: requireElement(confirm, '.ny-settings-confirm__panel'),
         role: 'alertdialog',
         labelledBy: 'ny-settings-confirm-title',
         initialFocus: cancelButton,

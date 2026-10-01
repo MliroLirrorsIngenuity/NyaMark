@@ -123,7 +123,7 @@ export class ThemeManager {
     window.dispatchEvent(
       new CustomEvent('nyamark:themechange', { detail: { mode } })
     );
-    this.listeners.forEach((listener) => listener(mode));
+    for (const listener of this.listeners) listener(mode);
   }
 
   /**

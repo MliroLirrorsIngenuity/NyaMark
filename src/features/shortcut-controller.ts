@@ -1,10 +1,10 @@
 import { isMacOS } from '../platform/detect';
 
 type ShortcutHandlers = {
-  newFile: () => Promise<unknown> | void;
-  openFile: () => Promise<unknown> | void;
-  saveFile: () => Promise<unknown> | void;
-  saveFileAs: () => Promise<unknown> | void;
+  newFile: () => unknown;
+  openFile: () => unknown;
+  saveFile: () => unknown;
+  saveFileAs: () => unknown;
   print: () => void;
   find: () => void;
   toggleOutline: () => void;

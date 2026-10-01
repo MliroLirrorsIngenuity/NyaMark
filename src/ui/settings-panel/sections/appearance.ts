@@ -74,7 +74,7 @@ export function renderAppearanceSection(
   }
 
   const inputs = section.querySelectorAll<HTMLInputElement>('input[data-key]');
-  inputs.forEach((input) => {
+  for (const input of inputs) {
     const key = input.dataset.key as keyof AppearanceSettings;
     const field = input.closest('.ny-settings__field') as HTMLElement | null;
     const isCheckbox = input.type === 'checkbox';
@@ -149,7 +149,7 @@ export function renderAppearanceSection(
     });
 
     syncValidity();
-  });
+  }
 
   return section;
 }

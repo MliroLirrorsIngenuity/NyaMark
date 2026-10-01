@@ -41,24 +41,24 @@ function renderLinuxResizeHandles() {
 }
 
 function bindLinuxResizeHandles(host: HTMLElement) {
-  host
-    .querySelectorAll<HTMLElement>('[data-resize-direction]')
-    .forEach((handle) => {
-      handle.addEventListener('pointerdown', (event) => {
-        if (event.button !== 0) return;
-        event.preventDefault();
-        event.stopPropagation();
+  for (const handle of host.querySelectorAll<HTMLElement>(
+    '[data-resize-direction]'
+  )) {
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
 
-        const direction = handle.dataset.resizeDirection as
-          | ResizeDirection
-          | undefined;
-        if (!direction) return;
+      const direction = handle.dataset.resizeDirection as
+        | ResizeDirection
+        | undefined;
+      if (!direction) return;
 
-        void getCurrentWindow()
-          .startResizeDragging(direction)
-          .catch(console.error);
-      });
+      void getCurrentWindow()
+        .startResizeDragging(direction)
+        .catch(console.error);
     });
+  }
 }
 
 export function renderAppShell(host: HTMLElement) {

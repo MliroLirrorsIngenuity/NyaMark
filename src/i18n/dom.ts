@@ -1,43 +1,24 @@
 import { i18next } from './index';
 
+/** `data-i18n-<attribute>` keys and the attribute each one fills. */
+const ATTRIBUTE_KEYS = [
+  ['data-i18n-title', 'title'],
+  ['data-i18n-aria-label', 'aria-label'],
+  ['data-i18n-placeholder', 'placeholder'],
+] as const;
+
 export function translateDOM(root: HTMLElement | Document = document) {
-  root.querySelectorAll('[data-i18n]').forEach((el) => {
+  for (const el of root.querySelectorAll('[data-i18n]')) {
     const key = el.getAttribute('data-i18n');
-    if (key) {
-      const translated = i18next.t(key);
-      if (translated) {
-        el.textContent = translated;
-      }
-    }
-  });
+    const translated = key && i18next.t(key);
+    if (translated) el.textContent = translated;
+  }
 
-  root.querySelectorAll('[data-i18n-title]').forEach((el) => {
-    const key = el.getAttribute('data-i18n-title');
-    if (key) {
-      const translated = i18next.t(key);
-      if (translated) {
-        el.setAttribute('title', translated);
-      }
+  for (const [source, target] of ATTRIBUTE_KEYS) {
+    for (const el of root.querySelectorAll(`[${source}]`)) {
+      const key = el.getAttribute(source);
+      const translated = key && i18next.t(key);
+      if (translated) el.setAttribute(target, translated);
     }
-  });
-
-  root.querySelectorAll('[data-i18n-aria-label]').forEach((el) => {
-    const key = el.getAttribute('data-i18n-aria-label');
-    if (key) {
-      const translated = i18next.t(key);
-      if (translated) {
-        el.setAttribute('aria-label', translated);
-      }
-    }
-  });
-
-  root.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
-    const key = el.getAttribute('data-i18n-placeholder');
-    if (key) {
-      const translated = i18next.t(key);
-      if (translated) {
-        el.setAttribute('placeholder', translated);
-      }
-    }
-  });
+  }
 }

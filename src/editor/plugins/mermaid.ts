@@ -159,10 +159,10 @@ export function reRenderMermaidPreviews(
   if (!previews.length || !view) return;
 
   const previewByBlock = new Map<Element, Element>();
-  previews.forEach((preview) => {
+  for (const preview of previews) {
     const block = preview.closest('.milkdown-code-block');
     if (block) previewByBlock.set(block, preview);
-  });
+  }
 
   view.state.doc.descendants((node, pos) => {
     if (node.type.name !== 'code_block') return true;

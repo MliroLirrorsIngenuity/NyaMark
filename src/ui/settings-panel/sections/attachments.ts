@@ -2,6 +2,7 @@ import type {
   ImageInsertPolicy,
   ImageSettings,
 } from '../../../state/image-settings';
+import { requireElement } from '../../require-element';
 
 const POLICIES: Array<{
   value: ImageInsertPolicy;
@@ -85,14 +86,14 @@ export function renderAttachmentsSection(
     '[data-group="insertPolicy"]'
   );
   if (policyGroup) {
-    POLICIES.forEach(({ value, label, description }) => {
+    for (const { value, label, description } of POLICIES) {
       const option = document.createElement('label');
       option.className = 'ny-settings__option';
       option.innerHTML = `
         <input type="radio" name="ny-settings-insert-policy" value="${value}" />
         <span><strong data-i18n="settings.attachments.policies.${value}.label">${label}</strong><span data-i18n="settings.attachments.policies.${value}.description">${description}</span></span>
       `;
-      const input = option.querySelector<HTMLInputElement>('input')!;
+      const input = requireElement<HTMLInputElement>(option, 'input');
       input.checked = current.insertPolicy === value;
       input.addEventListener('change', () => {
         if (!input.checked) return;
@@ -101,15 +102,17 @@ export function renderAttachmentsSection(
         Object.assign(current, next);
       });
       policyGroup.appendChild(option);
-    });
+    }
   }
 
-  const directoryPath = section.querySelector<HTMLElement>(
+  const directoryPath = requireElement(
+    section,
     '[data-key="customCopyDirectory"]'
-  )!;
-  const clearDirectory = section.querySelector<HTMLButtonElement>(
+  );
+  const clearDirectory = requireElement<HTMLButtonElement>(
+    section,
     '[data-action="clear-directory"]'
-  )!;
+  );
   const showDirectory = () => {
     const directory = current.customCopyDirectory;
     if (directory) {
@@ -135,29 +138,30 @@ export function renderAttachmentsSection(
   };
   showDirectory();
 
-  section
-    .querySelector<HTMLButtonElement>('[data-action="choose-directory"]')!
-    .addEventListener('click', () => {
+  requireElement(section, '[data-action="choose-directory"]').addEventListener(
+    'click',
+    () => {
       void options.pickDirectory().then((directory) => {
         if (directory) setDirectory(directory);
       });
-    });
+    }
+  );
   clearDirectory.addEventListener('click', () => setDirectory(null));
 
-  section
-    .querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-key]')
-    .forEach((input) => {
-      const key = input.dataset.key as keyof Pick<
-        ImageSettings,
-        'preferRelativePath' | 'ensureDotSlash' | 'escapePath'
-      >;
-      input.checked = Boolean(current[key]);
-      input.addEventListener('change', () => {
-        const next = { ...current, [key]: input.checked } as ImageSettings;
-        onChange(next);
-        Object.assign(current, next);
-      });
+  for (const input of section.querySelectorAll<HTMLInputElement>(
+    'input[type="checkbox"][data-key]'
+  )) {
+    const key = input.dataset.key as keyof Pick<
+      ImageSettings,
+      'preferRelativePath' | 'ensureDotSlash' | 'escapePath'
+    >;
+    input.checked = Boolean(current[key]);
+    input.addEventListener('change', () => {
+      const next = { ...current, [key]: input.checked } as ImageSettings;
+      onChange(next);
+      Object.assign(current, next);
     });
+  }
 
   return section;
 }

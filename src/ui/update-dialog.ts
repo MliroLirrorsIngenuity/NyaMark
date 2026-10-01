@@ -4,6 +4,7 @@ import { requestAppRestart } from '../bridge/ipc/windows';
 import { i18next } from '../i18n';
 import { ensureStyle } from '../style/register';
 import { animationsSettled, openModal } from './modal';
+import { requireElement } from './require-element';
 
 const updateDialogStyles = `
 .ny-update-overlay {
@@ -300,11 +301,10 @@ export class UpdateDialog {
       <h3 id="ny-update-title"></h3>
       <p class="ny-update-dialog__subtitle"></p>
     `;
-    header.querySelector('.ny-update-dialog__eyebrow')!.textContent = i18next.t(
-      'updates.newVersionAvailable'
-    );
-    header.querySelector('h3')!.textContent = i18next.t('updates.title');
-    header.querySelector('.ny-update-dialog__subtitle')!.textContent =
+    requireElement(header, '.ny-update-dialog__eyebrow').textContent =
+      i18next.t('updates.newVersionAvailable');
+    requireElement(header, 'h3').textContent = i18next.t('updates.title');
+    requireElement(header, '.ny-update-dialog__subtitle').textContent =
       i18next.t('updates.subtitle', {
         current: currentVersion,
         latest: update.version,

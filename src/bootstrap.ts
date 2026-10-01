@@ -113,22 +113,23 @@ export class App {
       return;
     }
 
-    this.fileController = new FileController(() => this.editor, {
+    const fileController = new FileController(() => this.editor, {
       syncEditorAfterSave: (saved) => this.syncEditorAfterSave(saved),
       flushPendingEdits: () => this.sourceMode?.flush(),
     });
+    this.fileController = fileController;
 
-    const initialDocument = await this.fileController.resolveInitialDocument();
+    const initialDocument = await fileController.resolveInitialDocument();
     store.update({ filePath: initialDocument.filePath, isDirty: false });
 
     // Registered before the editor exists so an early close request is never
     // handled by Tauri's default (destroy without asking).
-    await new CloseGuard(this.fileController).bind();
+    await new CloseGuard(fileController).bind();
 
     this.attachments = new AttachmentController({
       getMarkdown: () => this.editor?.getMarkdown() ?? '',
       getDocumentPath: () => store.getState().filePath,
-      saveDocumentAs: () => this.fileController!.saveFileAs(),
+      saveDocumentAs: () => fileController.saveFileAs(),
       insertAttachments: (attachments) =>
         this.editor?.insertAttachments(attachments),
       onAttachmentsInserted: () => {
@@ -177,10 +178,10 @@ export class App {
     });
 
     new Titlebar(store, {
-      onNewFile: () => this.fileController!.newFile(),
-      onOpenFile: () => this.fileController!.openFile(),
-      onSaveFile: () => this.fileController!.saveFile(),
-      onSaveFileAs: () => this.fileController!.saveFileAs(),
+      onNewFile: () => fileController.newFile(),
+      onOpenFile: () => fileController.openFile(),
+      onSaveFile: () => fileController.saveFile(),
+      onSaveFileAs: () => fileController.saveFileAs(),
       onExportPdf: () => this.openExportPdfDialog(),
       onToggleOutline: () => this.toggleOutline(),
       onOpenSettings: () => this.settingsPanel.open(),
@@ -190,20 +191,20 @@ export class App {
     const searchPanel = new SearchPanel(() => this.editor);
 
     const menuController = new MenuController({
-      'new-file': () => this.fileController!.newFile(),
-      'open-file': () => this.fileController!.openFile(),
-      'save-file': () => this.fileController!.saveFile(),
-      'save-file-as': () => this.fileController!.saveFileAs(),
+      'new-file': () => fileController.newFile(),
+      'open-file': () => fileController.openFile(),
+      'save-file': () => fileController.saveFile(),
+      'save-file-as': () => fileController.saveFileAs(),
       'export-pdf': () => this.openExportPdfDialog(),
       'open-settings': () => this.settingsPanel.open(),
     });
     void menuController.bind();
 
     const shortcutController = new ShortcutController({
-      newFile: () => this.fileController!.newFile(),
-      openFile: () => this.fileController!.openFile(),
-      saveFile: () => this.fileController!.saveFile(),
-      saveFileAs: () => this.fileController!.saveFileAs(),
+      newFile: () => fileController.newFile(),
+      openFile: () => fileController.openFile(),
+      saveFile: () => fileController.saveFile(),
+      saveFileAs: () => fileController.saveFileAs(),
       print: () => this.openExportPdfDialog(),
       find: () => searchPanel.show(),
       toggleOutline: () => this.toggleOutline(),

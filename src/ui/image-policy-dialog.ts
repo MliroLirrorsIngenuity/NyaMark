@@ -231,9 +231,9 @@ export class ImagePolicyDialog {
       );
       const rememberInput = remember.querySelector('input') as HTMLInputElement;
       const setSelected = (value: PastedImagePolicyChoice['policy']) => {
-        policyInputs.forEach((input) => {
+        for (const input of policyInputs) {
           input.checked = input.value === value;
-        });
+        }
       };
       setSelected('copy-assets');
 

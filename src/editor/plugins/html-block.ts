@@ -140,7 +140,8 @@ function isBlockHtml(view: EditorView, getPos: () => number | undefined) {
 }
 
 export const htmlBlockView = $view(htmlSchema.node, () => {
-  return (node, view, getPos) => {
+  return (initialNode, view, getPos) => {
+    let node = initialNode;
     const block = isBlockHtml(view, getPos);
     const dom = document.createElement(block ? 'div' : 'span');
     dom.classList.add(block ? 'ny-html-block' : 'ny-html-inline');
