@@ -19,6 +19,12 @@ import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
 import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
+import {
+  type SearchMeta,
+  findMatches,
+  searchKey,
+  searchPlugin,
+} from './plugins/search';
 import { registerEditorStyles } from './styles';
 
 import '@milkdown/crepe/theme/common/style.css';
@@ -76,6 +82,7 @@ export class NyaEditor {
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
+    crepe.editor.use(searchPlugin);
     crepe.editor.use(this.docChangedPlugin());
 
     crepe.on((api) => {
@@ -194,6 +201,67 @@ export class NyaEditor {
         : 'smooth',
       block: 'start',
     });
+  }
+
+  /**
+   * Highlights every match of `query` and selects one. `first` takes the
+   * first match at or after the selection, so refining the query keeps the
+   * current match while it still fits; `next` and `prev` step from the
+   * current match and wrap.
+   */
+  search(query: string, direction: 'first' | 'next' | 'prev') {
+    const view = this.getView();
+    if (!view) return;
+    const { state } = view;
+    const matches = findMatches(state.doc, query);
+    const total = matches.length;
+    let active = -1;
+    if (total > 0) {
+      const previous = searchKey.getState(state);
+      if (
+        direction !== 'first' &&
+        previous?.query === query &&
+        previous.active >= 0
+      ) {
+        const step = direction === 'next' ? 1 : total - 1;
+        active = (previous.active + step) % total;
+      } else {
+        const after = matches.findIndex(
+          (match) => match.from >= state.selection.from
+        );
+        active = after === -1 ? 0 : after;
+      }
+    }
+    const meta: SearchMeta = { query, matches, active };
+    const tr = state.tr.setMeta(searchKey, meta);
+    const match = matches[active];
+    if (match) {
+      tr.setSelection(TextSelection.create(tr.doc, match.from, match.to));
+      tr.scrollIntoView();
+    }
+    view.dispatch(tr);
+  }
+
+  /** The current match (1-based, 0 for none) and how many there are. */
+  searchStatus() {
+    const view = this.getView();
+    const state = view ? searchKey.getState(view.state) : undefined;
+    return {
+      current: (state?.active ?? -1) + 1,
+      total: state?.matches.length ?? 0,
+    };
+  }
+
+  /**
+   * Drops the highlights. The selection stays on the last match; editable
+   * views take focus so typing continues there.
+   */
+  endSearch() {
+    const view = this.getView();
+    if (!view) return;
+    const meta: SearchMeta = { query: '', matches: [], active: -1 };
+    view.dispatch(view.state.tr.setMeta(searchKey, meta));
+    if (view.editable) view.focus();
   }
 
   focusAtEnd() {

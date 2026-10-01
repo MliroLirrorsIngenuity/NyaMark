@@ -1,5 +1,7 @@
-import { ensureStyle } from '../style/register';
+import type { NyaEditor } from '../editor/editor';
+import { i18next } from '../i18n';
 import { translateDOM } from '../i18n/dom';
+import { ensureStyle } from '../style/register';
 import { pushEscapeLayer } from './escape-layers';
 
 const searchStyles = `
@@ -18,7 +20,17 @@ const searchStyles = `
   box-shadow: var(--ny-shadow-float);
   backdrop-filter: blur(20px) saturate(1.1);
   -webkit-backdrop-filter: blur(20px) saturate(1.1);
-  transition: opacity 0.15s ease;
+  animation: ny-search-in 0.15s ease;
+}
+
+.ny-search[hidden] {
+  display: none;
+}
+
+@keyframes ny-search-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .ny-search__input {
@@ -33,6 +45,17 @@ const searchStyles = `
 
 .ny-search__input::placeholder {
   color: var(--ny-text-muted);
+}
+
+.ny-search__count {
+  color: var(--ny-text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ny-search__count:empty {
+  display: none;
 }
 
 .ny-search__button {
@@ -64,24 +87,31 @@ const searchStyles = `
 `;
 
 export class SearchPanel {
-  private elPanel: HTMLElement;
-  private elInput: HTMLInputElement;
-  private isVisible = false;
+  private readonly elPanel: HTMLElement;
+  private readonly elInput: HTMLInputElement;
+  private readonly elCount: HTMLElement;
   private releaseEscape: (() => void) | null = null;
+  private stopWatchingDoc: (() => void) | null = null;
 
-  constructor() {
+  constructor(private readonly getEditor: () => NyaEditor | null) {
     ensureStyle('search-panel', searchStyles);
 
     this.elPanel = document.createElement('div');
     this.elPanel.className = 'ny-search';
-    this.elPanel.style.opacity = '0';
-    this.elPanel.style.pointerEvents = 'none';
+    this.elPanel.setAttribute('role', 'search');
+    this.elPanel.hidden = true;
 
     this.elInput = document.createElement('input');
     this.elInput.type = 'text';
     this.elInput.placeholder = 'Find...';
     this.elInput.className = 'ny-search__input';
     this.elInput.setAttribute('data-i18n-placeholder', 'search.placeholder');
+    this.elInput.setAttribute('aria-label', 'Find...');
+    this.elInput.setAttribute('data-i18n-aria-label', 'search.placeholder');
+
+    this.elCount = document.createElement('span');
+    this.elCount.className = 'ny-search__count';
+    this.elCount.setAttribute('aria-live', 'polite');
 
     const btnNext = document.createElement('button');
     btnNext.innerHTML = '↓';
@@ -89,6 +119,8 @@ export class SearchPanel {
     btnNext.type = 'button';
     btnNext.setAttribute('title', 'Next match');
     btnNext.setAttribute('data-i18n-title', 'search.next');
+    btnNext.setAttribute('aria-label', 'Next match');
+    btnNext.setAttribute('data-i18n-aria-label', 'search.next');
 
     const btnPrev = document.createElement('button');
     btnPrev.innerHTML = '↑';
@@ -96,6 +128,8 @@ export class SearchPanel {
     btnPrev.type = 'button';
     btnPrev.setAttribute('title', 'Previous match');
     btnPrev.setAttribute('data-i18n-title', 'search.prev');
+    btnPrev.setAttribute('aria-label', 'Previous match');
+    btnPrev.setAttribute('data-i18n-aria-label', 'search.prev');
 
     const btnClose = document.createElement('button');
     btnClose.innerHTML = '✕';
@@ -103,8 +137,11 @@ export class SearchPanel {
     btnClose.type = 'button';
     btnClose.setAttribute('title', 'Close search');
     btnClose.setAttribute('data-i18n-title', 'search.close');
+    btnClose.setAttribute('aria-label', 'Close search');
+    btnClose.setAttribute('data-i18n-aria-label', 'search.close');
 
     this.elPanel.appendChild(this.elInput);
+    this.elPanel.appendChild(this.elCount);
     this.elPanel.appendChild(btnPrev);
     this.elPanel.appendChild(btnNext);
     this.elPanel.appendChild(btnClose);
@@ -123,58 +160,65 @@ export class SearchPanel {
     // Opening is a global shortcut (see features/shortcut-controller.ts).
     btnClose.addEventListener('click', () => this.hide());
 
+    // Search as the query is typed; an IME commits its text on
+    // compositionend, so the intermediate composition is skipped.
+    this.elInput.addEventListener('input', (e) => {
+      if (!(e as InputEvent).isComposing) this.search('first');
+    });
+    this.elInput.addEventListener('compositionend', () => this.search('first'));
+
     this.elInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !e.isComposing) {
         e.preventDefault();
-        this.performSearch(e.shiftKey);
+        this.search(e.shiftKey ? 'prev' : 'next');
       }
     });
 
-    btnNext.addEventListener('click', () => this.performSearch(false));
-    btnPrev.addEventListener('click', () => this.performSearch(true));
+    btnNext.addEventListener('click', () => this.search('next'));
+    btnPrev.addEventListener('click', () => this.search('prev'));
   }
 
   show() {
-    if (!this.isVisible) {
+    if (this.elPanel.hidden) {
       this.releaseEscape = pushEscapeLayer({ dismiss: () => this.hide() });
+      this.elPanel.hidden = false;
+      // Edits (or another file) change the matches under an open panel.
+      this.stopWatchingDoc =
+        this.getEditor()?.onDocChanged(() => this.renderCount()) ?? null;
+      // Reopening with the previous query highlights it again.
+      if (this.elInput.value) this.search('first');
     }
-    this.isVisible = true;
-    this.elPanel.style.opacity = '1';
-    this.elPanel.style.pointerEvents = 'auto';
     this.elInput.focus();
     this.elInput.select();
   }
 
+  /** Closes the panel; the editor keeps the last match selected. */
   hide() {
-    this.isVisible = false;
+    if (this.elPanel.hidden) return;
+    this.elPanel.hidden = true;
     this.releaseEscape?.();
     this.releaseEscape = null;
-    this.elPanel.style.opacity = '0';
-    this.elPanel.style.pointerEvents = 'none';
-    // Clear selection
-    window.getSelection()?.removeAllRanges();
+    this.stopWatchingDoc?.();
+    this.stopWatchingDoc = null;
+    this.elCount.textContent = '';
+    this.getEditor()?.endSearch();
   }
 
-  private performSearch(backward: boolean) {
-    const text = this.elInput.value;
-    if (!text) return;
+  private search(direction: 'first' | 'next' | 'prev') {
+    this.getEditor()?.search(this.elInput.value, direction);
+    this.renderCount();
+  }
 
-    // Basic native find for MVP (it handles highlighting and scrolling)
-    // A robust Prosemirror implementation would be needed for a perfect Typora clone
-    // but window.find provides instant value for v0.2
-    const found = (window as any).find(
-      text,
-      false,
-      backward,
-      true,
-      false,
-      false,
-      false
-    );
-    if (!found) {
-      // If we reach the end/beginning, wrap around
-      // window.find stops at document bounds if wrap is false, but we passed wrap=true
-      // so it should wrap automatically
+  private renderCount() {
+    const editor = this.getEditor();
+    if (!editor || !this.elInput.value) {
+      this.elCount.textContent = '';
+      return;
     }
+    const { current, total } = editor.searchStatus();
+    this.elCount.textContent =
+      total === 0
+        ? i18next.t('search.noResults')
+        : i18next.t('search.count', { current, total });
   }
 }

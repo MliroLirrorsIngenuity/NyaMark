@@ -56,7 +56,9 @@
     "placeholder": "查找...",
     "next": "下一个匹配",
     "prev": "上一个匹配",
-    "close": "关闭搜索"
+    "close": "关闭搜索",
+    "count": "{{current}}/{{total}}",
+    "noResults": "无结果"
   },
   "outline": {
     "title": "大纲",

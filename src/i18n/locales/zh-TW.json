@@ -56,7 +56,9 @@
     "placeholder": "尋找...",
     "next": "下一個相符",
     "prev": "上一個相符",
-    "close": "關閉搜尋"
+    "close": "關閉搜尋",
+    "count": "{{current}}/{{total}}",
+    "noResults": "無結果"
   },
   "outline": {
     "title": "大綱",

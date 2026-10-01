@@ -194,7 +194,7 @@ export class App {
     });
 
     new Statusbar(store);
-    const searchPanel = new SearchPanel();
+    const searchPanel = new SearchPanel(() => this.editor);
 
     const menuController = new MenuController({
       'new-file': () => this.fileController!.newFile(),

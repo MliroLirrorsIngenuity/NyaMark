@@ -57,7 +57,9 @@
     "placeholder": "Find...",
     "next": "Next match",
     "prev": "Previous match",
-    "close": "Close search"
+    "close": "Close search",
+    "count": "{{current}}/{{total}}",
+    "noResults": "No results"
   },
   "outline": {
     "title": "Outline",
