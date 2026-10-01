@@ -40,7 +40,8 @@
  * and its head goes on to the text past it, under the caret going up or down.
  */
 
-import { EditorView as CodeMirror } from '@codemirror/view';
+import { EditorSelection, Prec, findClusterBreak } from '@codemirror/state';
+import { EditorView as CodeMirror, keymap } from '@codemirror/view';
 import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import type { Node, ResolvedPos } from '@milkdown/kit/prose/model';
 import {
@@ -78,6 +79,53 @@ const ARROWS: Record<string, [1 | -1, boolean]> = {
 
 const isCode = (selection: Selection) =>
   !!selection.$head.parent.type.spec.code;
+
+/**
+ * The caret in `cm`, on the row it is drawn on. Where a long line of code wraps
+ * one row ends and the next starts at the same place; a caret set there with
+ * no side named is drawn at the start of the next row, and CodeMirror moved it
+ * up and down from the end of the row before.
+ */
+function drawnCaret(cm: CodeMirror) {
+  const { main } = cm.state.selection;
+  if (main.assoc) return main;
+  const { head, bidiLevel, goalColumn } = main;
+  return EditorSelection.cursor(head, 1, bidiLevel ?? undefined, goalColumn);
+}
+
+/**
+ * Whether the caret in `cm` is on the block's top row, going up, or its bottom
+ * row going down. A long line of code wraps onto rows of its own.
+ */
+function onEdgeRow(cm: CodeMirror, dir: 1 | -1): boolean {
+  const end = cm.moveToLineBoundary(drawnCaret(cm), dir > 0).head;
+  return dir > 0 ? end >= cm.state.doc.length : end <= 0;
+}
+
+function rowMove(dir: 1 | -1) {
+  return (cm: CodeMirror) => {
+    if (!cm.state.selection.main.empty || onEdgeRow(cm, dir)) return false;
+    const moved = cm.moveVertically(drawnCaret(cm), dir > 0);
+    cm.dispatch({
+      selection: EditorSelection.create([moved]),
+      scrollIntoView: true,
+      userEvent: 'select',
+    });
+    return true;
+  };
+}
+
+/**
+ * Up and down in a code block go a row at a time, out of it only from its top
+ * or bottom row. The block's own keys took the caret out from anywhere on its
+ * first or last line, and the rows of a long line wrapped there were skipped.
+ */
+export const codeArrowsByRow = Prec.highest(
+  keymap.of([
+    { key: 'ArrowUp', run: rowMove(-1) },
+    { key: 'ArrowDown', run: rowMove(1) },
+  ])
+);
 
 /** The code block's CodeMirror, when it is on screen to be measured. */
 function codeMirrorAt(view: EditorView, pos: number) {
@@ -168,9 +216,7 @@ function leavesCodeAtTop(view: EditorView, key: string): boolean {
   if (!code) return false;
   const { main } = code.cm.state.selection;
   if (!main.empty) return false;
-  return key === 'ArrowUp'
-    ? code.cm.state.doc.lineAt(main.head).number === 1
-    : main.head === 0;
+  return key === 'ArrowUp' ? onEdgeRow(code.cm, -1) : main.head === 0;
 }
 
 /** The caret beside an HTML block, in the paragraph that holds it. */
@@ -226,13 +272,21 @@ function underX(
     if (!code) return null;
     const { cm } = code;
     const line = cm.state.doc.line(dir > 0 ? 1 : cm.state.doc.lines);
-    const box = cm.coordsAtPos(line.from);
-    if (!box) return null;
-    const offset = cm.posAtCoords({
+    const box = cm.coordsAtPos(line.from, 1);
+    // The row the caret comes in on: a long line wraps onto several.
+    const row = dir > 0 ? box : cm.coordsAtPos(line.to, -1);
+    if (!box || !row) return null;
+    let offset = cm.posAtCoords({
       x: box.left + x - code.left,
-      y: (box.top + box.bottom) / 2,
+      y: (row.top + row.bottom) / 2,
     });
     if (offset == null || offset < line.from || offset > line.to) return null;
+    // Past the end of a wrapped row, the caret would be drawn on the next.
+    const drawn = offset > line.from && cm.coordsAtPos(offset, 1);
+    if (drawn && drawn.top >= row.bottom - 1) {
+      offset =
+        line.from + findClusterBreak(line.text, offset - line.from, false);
+    }
     return TextSelection.create(view.state.doc, start + offset);
   }
 

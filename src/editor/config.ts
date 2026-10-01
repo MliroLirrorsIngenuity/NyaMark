@@ -10,6 +10,7 @@ import { redo, undo } from '@milkdown/kit/prose/history';
 import { AllSelection, type Command } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
+import { codeArrowsByRow } from './plugins/block-arrows';
 import { codeClearOfBar } from './plugins/caret-scroll';
 import { closeFenceOnEnter } from './plugins/code-fence-exit';
 import { codeSearchMatches } from './plugins/code-search';
@@ -38,9 +39,15 @@ export type CrepeConfigOptions = {
  * `tooltips({ parent })` is what keeps that manual popup usable at all: the
  * code block clips its own content to get rounded corners, and a tooltip
  * rendered inside would be cut off at the block's edge.
+ *
+ * A long line wraps at the block's edge. It ran on past it, cut off at the
+ * rounded border with nothing to say more was there: the end of a long command
+ * could be read only by scrolling a block that showed no scrollbar.
  */
 function codeBlockExtensions(getView: () => EditorView | null) {
   return [
+    CodeMirror.lineWrapping,
+    codeArrowsByRow,
     autocompletion({ activateOnTyping: false }),
     tooltips({ parent: document.body }),
     codeBlockHistory(getView),

@@ -1033,6 +1033,20 @@
   color: var(--ny-editor-code-text);
 }
 
+/*
+ * A long first line wraps short of the tool pill over the block's top-right
+ * corner. Run to the edge, its first row went on under the pill, hidden while
+ * the caret was in the block. The room fits a pill named as long as
+ * `typescript`.
+ */
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .cm-content
+  > .cm-line:first-child {
+  padding-right: 108px !important;
+}
+
 .ny-editor-root .milkdown .milkdown-code-block .cm-activeLine,
 .ny-editor-root .milkdown .milkdown-code-block .cm-activeLineGutter {
   background: var(--ny-editor-active-line) !important;
