@@ -7,6 +7,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { DecorationSet } from '@milkdown/kit/prose/view';
 import {
+  alertMarkers,
   buildDecorations,
   keepCaretOutOfMarker,
   onEmptyBodyLine,
@@ -94,6 +95,11 @@ describe('gfm alert decorations', () => {
       tr.insertText('!', 2)
     );
     expect(count).toBe(3);
+  });
+
+  test('lists the marker of each alert', () => {
+    const markers = alertMarkers(start()).map(({ from, to }) => [from, to]);
+    expect(markers).toEqual([[9, 16]]);
   });
 
   test('several steps in one transaction', () => {

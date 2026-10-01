@@ -259,6 +259,19 @@ export function alertMarkerAt(
   return null;
 }
 
+/** The hidden marker of every alert in `doc`: text the reader never sees. */
+export function alertMarkers(doc: ProseNode): AlertMarkerRange[] {
+  const markers: AlertMarkerRange[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name === 'blockquote') {
+      const marker = alertMarkerAt(doc, pos + 1);
+      if (marker) markers.push(marker);
+    }
+    return !node.isTextblock;
+  });
+  return markers;
+}
+
 /**
  * The marker is hidden, so a caret inside it is invisible and whatever the
  * user types lands in the marker and breaks the alert. Arrow keys and clicks

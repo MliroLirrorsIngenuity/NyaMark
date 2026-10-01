@@ -27,7 +27,11 @@ import { codePreview } from './plugins/code-preview';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { fenceInput } from './plugins/fence-input';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
-import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
+import {
+  alertMarkers,
+  gfmAlerts,
+  registerGfmAlertStyles,
+} from './plugins/gfm-alerts';
 import { headingInput } from './plugins/heading-input';
 import { hrInput } from './plugins/hr-input';
 import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
@@ -265,11 +269,13 @@ export class NyaEditor {
     const { doc } = view.state;
     // `textContent` runs the blocks together; keep them apart.
     const text = doc.textBetween(0, doc.content.size, '\n', ' ');
+    let words = countWords(text);
+    // An alert's `[!NOTE]` shows as its label, which is no word of the text.
+    for (const { from, to } of alertMarkers(doc)) {
+      words -= countWords(doc.textBetween(from, to, '\n', ' '));
+    }
     const source = markdown ?? this.getMarkdown();
-    return {
-      words: countWords(text),
-      lines: countLines(source),
-    };
+    return { words, lines: countLines(source) };
   }
 
   /**
