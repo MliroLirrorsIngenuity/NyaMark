@@ -36,6 +36,8 @@ export class FileController {
   private conflictPrompting = false;
   /** Tail of the save queue; see `saveCurrentDocument`. */
   private saveQueue: Promise<unknown> = Promise.resolve();
+  /** Set once an auto-save failure was shown; cleared by the next good save. */
+  private autoSaveFailureShown = false;
 
   constructor(
     private readonly getEditor: () => NyaEditor | null,
@@ -272,6 +274,13 @@ export class FileController {
       });
     } catch (error) {
       console.error('Failed to auto-save file:', error);
+      // Auto-save retries on every tick; tell the user once per failure
+      // streak rather than once a minute.
+      if (this.autoSaveFailureShown) return;
+      this.autoSaveFailureShown = true;
+      await errorDialog(
+        this.describeDocumentError(error, store.getState().filePath, 'save')
+      );
     }
   }
 
@@ -369,6 +378,7 @@ export class FileController {
       this.lastKnownContent = prevLastKnown;
       throw error;
     }
+    this.autoSaveFailureShown = false;
     const currentMarkdown = this.getEditor()?.getMarkdown() ?? snapshot;
     if (currentMarkdown !== snapshot) {
       store.update({ isDirty: true });
