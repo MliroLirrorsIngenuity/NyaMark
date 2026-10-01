@@ -1,11 +1,17 @@
 /**
  * Scroll sync between the source pane and the rendered preview. Headings
  * that appear on both sides pin the two scroll positions together; between
- * them the position is interpolated linearly.
+ * them the position is interpolated linearly. Everything here works in
+ * scroll positions, so the panes reach their top and bottom together.
  */
 
-/** How far down the viewport the point kept in line on both sides sits. */
+/** How far down the viewport a shared heading lines up in both panes. */
 const SYNC_REFERENCE_RATIO = 0.28;
+
+export type ScrollAnchor = {
+  key: string;
+  top: number;
+};
 
 export type ScrollGuidePoint = {
   fromTop: number;
@@ -33,9 +39,15 @@ export function normalizeHeadingText(text: string) {
     .toLowerCase();
 }
 
+/**
+ * Pairs of scroll positions that belong together, rising on both sides,
+ * from both tops to both ends. An anchor's `top` is the scroll position at
+ * which it is in line; one that only fits at the very end is left out, as
+ * the end itself has to stay paired with the other end.
+ */
 export function buildScrollGuidePoints(
-  fromAnchors: Array<{ key: string; top: number }>,
-  toAnchors: Array<{ key: string; top: number }>,
+  fromAnchors: ScrollAnchor[],
+  toAnchors: ScrollAnchor[],
   fromMax: number,
   toMax: number
 ) {
@@ -46,7 +58,9 @@ export function buildScrollGuidePoints(
 
   for (const fromAnchor of fromAnchors) {
     const fromTop = clamp(fromAnchor.top, 0, fromMax);
-    if (fromTop <= points[points.length - 1].fromTop) continue;
+    if (fromTop <= points[points.length - 1].fromTop || fromTop >= fromMax) {
+      continue;
+    }
 
     const toIndex = toAnchors.findIndex(
       (toAnchor, index) =>
@@ -66,7 +80,9 @@ export function buildScrollGuidePoints(
     const count = Math.min(fromAnchors.length, toAnchors.length);
     for (let index = 0; index < count; index += 1) {
       const fromTop = clamp(fromAnchors[index].top, 0, fromMax);
-      if (fromTop <= points[points.length - 1].fromTop) continue;
+      if (fromTop <= points[points.length - 1].fromTop || fromTop >= fromMax) {
+        continue;
+      }
 
       points.push({
         fromTop,
@@ -105,19 +121,31 @@ export function mapScrollTop(scrollTop: number, points: ScrollGuidePoint[]) {
   return lastPoint.toTop;
 }
 
-export function mapViewportScrollTop(
+function maxScrollTop(pane: ScrollPane) {
+  return Math.max(0, pane.scrollHeight - pane.clientHeight);
+}
+
+/**
+ * Where `target` should scroll to follow `source`. The anchors are content
+ * offsets of the headings in each pane; each becomes the scroll position
+ * that puts its heading on the reference line.
+ */
+export function syncedScrollTop(
   source: ScrollPane,
   target: ScrollPane,
-  points: ScrollGuidePoint[]
+  sourceAnchors: ScrollAnchor[],
+  targetAnchors: ScrollAnchor[]
 ) {
-  const sourceReferenceTop =
-    source.scrollTop + source.clientHeight * SYNC_REFERENCE_RATIO;
-  const targetReferenceTop = mapScrollTop(sourceReferenceTop, points);
-  const targetMax = Math.max(0, target.scrollHeight - target.clientHeight);
-
-  return clamp(
-    targetReferenceTop - target.clientHeight * SYNC_REFERENCE_RATIO,
-    0,
-    targetMax
+  const inLine = (anchors: ScrollAnchor[], pane: ScrollPane) =>
+    anchors.map((anchor) => ({
+      key: anchor.key,
+      top: anchor.top - pane.clientHeight * SYNC_REFERENCE_RATIO,
+    }));
+  const points = buildScrollGuidePoints(
+    inLine(sourceAnchors, source),
+    inLine(targetAnchors, target),
+    maxScrollTop(source),
+    maxScrollTop(target)
   );
+  return mapScrollTop(source.scrollTop, points);
 }

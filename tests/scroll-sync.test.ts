@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildScrollGuidePoints,
   mapScrollTop,
-  mapViewportScrollTop,
   normalizeHeadingText,
+  syncedScrollTop,
 } from '../src/editor/scroll-sync';
 
 describe('normalizeHeadingText', () => {
@@ -119,10 +119,10 @@ describe('buildScrollGuidePoints', () => {
     ]);
   });
 
-  test('clamps anchors below the end of the scroll range', () => {
+  test('leaves out an anchor that only fits at the end', () => {
     const points = buildScrollGuidePoints(
       [{ key: 'a', top: 5000 }],
-      [{ key: 'a', top: 5000 }],
+      [{ key: 'a', top: 500 }],
       1000,
       2000
     );
@@ -159,20 +159,58 @@ describe('mapScrollTop', () => {
   });
 });
 
-describe('mapViewportScrollTop', () => {
+describe('syncedScrollTop', () => {
   const pane = (scrollTop: number, scrollHeight: number) => ({
     scrollTop,
     scrollHeight,
     clientHeight: 100,
   });
+  const heading = (top: number) => [{ key: 'a', top }];
+
+  test('reaches the top and the bottom together', () => {
+    const follow = (scrollTop: number) =>
+      syncedScrollTop(
+        pane(scrollTop, 1000),
+        pane(0, 3000),
+        heading(400),
+        heading(2000)
+      );
+
+    expect(follow(0)).toBe(0);
+    expect(follow(900)).toBe(2900);
+  });
+
+  test('lines a shared heading up in both panes', () => {
+    // 28 px down a 100 px viewport in both panes.
+    expect(
+      syncedScrollTop(
+        pane(372, 1000),
+        pane(0, 3000),
+        heading(400),
+        heading(2000)
+      )
+    ).toBe(1972);
+  });
 
   test('keeps panes of the same layout at the same position', () => {
-    const points = [
-      { fromTop: 0, toTop: 0 },
-      { fromTop: 900, toTop: 900 },
-    ];
-    expect(mapViewportScrollTop(pane(400, 1000), pane(0, 1000), points)).toBe(
-      400
-    );
+    expect(
+      syncedScrollTop(
+        pane(400, 1000),
+        pane(0, 1000),
+        heading(500),
+        heading(500)
+      )
+    ).toBe(400);
+  });
+
+  test('a heading too close to the end does not hold the other pane back', () => {
+    expect(
+      syncedScrollTop(
+        pane(900, 1000),
+        pane(0, 3000),
+        heading(990),
+        heading(1000)
+      )
+    ).toBe(2900);
   });
 });

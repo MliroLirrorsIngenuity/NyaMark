@@ -26,11 +26,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
 import type { NyaEditor } from './editor';
-import {
-  buildScrollGuidePoints,
-  mapViewportScrollTop,
-  normalizeHeadingText,
-} from './scroll-sync';
+import { normalizeHeadingText, syncedScrollTop } from './scroll-sync';
 
 const SYNC_DELAY_MS = 180;
 
@@ -420,19 +416,12 @@ export class SourceModeController {
                 top: cmView.lineBlockAt(anchor.from).top,
               }));
 
-        const guide = buildScrollGuidePoints(
+        target.scrollTop = syncedScrollTop(
+          source,
+          target,
           fromAnchors,
-          toAnchors,
-          Math.max(0, source.scrollHeight - source.clientHeight),
-          Math.max(0, target.scrollHeight - target.clientHeight)
+          toAnchors
         );
-
-        if (guide.length === 0) {
-          this.lastScrollSource = null;
-          return;
-        }
-
-        target.scrollTop = mapViewportScrollTop(source, target, guide);
 
         requestAnimationFrame(() => {
           this.lastScrollSource = null;
