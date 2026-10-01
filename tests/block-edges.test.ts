@@ -10,6 +10,11 @@ const schema = new Schema({
   nodes: {
     doc: { content: 'block+' },
     paragraph: { group: 'block', content: 'inline*' },
+    heading: {
+      group: 'block',
+      content: 'inline*',
+      attrs: { level: { default: 1 } },
+    },
     blockquote: { group: 'block', content: 'block+' },
     code_block: { group: 'block', content: 'text*', code: true },
     bullet_list: { group: 'block', content: 'list_item+' },
@@ -24,6 +29,8 @@ const schema = new Schema({
 
 const p = (text: string) =>
   schema.node('paragraph', null, text ? schema.text(text) : []);
+const heading = (level: number, text: string) =>
+  schema.node('heading', { level }, text ? schema.text(text) : []);
 const quote = (...blocks: Node[]) => schema.node('blockquote', null, blocks);
 const code = (text: string) =>
   schema.node('code_block', null, schema.text(text));
@@ -114,6 +121,20 @@ describe('backspaceAtBlockStart', () => {
     const tr = backspaceBefore(doc(table(['a']), p(''), p('b')), '');
     expect(tr?.doc.toJSON()).toEqual(doc(table(['a']), p('b')).toJSON());
     expect(tr?.selection.$from.parent.textContent).toBe('a');
+  });
+
+  test('makes a heading a paragraph in one press', () => {
+    const start = doc(p('above'), heading(2, 'title'));
+    expect(backspaceBefore(start, 'title')?.doc.toJSON()).toEqual(
+      doc(p('above'), p('title')).toJSON()
+    );
+  });
+
+  test('takes the heading before the quote around it', () => {
+    const start = doc(quote(heading(3, 'q')));
+    expect(backspaceBefore(start, 'q')?.doc.toJSON()).toEqual(
+      doc(quote(p('q'))).toJSON()
+    );
   });
 
   test('ignores a caret inside the text', () => {

@@ -20,7 +20,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange } from './doc-diff';
 import { blockArrows } from './plugins/block-arrows';
-import { blockEdges } from './plugins/block-edges';
+import { blockEdges, freeHeadingEdges } from './plugins/block-edges';
 import { restHiddenBlockHandle } from './plugins/block-handle-rest';
 import { blockSelection } from './plugins/block-selection';
 import { codePreview } from './plugins/code-preview';
@@ -121,6 +121,7 @@ export class NyaEditor {
     });
     crepe.editor.config(keepImageAlt);
     crepe.editor.config(keepCellAlignment);
+    crepe.editor.config(freeHeadingEdges);
     crepe.editor.use(markdownOutput);
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(blockEdges);

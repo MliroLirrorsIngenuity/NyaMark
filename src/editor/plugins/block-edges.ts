@@ -22,8 +22,15 @@
  * deleted it: two presses, or a held key running past the paragraph, took
  * the table with them. The caret goes into the table instead, to the end of
  * its last cell or the start of its first, as it goes into code.
+ *
+ * At the start of a heading Milkdown took both keys to step the level down,
+ * h2 to h1 and h1 to text: `## ` typed by mistake and Backspace gave a bigger
+ * heading, and Delete there never took the letter after the caret. Backspace
+ * makes the heading a paragraph in one press, and Delete deletes.
  */
 
+import type { Ctx } from '@milkdown/kit/ctx';
+import { headingKeymap } from '@milkdown/kit/preset/commonmark';
 import { liftListItem } from '@milkdown/kit/prose/schema-list';
 import {
   type EditorState,
@@ -35,6 +42,13 @@ import {
 } from '@milkdown/kit/prose/state';
 import { liftTarget } from '@milkdown/kit/prose/transform';
 import { $prose } from '@milkdown/kit/utils';
+
+function headingToParagraph(state: EditorState): Transaction | null {
+  const { $from } = state.selection;
+  const { paragraph } = state.schema.nodes;
+  if ($from.parent.type.name !== 'heading' || !paragraph) return null;
+  return state.tr.setBlockType($from.pos, $from.pos, paragraph);
+}
 
 /** The first item of a list that is not itself nested in a list item. */
 function liftFirstItem(state: EditorState): Transaction | null {
@@ -117,6 +131,7 @@ export function backspaceAtBlockStart(state: EditorState): Transaction | null {
   const { $from } = selection;
   if (!$from.parent.isTextblock || $from.parentOffset !== 0) return null;
   return (
+    headingToParagraph(state) ??
     liftFirstItem(state) ??
     liftOutOfQuote(state) ??
     stopAtCode(state) ??
@@ -185,3 +200,11 @@ export const blockEdges = $prose(
       },
     })
 );
+
+/** `editor.config` hook: frees the two keys from Milkdown's heading keymap. */
+export function freeHeadingEdges(ctx: Ctx) {
+  ctx.update(headingKeymap.key, (keys) => ({
+    ...keys,
+    DowngradeHeading: { shortcuts: [] },
+  }));
+}
