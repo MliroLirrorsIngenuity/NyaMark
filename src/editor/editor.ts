@@ -44,6 +44,7 @@ import {
   searchPlugin,
 } from './plugins/search';
 import { tabFocus } from './plugins/tab-focus';
+import { keepCellAlignment } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
 import { type BlockSpan, blockSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
@@ -117,6 +118,7 @@ export class NyaEditor {
       }));
     });
     crepe.editor.config(keepImageAlt);
+    crepe.editor.config(keepCellAlignment);
     crepe.editor.use(markdownOutput);
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(blockEdges);

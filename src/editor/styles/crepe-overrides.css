@@ -142,8 +142,10 @@
   width: 100% !important;
 }
 
+/* A column without an alignment; an aligned one says so on the cell. */
 .ny-editor-root .milkdown .ProseMirror th,
 .ny-editor-root .milkdown .ProseMirror td {
+  text-align: left;
   min-width: 0 !important;
   padding: 0.4em 0.8em !important;
   vertical-align: top !important;
