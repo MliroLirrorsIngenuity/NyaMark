@@ -5,21 +5,50 @@
  * the default 860px width, selecting the first words of a line put the
  * toolbar flush against the left edge, its rounded corner and shadow cut off.
  *
+ * The selection toolbar goes above the selection, and flips below it only
+ * when the page runs out above. The format bar pinned along the top of the
+ * page is not the page's edge, so text selected on the line just under it put
+ * the toolbar over the bar's own buttons. There it goes below the selection
+ * instead, or below its first line when the rest runs out of view.
+ *
  * Crepe owns their positioning and takes no padding for it, so the position
  * it writes is nudged once it lands.
  */
 
 const GUTTER_PX = 8;
+/** Crepe's distance between the selection and its toolbar. */
+const TOOLBAR_OFFSET_PX = 10;
 const FLOATING =
   '.milkdown-toolbar, .milkdown-link-edit, .milkdown-link-preview';
 
-/** The `left` each popup was last moved to, so its own write is not redone. */
+/** The position each popup was last moved to, so its own write is not redone. */
 const written = new WeakMap<HTMLElement, string>();
+
+/** How far down the selection toolbar moves to keep off the format bar. */
+function clearOfBar(el: HTMLElement, box: DOMRect, page: DOMRect): number {
+  if (!el.classList.contains('milkdown-toolbar')) return 0;
+  const bar = el.closest('.milkdown')?.querySelector('.milkdown-top-bar');
+  if (!bar) return 0;
+  const barBox = bar.getBoundingClientRect();
+  if (barBox.height === 0 || box.top >= barBox.bottom + GUTTER_PX) return 0;
+  const selection = getSelection();
+  if (!selection?.rangeCount) return 0;
+  const range = selection.getRangeAt(0);
+  const whole = range.getBoundingClientRect();
+  const fits =
+    whole.bottom + TOOLBAR_OFFSET_PX + box.height <= page.bottom - GUTTER_PX;
+  const under = fits
+    ? whole.bottom
+    : (range.getClientRects()[0]?.bottom ?? whole.bottom);
+  return under + TOOLBAR_OFFSET_PX - box.top;
+}
 
 function nudge(el: HTMLElement) {
   const left = Number.parseFloat(el.style.left);
-  if (Number.isNaN(left) || el.dataset.show !== 'true') return;
-  if (written.get(el) === el.style.left) return;
+  const top = Number.parseFloat(el.style.top);
+  if (Number.isNaN(left) || Number.isNaN(top)) return;
+  if (el.dataset.show !== 'true') return;
+  if (written.get(el) === `${el.style.left} ${el.style.top}`) return;
   const page = (
     el.closest('.ny-shell__body') ?? document.documentElement
   ).getBoundingClientRect();
@@ -31,9 +60,12 @@ function nudge(el: HTMLElement) {
     box.width > max - min
       ? min
       : Math.min(Math.max(box.left, min), max - box.width);
-  if (Math.abs(target - box.left) < 0.5) return;
-  el.style.left = `${left + target - box.left}px`;
-  written.set(el, el.style.left);
+  const dx = target - box.left;
+  const dy = clearOfBar(el, box, page);
+  if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+  el.style.left = `${left + dx}px`;
+  el.style.top = `${top + dy}px`;
+  written.set(el, `${el.style.left} ${el.style.top}`);
 }
 
 /** Call once the editor is created: the popups exist from then on. */
