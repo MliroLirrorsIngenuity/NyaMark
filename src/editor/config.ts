@@ -7,7 +7,11 @@ import { EditorView as CodeMirror, keymap, tooltips } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { type Crepe, CrepeFeature } from '@milkdown/crepe';
 import { redo, undo } from '@milkdown/kit/prose/history';
-import { AllSelection, type Command } from '@milkdown/kit/prose/state';
+import {
+  AllSelection,
+  type Command,
+  Selection,
+} from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
 import { codeArrowsByRow } from './plugins/block-arrows';
@@ -52,6 +56,7 @@ function codeBlockExtensions(getView: () => EditorView | null) {
     tooltips({ parent: document.body }),
     codeBlockHistory(getView),
     codeBlockSelectAll(getView),
+    codeBlockDocEdges(getView),
     closeFenceOnEnter(getView),
     codeSearchMatches,
     rememberCodeCopy(getView),
@@ -193,6 +198,33 @@ function codeBlockSelectAll(getView: () => EditorView | null) {
           return true;
         },
       },
+    ])
+  );
+}
+
+/**
+ * Cmd+Up in a code block goes to the start of its code, and pressed there, on
+ * to the start of the document, as it does from text; Cmd+Down to the ends.
+ * CodeMirror kept the caret in the block however often it was pressed.
+ */
+function codeBlockDocEdges(getView: () => EditorView | null) {
+  const toEdge = (dir: 1 | -1) => (cm: CodeMirror) => {
+    const { main } = cm.state.selection;
+    const edge = dir > 0 ? cm.state.doc.length : 0;
+    if (!main.empty || main.head !== edge) return false;
+    const view = getView();
+    if (!view) return false;
+    const { state } = view;
+    const target =
+      dir > 0 ? Selection.atEnd(state.doc) : Selection.atStart(state.doc);
+    view.dispatch(state.tr.setSelection(target).scrollIntoView());
+    view.focus();
+    return true;
+  };
+  return Prec.highest(
+    keymap.of([
+      { key: 'Mod-ArrowUp', run: toEdge(-1) },
+      { key: 'Mod-ArrowDown', run: toEdge(1) },
     ])
   );
 }
