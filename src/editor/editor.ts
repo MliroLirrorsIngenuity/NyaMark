@@ -34,6 +34,7 @@ import {
   searchKey,
   searchPlugin,
 } from './plugins/search';
+import { tabFocus } from './plugins/tab-focus';
 import { tableCells } from './plugins/table-cells';
 import { registerEditorStyles } from './styles';
 import { countLines, countWords } from './text-stats';
@@ -108,6 +109,7 @@ export class NyaEditor {
     crepe.editor.use(blockSelection);
     crepe.editor.use(imageRatio);
     crepe.editor.use(tableCells);
+    crepe.editor.use(tabFocus);
     crepe.editor.use(searchPlugin);
     crepe.editor.use(this.docChangedPlugin());
 
