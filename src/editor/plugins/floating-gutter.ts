@@ -1,9 +1,11 @@
 /**
- * Keeps the selection toolbar and the link popups a gutter's width inside the
- * page. Crepe centres them over the selection or the link and shifts them
- * back inside the scrolling page, which runs to the edge of the window: at
- * the default 860px width, selecting the first words of a line put the
- * toolbar flush against the left edge, its rounded corner and shadow cut off.
+ * Keeps the selection toolbar, the link popups and the box a formula in a
+ * line is edited in a gutter's width inside the page. Crepe centres them over
+ * the selection, the link or the formula and shifts them back inside the
+ * scrolling page, which runs to the edge of the window: at the default 860px
+ * width, selecting the first words of a line put the toolbar flush against
+ * the left edge, its rounded corner and shadow cut off, and a formula at the
+ * start of a line had its box there too.
  *
  * The selection toolbar goes above the selection, and flips below it only
  * when the page runs out above. The format bar pinned along the top of the
@@ -18,8 +20,12 @@
 const GUTTER_PX = 8;
 /** Crepe's distance between the selection and its toolbar. */
 const TOOLBAR_OFFSET_PX = 10;
-const FLOATING =
-  '.milkdown-toolbar, .milkdown-link-edit, .milkdown-link-preview';
+const FLOATING = [
+  '.milkdown-toolbar',
+  '.milkdown-link-edit',
+  '.milkdown-link-preview',
+  '.milkdown-latex-inline-edit',
+].join(', ');
 
 /** The position each popup was last moved to, so its own write is not redone. */
 const written = new WeakMap<HTMLElement, string>();
