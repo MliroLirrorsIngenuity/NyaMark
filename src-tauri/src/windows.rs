@@ -133,3 +133,28 @@ pub fn set_native_backdrop<R: Runtime>(window: &Window<R>, enabled: bool) -> Res
 pub fn set_native_backdrop<R: Runtime>(_window: &Window<R>, _enabled: bool) -> Result<()> {
     Ok(())
 }
+
+/// Mirrors unsaved changes into the native window: on macOS the close button
+/// shows its dot and the title bar's document icon dims.
+#[cfg(target_os = "macos")]
+pub fn set_document_edited<R: Runtime>(window: &Window<R>, edited: bool) -> Result<()> {
+    use objc2_app_kit::NSWindow;
+
+    let ns_window = window
+        .ns_window()
+        .context("Failed to get native window handle")? as usize;
+    window
+        .run_on_main_thread(move || {
+            // SAFETY: the pointer is the window's live NSWindow, and AppKit is
+            // only touched here on the main thread.
+            let ns_window = unsafe { &*(ns_window as *const NSWindow) };
+            ns_window.setDocumentEdited(edited);
+        })
+        .context("Failed to reach the main thread")?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn set_document_edited<R: Runtime>(_window: &Window<R>, _edited: bool) -> Result<()> {
+    Ok(())
+}

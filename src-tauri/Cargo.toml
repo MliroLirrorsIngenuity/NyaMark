@@ -35,9 +35,10 @@ tempfile = "3"
 tauri-plugin-updater = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# Used to hook `applicationShouldTerminate:` so dock Quit / logout prompt for unsaved changes.
+# Used to hook `applicationShouldTerminate:` so dock Quit / logout prompt for unsaved changes,
+# and to mark windows with unsaved changes as edited.
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWindow"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }

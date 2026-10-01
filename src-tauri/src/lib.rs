@@ -134,6 +134,9 @@ fn ensure_attachment_directory(app: AppHandle, path: String) -> Result<String, S
 #[tauri::command]
 fn set_window_dirty(window: Window, app: AppHandle, dirty: bool) {
     sessions::set_window_dirty(&app, window.label(), dirty);
+    if let Err(error) = windows::set_document_edited(&window, dirty) {
+        eprintln!("Failed to mark the window edited: {error:#}");
+    }
 }
 
 /// Restart after an update was installed. Dirty windows get their prompt first;
