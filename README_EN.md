@@ -1,6 +1,9 @@
 <div align="center">
   <h1 align="center">
-    <img src="src-tauri/icons/banner.svg" alt="NyaMark Banner" width="600"><br>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="src-tauri/icons/banner-dark.svg">
+      <img src="src-tauri/icons/banner.svg" alt="NyaMark Banner" width="600">
+    </picture><br>
     NyaMark
   </h1>
   <p align="center">
