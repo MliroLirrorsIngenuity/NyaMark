@@ -414,7 +414,7 @@ const styles = `
   justify-content: center;
   padding: 24px;
   border-radius: 24px;
-  background: color-mix(in srgb, var(--ny-bg-primary), transparent 36%);
+  background: color-mix(in srgb, var(--ny-app-bg-end), transparent 36%);
   backdrop-filter: blur(8px) saturate(1.04);
   -webkit-backdrop-filter: blur(8px) saturate(1.04);
   animation: ny-settings-overlay-in 140ms ease-out;

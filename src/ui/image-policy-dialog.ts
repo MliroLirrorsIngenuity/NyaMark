@@ -17,7 +17,7 @@ const imagePolicyDialogStyles = `
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: color-mix(in srgb, var(--ny-bg-primary), transparent 26%);
+  background: color-mix(in srgb, var(--ny-app-bg-end), transparent 26%);
   backdrop-filter: blur(10px) saturate(1.08);
   -webkit-backdrop-filter: blur(10px) saturate(1.08);
 }

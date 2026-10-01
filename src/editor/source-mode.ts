@@ -80,7 +80,7 @@ const css = `
 #editor-container.is-source-mode > .ny-source-pane {
   grid-column: 1;
   border-right: 1px solid var(--ny-editor-panel-border, rgba(186, 196, 210, 0.6));
-  background: var(--ny-bg-secondary);
+  background: transparent;
 }
 
 #editor-container.is-source-mode > .milkdown {
@@ -108,7 +108,7 @@ const css = `
 .ny-source-pane .cm-editor,
 .ny-source-pane .cm-gutters,
 .ny-source-pane .cm-scroller {
-  background-color: var(--ny-bg-secondary) !important;
+  background-color: transparent !important;
 }
 
 .ny-source-pane .cm-editor {
