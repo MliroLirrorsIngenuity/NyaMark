@@ -398,6 +398,12 @@ body {
   color: var(--ny-text-primary);
 }
 
+.ny-shell__shortcut-button[aria-pressed="true"] {
+  background: var(--ny-accent-soft);
+  border-color: color-mix(in srgb, var(--ny-accent), transparent 64%);
+  color: var(--ny-accent);
+}
+
 .ny-shell__shortcut-button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 72%);
   outline-offset: 1px;

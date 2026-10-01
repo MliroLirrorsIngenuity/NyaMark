@@ -108,7 +108,9 @@
   font-weight: 760;
   letter-spacing: -0.045em;
   color: var(--ny-editor-heading);
-  scroll-margin-top: 100px !important;
+  /* With the page's scroll-padding-top, a heading scrolled to the top (from
+     the outline) clears the sticky top bar by about 20px. */
+  scroll-margin-top: 32px !important;
 }
 
 .ny-editor-root .milkdown .ProseMirror h1 {
@@ -590,6 +592,39 @@
   font-size: 14px !important;
   line-height: 20px !important;
   cursor: default !important;
+}
+
+/*
+ * A narrow page (a small window with the outline open) packs the top bar
+ * tighter; at its full spacing it needs about 750px and ran off both ends.
+ */
+.ny-editor-root .milkdown .milkdown-top-bar {
+  container-type: inline-size;
+}
+
+@container (max-width: 760px) {
+  .ny-editor-root .milkdown .milkdown-top-bar .top-bar-inner {
+    padding: 0 !important;
+  }
+
+  .ny-editor-root .milkdown .milkdown-top-bar .top-bar-divider {
+    flex: 1 1 10px !important;
+    min-width: 10px !important;
+    max-width: 32px !important;
+  }
+
+  .ny-editor-root .milkdown .milkdown-top-bar .top-bar-heading-selector {
+    padding: 0 !important;
+  }
+
+  .ny-editor-root .milkdown .milkdown-top-bar .top-bar-heading-label {
+    min-width: 3.5em !important;
+  }
+
+  .ny-editor-root .milkdown .milkdown-top-bar .top-bar-heading-selector,
+  .ny-editor-root .milkdown .milkdown-top-bar .top-bar-item {
+    margin: 0 !important;
+  }
 }
 
 .ny-editor-root .milkdown .milkdown-toolbar {

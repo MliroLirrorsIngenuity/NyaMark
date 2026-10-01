@@ -1,170 +1,166 @@
+/**
+ * The outline docks to the right of the document, between the titlebar and
+ * the status bar, and the document makes room for it; a panel floating over
+ * the page hid the text under it. The heading being read is marked as the
+ * page scrolls, and the list scrolls to keep that heading in view.
+ *
+ * Escape leaves it open: it is part of the window like the status bar, and
+ * the Escape that closed the slash menu closed the outline with it.
+ */
+
 import type { NyaEditor } from '../editor/editor';
 import { translateDOM } from '../i18n/dom';
 import { ensureStyle } from '../style/register';
-import { pushEscapeLayer } from './escape-layers';
 
 const outlineStyles = `
+:root {
+  --ny-outline-width: clamp(200px, 22vw, 280px);
+}
+
+:root.ny-outline-open .ny-shell__body {
+  margin-right: var(--ny-outline-width);
+}
+
 .ny-outline {
   position: fixed;
-  top: 64px;
-  right: 16px;
-  bottom: 64px;
-  width: 284px;
+  top: 40px;
+  right: 0;
+  bottom: 32px;
+  width: var(--ny-outline-width);
   display: flex;
   flex-direction: column;
-  padding: 18px 16px 16px 18px;
   box-sizing: border-box;
-  border: 1px solid var(--ny-border-strong);
-  border-radius: 24px;
-  background: var(--ny-surface-ghost);
-  box-shadow: var(--ny-shadow-float);
-  backdrop-filter: blur(22px) saturate(1.2);
-  -webkit-backdrop-filter: blur(22px) saturate(1.2);
-  transition: opacity 0.15s ease, transform 0.18s ease;
-  z-index: var(--ny-layer-floating-panel);
+  border-left: 1px solid var(--ny-border-strong);
+  background: color-mix(in srgb, var(--ny-text-primary) 2.5%, transparent);
+  z-index: 1;
   user-select: none;
   -webkit-user-select: none;
 }
 
+.ny-outline[hidden] {
+  display: none;
+}
+
 .ny-outline__header {
-  margin-bottom: 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 28%);
+  flex: none;
+  padding: 14px 18px 8px;
   color: var(--ny-text-muted);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  user-select: none;
 }
 
 .ny-outline__list {
+  position: relative;
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow-y: auto;
   min-height: 0;
-  padding-right: 4px;
-  color: var(--ny-text-secondary);
-  font-size: 14px;
+  overflow-y: auto;
+  padding: 0 8px 16px;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--ny-text-muted), transparent 56%) transparent;
 }
 
 .ny-outline__empty {
+  padding: 4px 10px;
   color: var(--ny-text-muted);
   font-size: 12px;
-  font-style: italic;
 }
 
 .ny-outline__item {
   position: relative;
-  overflow: hidden;
-  flex-shrink: 0;
-  padding: 8px 10px 8px calc(26px + var(--outline-indent, 0px));
-  border-radius: 14px;
-  color: inherit;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.42;
-  cursor: default;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.ny-outline__item::before {
-  content: "";
-  position: absolute;
-  left: calc(10px + var(--outline-indent, 0px));
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ny-text-muted), transparent 24%);
-  transform: translateY(-50%);
-}
-
-.ny-outline__item[data-level="1"] {
-  padding-left: 16px;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--ny-text-primary);
-}
-
-.ny-outline__item[data-level="1"]:not(:first-child) {
-  margin-top: 8px;
-}
-
-.ny-outline__item[data-level="1"]::before {
-  left: 0;
-  width: 4px;
-  height: 18px;
-  border-radius: 999px;
-  background: var(--ny-accent);
-}
-
-.ny-outline__item[data-level="2"] {
-  font-weight: 620;
-  color: var(--ny-text-primary);
-}
-
-.ny-outline__item[data-level="2"]:not(:first-child) {
-  margin-top: 4px;
-}
-
-.ny-outline__item[data-level="3"] {
-  font-size: 13.5px;
-}
-
-.ny-outline__item[data-level="4"],
-.ny-outline__item[data-level="5"],
-.ny-outline__item[data-level="6"] {
+  padding: 4px 8px 4px calc(10px + var(--outline-indent, 0px));
+  border-radius: 6px;
+  color: var(--ny-text-secondary);
   font-size: 13px;
-  color: var(--ny-text-muted);
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.ny-outline__item:is([data-depth="0"], [data-depth="1"]) {
+  color: var(--ny-text-primary);
+}
+
+.ny-outline__item[data-depth="0"] {
+  font-weight: 600;
+}
+
+.ny-outline__item[data-depth="0"]:not(:first-child) {
+  margin-top: 6px;
+}
+
+.ny-outline__item:is([data-depth="2"], [data-depth="3"], [data-depth="4"]) {
+  font-size: 12.5px;
 }
 
 .ny-outline__item:hover {
-  background: color-mix(in srgb, var(--ny-surface-elevated), var(--ny-accent) 7%);
+  background: color-mix(in srgb, var(--ny-text-primary) 5%, transparent);
   color: var(--ny-text-primary);
 }
 
 .ny-outline__item.is-active {
-  background: color-mix(in srgb, var(--ny-surface-elevated), var(--ny-accent) 12%);
-  color: var(--ny-text-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ny-accent), transparent 72%);
+  background: color-mix(in srgb, var(--ny-accent) 13%, transparent);
+  color: var(--ny-accent);
 }
 
 .ny-outline__item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
   background: var(--ny-accent);
 }
 `;
 
 /** Pause after the last document change before the list is refreshed. */
 const RENDER_DELAY_MS = 150;
+/**
+ * A heading is the one being read once its top is less than this far below
+ * the top of the page. `scrollToHeading` leaves a heading 72px down, under
+ * the sticky top bar.
+ */
+const READING_LINE_PX = 96;
+/** Room kept above and below the marked heading when the list follows it. */
+const REVEAL_MARGIN_PX = 28;
+/** Deeper headings share the indent of the fifth level. */
+const MAX_DEPTH = 4;
+
+type Heading = { id: string; level: number; text: string };
+
+/** The element the document scrolls in: the preview pane in source mode. */
+function scrollHostOf(el: Element): Element | null {
+  return (
+    el.closest('#editor-container.is-source-mode > .milkdown') ??
+    el.closest('.ny-shell__body')
+  );
+}
 
 export class OutlinePanel {
-  private elPanel: HTMLElement;
-  private elList: HTMLElement;
+  private readonly elPanel: HTMLElement;
+  private readonly elList: HTMLElement;
   private isVisible = false;
-  private activeHeadingId: string | null = null;
+  private headings: Heading[] = [];
+  private activeId: string | null = null;
+  /** The clicked heading stays marked until the user scrolls themselves. */
+  private pinnedId: string | null = null;
   /** Identity of the rendered headings; equal headings keep the DOM. */
   private renderedSignature: string | null = null;
   private renderTimer: number | null = null;
+  private spyFrame: number | null = null;
   private readonly unsubscribe: () => void;
-  private releaseEscape: (() => void) | null = null;
 
   constructor(private editor: NyaEditor) {
     ensureStyle('outline-panel', outlineStyles);
 
     this.elPanel = document.createElement('div');
     this.elPanel.className = 'ny-outline';
-    this.elPanel.style.opacity = '0';
-    this.elPanel.style.pointerEvents = 'none';
-    this.elPanel.style.transform = 'translateY(-6px)';
+    this.elPanel.hidden = true;
 
     const header = document.createElement('div');
     header.className = 'ny-outline__header';
@@ -173,6 +169,11 @@ export class OutlinePanel {
 
     this.elList = document.createElement('div');
     this.elList.className = 'ny-outline__list';
+    // The caret stays in the document, so typing goes on after a jump.
+    this.elList.addEventListener('mousedown', (event) =>
+      event.preventDefault()
+    );
+    this.elList.addEventListener('click', this.onClick);
 
     this.elPanel.appendChild(header);
     this.elPanel.appendChild(this.elList);
@@ -184,19 +185,10 @@ export class OutlinePanel {
   }
 
   destroy() {
-    this.releaseEscape?.();
+    this.hide();
     this.unsubscribe();
     if (this.renderTimer != null) window.clearTimeout(this.renderTimer);
     this.elPanel.remove();
-  }
-
-  /** A burst of keystrokes is rendered once, after it ends. */
-  private scheduleRender() {
-    if (!this.isVisible || this.renderTimer != null) return;
-    this.renderTimer = window.setTimeout(() => {
-      this.renderTimer = null;
-      this.renderOutline();
-    }, RENDER_DELAY_MS);
   }
 
   toggle() {
@@ -207,20 +199,79 @@ export class OutlinePanel {
   show() {
     if (this.isVisible) return;
     this.isVisible = true;
-    this.releaseEscape = pushEscapeLayer({ dismiss: () => this.hide() });
-    this.elPanel.style.opacity = '1';
-    this.elPanel.style.pointerEvents = 'auto';
-    this.elPanel.style.transform = 'translateY(0)';
+    this.keepReadingPosition(() => {
+      this.elPanel.hidden = false;
+      document.documentElement.classList.add('ny-outline-open');
+    });
+    this.setPressed(true);
+    document.addEventListener('scroll', this.onScroll, {
+      capture: true,
+      passive: true,
+    });
+    for (const type of ['wheel', 'touchmove', 'keydown', 'mousedown']) {
+      document.addEventListener(type, this.releasePin, {
+        capture: true,
+        passive: true,
+      });
+    }
     this.renderOutline();
+    this.updateActive();
   }
 
   hide() {
+    if (!this.isVisible) return;
     this.isVisible = false;
-    this.releaseEscape?.();
-    this.releaseEscape = null;
-    this.elPanel.style.opacity = '0';
-    this.elPanel.style.pointerEvents = 'none';
-    this.elPanel.style.transform = 'translateY(-6px)';
+    this.keepReadingPosition(() => {
+      this.elPanel.hidden = true;
+      document.documentElement.classList.remove('ny-outline-open');
+    });
+    this.setPressed(false);
+    document.removeEventListener('scroll', this.onScroll, { capture: true });
+    for (const type of ['wheel', 'touchmove', 'keydown', 'mousedown']) {
+      document.removeEventListener(type, this.releasePin, { capture: true });
+    }
+    if (this.spyFrame != null) cancelAnimationFrame(this.spyFrame);
+    this.spyFrame = null;
+    this.pinnedId = null;
+  }
+
+  private setPressed(pressed: boolean) {
+    document
+      .getElementById('tb-outline')
+      ?.setAttribute('aria-pressed', String(pressed));
+  }
+
+  /**
+   * The document reflows when the outline opens or closes. The line at the
+   * top of the page is put back where it was, or the reader lost their place.
+   */
+  private keepReadingPosition(change: () => void) {
+    const view = this.editor.getView();
+    const host = view && scrollHostOf(view.dom);
+    if (!view || !host || host.scrollTop === 0) {
+      change();
+      return;
+    }
+    const box = view.dom.getBoundingClientRect();
+    const hit = view.posAtCoords({
+      left: box.left + box.width / 2,
+      top: host.getBoundingClientRect().top + READING_LINE_PX,
+    });
+    const before = hit && view.coordsAtPos(hit.pos).top;
+    change();
+    if (hit && before != null) {
+      host.scrollTop += view.coordsAtPos(hit.pos).top - before;
+    }
+  }
+
+  /** A burst of keystrokes is rendered once, after it ends. */
+  private scheduleRender() {
+    if (!this.isVisible || this.renderTimer != null) return;
+    this.renderTimer = window.setTimeout(() => {
+      this.renderTimer = null;
+      this.renderOutline();
+      this.updateActive();
+    }, RENDER_DELAY_MS);
   }
 
   /**
@@ -229,12 +280,13 @@ export class OutlinePanel {
    * yank the list back to the top while the user is reading it.
    */
   private renderOutline() {
-    const items = this.editor.getOutline();
+    const items: Heading[] = this.editor.getOutline();
     const signature = items
       .map((item) => `${item.level}\u0000${item.id}\u0000${item.text}`)
       .join('\n');
     if (signature === this.renderedSignature) return;
     this.renderedSignature = signature;
+    this.headings = items;
 
     const scrollTop = this.elList.scrollTop;
     this.elList.innerHTML = '';
@@ -249,35 +301,103 @@ export class OutlinePanel {
       return;
     }
 
+    // A document that starts at level 2 is not indented one step for nothing.
+    const top = Math.min(...items.map((item) => item.level));
     for (const item of items) {
+      const depth = Math.min(item.level - top, MAX_DEPTH);
       const el = document.createElement('div');
       el.className = 'ny-outline__item';
-      el.dataset.level = String(item.level);
+      el.dataset.depth = String(depth);
       el.dataset.id = item.id;
-      el.style.setProperty(
-        '--outline-indent',
-        `${Math.max(0, item.level - 2) * 14}px`
-      );
+      el.style.setProperty('--outline-indent', `${depth * 14}px`);
       el.textContent = item.text;
       el.title = item.text;
-      if (item.id === this.activeHeadingId) {
-        el.classList.add('is-active');
-      }
-
-      el.addEventListener('click', () => {
-        this.setActive(item.id);
-        this.editor.scrollToHeading(item.id);
-      });
-
+      el.classList.toggle('is-active', item.id === this.activeId);
       this.elList.appendChild(el);
     }
     this.elList.scrollTop = scrollTop;
   }
 
-  private setActive(id: string) {
-    this.activeHeadingId = id;
+  private onClick = (event: MouseEvent) => {
+    const item = (event.target as Element).closest<HTMLElement>(
+      '.ny-outline__item'
+    );
+    const id = item?.dataset.id;
+    if (!id) return;
+    // A heading near the end cannot scroll up to the reading line.
+    this.pinnedId = id;
+    this.setActive(id, false);
+    this.editor.scrollToHeading(id);
+  };
+
+  private releasePin = (event: Event) => {
+    if (this.elPanel.contains(event.target as Node)) return;
+    this.pinnedId = null;
+  };
+
+  private onScroll = (event: Event) => {
+    if (this.pinnedId || this.spyFrame != null) return;
+    if (this.elPanel.contains(event.target as Node)) return;
+    this.spyFrame = requestAnimationFrame(() => {
+      this.spyFrame = null;
+      this.updateActive();
+    });
+  };
+
+  private updateActive() {
+    if (!this.pinnedId) this.setActive(this.headingBeingRead(), true);
+  }
+
+  /**
+   * The last heading above the reading line, or, above the first heading,
+   * the first heading on screen. The headings of a short last section never
+   * reach the line, so at the end of the page the last one on screen counts.
+   */
+  private headingBeingRead(): string | null {
+    const els = this.headings
+      .map((heading) => document.getElementById(heading.id))
+      .filter((el): el is HTMLElement => el != null);
+    const host = els[0] && scrollHostOf(els[0]);
+    if (!host) return null;
+    const box = host.getBoundingClientRect();
+    const atEnd =
+      host.scrollTop > 0 &&
+      host.scrollTop + host.clientHeight >= host.scrollHeight - 1;
+    const line = atEnd ? box.bottom : box.top + READING_LINE_PX;
+    let current: HTMLElement | null = null;
+    for (const el of els) {
+      const { top } = el.getBoundingClientRect();
+      if (top > line) {
+        if (!current && top < box.bottom) current = el;
+        break;
+      }
+      current = el;
+    }
+    return current?.id ?? null;
+  }
+
+  private setActive(id: string | null, reveal: boolean) {
+    if (id === this.activeId) return;
+    this.activeId = id;
+    let active: HTMLElement | null = null;
     for (const el of this.elList.children) {
-      el.classList.toggle('is-active', (el as HTMLElement).dataset.id === id);
+      const on = (el as HTMLElement).dataset.id === id;
+      el.classList.toggle('is-active', on);
+      if (on) active = el as HTMLElement;
+    }
+    // The list stays put while the pointer is on it.
+    if (reveal && active && !this.elList.matches(':hover')) {
+      this.reveal(active);
+    }
+  }
+
+  private reveal(item: HTMLElement) {
+    const list = this.elList;
+    const top = item.offsetTop - REVEAL_MARGIN_PX;
+    const bottom = item.offsetTop + item.offsetHeight + REVEAL_MARGIN_PX;
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (bottom > list.scrollTop + list.clientHeight) {
+      list.scrollTop = bottom - list.clientHeight;
     }
   }
 }

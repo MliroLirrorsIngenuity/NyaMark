@@ -2,7 +2,7 @@
  * Everything Escape can close (dialogs, menus, dropdowns, floating panels)
  * registers here while it is open. Escape goes to the most recently opened
  * one alone, so a dropdown inside the settings dialog closes before the
- * dialog does, and closing the search bar leaves the outline open.
+ * dialog does.
  */
 
 export type EscapeLayer = {

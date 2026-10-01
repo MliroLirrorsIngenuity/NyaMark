@@ -213,12 +213,32 @@ export class NyaEditor {
     };
   }
 
+  /**
+   * Scrolls heading `id` to the top and puts the caret at its end, so typing
+   * after a jump from the outline goes on there. In source mode the caret
+   * stays in the source, and the jump is instant: the source pane follows
+   * the preview, and its first step stopped a smooth scroll near the start.
+   */
   scrollToHeading(id: string) {
-    if (!this.crepe) return;
+    const view = this.getView();
+    if (!view) return;
+    const sourceMode = view.dom.closest('.is-source-mode') != null;
+    let end = -1;
+    view.state.doc.descendants((node, pos) => {
+      if (end >= 0) return false;
+      if (node.type.name !== 'heading') return !node.isTextblock;
+      if (node.attrs.id === id) end = pos + node.nodeSize - 1;
+      return false;
+    });
+    if (end >= 0 && !sourceMode) {
+      const { tr } = view.state;
+      view.dispatch(tr.setSelection(TextSelection.create(tr.doc, end)));
+      view.focus();
+    }
+    const smooth =
+      !sourceMode && !matchMedia('(prefers-reduced-motion: reduce)').matches;
     document.getElementById(id)?.scrollIntoView({
-      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches
-        ? 'auto'
-        : 'smooth',
+      behavior: smooth ? 'smooth' : 'auto',
       block: 'start',
     });
   }
