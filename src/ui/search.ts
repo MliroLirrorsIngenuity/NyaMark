@@ -180,6 +180,13 @@ export class SearchPanel {
   }
 
   show() {
+    // Text selected in the document is what to look for, as in other Mac
+    // editors. From the field itself, the selection is the current match.
+    const selected =
+      document.activeElement === this.elInput
+        ? ''
+        : (this.getEditor()?.selectedLine() ?? '');
+    if (selected) this.elInput.value = selected;
     if (this.elPanel.hidden) {
       this.releaseEscape = pushEscapeLayer({ dismiss: () => this.hide() });
       this.placeUnderFormatBar();
@@ -189,6 +196,8 @@ export class SearchPanel {
         this.getEditor()?.onDocChanged(() => this.renderCount()) ?? null;
       // Reopening with the previous query highlights it again.
       if (this.elInput.value) this.search('first');
+    } else if (selected) {
+      this.search('first');
     }
     this.elInput.focus();
     this.elInput.select();

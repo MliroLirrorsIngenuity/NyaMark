@@ -308,6 +308,16 @@ export class NyaEditor {
       (match.top + match.bottom) / 2 - (top + box.bottom) / 2;
   }
 
+  /** The selected text when it lies within one line, else an empty string. */
+  selectedLine(): string {
+    const view = this.getView();
+    if (!view) return '';
+    const { from, to, $from, $to } = view.state.selection;
+    if (from === to || !$from.sameParent($to)) return '';
+    const text = view.state.doc.textBetween(from, to);
+    return text.length <= 200 && !text.includes('\n') ? text : '';
+  }
+
   /** The current match (1-based, 0 for none) and how many there are. */
   searchStatus() {
     const view = this.getView();
