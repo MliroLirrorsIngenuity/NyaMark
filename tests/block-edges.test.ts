@@ -15,6 +15,9 @@ const schema = new Schema({
     bullet_list: { group: 'block', content: 'list_item+' },
     ordered_list: { group: 'block', content: 'list_item+' },
     list_item: { content: 'paragraph block*', defining: true },
+    table: { group: 'block', content: 'table_row+', isolating: true },
+    table_row: { content: 'table_cell+' },
+    table_cell: { content: 'paragraph+', isolating: true },
     text: { group: 'inline' },
   },
 });
@@ -28,6 +31,18 @@ const item = (...blocks: Node[]) => schema.node('list_item', null, blocks);
 const bullets = (...items: Node[]) => schema.node('bullet_list', null, items);
 const numbers = (...items: Node[]) => schema.node('ordered_list', null, items);
 const doc = (...blocks: Node[]) => schema.node('doc', null, blocks);
+const table = (...rows: string[][]) =>
+  schema.node(
+    'table',
+    null,
+    rows.map((cells) =>
+      schema.node(
+        'table_row',
+        null,
+        cells.map((text) => schema.node('table_cell', null, p(text)))
+      )
+    )
+  );
 
 /** A state with the caret at the start or end of the textblock holding `text`. */
 function caretAt(start: Node, text: string, end = false) {
@@ -87,6 +102,20 @@ describe('backspaceAtBlockStart', () => {
     expect(backspaceBefore(doc(code('x'), p('')), '')).toBeNull();
   });
 
+  test('moves into the last cell of the table above', () => {
+    const start = doc(table(['a', 'b'], ['1', '2']), p('after'));
+    const tr = backspaceBefore(start, 'after');
+    expect(tr?.docChanged).toBe(false);
+    expect(tr?.selection.$from.parent.textContent).toBe('2');
+    expect(tr?.selection.$from.parentOffset).toBe(1);
+  });
+
+  test('removes an empty paragraph after a table on the way in', () => {
+    const tr = backspaceBefore(doc(table(['a']), p(''), p('b')), '');
+    expect(tr?.doc.toJSON()).toEqual(doc(table(['a']), p('b')).toJSON());
+    expect(tr?.selection.$from.parent.textContent).toBe('a');
+  });
+
   test('ignores a caret inside the text', () => {
     const start = doc(p('above'), quote(p('q1')));
     const state = EditorState.create({
@@ -109,6 +138,14 @@ describe('deleteAtBlockEnd', () => {
     const tr = deleteAfter(doc(p('a'), p(''), code('x')), '');
     expect(tr?.doc.toJSON()).toEqual(doc(p('a'), code('x')).toJSON());
     expect(tr?.selection.from).toBe(4);
+  });
+
+  test('moves into the first cell of the table below', () => {
+    const start = doc(p('before'), table(['a', 'b']));
+    const tr = deleteAfter(start, 'before');
+    expect(tr?.docChanged).toBe(false);
+    expect(tr?.selection.$from.parent.textContent).toBe('a');
+    expect(tr?.selection.$from.parentOffset).toBe(0);
   });
 
   test('leaves other blocks to the join', () => {

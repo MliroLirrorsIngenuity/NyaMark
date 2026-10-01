@@ -17,6 +17,11 @@
  * Delete at the end of a paragraph pulled the code block below into it: the
  * code became text and the block was gone. It moves the caret into the code
  * instead, and an empty paragraph is removed on the way.
+ *
+ * Next to a table, either key selected the whole table and the next press
+ * deleted it: two presses, or a held key running past the paragraph, took
+ * the table with them. The caret goes into the table instead, to the end of
+ * its last cell or the start of its first, as it goes into code.
  */
 
 import { liftListItem } from '@milkdown/kit/prose/schema-list';
@@ -24,6 +29,7 @@ import {
   type EditorState,
   Plugin,
   PluginKey,
+  Selection,
   TextSelection,
   type Transaction,
 } from '@milkdown/kit/prose/state';
@@ -90,12 +96,32 @@ function stopAtCode(state: EditorState): Transaction | null {
   return state.tr.setSelection(TextSelection.create(state.doc, before.end));
 }
 
+/** The text in the table next to the caret's textblock, on the side of `dir`. */
+function intoTable(state: EditorState, dir: 1 | -1): Transaction | null {
+  const { $from } = state.selection;
+  const index = $from.index(-1) + (dir > 0 ? 1 : -1);
+  const parent = $from.node(-1);
+  if (index < 0 || index >= parent.childCount) return null;
+  if (parent.child(index).type.name !== 'table') return null;
+  const tr = state.tr;
+  // A paragraph emptied on the way goes, as a join would take it.
+  if ($from.parent.content.size === 0) tr.delete($from.before(), $from.after());
+  const edge = tr.mapping.map(dir > 0 ? $from.after() : $from.before());
+  const target = Selection.findFrom(tr.doc.resolve(edge), dir, true);
+  return target ? tr.setSelection(target) : null;
+}
+
 export function backspaceAtBlockStart(state: EditorState): Transaction | null {
   const { selection } = state;
   if (!(selection instanceof TextSelection) || !selection.empty) return null;
   const { $from } = selection;
   if (!$from.parent.isTextblock || $from.parentOffset !== 0) return null;
-  return liftFirstItem(state) ?? liftOutOfQuote(state) ?? stopAtCode(state);
+  return (
+    liftFirstItem(state) ??
+    liftOutOfQuote(state) ??
+    stopAtCode(state) ??
+    intoTable(state, -1)
+  );
 }
 
 /** Where a forward join would pull from: the start of the next textblock. */
@@ -129,7 +155,7 @@ export function deleteAtBlockEnd(state: EditorState): Transaction | null {
     return null;
   }
   const after = startOfTextblockAfter(state);
-  if (!after?.node.type.spec.code) return null;
+  if (!after?.node.type.spec.code) return intoTable(state, 1);
   const tr = state.tr;
   if (parent.content.size === 0 && $from.node(-1).childCount > 1) {
     tr.delete($from.before(), $from.after());
