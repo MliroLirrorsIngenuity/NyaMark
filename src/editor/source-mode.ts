@@ -34,6 +34,7 @@ import { ensureStyle } from '../style/register';
 import type { NyaEditor } from './editor';
 import { normalizeHeadingText, syncedScrollTop } from './scroll-sync';
 import { docPosition, sourceOffset } from './source-caret';
+import { sourceSearch } from './source-search';
 
 const SYNC_DELAY_MS = 180;
 
@@ -382,6 +383,7 @@ export class SourceModeController {
           // is pure interruption. Still available on demand.
           autocompletion({ activateOnTyping: false }),
           markdown(),
+          sourceSearch(),
           syntaxHighlighting(markdownHighlight),
           EditorView.lineWrapping,
           this.cmThemeCompartment.of(this.themeExtension()),

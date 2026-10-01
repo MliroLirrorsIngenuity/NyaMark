@@ -59,6 +59,10 @@
     "next": "Next match",
     "prev": "Previous match",
     "close": "Close search",
+    "replacePlaceholder": "Replace with...",
+    "replace": "Replace",
+    "replaceAll": "Replace All",
+    "toggleReplace": "Show replace",
     "count": "{{current}}/{{total}}",
     "noResults": "No results"
   },
