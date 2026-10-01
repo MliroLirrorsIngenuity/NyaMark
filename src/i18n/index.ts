@@ -35,6 +35,10 @@ export async function initI18n(initialLanguage: string) {
       'zh-TW': { translation: zhTW },
     },
     interpolation: {
+      // Translations only reach the page through textContent, setAttribute or
+      // native dialogs, which never parse HTML; escaping here would show
+      // `&amp;` literally. tests/i18n-sinks.test.ts keeps t() out of
+      // innerHTML templates so this stays true.
       escapeValue: false,
     },
   });
