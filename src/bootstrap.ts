@@ -383,7 +383,13 @@ export class App {
       document.body.style.zoom = '';
     }
 
-    const cleanup = () => {
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      for (const type of ['afterprint', 'pointerdown', 'keydown']) {
+        window.removeEventListener(type, restore, true);
+      }
       printStyle.remove();
       document.body.style.zoom = previousZoom;
       root.classList.remove('ny-exporting-pdf');
@@ -392,37 +398,24 @@ export class App {
       }
     };
 
-    const handleAfterPrint = () => {
-      window.removeEventListener('afterprint', handleAfterPrint);
-      cleanup();
-    };
-
-    const printCompleted = new Promise<void>((resolve) => {
-      window.addEventListener('afterprint', () => resolve(), { once: true });
-    });
-
-    window.addEventListener('afterprint', handleAfterPrint);
+    // WebKit (the native print sheet included) and Chromium fire afterprint
+    // once printing is over. Input reaching the page is the backstop: the
+    // print dialog is modal, so the page only sees input once it is gone.
+    window.addEventListener('afterprint', restore, true);
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => resolve());
     });
+    window.addEventListener('pointerdown', restore, true);
+    window.addEventListener('keydown', restore, true);
 
     try {
       await printCurrentWindow();
-      await Promise.race([
-        printCompleted,
-        new Promise<void>((resolve) => {
-          window.setTimeout(() => resolve(), 15000);
-        }),
-      ]);
     } catch (error) {
-      window.removeEventListener('afterprint', handleAfterPrint);
-      cleanup();
       console.warn(
         '[export] Native print failed, falling back to browser print',
         error
       );
       window.print();
-      cleanup();
     }
   }
 
