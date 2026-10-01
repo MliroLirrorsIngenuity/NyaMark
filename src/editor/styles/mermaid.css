@@ -218,8 +218,15 @@
   stroke: rgba(141, 180, 200, 0.3) !important;
 }
 
+.ny-editor-root .milkdown .nyamark-mermaid-stale > .nyamark-mermaid-preview {
+  margin-top: 10px !important;
+  opacity: 0.35;
+}
+
 .ny-editor-root .milkdown .nyamark-mermaid-error {
   margin-top: 0.25rem !important;
+  /* Left-aligned so the parser's `^` points at the column it means. */
+  text-align: left !important;
   padding: 14px 16px !important;
   border: 1px solid color-mix(in srgb, #b42318, transparent 72%) !important;
   border-radius: 0.75rem !important;

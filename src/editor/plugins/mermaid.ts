@@ -79,18 +79,49 @@ function escapeHtml(text: string) {
  * temporary element under `<body>` and does not always remove it when it
  * throws, so a failed render cleans up after it.
  */
-async function renderToMarkup(content: string): Promise<string> {
+async function renderDiagram(
+  content: string
+): Promise<{ ok: boolean; markup: string }> {
   const id = genId();
   try {
     const mermaid = await loadMermaid();
     const { svg } = await mermaid.render(id, content);
-    return `<div class="nyamark-mermaid-preview">${svg}</div>`;
+    return {
+      ok: true,
+      markup: `<div class="nyamark-mermaid-preview">${svg}</div>`,
+    };
   } catch (error) {
     document.getElementById(`d${id}`)?.remove();
     document.getElementById(id)?.remove();
     const message = error instanceof Error ? error.message : String(error);
-    return `<div class="nyamark-mermaid-error">${escapeHtml(message)}</div>`;
+    return {
+      ok: false,
+      markup: `<div class="nyamark-mermaid-error">${escapeHtml(message)}</div>`,
+    };
   }
+}
+
+async function renderToMarkup(content: string): Promise<string> {
+  return (await renderDiagram(content)).markup;
+}
+
+/**
+ * The preview while a diagram is being typed. Half a line does not parse,
+ * and swapping a tall diagram for a two-line message threw everything below
+ * the block up the page at each pause. The last diagram that rendered stays,
+ * faded, under the message.
+ */
+async function renderWhileTyping(
+  content: string,
+  editor: Element
+): Promise<string> {
+  const { ok, markup } = await renderDiagram(content);
+  if (ok) return markup;
+  const last = editor
+    .closest('.milkdown-code-block')
+    ?.querySelector('.preview .nyamark-mermaid-preview');
+  if (!last) return markup;
+  return `<div class="nyamark-mermaid-stale">${markup}${last.outerHTML}</div>`;
 }
 
 type PendingRender = { timer: number; sequence: number };
@@ -132,7 +163,7 @@ export function renderMermaidPreview(
   if (previous) window.clearTimeout(previous.timer);
   const sequence = (previous?.sequence ?? 0) + 1;
   const timer = window.setTimeout(() => {
-    void renderToMarkup(content).then((markup) => {
+    void renderWhileTyping(content, editor).then((markup) => {
       if (pendingRenders.get(editor)?.sequence !== sequence) return;
       pendingRenders.delete(editor);
       applyPreview(markup);
@@ -154,7 +185,7 @@ export function reRenderMermaidPreviews(
   view: EditorView | null
 ) {
   const previews = root.querySelectorAll(
-    '.nyamark-mermaid-preview, .nyamark-mermaid-error'
+    '.nyamark-mermaid-stale, :is(.nyamark-mermaid-preview, .nyamark-mermaid-error):not(.nyamark-mermaid-stale *)'
   );
   if (!previews.length || !view) return;
 
