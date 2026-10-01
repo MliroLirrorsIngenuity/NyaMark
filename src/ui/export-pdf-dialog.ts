@@ -143,18 +143,38 @@ const exportPdfDialogStyles = `
   transform: translateX(16px);
 }
 
-.ny-export-pdf-dialog__select,
-.ny-export-pdf-dialog__range {
+/* Drawn like the settings dropdowns; the menu itself stays the system one. */
+.ny-export-pdf-dialog__select-wrap {
+  position: relative;
   width: 220px;
 }
 
 .ny-export-pdf-dialog__select {
-  padding: 9px 12px;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  margin: 0;
+  padding: 8px 34px 8px 10px;
   border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 18%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
   color: var(--ny-text-primary);
   font: inherit;
+}
+
+.ny-export-pdf-dialog__select:hover {
+  border-color: color-mix(in srgb, var(--ny-border-strong), transparent 28%);
+}
+
+.ny-export-pdf-dialog__select-icon {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 16px;
+  height: 16px;
+  color: var(--ny-text-secondary);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .ny-export-pdf-dialog__range-wrap {
@@ -166,6 +186,7 @@ const exportPdfDialogStyles = `
 
 .ny-export-pdf-dialog__range {
   width: 220px;
+  accent-color: var(--ny-accent);
 }
 
 .ny-export-pdf-dialog__range-value {
@@ -211,7 +232,7 @@ const exportPdfDialogStyles = `
     align-items: flex-start;
   }
 
-  .ny-export-pdf-dialog__select,
+  .ny-export-pdf-dialog__select-wrap,
   .ny-export-pdf-dialog__range-wrap {
     width: 100%;
   }
@@ -225,6 +246,23 @@ const exportPdfDialogStyles = `
   }
 }
 `;
+
+const CHEVRON = `<svg class="ny-export-pdf-dialog__select-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>`;
+
+// CLDR's US Letter regions; the rest of the world prints on A4.
+const LETTER_REGIONS = new Set(
+  'BZ CA CL CO CR GT MX NI PA PH PR SV US VE'.split(' ')
+);
+
+/** The paper the system's region prints on: a "zh-CN" user got Letter. */
+function defaultPageSize(): ExportPdfSettings['pageSize'] {
+  try {
+    const { region } = new Intl.Locale(navigator.language).maximize();
+    return region && LETTER_REGIONS.has(region) ? 'Letter' : 'A4';
+  } catch {
+    return 'A4';
+  }
+}
 
 export class ExportPdfDialog {
   private readonly overlay: HTMLDivElement;
@@ -257,11 +295,14 @@ export class ExportPdfDialog {
             <div>
               <div class="ny-export-pdf-dialog__row-label" data-i18n="dialog.exportPdf.pageSize">Page size</div>
             </div>
-            <select class="ny-export-pdf-dialog__select">
-              <option value="Letter" data-i18n="dialog.exportPdf.pageSizes.letter">Letter</option>
-              <option value="A4" data-i18n="dialog.exportPdf.pageSizes.a4">A4</option>
-              <option value="Legal" data-i18n="dialog.exportPdf.pageSizes.legal">Legal</option>
-            </select>
+            <div class="ny-export-pdf-dialog__select-wrap">
+              <select class="ny-export-pdf-dialog__select">
+                <option value="Letter" data-i18n="dialog.exportPdf.pageSizes.letter">Letter</option>
+                <option value="A4" data-i18n="dialog.exportPdf.pageSizes.a4">A4</option>
+                <option value="Legal" data-i18n="dialog.exportPdf.pageSizes.legal">Legal</option>
+              </select>
+              ${CHEVRON}
+            </div>
           </div>
         </div>
 
@@ -279,12 +320,15 @@ export class ExportPdfDialog {
             <div>
               <div class="ny-export-pdf-dialog__row-label" data-i18n="dialog.exportPdf.margin">Margin</div>
             </div>
-            <select class="ny-export-pdf-dialog__select">
-              <option value="default" data-i18n="dialog.exportPdf.margins.default">Default</option>
-              <option value="narrow" data-i18n="dialog.exportPdf.margins.narrow">Narrow</option>
-              <option value="none" data-i18n="dialog.exportPdf.margins.none">None</option>
-              <option value="wide" data-i18n="dialog.exportPdf.margins.wide">Wide</option>
-            </select>
+            <div class="ny-export-pdf-dialog__select-wrap">
+              <select class="ny-export-pdf-dialog__select">
+                <option value="default" data-i18n="dialog.exportPdf.margins.default">Default</option>
+                <option value="narrow" data-i18n="dialog.exportPdf.margins.narrow">Narrow</option>
+                <option value="none" data-i18n="dialog.exportPdf.margins.none">None</option>
+                <option value="wide" data-i18n="dialog.exportPdf.margins.wide">Wide</option>
+              </select>
+              ${CHEVRON}
+            </div>
           </div>
         </div>
 
@@ -381,7 +425,7 @@ export class ExportPdfDialog {
           downscalePercent: Number(range.value),
         });
       });
-      pageSize.value = 'Letter';
+      pageSize.value = defaultPageSize();
       landscape.checked = false;
       margin.value = 'default';
     });
