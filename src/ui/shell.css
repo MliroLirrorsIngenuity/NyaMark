@@ -585,7 +585,9 @@ body {
   margin: 0 auto;
   padding: 0 24px 64px;
   box-sizing: border-box;
-  flex: 1;
+  /* Grows with the document: held to the page's height, a long one ran out
+     past its bottom and the end of it sat on the status bar. */
+  flex: 1 0 auto;
   min-height: 100%;
 }
 
