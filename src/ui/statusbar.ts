@@ -20,7 +20,6 @@ export class Statusbar {
     });
 
     this.elMode.addEventListener('click', () => {
-      // Toggle source mode later
       const currentMode = this.store.getState().sourceMode;
       this.store.update({ sourceMode: !currentMode });
     });
@@ -33,6 +32,8 @@ export class Statusbar {
     this.elLines.textContent = i18next.t('statusbar.line', {
       line: state.lineCount,
     });
-    this.elMode.textContent = state.sourceMode ? 'Source' : 'Markdown';
+    this.elMode.textContent = i18next.t(
+      state.sourceMode ? 'statusbar.modeSource' : 'statusbar.modeMarkdown'
+    );
   }
 }

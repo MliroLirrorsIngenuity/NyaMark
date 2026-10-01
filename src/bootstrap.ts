@@ -38,6 +38,7 @@ import { renderAppShell, registerShellStyles } from './ui/shell';
 import { SettingsPanel } from './ui/settings-panel/panel';
 import { Statusbar } from './ui/statusbar';
 import { ThemeManager, type ThemeMode } from './ui/theme';
+import { documentFileName } from './ui/document-name';
 import { Titlebar } from './ui/titlebar';
 import { UpdateDialog } from './ui/update-dialog';
 import { message } from '@tauri-apps/plugin-dialog';
@@ -348,14 +349,11 @@ export class App {
   }
 
   private getPrintableFileTitle() {
-    const filePath = store.getState().filePath;
-    const fallback = 'Untitled';
-    if (!filePath) return fallback;
-
-    const fileName = filePath.split(/[\\/]/).filter(Boolean).pop();
-    if (!fileName) return fallback;
-
-    return fileName.replace(/\.[^./\\]+$/, '') || fallback;
+    const stem = (name: string) => name.replace(/\.[^.]+$/, '');
+    return (
+      stem(documentFileName(store.getState().filePath)) ||
+      stem(documentFileName(null))
+    );
   }
 
   private async openExportPdfDialog() {

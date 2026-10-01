@@ -6,6 +6,7 @@ import {
 } from '../bridge/ipc/windows';
 import { i18next } from '../i18n';
 import { store } from '../state/store';
+import { documentFileName } from '../ui/document-name';
 import type { FileController } from './file-controller';
 
 /**
@@ -79,9 +80,6 @@ export class CloseGuard {
   }
 
   private currentFileName() {
-    const path = store.getState().filePath;
-    return path
-      ? path.split(/[\\/]/).filter(Boolean).pop() || 'Untitled.md'
-      : 'Untitled.md';
+    return documentFileName(store.getState().filePath);
   }
 }

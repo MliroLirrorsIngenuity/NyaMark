@@ -10,6 +10,7 @@ import {
 
 import { i18next } from '../i18n';
 import { isMacOS } from '../platform/detect';
+import { documentFileName } from './document-name';
 
 type TitlebarActions = {
   onNewFile: () => Promise<unknown> | void;
@@ -192,9 +193,7 @@ export class Titlebar {
   }
 
   private update(state: ReturnType<Store['getState']>) {
-    const filename = state.filePath
-      ? state.filePath.split(/[\\/]/).filter(Boolean).pop() || 'Untitled.md'
-      : 'Untitled.md';
+    const filename = documentFileName(state.filePath);
     if (this.elFilename.textContent !== filename) {
       this.elFilename.textContent = filename;
       void setWindowTitle(filename).catch(console.error);

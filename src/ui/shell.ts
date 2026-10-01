@@ -127,7 +127,7 @@ export function renderAppShell(host: HTMLElement) {
         <div class="ny-shell__title-quick-actions">${fileActionsMarkup}</div>
       </div>
       <div class="ny-shell__title-center">
-        <div id="tb-filename" class="ny-shell__filename">Untitled.md</div>
+        <div id="tb-filename" class="ny-shell__filename"></div>
         <span id="tb-dirty" class="ny-shell__dirty">●</span>
       </div>
       <div class="ny-shell__title-actions">
@@ -170,12 +170,12 @@ export function renderAppShell(host: HTMLElement) {
 
     <div id="statusbar">
       <div class="ny-shell__status-group">
-        <span id="sb-words" class="ny-shell__status">0 words</span>
-        <span id="sb-lines" class="ny-shell__status">Line 1</span>
+        <span id="sb-words" class="ny-shell__status"></span>
+        <span id="sb-lines" class="ny-shell__status"></span>
       </div>
       <div class="ny-shell__status-group">
         <span id="sb-theme" class="ny-shell__action">${initialThemeLabel}</span>
-        <span id="sb-mode" class="ny-shell__action">Markdown</span>
+        <span id="sb-mode" class="ny-shell__action"></span>
       </div>
     </div>
   `;
