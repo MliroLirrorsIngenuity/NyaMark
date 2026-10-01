@@ -34,6 +34,8 @@ export class FileController {
   private documentFormat: DocumentFormat = { ...DEFAULT_DOCUMENT_FORMAT };
   private watchVersion = 0;
   private conflictPrompting = false;
+  /** Tail of the save queue; see `saveCurrentDocument`. */
+  private saveQueue: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly getEditor: () => NyaEditor | null,
@@ -273,7 +275,22 @@ export class FileController {
     }
   }
 
-  private async saveCurrentDocument(options: {
+  /**
+   * Saves run one at a time. An auto-save tick and Cmd+S (or the close
+   * prompt) would otherwise write the same file concurrently, and the older
+   * snapshot could land last.
+   */
+  private saveCurrentDocument(options: {
+    forceDialog: boolean;
+    allowDialogWhenMissingPath: boolean;
+  }): Promise<string | null> {
+    const run = this.saveQueue.then(() => this.saveCurrentDocumentNow(options));
+    // The queue itself never rejects, so one failed save does not block later ones.
+    this.saveQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async saveCurrentDocumentNow(options: {
     forceDialog: boolean;
     allowDialogWhenMissingPath: boolean;
   }): Promise<string | null> {
