@@ -220,10 +220,16 @@ const exportPdfDialogStyles = `
 .ny-export-pdf-dialog__button--primary {
   background: color-mix(in srgb, var(--ny-accent), var(--ny-surface-elevated) 14%);
   border-color: color-mix(in srgb, var(--ny-accent), transparent 44%);
+  color: var(--ny-on-accent);
 }
 
 .ny-export-pdf-dialog__button:hover {
   border-color: color-mix(in srgb, var(--ny-accent), transparent 36%);
+}
+
+.ny-export-pdf-dialog__button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline-offset: 2px;
 }
 
 @media (max-width: 720px) {

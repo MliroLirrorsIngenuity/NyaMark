@@ -385,6 +385,7 @@ const styles = `
 
 .ny-settings-dialog__button--primary {
   background: color-mix(in srgb, var(--ny-accent), var(--ny-surface-elevated) 14%);
+  color: var(--ny-on-accent);
 }
 
 .ny-settings-dialog__button--danger {
@@ -399,6 +400,15 @@ const styles = `
 
 .ny-settings-dialog__button--danger:hover {
   border-color: color-mix(in srgb, #cf5a5a, transparent 24%);
+}
+
+.ny-settings-dialog__button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline-offset: 2px;
+}
+
+:root[data-theme="dark"] .ny-settings-dialog__button--danger {
+  color: #ef9a9a;
 }
 
 .ny-settings-dialog__button:disabled {

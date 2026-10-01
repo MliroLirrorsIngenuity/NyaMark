@@ -185,10 +185,16 @@ const updateDialogStyles = `
 .ny-update-dialog__button--primary {
   border-color: color-mix(in srgb, var(--ny-accent), transparent 44%);
   background: color-mix(in srgb, var(--ny-accent), var(--ny-surface-elevated) 14%);
+  color: var(--ny-on-accent);
 }
 
 .ny-update-dialog__button:hover {
   border-color: color-mix(in srgb, var(--ny-accent), transparent 36%);
+}
+
+.ny-update-dialog__button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline-offset: 2px;
 }
 
 .ny-update-dialog__button:disabled {

@@ -26,6 +26,8 @@
   --ny-layer-resize-handle: 1100;
   --ny-accent: #4d7a8f;
   --ny-accent-soft: #ecf4f7;
+  /* Text on an accent fill, as a primary button's label. */
+  --ny-on-accent: #17212b;
   --ny-app-bg-start: #fffefb;
   --ny-app-bg-end: #ffffff;
   --ny-surface-elevated: rgba(255, 255, 255, 0.96);
@@ -55,6 +57,7 @@
 :root[data-theme="dark"] {
   --ny-accent: #8db4c8;
   --ny-accent-soft: rgba(96, 135, 158, 0.18);
+  --ny-on-accent: #0f151c;
   --ny-app-bg-start: #10151b;
   --ny-app-bg-end: #131a22;
   --ny-surface-elevated: rgba(24, 31, 41, 0.96);

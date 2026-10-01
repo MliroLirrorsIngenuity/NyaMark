@@ -71,6 +71,15 @@ const imagePolicyDialogStyles = `
   background: color-mix(in srgb, var(--ny-surface-elevated), transparent 22%);
 }
 
+.ny-image-policy-dialog__option:has(input:checked) {
+  border-color: color-mix(in srgb, var(--ny-accent), transparent 45%);
+  background: color-mix(in srgb, var(--ny-accent), transparent 90%);
+}
+
+.ny-image-policy-dialog input {
+  accent-color: var(--ny-accent);
+}
+
 .ny-image-policy-dialog__option input {
   margin-top: 3px;
 }
@@ -139,10 +148,16 @@ const imagePolicyDialogStyles = `
 
 .ny-image-policy-dialog__button--primary {
   background: color-mix(in srgb, var(--ny-accent), var(--ny-surface-elevated) 14%);
+  color: var(--ny-on-accent);
 }
 
 .ny-image-policy-dialog__button:hover {
   border-color: color-mix(in srgb, var(--ny-accent), transparent 36%);
+}
+
+.ny-image-policy-dialog__button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline-offset: 2px;
 }
 `;
 
