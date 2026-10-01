@@ -1,0 +1,107 @@
+import { printCurrentWindow } from '../bridge/ipc/windows';
+import { store } from '../state/store';
+import { documentFileName } from '../ui/document-name';
+import {
+  ExportPdfDialog,
+  type ExportPdfSettings,
+} from '../ui/export-pdf-dialog';
+import printStyles from '../ui/print.css?inline';
+
+const PAGE_MARGINS: Record<ExportPdfSettings['margin'], string> = {
+  none: '0',
+  narrow: '8mm',
+  default: '16mm',
+  wide: '24mm',
+};
+
+/**
+ * Export to PDF through the system print dialog: the export dialog picks the
+ * page, then the document alone is laid out for print until printing ends.
+ */
+export class PdfExporter {
+  private readonly dialog = new ExportPdfDialog();
+
+  async open() {
+    const settings = await this.dialog.open({ fileName: printableTitle() });
+    if (!settings) return;
+    await exportAsPdf(settings);
+  }
+}
+
+function printableTitle() {
+  const stem = (name: string) => name.replace(/\.[^.]+$/, '');
+  return (
+    stem(documentFileName(store.getState().filePath)) ||
+    stem(documentFileName(null))
+  );
+}
+
+function nextFrame() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
+async function exportAsPdf(settings: ExportPdfSettings) {
+  const previousSourceMode = store.getState().sourceMode;
+  if (previousSourceMode) {
+    store.update({ sourceMode: false });
+    await nextFrame();
+  }
+
+  const root = document.documentElement;
+  root.classList.add('ny-exporting-pdf');
+
+  const previousZoom = document.body.style.zoom;
+  const printStyle = document.createElement('style');
+  printStyle.id = 'ny-print-export-style';
+  printStyle.textContent = `${pageRule(settings)}\n${printStyles}`;
+  document.head.appendChild(printStyle);
+
+  document.body.style.zoom =
+    settings.downscalePercent !== 100
+      ? String(settings.downscalePercent / 100)
+      : '';
+
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    for (const type of ['afterprint', 'pointerdown', 'keydown']) {
+      window.removeEventListener(type, restore, true);
+    }
+    printStyle.remove();
+    document.body.style.zoom = previousZoom;
+    root.classList.remove('ny-exporting-pdf');
+    if (previousSourceMode) {
+      store.update({ sourceMode: true });
+    }
+  };
+
+  // WebKit (the native print sheet included) and Chromium fire afterprint
+  // once printing is over. Input reaching the page is the backstop: the
+  // print dialog is modal, so the page only sees input once it is gone.
+  window.addEventListener('afterprint', restore, true);
+  await nextFrame();
+  window.addEventListener('pointerdown', restore, true);
+  window.addEventListener('keydown', restore, true);
+
+  try {
+    await printCurrentWindow();
+  } catch (error) {
+    console.warn(
+      '[export] Native print failed, falling back to browser print',
+      error
+    );
+    window.print();
+  }
+}
+
+function pageRule(settings: ExportPdfSettings) {
+  const pageSize = settings.pageSize.toLowerCase();
+  const orientation = settings.landscape ? 'landscape' : 'portrait';
+  return `@page {
+  size: ${pageSize} ${orientation};
+  margin: ${PAGE_MARGINS[settings.margin]};
+}`;
+}

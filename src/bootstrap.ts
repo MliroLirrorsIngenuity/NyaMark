@@ -4,41 +4,36 @@
  */
 
 import { errorDialog, warningDialog } from './bridge/ipc/files';
-import { updateMacosMenu } from './bridge/ipc/menu';
 import { checkForUpdate } from './bridge/ipc/updates';
-import { isPrimaryWindow, printCurrentWindow } from './bridge/ipc/windows';
+import { isPrimaryWindow } from './bridge/ipc/windows';
 import { NyaEditor } from './editor/editor';
 import { SourceModeController } from './editor/source-mode';
 import { AttachmentController } from './features/attachment-controller';
+import { bindAutoSave } from './features/auto-save';
 import { CloseGuard } from './features/close-guard';
 import { FileController } from './features/file-controller';
+import { bindLanguageSetting, syncMacosMenu } from './features/language-sync';
 import { MenuController } from './features/menu-controller';
+import { PdfExporter } from './features/pdf-export';
 import {
   ShortcutController,
   hasPrimaryModifier,
 } from './features/shortcut-controller';
-import { i18next, initI18n, resolveLanguage } from './i18n';
+import { i18next, initI18n } from './i18n';
 import { translateDOM } from './i18n/dom';
-import { isMacOS } from './platform/detect';
 import {
   getSettings,
   hydrateSettings,
   previewAppearance,
-  subscribeSettings,
   takeUnreadableSettingsBackup,
 } from './state/settings';
 import { store } from './state/store';
-import { documentFileName } from './ui/document-name';
-import {
-  ExportPdfDialog,
-  type ExportPdfSettings,
-} from './ui/export-pdf-dialog';
 import { OutlinePanel } from './ui/outline';
 import { SearchPanel } from './ui/search';
 import { SettingsPanel } from './ui/settings-panel/panel';
 import { registerShellStyles, renderAppShell } from './ui/shell';
 import { Statusbar } from './ui/statusbar';
-import { ThemeManager, type ThemeMode } from './ui/theme';
+import { ThemeManager } from './ui/theme';
 import { Titlebar } from './ui/titlebar';
 import { UpdateDialog } from './ui/update-dialog';
 
@@ -46,17 +41,11 @@ export class App {
   private editor: NyaEditor | null = null;
   private outline: OutlinePanel | null = null;
   private attachments: AttachmentController | null = null;
-  private fileController: FileController | null = null;
   private sourceMode: SourceModeController | null = null;
   private suppressDirtyTracking = false;
-  private theme: ThemeManager | null = null;
   private readonly settingsPanel = new SettingsPanel();
-  private readonly exportPdfDialog = new ExportPdfDialog();
+  private readonly pdfExporter = new PdfExporter();
   private readonly updateDialog = new UpdateDialog();
-  private autoSaveEnabled = false;
-  private autoSaveIntervalMs = 60_000;
-  private autoSaveTimer: number | null = null;
-  private currentLanguage = 'en';
 
   async init() {
     registerShellStyles();
@@ -74,10 +63,10 @@ export class App {
     await hydrateSettings();
     const settings = getSettings();
 
-    this.currentLanguage = settings.general.language;
-    await initI18n(this.currentLanguage);
+    await initI18n(settings.general.language);
+    bindLanguageSetting(settings.general.language);
 
-    this.syncMacosMenu();
+    syncMacosMenu();
     translateDOM(document.body);
 
     const unreadableSettings = takeUnreadableSettingsBackup();
@@ -88,22 +77,9 @@ export class App {
       );
     }
 
-    this.theme = new ThemeManager();
-    this.bindThemeToggle();
-    this.bindAutoSave();
+    const theme = new ThemeManager();
     window.addEventListener('nyamark:themechange', () => {
       previewAppearance(getSettings().appearance);
-    });
-
-    subscribeSettings((newSettings) => {
-      if (newSettings.general.language !== this.currentLanguage) {
-        this.currentLanguage = newSettings.general.language;
-        this.applyLanguage();
-      }
-    });
-    // `auto` follows the system, including a change made while running.
-    window.addEventListener('languagechange', () => {
-      if (this.currentLanguage === 'auto') this.applyLanguage();
     });
 
     const editorContainer = document.getElementById('editor-container');
@@ -116,7 +92,7 @@ export class App {
       syncEditorAfterSave: (saved) => this.syncEditorAfterSave(saved),
       flushPendingEdits: () => this.sourceMode?.flush(),
     });
-    this.fileController = fileController;
+    bindAutoSave(() => fileController.autoSaveFile());
 
     const initialDocument = await fileController.resolveInitialDocument();
     store.update({ filePath: initialDocument.filePath, isDirty: false });
@@ -181,12 +157,12 @@ export class App {
       onOpenFile: () => fileController.openFile(),
       onSaveFile: () => fileController.saveFile(),
       onSaveFileAs: () => fileController.saveFileAs(),
-      onExportPdf: () => this.openExportPdfDialog(),
+      onExportPdf: () => this.pdfExporter.open(),
       onToggleOutline: () => this.toggleOutline(),
       onOpenSettings: () => this.settingsPanel.open(),
     });
 
-    new Statusbar(store);
+    new Statusbar(store, theme);
     const searchPanel = new SearchPanel(() => this.editor);
 
     const menuController = new MenuController({
@@ -194,7 +170,7 @@ export class App {
       'open-file': () => fileController.openFile(),
       'save-file': () => fileController.saveFile(),
       'save-file-as': () => fileController.saveFileAs(),
-      'export-pdf': () => this.openExportPdfDialog(),
+      'export-pdf': () => this.pdfExporter.open(),
       'open-settings': () => this.settingsPanel.open(),
     });
     void menuController.bind();
@@ -204,7 +180,7 @@ export class App {
       openFile: () => fileController.openFile(),
       saveFile: () => fileController.saveFile(),
       saveFileAs: () => fileController.saveFileAs(),
-      print: () => this.openExportPdfDialog(),
+      print: () => this.pdfExporter.open(),
       find: () => searchPanel.show(),
       toggleOutline: () => this.toggleOutline(),
       openSettings: () => this.settingsPanel.open(),
@@ -240,55 +216,6 @@ export class App {
     }
   }
 
-  private bindAutoSave() {
-    subscribeSettings((settings) => {
-      this.autoSaveEnabled = settings.save.autoSave;
-      this.autoSaveIntervalMs = settings.save.autoSaveIntervalMs;
-      this.syncAutoSave();
-    });
-  }
-
-  private syncAutoSave() {
-    this.clearAutoSaveTimer();
-    if (!this.autoSaveEnabled) return;
-
-    this.autoSaveTimer = window.setTimeout(async () => {
-      this.autoSaveTimer = null;
-      try {
-        await this.fileController?.autoSaveFile();
-      } finally {
-        this.syncAutoSave();
-      }
-    }, this.autoSaveIntervalMs);
-  }
-
-  private bindThemeToggle() {
-    const elTheme = document.getElementById('sb-theme');
-    if (!elTheme || !this.theme) return;
-
-    this.theme.onChange((mode) => this.updateThemeLabel(elTheme, mode));
-    elTheme.addEventListener('click', () => this.theme?.toggle());
-
-    i18next.on('languageChanged', () => {
-      if (this.theme) {
-        this.updateThemeLabel(elTheme, this.theme.getMode());
-      }
-    });
-  }
-
-  private updateThemeLabel(elTheme: HTMLElement, mode: ThemeMode) {
-    const label =
-      mode === 'dark'
-        ? i18next.t('statusbar.themeDark')
-        : i18next.t('statusbar.themeLight');
-    elTheme.textContent = label;
-    elTheme.setAttribute(
-      'aria-label',
-      i18next.t('statusbar.themeAriaLabel', { label: label.toLowerCase() })
-    );
-    elTheme.setAttribute('title', i18next.t('statusbar.themeTitle', { mode }));
-  }
-
   private syncEditorAfterSave(savedContent: string) {
     if (!this.editor) return;
     if (savedContent !== this.editor.getMarkdown()) {
@@ -318,235 +245,5 @@ export class App {
   private refreshStatsSoon() {
     this.updateStats();
     queueMicrotask(() => this.updateStats());
-  }
-
-  private clearAutoSaveTimer() {
-    if (this.autoSaveTimer === null) return;
-    window.clearTimeout(this.autoSaveTimer);
-    this.autoSaveTimer = null;
-  }
-
-  private applyLanguage() {
-    const language = resolveLanguage(this.currentLanguage);
-    if (language === i18next.language) return;
-    void i18next.changeLanguage(language).then(() => {
-      translateDOM(document.body);
-      this.syncMacosMenu();
-    });
-  }
-
-  private syncMacosMenu() {
-    if (!isMacOS()) return;
-    void updateMacosMenu(
-      i18next.getResourceBundle(i18next.language, 'translation').menu
-    ).catch((error) => console.warn('Failed to update the macOS menu', error));
-  }
-
-  private getPrintableFileTitle() {
-    const stem = (name: string) => name.replace(/\.[^.]+$/, '');
-    return (
-      stem(documentFileName(store.getState().filePath)) ||
-      stem(documentFileName(null))
-    );
-  }
-
-  private async openExportPdfDialog() {
-    const settings = await this.exportPdfDialog.open({
-      fileName: this.getPrintableFileTitle(),
-    });
-    if (!settings) return;
-
-    await this.exportAsPdf(settings);
-  }
-
-  private async exportAsPdf(settings: ExportPdfSettings) {
-    const previousSourceMode = store.getState().sourceMode;
-    if (previousSourceMode) {
-      store.update({ sourceMode: false });
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => resolve());
-      });
-    }
-
-    const root = document.documentElement;
-    root.classList.add('ny-exporting-pdf');
-
-    const previousZoom = document.body.style.zoom;
-    const printStyle = document.createElement('style');
-    printStyle.id = 'ny-print-export-style';
-    printStyle.textContent = this.buildPrintStyle(settings);
-    document.head.appendChild(printStyle);
-
-    if (settings.downscalePercent !== 100) {
-      document.body.style.zoom = String(settings.downscalePercent / 100);
-    } else {
-      document.body.style.zoom = '';
-    }
-
-    let restored = false;
-    const restore = () => {
-      if (restored) return;
-      restored = true;
-      for (const type of ['afterprint', 'pointerdown', 'keydown']) {
-        window.removeEventListener(type, restore, true);
-      }
-      printStyle.remove();
-      document.body.style.zoom = previousZoom;
-      root.classList.remove('ny-exporting-pdf');
-      if (previousSourceMode) {
-        store.update({ sourceMode: true });
-      }
-    };
-
-    // WebKit (the native print sheet included) and Chromium fire afterprint
-    // once printing is over. Input reaching the page is the backstop: the
-    // print dialog is modal, so the page only sees input once it is gone.
-    window.addEventListener('afterprint', restore, true);
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
-    });
-    window.addEventListener('pointerdown', restore, true);
-    window.addEventListener('keydown', restore, true);
-
-    try {
-      await printCurrentWindow();
-    } catch (error) {
-      console.warn(
-        '[export] Native print failed, falling back to browser print',
-        error
-      );
-      window.print();
-    }
-  }
-
-  private buildPrintStyle(settings: ExportPdfSettings) {
-    const marginValue =
-      settings.margin === 'none'
-        ? '0'
-        : settings.margin === 'narrow'
-          ? '8mm'
-          : settings.margin === 'wide'
-            ? '24mm'
-            : '16mm';
-    const pageSize = settings.pageSize.toLowerCase();
-    const orientation = settings.landscape ? 'landscape' : 'portrait';
-
-    return `
-      @page {
-        size: ${pageSize} ${orientation};
-        margin: ${marginValue};
-      }
-
-      @media print {
-        body > *:not(#app) {
-          display: none !important;
-        }
-
-        :root.ny-exporting-pdf #app > :not(.ny-shell__body),
-        :root.ny-exporting-pdf .ny-shell__body > :not(#editor-container) {
-          display: none !important;
-        }
-
-        html,
-        body,
-        #app,
-        #app.ny-shell {
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-          background: #fff !important;
-          color: #111 !important;
-          border-radius: 0 !important;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-
-        :root.ny-exporting-pdf #titlebar,
-        :root.ny-exporting-pdf #statusbar,
-        :root.ny-exporting-pdf .ny-shell__resize-handle,
-        :root.ny-exporting-pdf .ny-shell__window-controls,
-        :root.ny-exporting-pdf .ny-shell__title-leading,
-        :root.ny-exporting-pdf .ny-shell__title-actions,
-        :root.ny-exporting-pdf .ny-shell__file-menu,
-        :root.ny-exporting-pdf .ny-settings-overlay,
-        :root.ny-exporting-pdf .ny-update-overlay,
-        :root.ny-exporting-pdf .ny-image-policy-overlay,
-        :root.ny-exporting-pdf .ny-search,
-        :root.ny-exporting-pdf .ny-outline,
-        :root.ny-exporting-pdf .ny-export-pdf-overlay,
-        :root.ny-exporting-pdf .ny-shell__body > .ny-shell__overlay,
-        :root.ny-exporting-pdf .ny-shell__body [data-tauri-drag-region] {
-          display: none !important;
-        }
-
-        :root.ny-exporting-pdf .ny-shell__body,
-        :root.ny-exporting-pdf #editor-container,
-        :root.ny-exporting-pdf .ny-shell__body.is-source-mode-host,
-        :root.ny-exporting-pdf .milkdown,
-        :root.ny-exporting-pdf .milkdown .editor,
-        :root.ny-exporting-pdf .milkdown .ProseMirror {
-          overflow: visible !important;
-          max-width: none !important;
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: transparent !important;
-          box-shadow: none !important;
-        }
-
-        :root.ny-exporting-pdf #editor-container {
-          display: block !important;
-          height: auto !important;
-          min-height: 0 !important;
-        }
-
-        :root.ny-exporting-pdf .ny-source-pane,
-        :root.ny-exporting-pdf .nyamark-image-meta,
-        :root.ny-exporting-pdf .nyamark-image-meta-toggle,
-        :root.ny-exporting-pdf .nyamark-image-meta-open .nyamark-image-meta,
-        :root.ny-exporting-pdf .milkdown .milkdown-top-bar,
-        :root.ny-exporting-pdf .milkdown .milkdown-toolbar,
-        :root.ny-exporting-pdf .milkdown .toolbar,
-        :root.ny-exporting-pdf .milkdown .top-bar,
-        :root.ny-exporting-pdf .milkdown .milkdown-code-block .tools {
-          display: none !important;
-        }
-
-        :root.ny-exporting-pdf .milkdown .editor {
-          width: 100% !important;
-          max-width: none !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        :root.ny-exporting-pdf .milkdown .ProseMirror {
-          user-select: text !important;
-          cursor: default !important;
-          pointer-events: none !important;
-          padding-top: 0 !important;
-          padding-bottom: 0 !important;
-        }
-
-        :root.ny-exporting-pdf .milkdown pre,
-        :root.ny-exporting-pdf .milkdown blockquote,
-        :root.ny-exporting-pdf .milkdown table,
-        :root.ny-exporting-pdf .milkdown img,
-        :root.ny-exporting-pdf .milkdown .mermaid,
-        :root.ny-exporting-pdf .milkdown .milkdown-code-block {
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
-
-        :root.ny-exporting-pdf .milkdown h1,
-        :root.ny-exporting-pdf .milkdown h2,
-        :root.ny-exporting-pdf .milkdown h3,
-        :root.ny-exporting-pdf .milkdown h4,
-        :root.ny-exporting-pdf .milkdown h5,
-        :root.ny-exporting-pdf .milkdown h6 {
-          break-after: avoid;
-          page-break-after: avoid;
-        }
-      }
-    `;
   }
 }
