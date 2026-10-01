@@ -21,6 +21,11 @@ export function resolveLanguage(pref: string): string {
 }
 
 export async function initI18n(initialLanguage: string) {
+  // index.html ships with lang="en"; keep it in step with the UI so CJK text
+  // gets the right glyph variants and line breaking.
+  i18next.on('languageChanged', (lng) => {
+    document.documentElement.lang = lng;
+  });
   await i18next.init({
     lng: resolveLanguage(initialLanguage),
     fallbackLng: 'en',
