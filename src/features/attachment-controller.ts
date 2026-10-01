@@ -16,6 +16,7 @@ import {
 import {
   errorDialog,
   openDirectoryDialog,
+  openImageFileDialog,
   openMarkdownInNewWindow,
 } from '../bridge/ipc/files';
 import { listenWindowFileDrop } from '../bridge/ipc/windows';
@@ -32,6 +33,7 @@ import {
   defaultPastedImageName,
   extractClipboardFilePaths,
   getDocumentCopyTarget,
+  IMAGE_EXTENSIONS,
   isExternalResource,
   isImagePath,
   policyToInsertRule,
@@ -89,6 +91,50 @@ export class AttachmentController {
     );
   }
 
+  /**
+   * The image block's upload button opens a plain `<input type="file">`, whose
+   * File carries no path, so the insert policy (keep the path, copy next to
+   * the document...) could not apply. Picking through the native dialog
+   * yields a path; the result goes back through the block's own link field.
+   */
+  bindImagePicker(editorContainer: HTMLElement) {
+    editorContainer.addEventListener(
+      'click',
+      (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const uploader = target?.closest('.image-edit .uploader');
+        const linkInput = uploader
+          ?.closest('.image-edit')
+          ?.querySelector<HTMLInputElement>('.link-input-area');
+        if (!linkInput || linkInput.disabled) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void this.pickImageInto(linkInput);
+      },
+      true
+    );
+  }
+
+  private async pickImageInto(linkInput: HTMLInputElement) {
+    const path = await openImageFileDialog(
+      i18next.t('dialog.imageFilter'),
+      IMAGE_EXTENSIONS
+    );
+    if (!path) return;
+    try {
+      const attachment = await this.createAttachmentFromLocalPath(path);
+      if (!attachment) return;
+      linkInput.value = attachment.href;
+      linkInput.dispatchEvent(new Event('input', { bubbles: true }));
+      linkInput.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      );
+    } catch (error) {
+      console.error('Failed to insert picked image:', error);
+      await this.reportFailure('insert', basename(path), error);
+    }
+  }
+
   async bindWindowFileDrop() {
     await listenWindowFileDrop((event) => {
       if (event.payload.type !== 'drop') return;
@@ -97,8 +143,10 @@ export class AttachmentController {
   }
 
   /**
-   * Upload hook of the image block. Crepe only logs a rejected upload, so
-   * the failure is reported here; an empty URL keeps its placeholder open.
+   * Upload hook of the image block, for files that reach it without going
+   * through `bindImagePicker`. Without a path they are handled like pasted
+   * images. Crepe only logs a rejected upload, so the failure is reported
+   * here; an empty URL keeps its placeholder open.
    */
   async upload(file: File) {
     try {
@@ -167,10 +215,12 @@ export class AttachmentController {
 
   private handleAttachmentPaste(files: File[], filePaths: string[]) {
     const sources: AttachmentSource[] = [];
-    const seenPaths = new Set<string>();
+    // A file copied in the file manager arrives twice: as a path and as File
+    // contents. The webview's File has no path, so the name is the link.
+    const pathNames = new Set<string>();
 
     for (const path of filePaths) {
-      seenPaths.add(path);
+      pathNames.add(basename(path));
       sources.push({
         name: basename(path),
         load: () => this.createAttachmentFromLocalPath(path),
@@ -178,8 +228,7 @@ export class AttachmentController {
     }
 
     for (const file of files) {
-      const nativePath = this.getNativeFilePath(file);
-      if (nativePath && seenPaths.has(nativePath)) {
+      if (file.name && pathNames.has(file.name)) {
         continue;
       }
       sources.push({
@@ -240,21 +289,11 @@ export class AttachmentController {
   private async materializeAttachment(
     file: File
   ): Promise<EditorAttachment | null> {
-    const nativePath = this.getNativeFilePath(file);
-    if (nativePath) {
-      return await this.createAttachmentFromLocalPath(nativePath);
-    }
-
     if (!file.type.startsWith('image/')) {
       return null;
     }
 
     return await this.materializePastedImageAttachment(file);
-  }
-
-  private getNativeFilePath(file: File) {
-    const candidate = (file as File & { path?: string }).path;
-    return typeof candidate === 'string' && candidate.trim() ? candidate : null;
   }
 
   private async createAttachmentFromLocalPath(

@@ -81,6 +81,7 @@
   },
   "dialog": {
     "close": "Close",
+    "imageFilter": "Images",
     "imagePolicy": {
       "title": "Pasted images need a save location",
       "subtitle": "Pick a rule once. Later screenshot paste will follow it silently.",

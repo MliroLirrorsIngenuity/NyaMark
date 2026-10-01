@@ -11,6 +11,17 @@ export async function openFileDialog(): Promise<string | null> {
   return result as string | null;
 }
 
+export async function openImageFileDialog(
+  filterName: string,
+  extensions: readonly string[]
+): Promise<string | null> {
+  const result = await open({
+    filters: [{ name: filterName, extensions: [...extensions] }],
+    multiple: false,
+  });
+  return result as string | null;
+}
+
 export async function saveFileDialog(): Promise<string | null> {
   const result = await save({
     filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],

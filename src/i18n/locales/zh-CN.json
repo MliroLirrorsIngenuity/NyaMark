@@ -80,6 +80,7 @@
   },
   "dialog": {
     "close": "关闭",
+    "imageFilter": "图片",
     "imagePolicy": {
       "title": "粘贴的图片需要保存位置",
       "subtitle": "请选择一个规则，以后的截图粘贴将静默遵循该规则。",

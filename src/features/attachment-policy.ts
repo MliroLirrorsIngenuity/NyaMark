@@ -23,8 +23,26 @@ export function basename(path: string) {
   return path.split(/[\\/]/).pop() || path;
 }
 
+export const IMAGE_EXTENSIONS = [
+  'avif',
+  'bmp',
+  'gif',
+  'heic',
+  'jpeg',
+  'jpg',
+  'png',
+  'svg',
+  'tiff',
+  'webp',
+] as const;
+
+const IMAGE_PATH_PATTERN = new RegExp(
+  `\\.(${IMAGE_EXTENSIONS.join('|')})$`,
+  'i'
+);
+
 export function isImagePath(path: string) {
-  return /\.(avif|bmp|gif|heic|jpeg|jpg|png|svg|tiff|webp)$/i.test(path);
+  return IMAGE_PATH_PATTERN.test(path);
 }
 
 export function defaultPastedImageName(file: File) {
