@@ -302,8 +302,8 @@ export class SourceModeController {
   private active = false;
   private lastScrollSource: HTMLElement | null = null;
   private activeScrollSource: HTMLElement | null = null;
-  private unsubscribeStore: (() => void) | null = null;
-  private unsubscribeTheme: (() => void) | null = null;
+  /** Aborts the scroll-sync listeners of the current source-mode session. */
+  private scrollSyncAbort: AbortController | null = null;
   private anchorsDirty = true;
   private sourceAnchors: SourceAnchor[] = [];
   private previewAnchors: PreviewAnchor[] = [];
@@ -318,29 +318,19 @@ export class SourceModeController {
     registerSourceModeStyles();
 
     let last = this.store.getState().sourceMode;
-    this.unsubscribeStore = this.store.subscribe((state) => {
+    this.store.subscribe((state) => {
       if (state.sourceMode === last) return;
       last = state.sourceMode;
       if (state.sourceMode) this.enter();
       else this.exit();
     });
 
-    const handleThemeChange = () => {
+    window.addEventListener('nyamark:themechange', () => {
       if (!this.cmView) return;
       this.cmView.dispatch({
         effects: this.cmThemeCompartment.reconfigure(this.themeExtension()),
       });
-    };
-    window.addEventListener(
-      'nyamark:themechange',
-      handleThemeChange as EventListener
-    );
-    this.unsubscribeTheme = () => {
-      window.removeEventListener(
-        'nyamark:themechange',
-        handleThemeChange as EventListener
-      );
-    };
+    });
   }
 
   /**
@@ -386,14 +376,6 @@ export class SourceModeController {
       this.applyingEditorText = false;
     }
     this.invalidateAnchors();
-  }
-
-  destroy() {
-    if (this.active) this.exit();
-    this.unsubscribeStore?.();
-    this.unsubscribeStore = null;
-    this.unsubscribeTheme?.();
-    this.unsubscribeTheme = null;
   }
 
   private themeExtension() {
@@ -477,6 +459,11 @@ export class SourceModeController {
     ) as HTMLElement | null;
     if (!cmScroller || !previewPane) return;
 
+    // The preview pane outlives source mode, so every listener is tied to
+    // this session and dropped on exit.
+    this.scrollSyncAbort = new AbortController();
+    const { signal } = this.scrollSyncAbort;
+
     const userScrollEvents: Array<keyof HTMLElementEventMap> = [
       'pointerdown',
       'mousedown',
@@ -490,16 +477,12 @@ export class SourceModeController {
       cmScroller.addEventListener(
         eventName,
         () => this.markScrollSource(cmScroller),
-        {
-          passive: true,
-        }
+        { passive: true, signal }
       );
       previewPane.addEventListener(
         eventName,
         () => this.markScrollSource(previewPane),
-        {
-          passive: true,
-        }
+        { passive: true, signal }
       );
     }
 
@@ -564,11 +547,12 @@ export class SourceModeController {
 
     cmScroller.addEventListener('scroll', () => sync(cmScroller, previewPane), {
       passive: true,
+      signal,
     });
     previewPane.addEventListener(
       'scroll',
       () => sync(previewPane, cmScroller),
-      { passive: true }
+      { passive: true, signal }
     );
   }
 
@@ -577,6 +561,8 @@ export class SourceModeController {
     this.active = false;
 
     this.flush();
+    this.scrollSyncAbort?.abort();
+    this.scrollSyncAbort = null;
     if (this.cmView) {
       this.cmView.destroy();
       this.cmView = null;

@@ -8,10 +8,11 @@ import { Crepe } from '@milkdown/crepe';
 import { editorViewCtx, parserCtx } from '@milkdown/kit/core';
 import { Fragment, Slice } from '@milkdown/kit/prose/model';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
-import { $prose, outline, replaceAll } from '@milkdown/kit/utils';
+import { $prose, outline } from '@milkdown/kit/utils';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
+import { replaceChangedRange } from './doc-diff';
 import { blockSelection } from './plugins/block-selection';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
@@ -145,22 +146,21 @@ export class NyaEditor {
    * cannot resurrect the pre-reload text and mark it dirty; the history
    * plugin maps the existing undo stack through the replacement instead.
    */
+  /**
+   * Replaces only the part of the document that differs, so the source pane's
+   * debounced syncs become small undo steps (which ProseMirror's history then
+   * groups) and the selection outside the edit stays put.
+   */
   setMarkdown(markdown: string, options: { addToHistory?: boolean } = {}) {
     if (!this.crepe) return;
-    if (options.addToHistory ?? true) {
-      this.crepe.editor.action(replaceAll(markdown));
-      return;
-    }
     this.crepe.editor.action((ctx) => {
       const view = ctx.get(editorViewCtx);
       const doc = ctx.get(parserCtx)(markdown);
       if (!doc) return;
-      const { state } = view;
-      view.dispatch(
-        state.tr
-          .replace(0, state.doc.content.size, new Slice(doc.content, 0, 0))
-          .setMeta('addToHistory', false)
-      );
+      const tr = replaceChangedRange(view.state.tr, doc);
+      if (!tr.docChanged) return;
+      if (!(options.addToHistory ?? true)) tr.setMeta('addToHistory', false);
+      view.dispatch(tr);
     });
   }
 
