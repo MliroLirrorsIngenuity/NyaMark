@@ -282,6 +282,12 @@ export class NyaEditor {
     if (view.editable) view.focus();
   }
 
+  /** Puts the caret in the editor without moving it, ready for typing. */
+  focus() {
+    const view = this.getView();
+    if (view?.editable) view.focus();
+  }
+
   focusAtEnd() {
     if (!this.crepe) return;
     const view = this.crepe.editor.ctx.get(editorViewCtx);

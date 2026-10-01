@@ -189,6 +189,8 @@ export class App {
 
     this.refreshStatsSoon();
     this.scheduleUpdateCheck();
+    // A new window is opened to write in; the caret starts at the top.
+    this.editor.focus();
   }
 
   private toggleOutline() {
