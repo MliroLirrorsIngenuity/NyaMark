@@ -1,9 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
-import { EditorState, type Transaction } from '@milkdown/kit/prose/state';
+import {
+  EditorState,
+  TextSelection,
+  type Transaction,
+} from '@milkdown/kit/prose/state';
 import type { DecorationSet } from '@milkdown/kit/prose/view';
 import {
   buildDecorations,
+  keepCaretOutOfMarker,
+  removeMarkerOnBackspace,
   updateDecorations,
 } from '../src/editor/plugins/gfm-alerts';
 
@@ -95,5 +101,64 @@ describe('gfm alert decorations', () => {
       tr.delete(0, tr.doc.child(0).nodeSize);
       tr.insert(tr.doc.content.size, quote(p('[!WARNING]'), p('careful')));
     });
+  });
+});
+
+describe('the caret around a hidden marker', () => {
+  // intro: 0-7, quote at 7, paragraph at 8, marker 9-17, body from 17.
+  const inline = () => doc(p('intro'), quote(p('[!NOTE]\nbody')), p('outro'));
+  // The marker fills paragraph 8-17; the body text starts at 18.
+  const ownLine = () =>
+    doc(p('intro'), quote(p('[!NOTE]'), p('body')), p('outro'));
+
+  function moveCaret(start: Node, from: number, to: number) {
+    const state = EditorState.create({
+      doc: start,
+      selection: TextSelection.create(start, from),
+    });
+    const tr = state.tr.setSelection(TextSelection.create(start, to));
+    const fix = keepCaretOutOfMarker([tr], state, state.apply(tr));
+    return fix ? fix.selection.head : to;
+  }
+
+  test('a caret entering the marker moves on to the body', () => {
+    expect(moveCaret(inline(), 6, 9)).toBe(17);
+    expect(moveCaret(inline(), 6, 12)).toBe(17);
+    expect(moveCaret(ownLine(), 6, 9)).toBe(18);
+  });
+
+  test('a caret leaving the body backwards skips the marker', () => {
+    expect(moveCaret(inline(), 17, 16)).toBe(6);
+    expect(moveCaret(ownLine(), 18, 16)).toBe(6);
+  });
+
+  test('a caret in the body or outside the alert stays put', () => {
+    expect(moveCaret(inline(), 6, 17)).toBe(17);
+    expect(moveCaret(inline(), 17, 19)).toBe(19);
+    expect(moveCaret(inline(), 17, 3)).toBe(3);
+  });
+
+  function backspace(start: Node, at: number) {
+    const state = EditorState.create({
+      doc: start,
+      selection: TextSelection.create(start, at),
+    });
+    return removeMarkerOnBackspace(state)?.doc ?? null;
+  }
+
+  test('Backspace at the start of the body leaves a plain quote', () => {
+    expect(
+      backspace(inline(), 17)?.eq(doc(p('intro'), quote(p('body')), p('outro')))
+    ).toBe(true);
+    expect(
+      backspace(ownLine(), 18)?.eq(
+        doc(p('intro'), quote(p('body')), p('outro'))
+      )
+    ).toBe(true);
+  });
+
+  test('Backspace anywhere else is left to the editor', () => {
+    expect(backspace(inline(), 18)).toBeNull();
+    expect(backspace(inline(), 3)).toBeNull();
   });
 });

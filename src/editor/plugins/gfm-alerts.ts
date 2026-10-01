@@ -20,7 +20,13 @@
  */
 
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
-import { Plugin, PluginKey, type Transaction } from '@milkdown/kit/prose/state';
+import {
+  type EditorState,
+  Plugin,
+  PluginKey,
+  TextSelection,
+  type Transaction,
+} from '@milkdown/kit/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 import i18next from 'i18next';
@@ -205,6 +211,100 @@ export function updateDecorations(
   return set;
 }
 
+/** Where the hidden marker of the alert around `pos` ends and its body starts. */
+export interface AlertMarkerRange {
+  /** Position of the blockquote. */
+  quote: number;
+  /** First and last position of the hidden marker. */
+  from: number;
+  to: number;
+  /** Where the visible body begins: the caret's first stop inside the alert. */
+  body: number;
+}
+
+export function alertMarkerAt(
+  doc: ProseNode,
+  pos: number
+): AlertMarkerRange | null {
+  const $pos = doc.resolve(pos);
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node.type.name !== 'blockquote') continue;
+    const first = node.firstChild;
+    if (!first || first.type.name !== 'paragraph') return null;
+    const hit = findMarker(first);
+    if (!hit) return null;
+    const quote = $pos.before(depth);
+    const from = quote + 2;
+    const to = from + hit.range;
+    // A marker that fills its paragraph leaves the body in the next one.
+    const ownLine = hit.range >= first.content.size;
+    const body = ownLine
+      ? (TextSelection.findFrom(
+          doc.resolve(quote + 1 + first.nodeSize),
+          1,
+          true
+        )?.from ?? to)
+      : to;
+    return { quote, from, to, body };
+  }
+  return null;
+}
+
+/**
+ * The marker is hidden, so a caret inside it is invisible and whatever the
+ * user types lands in the marker and breaks the alert. Arrow keys and clicks
+ * that end up there are moved on to the body, or, when the caret was heading
+ * backwards out of the body, to the block before the alert.
+ */
+export function keepCaretOutOfMarker(
+  transactions: readonly Transaction[],
+  oldState: EditorState,
+  newState: EditorState
+): Transaction | null {
+  const { selection, doc } = newState;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+  if (!transactions.some((tr) => tr.selectionSet || tr.docChanged)) return null;
+  const marker = alertMarkerAt(doc, selection.head);
+  if (!marker) return null;
+  const { head } = selection;
+  if (head < marker.from || head >= marker.body) return null;
+
+  const backwards =
+    !transactions.some((tr) => tr.docChanged) &&
+    oldState.selection.head >= marker.body;
+  const before = backwards
+    ? TextSelection.findFrom(doc.resolve(marker.quote), -1, true)
+    : null;
+  const target = before ?? TextSelection.create(doc, marker.body);
+  return newState.tr.setSelection(target);
+}
+
+/**
+ * Backspace at the start of an alert's body removes the marker and leaves a
+ * plain blockquote, the way Backspace at the start of a heading leaves a
+ * paragraph. Without this it deleted the hidden line break, the marker ran
+ * into the body and showed up as literal `[!NOTE]` text.
+ */
+export function removeMarkerOnBackspace(
+  state: EditorState
+): Transaction | null {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+  const marker = alertMarkerAt(state.doc, selection.head);
+  if (!marker || selection.head !== marker.body) return null;
+  if (marker.body === marker.to) {
+    return state.tr.delete(marker.from, marker.to);
+  }
+  // The marker has a paragraph of its own: drop the whole paragraph.
+  const paragraph = state.doc.nodeAt(marker.quote + 1);
+  if (!paragraph) return null;
+  return state.tr.delete(
+    marker.quote + 1,
+    marker.quote + 1 + paragraph.nodeSize
+  );
+}
+
 export const gfmAlerts = $prose(
   () =>
     new Plugin<DecorationSet>({
@@ -214,9 +314,19 @@ export const gfmAlerts = $prose(
         apply: (tr, prev) =>
           tr.docChanged ? updateDecorations(tr, prev) : prev,
       },
+      appendTransaction: keepCaretOutOfMarker,
       props: {
         decorations(state) {
           return pluginKey.getState(state);
+        },
+        handleKeyDown(view, event) {
+          if (event.key !== 'Backspace' || event.metaKey || event.altKey) {
+            return false;
+          }
+          const tr = removeMarkerOnBackspace(view.state);
+          if (!tr) return false;
+          view.dispatch(tr.scrollIntoView());
+          return true;
         },
       },
     })
@@ -327,6 +437,12 @@ const css = `
   min-height: 0 !important;
   color: transparent !important;
   caret-color: var(--ny-editor-text-primary) !important;
+}
+
+/* The body's own paragraph gap would double the space under the label. */
+.ny-editor-root .milkdown .ProseMirror .ny-alert > .ny-alert-marker-line + * {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
 }
 `;
 
