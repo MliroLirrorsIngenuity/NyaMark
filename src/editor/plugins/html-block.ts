@@ -1,3 +1,4 @@
+import type { EditorView } from '@milkdown/kit/prose/view';
 import { $view } from '@milkdown/kit/utils';
 import { htmlSchema } from '@milkdown/kit/preset/commonmark';
 import DOMPurify, { type Config } from 'dompurify';
@@ -82,6 +83,23 @@ const css = `
   height: auto;
 }
 
+.ny-html-inline .ny-html-preview {
+  padding: 0 0.2em;
+  border-radius: 3px;
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--ny-text-muted);
+  font-family: var(--ny-font-mono);
+  font-size: 0.88em;
+  white-space: pre-wrap;
+}
+
+.ny-html-inline .ny-html-editor {
+  display: inline-block;
+  width: auto;
+  min-height: 0;
+  padding: 0 0.2em;
+}
+
 .ny-html-preview:hover {
   background: rgba(128, 128, 128, 0.05);
 }
@@ -108,57 +126,86 @@ export function registerHtmlBlockStyles() {
   ensureStyle('editor-html-block', css);
 }
 
+/**
+ * Milkdown models every HTML node as an inline atom. An HTML block reaches the
+ * document wrapped alone in a paragraph (`remarkHtmlTransformer`); anything else
+ * is a single tag inside running text, such as the `<kbd>` of `<kbd>K</kbd>`,
+ * which cannot render on its own and is shown as source instead.
+ */
+function isBlockHtml(view: EditorView, getPos: () => number | undefined) {
+  const pos = getPos();
+  if (pos === undefined) return true;
+  const { parent } = view.state.doc.resolve(pos);
+  return parent.type.name === 'paragraph' && parent.childCount === 1;
+}
+
 export const htmlBlockView = $view(htmlSchema.node, () => {
   return (node, view, getPos) => {
-    const dom = document.createElement('div');
-    dom.classList.add('ny-html-block');
+    const block = isBlockHtml(view, getPos);
+    const dom = document.createElement(block ? 'div' : 'span');
+    dom.classList.add(block ? 'ny-html-block' : 'ny-html-inline');
 
-    const preview = document.createElement('div');
+    const preview = document.createElement(block ? 'div' : 'span');
     preview.classList.add('ny-html-preview');
-    preview.innerHTML = sanitizeHtmlBlock(node.attrs.value);
 
-    const textarea = document.createElement('textarea');
-    textarea.classList.add('ny-html-editor');
-    textarea.value = node.attrs.value;
-    textarea.spellcheck = false;
+    const editor = block
+      ? document.createElement('textarea')
+      : document.createElement('input');
+    editor.classList.add('ny-html-editor');
+    editor.spellcheck = false;
+
+    const render = (value: string) => {
+      if (block) preview.innerHTML = sanitizeHtmlBlock(value);
+      else preview.textContent = value;
+    };
+    render(node.attrs.value);
+    editor.value = node.attrs.value;
 
     let focused = false;
 
     dom.appendChild(preview);
-    dom.appendChild(textarea);
+    dom.appendChild(editor);
 
     const updateDisplay = () => {
-      if (focused) {
-        preview.style.display = 'none';
-        textarea.style.display = 'block';
-      } else {
-        preview.style.display = 'block';
-        textarea.style.display = 'none';
-      }
+      preview.style.display = focused ? 'none' : '';
+      editor.style.display = focused ? '' : 'none';
     };
 
     const autoResize = () => {
-      textarea.style.height = 'auto';
-      textarea.style.height = textarea.scrollHeight + 'px';
+      if (editor instanceof HTMLInputElement) {
+        editor.size = Math.max(editor.value.length, 1);
+        return;
+      }
+      editor.style.height = 'auto';
+      editor.style.height = `${editor.scrollHeight}px`;
     };
 
-    textarea.addEventListener('input', autoResize);
+    editor.addEventListener('input', autoResize);
 
-    textarea.addEventListener('blur', () => {
+    if (!block) {
+      (editor as HTMLElement).addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.isComposing) {
+          e.preventDefault();
+          editor.blur();
+        }
+      });
+    }
+
+    editor.addEventListener('blur', () => {
       focused = false;
       updateDisplay();
-      if (textarea.value !== node.attrs.value && typeof getPos === 'function') {
+      if (editor.value !== node.attrs.value) {
         const pos = getPos();
         if (pos !== undefined) {
           const tr = view.state.tr.setNodeMarkup(pos, undefined, {
-            value: textarea.value,
+            value: editor.value,
           });
           view.dispatch(tr);
         }
       }
     });
 
-    textarea.addEventListener('focus', () => {
+    editor.addEventListener('focus', () => {
       focused = true;
       updateDisplay();
       autoResize();
@@ -179,7 +226,7 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
 
       focused = true;
       updateDisplay();
-      textarea.focus();
+      editor.focus();
       autoResize();
     });
 
@@ -190,18 +237,21 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
       dom,
       update: (updatedNode) => {
         if (updatedNode.type.name !== node.type.name) return false;
+        // Text typed next to a block, or a block left alone in its paragraph,
+        // needs the other rendering; returning false recreates the view.
+        if (isBlockHtml(view, getPos) !== block) return false;
         node = updatedNode;
-        preview.innerHTML = sanitizeHtmlBlock(updatedNode.attrs.value);
+        render(updatedNode.attrs.value);
         if (!focused) {
-          textarea.value = updatedNode.attrs.value;
+          editor.value = updatedNode.attrs.value;
           autoResize();
         }
         return true;
       },
-      // Keys and mouse inside the textarea belong to the textarea. Without
-      // this ProseMirror's keymap sees Enter, Backspace and Mod-Z first and
-      // edits the document around the block instead of the HTML in it.
-      stopEvent: (event) => textarea.contains(event.target as Node),
+      // Keys and mouse inside the editor belong to the editor. Without this
+      // ProseMirror's keymap sees Enter, Backspace and Mod-Z first and edits
+      // the document around the node instead of the HTML in it.
+      stopEvent: (event) => editor.contains(event.target as Node),
       selectNode: () => {
         dom.classList.add('ProseMirror-selectednode');
       },
