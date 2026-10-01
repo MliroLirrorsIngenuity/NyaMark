@@ -25,6 +25,7 @@ jobs:
       tag: ${{ steps.get_version.outputs.tag }}
       version: ${{ steps.get_version.outputs.version }}
       is_prerelease: ${{ steps.get_version.outputs.is_prerelease }}
+      ref: ${{ steps.get_version.outputs.ref }}
       changelog: ${{ steps.git-cliff.outputs.content }}
     steps:
       - name: Checkout repository
@@ -35,59 +36,76 @@ jobs:
       - name: Get version info
         id: get_version
         shell: bash
+        env:
+          # Through the environment, never spliced into the script: the
+          # dispatch input is free text.
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          TAG_NAME=${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          set -euo pipefail
+          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "Release tags look like v1.2.3 or v1.2.3-beta.1, got: $TAG_NAME"
+            exit 1
+          fi
           VERSION=${TAG_NAME#v}
           IS_PRERELEASE=false
           if [[ $VERSION == *"-"* ]]; then
             IS_PRERELEASE=true
           fi
-          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          # An existing tag is released as tagged; a dispatch for a new tag
+          # releases the dispatched commit, and the tag is created there.
+          if REF=$(git rev-parse -q --verify "refs/tags/$TAG_NAME^{commit}"); then
+            CLIFF_ARGS="--current"
+          else
+            REF="$GITHUB_SHA"
+            CLIFF_ARGS="--unreleased --tag $TAG_NAME"
+          fi
+          git checkout -q "$REF"
+          {
+            echo "tag=$TAG_NAME"
+            echo "version=$VERSION"
+            echo "is_prerelease=$IS_PRERELEASE"
+            echo "ref=$REF"
+            echo "cliff_args=$CLIFF_ARGS"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Generate Changelog (Latest)
         uses: orhun/git-cliff-action@v4
         id: git-cliff
         with:
           config: .github/cliff.toml
-          args: --latest --strip header
+          args: ${{ steps.get_version.outputs.cliff_args }} --strip header
         env:
           OUTPUT: CHANGES.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check if version already exists in CHANGELOG.md
-        id: check_changelog
+      # The release commit can be behind main (or not on it at all), so the
+      # entry is added on top of main itself rather than pushed from here.
+      - name: Add the release to CHANGELOG.md on main
         shell: bash
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+          NOTES: ${{ steps.git-cliff.outputs.content }}
         run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch -q origin main
+          git checkout -q -B changelog origin/main
           # Anchor the heading and escape the dots, so "## 1.0.0" is not
           # satisfied by an existing "## 1.0.0-beta.4" entry.
           if grep -qE "^## \[?${VERSION//./\\.}\]?( |$)" CHANGELOG.md; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "CHANGELOG.md already has $VERSION"
+            exit 0
           fi
-
-      - name: Update CHANGELOG.md (Prepend)
-        if: github.event_name != 'workflow_dispatch' && steps.check_changelog.outputs.exists == 'false'
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: .github/cliff.toml
-          args: --latest --prepend CHANGELOG.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push CHANGELOG.md
-        if: github.event_name != 'workflow_dispatch' && steps.check_changelog.outputs.exists == 'false'
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-          if ! git diff-index --quiet HEAD; then
-            git commit -m "chore: update CHANGELOG.md [skip ci]"
-            git push origin HEAD:main
-          fi
+          { head -n 1 CHANGELOG.md; printf '%s\n' "$NOTES"; tail -n +2 CHANGELOG.md; } > CHANGELOG.next
+          mv CHANGELOG.next CHANGELOG.md
+          git commit -q -am "chore: update CHANGELOG.md [skip ci]"
+          for attempt in 1 2 3; do
+            if git push -q origin HEAD:main; then exit 0; fi
+            git pull -q --rebase origin main
+          done
+          echo "Could not push CHANGELOG.md to main"
+          exit 1
 
   build:
     name: Build ${{ matrix.name }}
@@ -131,15 +149,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preparation.outputs.ref }}
 
       - name: Update Version in files
         shell: bash
         env:
+          VERSION: ${{ needs.preparation.outputs.version }}
           IS_PRERELEASE: ${{ needs.preparation.outputs.is_prerelease }}
         run: |
-          VERSION="${{ needs.preparation.outputs.version }}"
-          perl -i -pe "s/\"version\": \".*?\"/\"version\": \"$VERSION\"/" package.json
-          perl -i -pe "s/^version = \".*?\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          set -euo pipefail
+          # tauri.conf.json takes its version from package.json.
+          npm pkg set version="$VERSION"
+          # Only the [package] table's version, never a dependency's.
+          perl -0pi -e 's/(\[package\][^\[]*?\nversion = )"[^"]*"/${1}"$ENV{VERSION}"/' src-tauri/Cargo.toml
+          grep -qx "version = \"$VERSION\"" src-tauri/Cargo.toml
           # `releases/latest` only ever resolves to a stable release, so
           # pre-release builds follow the rolling `updater-beta` feed instead
           # (see "Publish updater feed" below). Stable builds keep the default.
@@ -169,6 +193,10 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: ./src-tauri -> target
+
+      - name: Sync Cargo.lock with the new version
+        working-directory: src-tauri
+        run: cargo update --workspace
 
       - name: Build release assets
         env:
@@ -267,7 +295,7 @@ jobs:
           RELEASE_NAME: NyaMark ${{ needs.preparation.outputs.tag }}
           RELEASE_BODY: ${{ needs.preparation.outputs.changelog }}
           IS_PRERELEASE: ${{ needs.preparation.outputs.is_prerelease }}
-          TARGET_COMMITISH: ${{ github.sha }}
+          TARGET_COMMITISH: ${{ needs.preparation.outputs.ref }}
         run: |
           set -euo pipefail
           printf '%s' "$RELEASE_BODY" > release_notes.md
