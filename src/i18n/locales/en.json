@@ -47,6 +47,7 @@
     "line": "Line {{line}}",
     "modeMarkdown": "Markdown",
     "modeSource": "Source",
+    "modeToggle": "Toggle source mode",
     "themeDark": "Dark",
     "themeLight": "Light",
     "themeAriaLabel": "Switch theme mode, current {{label}}",

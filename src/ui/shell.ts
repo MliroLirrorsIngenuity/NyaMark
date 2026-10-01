@@ -174,8 +174,8 @@ export function renderAppShell(host: HTMLElement) {
         <span id="sb-lines" class="ny-shell__status"></span>
       </div>
       <div class="ny-shell__status-group">
-        <span id="sb-theme" class="ny-shell__action">${initialThemeLabel}</span>
-        <span id="sb-mode" class="ny-shell__action"></span>
+        <button id="sb-theme" type="button" class="ny-shell__action">${initialThemeLabel}</button>
+        <button id="sb-mode" type="button" class="ny-shell__action" title="Toggle source mode" aria-label="Toggle source mode" data-i18n-title="statusbar.modeToggle" data-i18n-aria-label="statusbar.modeToggle"></button>
       </div>
     </div>
   `;

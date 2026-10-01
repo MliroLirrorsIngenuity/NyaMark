@@ -46,6 +46,7 @@
     "line": "第 {{line}} 行",
     "modeMarkdown": "Markdown",
     "modeSource": "原始碼",
+    "modeToggle": "切換原始碼模式",
     "themeDark": "深色",
     "themeLight": "淺色",
     "themeAriaLabel": "切換主題模式，目前為{{label}}",

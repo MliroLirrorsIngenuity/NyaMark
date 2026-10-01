@@ -35,5 +35,6 @@ export class Statusbar {
     this.elMode.textContent = i18next.t(
       state.sourceMode ? 'statusbar.modeSource' : 'statusbar.modeMarkdown'
     );
+    this.elMode.setAttribute('aria-pressed', String(state.sourceMode));
   }
 }
