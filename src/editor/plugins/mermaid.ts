@@ -1,6 +1,8 @@
 import DOMPurify from 'dompurify';
-import mermaid from 'mermaid';
+import type { MermaidConfig } from 'mermaid';
 import type { EditorView } from 'prosemirror-view';
+
+type Mermaid = typeof import('mermaid').default;
 
 const FONT_FAMILY =
   'SF Pro Text, PingFang SC, Hiragino Sans GB, Noto Sans CJK SC, Microsoft YaHei, -apple-system, BlinkMacSystemFont, sans-serif';
@@ -8,8 +10,8 @@ const FONT_FAMILY =
 /** Typing pause before a mermaid block is re-rendered. */
 const RENDER_DELAY_MS = 300;
 
-export function configureMermaid(isDark: boolean) {
-  mermaid.initialize({
+function mermaidConfig(isDark: boolean): MermaidConfig {
+  return {
     startOnLoad: false,
     securityLevel: 'strict',
     theme: 'base',
@@ -26,7 +28,35 @@ export function configureMermaid(isDark: boolean) {
       tertiaryColor: isDark ? '#141a22' : '#fafaf9',
       fontFamily: FONT_FAMILY,
     },
-  });
+  };
+}
+
+let isDarkTheme = false;
+let loadedMermaid: Mermaid | null = null;
+let mermaidPromise: Promise<Mermaid> | null = null;
+
+/**
+ * Mermaid is the largest dependency by far, and most documents have no
+ * diagram, so it is fetched on the first render instead of with the editor.
+ */
+function loadMermaid(): Promise<Mermaid> {
+  mermaidPromise ??= import('mermaid').then(
+    ({ default: mermaid }) => {
+      mermaid.initialize(mermaidConfig(isDarkTheme));
+      loadedMermaid = mermaid;
+      return mermaid;
+    },
+    (error) => {
+      mermaidPromise = null;
+      throw error;
+    }
+  );
+  return mermaidPromise;
+}
+
+export function configureMermaid(isDark: boolean) {
+  isDarkTheme = isDark;
+  loadedMermaid?.initialize(mermaidConfig(isDark));
 }
 
 function genId() {
@@ -52,6 +82,7 @@ function escapeHtml(text: string) {
 async function renderToMarkup(content: string): Promise<string> {
   const id = genId();
   try {
+    const mermaid = await loadMermaid();
     const { svg } = await mermaid.render(id, content);
     return `<div class="nyamark-mermaid-preview">${svg}</div>`;
   } catch (error) {
