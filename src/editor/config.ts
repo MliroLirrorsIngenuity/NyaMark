@@ -1,7 +1,10 @@
 import { autocompletion } from '@codemirror/autocomplete';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { languages as codeLanguages } from '@codemirror/language-data';
 import { Prec } from '@codemirror/state';
+import { oneDarkTheme } from '@codemirror/theme-one-dark';
 import { EditorView as CodeMirror, keymap, tooltips } from '@codemirror/view';
+import { tags as t } from '@lezer/highlight';
 import { type Crepe, CrepeFeature } from '@milkdown/crepe';
 import { redo, undo } from '@milkdown/kit/prose/history';
 import type { Command } from '@milkdown/kit/prose/state';
@@ -39,6 +42,75 @@ function codeBlockExtensions(getView: () => EditorView | null) {
     codeBlockHistory(getView),
   ];
 }
+
+/**
+ * Code colours that follow the app theme. Crepe's default theme is One Dark in
+ * both themes, and on the light page its pale ink was close to unreadable: a
+ * variable name in #abb2bf and a number in #e5c07b on a near-white block. The
+ * tags are One Dark's; the colours come from `shared.css`, One Dark in the
+ * dark theme and One Light in the light one. One Dark's editor theme stays for
+ * the rest of the block, which the stylesheet already restyles.
+ */
+const codeHighlight = HighlightStyle.define([
+  { tag: t.keyword, color: 'var(--ny-code-keyword)' },
+  {
+    tag: [t.name, t.deleted, t.character, t.propertyName, t.macroName],
+    color: 'var(--ny-code-name)',
+  },
+  {
+    tag: [t.function(t.variableName), t.labelName],
+    color: 'var(--ny-code-function)',
+  },
+  {
+    tag: [t.color, t.constant(t.name), t.standard(t.name)],
+    color: 'var(--ny-code-constant)',
+  },
+  { tag: [t.definition(t.name), t.separator], color: 'var(--ny-code-plain)' },
+  {
+    tag: [
+      t.typeName,
+      t.className,
+      t.number,
+      t.changed,
+      t.annotation,
+      t.modifier,
+      t.self,
+      t.namespace,
+    ],
+    color: 'var(--ny-code-type)',
+  },
+  {
+    tag: [
+      t.operator,
+      t.operatorKeyword,
+      t.url,
+      t.escape,
+      t.regexp,
+      t.link,
+      t.special(t.string),
+    ],
+    color: 'var(--ny-code-operator)',
+  },
+  { tag: [t.meta, t.comment], color: 'var(--ny-code-comment)' },
+  { tag: t.strong, fontWeight: 'bold' },
+  { tag: t.emphasis, fontStyle: 'italic' },
+  { tag: t.strikethrough, textDecoration: 'line-through' },
+  {
+    tag: t.link,
+    color: 'var(--ny-code-comment)',
+    textDecoration: 'underline',
+  },
+  { tag: t.heading, fontWeight: 'bold', color: 'var(--ny-code-name)' },
+  {
+    tag: [t.atom, t.bool, t.special(t.variableName)],
+    color: 'var(--ny-code-constant)',
+  },
+  {
+    tag: [t.processingInstruction, t.string, t.inserted],
+    color: 'var(--ny-code-string)',
+  },
+  { tag: t.invalid, color: 'var(--ny-code-invalid)' },
+]);
 
 /**
  * Undo and redo in a code block run ProseMirror's history, the one the rest
@@ -227,6 +299,7 @@ export function buildCrepeConfig(
       },
       [CrepeFeature.CodeMirror]: {
         ...labels[CrepeFeature.CodeMirror],
+        theme: [oneDarkTheme, syntaxHighlighting(codeHighlight)],
         languages: codeLanguages,
         renderPreview: renderMermaidPreview,
         extensions: codeBlockExtensions(opts.getView),

@@ -64,6 +64,17 @@
   /* No gutter background: line numbers sit on the block, not in a side pane. */
   --ny-editor-gutter-text: #aab4c2;
   --ny-editor-code-text: #2259a8;
+  /* Code colours, One Light; config.ts says which token takes which. */
+  --ny-code-keyword: #a626a4;
+  --ny-code-name: #c9433a;
+  --ny-code-function: #3a6fe0;
+  --ny-code-constant: #986801;
+  --ny-code-plain: #383a42;
+  --ny-code-type: #a26c00;
+  --ny-code-operator: #0184bc;
+  --ny-code-comment: #8b9099;
+  --ny-code-string: #3f8f3e;
+  --ny-code-invalid: #e45649;
   --ny-editor-active-line: rgba(72, 112, 255, 0.05);
   --ny-editor-preview-bg: linear-gradient(180deg, #fafdff 0%, #f5f9ff 100%);
   --ny-editor-preview-border: #e8eef8;
@@ -122,6 +133,16 @@
   --ny-editor-panel-border: rgba(96, 112, 132, 0.24);
   --ny-editor-gutter-text: #5f6d80;
   --ny-editor-code-text: #a8c8f7;
+  --ny-code-keyword: #c678dd;
+  --ny-code-name: #e06c75;
+  --ny-code-function: #61afef;
+  --ny-code-constant: #d19a66;
+  --ny-code-plain: #abb2bf;
+  --ny-code-type: #e5c07b;
+  --ny-code-operator: #56b6c2;
+  --ny-code-comment: #7d8799;
+  --ny-code-string: #98c379;
+  --ny-code-invalid: #ffffff;
   --ny-editor-active-line: rgba(98, 137, 255, 0.12);
   --ny-editor-preview-bg: linear-gradient(180deg, #151c24 0%, #11171f 100%);
   --ny-editor-preview-border: rgba(89, 105, 126, 0.28);
