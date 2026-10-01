@@ -11,13 +11,23 @@
 //! - The byte order mark and the line ending style seen on read are restored
 //!   on write, so a Windows file does not turn into a whole-file diff.
 
-use std::{borrow::Cow, fs, io, io::Write, path::Path};
+use std::{
+    borrow::Cow,
+    fs, io,
+    io::{Read, Write},
+    path::Path,
+};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_fs::FsExt;
 
 const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+
+/// Largest document the editor opens. ProseMirror slows to a crawl long
+/// before this, and the cap keeps a stray multi-gigabyte file (a log renamed
+/// to `.md`) from being pulled into memory and over IPC in one piece.
+pub const MAX_DOCUMENT_BYTES: u64 = 20 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -53,7 +63,11 @@ pub struct MarkdownDocument {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 pub enum DocumentError {
     /// The bytes are not valid UTF-8. `encoding` names the encoding when a
     /// byte order mark identified one; otherwise it is unknown.
@@ -62,6 +76,10 @@ pub enum DocumentError {
     },
     /// The path lies outside the filesystem scope granted to the webview.
     Forbidden,
+    /// The file is larger than `MAX_DOCUMENT_BYTES`.
+    TooLarge {
+        limit_bytes: u64,
+    },
     Io {
         message: String,
     },
@@ -80,7 +98,20 @@ pub fn read<R: Runtime>(
     path: &Path,
 ) -> Result<MarkdownDocument, DocumentError> {
     ensure_allowed(app, path)?;
-    decode(fs::read(path)?)
+    decode(read_limited(path, MAX_DOCUMENT_BYTES)?)
+}
+
+/// Read at most `limit` bytes. The size is checked on the bytes actually read
+/// so a file that grows after a metadata check cannot slip past it.
+fn read_limited(path: &Path, limit: u64) -> Result<Vec<u8>, DocumentError> {
+    let mut bytes = Vec::new();
+    fs::File::open(path)?
+        .take(limit + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(DocumentError::TooLarge { limit_bytes: limit });
+    }
+    Ok(bytes)
 }
 
 pub fn write<R: Runtime>(
@@ -312,6 +343,19 @@ mod tests {
             .map(|entry| entry.unwrap().file_name())
             .collect();
         assert_eq!(entries, vec![std::ffi::OsString::from("note.md")]);
+    }
+
+    #[test]
+    fn read_limited_rejects_files_over_the_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("big.md");
+        fs::write(&path, b"0123456789").unwrap();
+
+        assert_eq!(read_limited(&path, 10).unwrap(), b"0123456789");
+        assert!(matches!(
+            read_limited(&path, 9).unwrap_err(),
+            DocumentError::TooLarge { limit_bytes: 9 }
+        ));
     }
 
     #[test]

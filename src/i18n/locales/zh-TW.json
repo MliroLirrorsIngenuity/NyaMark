@@ -106,6 +106,7 @@
       "notUtf8": "「{{fileName}}」不是 UTF-8 編碼，NyaMark 沒有更動它。請先轉換為 UTF-8 再開啟。",
       "notUtf8Known": "「{{fileName}}」是 {{encoding}} 編碼。NyaMark 只編輯 UTF-8 檔案，沒有更動它。請先轉換為 UTF-8 再開啟。",
       "forbidden": "NyaMark 無權存取「{{fileName}}」。",
+      "tooLarge": "「{{fileName}}」超過 {{limit}} MB，超出了 NyaMark 能編輯的大小。",
       "openFailed": "無法開啟「{{fileName}}」：{{reason}}",
       "saveFailed": "無法儲存「{{fileName}}」：{{reason}}"
     },

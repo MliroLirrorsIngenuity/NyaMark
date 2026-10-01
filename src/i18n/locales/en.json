@@ -107,6 +107,7 @@
       "notUtf8": "\"{{fileName}}\" is not UTF-8 encoded, so NyaMark left it untouched. Convert it to UTF-8 and open it again.",
       "notUtf8Known": "\"{{fileName}}\" is encoded as {{encoding}}. NyaMark only edits UTF-8 files, so it was left untouched. Convert it to UTF-8 and open it again.",
       "forbidden": "NyaMark is not allowed to access \"{{fileName}}\".",
+      "tooLarge": "\"{{fileName}}\" is larger than {{limit}} MB, which is more than NyaMark can edit.",
       "openFailed": "\"{{fileName}}\" could not be opened: {{reason}}",
       "saveFailed": "\"{{fileName}}\" could not be saved: {{reason}}"
     },

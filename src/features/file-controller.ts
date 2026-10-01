@@ -249,6 +249,10 @@ export class FileController {
       if (error.kind === 'forbidden') {
         return i18next.t('dialog.documentError.forbidden', { fileName });
       }
+      if (error.kind === 'too-large') {
+        const limit = Math.round((error.limitBytes ?? 0) / (1024 * 1024));
+        return i18next.t('dialog.documentError.tooLarge', { fileName, limit });
+      }
     }
     return i18next.t(
       action === 'open'

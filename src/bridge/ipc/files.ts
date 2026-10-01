@@ -85,7 +85,7 @@ export interface MarkdownDocument {
   format: DocumentFormat;
 }
 
-export type DocumentErrorKind = 'not-utf8' | 'forbidden' | 'io';
+export type DocumentErrorKind = 'not-utf8' | 'forbidden' | 'too-large' | 'io';
 
 /** Structured failure from the document commands (see `document.rs`). */
 export class DocumentError extends Error {
@@ -94,7 +94,9 @@ export class DocumentError extends Error {
     readonly path: string,
     /** Encoding a byte order mark identified, e.g. `UTF-16 LE`. */
     readonly encoding: string | null,
-    message: string
+    message: string,
+    /** Size cap a `too-large` read ran into. */
+    readonly limitBytes: number | null = null
   ) {
     super(message);
     this.name = 'DocumentError';
@@ -108,12 +110,14 @@ function toDocumentError(error: unknown, path: string): DocumentError {
       kind: DocumentErrorKind;
       encoding?: string | null;
       message?: string;
+      limitBytes?: number;
     };
     return new DocumentError(
       payload.kind,
       path,
       payload.encoding ?? null,
-      payload.message ?? payload.kind
+      payload.message ?? payload.kind,
+      payload.limitBytes ?? null
     );
   }
   return new DocumentError('io', path, null, String(error));
