@@ -26,9 +26,13 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
 import type { NyaEditor } from './editor';
+import {
+  buildScrollGuidePoints,
+  mapViewportScrollTop,
+  normalizeHeadingText,
+} from './scroll-sync';
 
 const SYNC_DELAY_MS = 180;
-const SYNC_REFERENCE_RATIO = 0.28;
 
 type SourceAnchor = {
   from: number;
@@ -38,11 +42,6 @@ type SourceAnchor = {
 type PreviewAnchor = {
   dom: HTMLElement;
   key: string;
-};
-
-type ScrollGuidePoint = {
-  fromTop: number;
-  toTop: number;
 };
 
 const css = `
@@ -145,24 +144,8 @@ function registerSourceModeStyles() {
   ensureStyle('editor-source-mode', css);
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
 function isHeadingNodeName(name: string) {
   return /^ATXHeading[1-6]$/.test(name) || /^SetextHeading[12]$/.test(name);
-}
-
-function normalizeHeadingText(text: string) {
-  const [firstLine] = text.trim().split(/\r?\n/);
-
-  return firstLine
-    .replace(/^#{1,6}\s*/, '')
-    .replace(/\s+#+\s*$/, '')
-    .replace(/`/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
 }
 
 function buildSourceAnchors(state: EditorState): SourceAnchor[] {
@@ -198,95 +181,6 @@ function paneContentTop(scrollPane: HTMLElement, element: HTMLElement) {
   const paneRect = scrollPane.getBoundingClientRect();
   const rect = element.getBoundingClientRect();
   return scrollPane.scrollTop + (rect.top - paneRect.top);
-}
-
-function buildScrollGuidePoints(
-  fromAnchors: Array<{ key: string; top: number }>,
-  toAnchors: Array<{ key: string; top: number }>,
-  fromMax: number,
-  toMax: number
-) {
-  if (fromMax <= 0 || toMax <= 0) return [{ fromTop: 0, toTop: 0 }];
-
-  const points: ScrollGuidePoint[] = [{ fromTop: 0, toTop: 0 }];
-  let lastToIndex = -1;
-
-  for (const fromAnchor of fromAnchors) {
-    const fromTop = clamp(fromAnchor.top, 0, fromMax);
-    if (fromTop <= points[points.length - 1].fromTop) continue;
-
-    const toIndex = toAnchors.findIndex(
-      (toAnchor, index) =>
-        index > lastToIndex && toAnchor.key === fromAnchor.key
-    );
-    if (toIndex < 0) continue;
-
-    lastToIndex = toIndex;
-
-    points.push({
-      fromTop,
-      toTop: clamp(toAnchors[toIndex].top, 0, toMax),
-    });
-  }
-
-  if (points.length === 1) {
-    const count = Math.min(fromAnchors.length, toAnchors.length);
-    for (let index = 0; index < count; index += 1) {
-      const fromTop = clamp(fromAnchors[index].top, 0, fromMax);
-      if (fromTop <= points[points.length - 1].fromTop) continue;
-
-      points.push({
-        fromTop,
-        toTop: clamp(toAnchors[index].top, 0, toMax),
-      });
-    }
-  }
-
-  const lastPoint = points[points.length - 1];
-  if (lastPoint.fromTop < fromMax || lastPoint.toTop < toMax) {
-    points.push({ fromTop: fromMax, toTop: toMax });
-  }
-
-  return points;
-}
-
-function mapScrollTop(scrollTop: number, points: ScrollGuidePoint[]) {
-  if (points.length === 0) return 0;
-  if (points.length === 1) return points[0].toTop;
-
-  const lastPoint = points[points.length - 1];
-  const x = clamp(scrollTop, 0, lastPoint.fromTop);
-
-  let current = points[0];
-  for (let index = 1; index < points.length; index += 1) {
-    const next = points[index];
-    if (x <= next.fromTop) {
-      const span = next.fromTop - current.fromTop;
-      const ratio = span <= 0 ? 0 : (x - current.fromTop) / span;
-      return current.toTop + ratio * (next.toTop - current.toTop);
-    }
-
-    current = next;
-  }
-
-  return lastPoint.toTop;
-}
-
-function mapViewportScrollTop(
-  source: HTMLElement,
-  target: HTMLElement,
-  points: ScrollGuidePoint[]
-) {
-  const sourceReferenceTop =
-    source.scrollTop + source.clientHeight * SYNC_REFERENCE_RATIO;
-  const targetReferenceTop = mapScrollTop(sourceReferenceTop, points);
-  const targetMax = Math.max(0, target.scrollHeight - target.clientHeight);
-
-  return clamp(
-    targetReferenceTop - target.clientHeight * SYNC_REFERENCE_RATIO,
-    0,
-    targetMax
-  );
 }
 
 export class SourceModeController {
