@@ -1279,7 +1279,7 @@
 }
 
 .milkdown-toolbar {
-  z-index: 500 !important;
+  z-index: var(--ny-layer-editor-toolbar) !important;
 }
 
 /*

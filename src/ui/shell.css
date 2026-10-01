@@ -10,6 +10,20 @@
   --ny-editor-line-height: 1.52;
   --ny-editor-readable-max: 1120px;
   --ny-window-controls-space: 0px;
+  /*
+   * Stacking order of the layers that share the page, lowest first. The
+   * z-indexes inside one component (code block tools, the image meta panel)
+   * stay local to that component's stacking context.
+   */
+  --ny-layer-floating-panel: 50;
+  --ny-layer-image-policy-dialog: 120;
+  --ny-layer-settings-dialog: 130;
+  --ny-layer-update-dialog: 135;
+  --ny-layer-export-dialog: 140;
+  --ny-layer-editor-toolbar: 500;
+  --ny-layer-titlebar: 1000;
+  /* Above the titlebar, or its top edge and corners could not be dragged. */
+  --ny-layer-resize-handle: 1100;
   --ny-accent: #4d7a8f;
   --ny-accent-soft: #ecf4f7;
   --ny-app-bg-start: #fffefb;
@@ -192,7 +206,7 @@ body {
 
 .ny-shell__resize-handle {
   position: fixed;
-  z-index: 220;
+  z-index: var(--ny-layer-resize-handle);
   pointer-events: auto;
   touch-action: none;
   user-select: none;
@@ -279,7 +293,7 @@ body {
   font-size: 14px;
   backdrop-filter: blur(18px) saturate(1.35) !important;
   -webkit-backdrop-filter: blur(18px) saturate(1.35) !important;
-  z-index: 1000;
+  z-index: var(--ny-layer-titlebar);
 }
 
 .ny-shell__title-leading {

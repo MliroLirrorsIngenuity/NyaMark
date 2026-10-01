@@ -9,7 +9,7 @@ const searchStyles = `
   position: fixed;
   top: 48px;
   right: 32px;
-  z-index: 50;
+  z-index: var(--ny-layer-floating-panel);
   display: flex;
   align-items: center;
   gap: 8px;

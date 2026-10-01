@@ -14,7 +14,7 @@ const exportPdfDialogStyles = `
 .ny-export-pdf-overlay {
   position: fixed;
   inset: 0;
-  z-index: 140;
+  z-index: var(--ny-layer-export-dialog);
   display: flex;
   align-items: center;
   justify-content: center;

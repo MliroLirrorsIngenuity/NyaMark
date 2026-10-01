@@ -10,7 +10,7 @@ const updateDialogStyles = `
 .ny-update-overlay {
   position: fixed;
   inset: 0;
-  z-index: 135;
+  z-index: var(--ny-layer-update-dialog);
   display: flex;
   flex-direction: column;
   align-items: center;

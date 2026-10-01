@@ -19,7 +19,7 @@ const styles = `
 .ny-settings-overlay {
   position: fixed;
   inset: 0;
-  z-index: 130;
+  z-index: var(--ny-layer-settings-dialog);
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -21,7 +21,7 @@ const outlineStyles = `
   backdrop-filter: blur(22px) saturate(1.2);
   -webkit-backdrop-filter: blur(22px) saturate(1.2);
   transition: opacity 0.15s ease, transform 0.18s ease;
-  z-index: 50;
+  z-index: var(--ny-layer-floating-panel);
   user-select: none;
   -webkit-user-select: none;
 }
