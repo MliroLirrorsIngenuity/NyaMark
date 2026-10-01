@@ -22,9 +22,10 @@ import {
   syntaxHighlighting,
   syntaxTree,
 } from '@codemirror/language';
-import { Compartment, EditorState } from '@codemirror/state';
+import { Compartment, EditorSelection, EditorState } from '@codemirror/state';
 import { oneDarkTheme } from '@codemirror/theme-one-dark';
 import { tags } from '@lezer/highlight';
+import { TextSelection } from '@milkdown/kit/prose/state';
 import { EditorView, basicSetup } from 'codemirror';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
@@ -32,6 +33,7 @@ import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
 import type { NyaEditor } from './editor';
 import { normalizeHeadingText, syncedScrollTop } from './scroll-sync';
+import { docPosition, sourceOffset } from './source-caret';
 
 const SYNC_DELAY_MS = 180;
 
@@ -341,6 +343,19 @@ export class SourceModeController {
     }
     this.lastSyncedText = initialDoc;
 
+    // The caret and selection carry over from the editor (see `source-caret`).
+    const spans = this.editor.blockSpans(initialDoc);
+    const { doc, selection } = this.previewView.state;
+    const toSource = (pos: number, side: -1 | 1) =>
+      sourceOffset(doc, pos, initialDoc, spans, side);
+    // A selection takes in the text it covers and none of the markup around.
+    const from = toSource(selection.from, selection.empty ? -1 : 1);
+    const to = Math.max(from, toSource(selection.to, -1));
+    const range =
+      selection.head < selection.anchor
+        ? EditorSelection.single(to, from)
+        : EditorSelection.single(from, to);
+
     // NOTE: we deliberately do NOT call `editor.setReadonly(true)` here.
     // Crepe's TopBar component bails out with `return null` when the view
     // is read-only, but the render function never accesses any reactive
@@ -356,8 +371,10 @@ export class SourceModeController {
 
     this.cmView = new EditorView({
       parent: this.host,
+      scrollTo: EditorView.scrollIntoView(range.main.head, { y: 'center' }),
       state: EditorState.create({
         doc: initialDoc,
+        selection: range,
         extensions: [
           basicSetup,
           // Same call as the code blocks make (see editor/config.ts): basicSetup
@@ -486,6 +503,12 @@ export class SourceModeController {
     if (!this.active) return;
     this.active = false;
 
+    const cm = this.cmView;
+    const caret = cm && {
+      text: cm.state.doc.toString(),
+      anchor: cm.state.selection.main.anchor,
+      head: cm.state.selection.main.head,
+    };
     this.flush();
     this.scrollSyncAbort?.abort();
     this.scrollSyncAbort = null;
@@ -500,9 +523,32 @@ export class SourceModeController {
     this.editorRoot.parentElement?.classList.remove('is-source-mode-host');
     this.anchorsDirty = true;
     this.activeScrollSource = null;
-    // Don't focusAtEnd — that would yank the caret away from where the user
-    // was editing in source view and force the WYSIWYG to scroll all the way
-    // to the bottom (which also leaves the sticky toolbar in a weird state).
+    if (caret) this.placeCaret(caret);
+  }
+
+  /**
+   * Puts the editor's caret and selection where the source pane's were, in
+   * the middle of the page, and hands focus back as entering gave it away.
+   */
+  private placeCaret(caret: { text: string; anchor: number; head: number }) {
+    const view = this.editor.getView();
+    if (!view) return;
+    const spans = this.editor.blockSpans(caret.text);
+    const { doc } = view.state;
+    const toDoc = (offset: number) =>
+      doc.resolve(docPosition(doc, offset, caret.text, spans));
+    const selection = TextSelection.between(
+      toDoc(caret.anchor),
+      toDoc(caret.head)
+    );
+    view.dispatch(view.state.tr.setSelection(selection));
+    view.focus();
+
+    const scroller = this.editorRoot.parentElement;
+    if (!scroller) return;
+    const { top, bottom } = view.coordsAtPos(selection.head);
+    const box = scroller.getBoundingClientRect();
+    scroller.scrollTop += (top + bottom) / 2 - (box.top + box.height / 2);
   }
 
   private scheduleSync() {

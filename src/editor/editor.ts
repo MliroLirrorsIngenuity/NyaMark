@@ -8,6 +8,7 @@ import { Crepe } from '@milkdown/crepe';
 import {
   editorViewCtx,
   parserCtx,
+  remarkCtx,
   remarkStringifyOptionsCtx,
 } from '@milkdown/kit/core';
 import { remarkGFMPlugin } from '@milkdown/kit/preset/gfm';
@@ -38,6 +39,7 @@ import {
 } from './plugins/search';
 import { tabFocus } from './plugins/tab-focus';
 import { tableCells } from './plugins/table-cells';
+import { type BlockSpan, blockSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
 import { countLines, countWords } from './text-stats';
 
@@ -182,6 +184,16 @@ export class NyaEditor {
 
   isEmpty() {
     return this.getMarkdown().trim() === '';
+  }
+
+  /** Where each top-level block of `markdown` sits in it (see `source-caret`). */
+  blockSpans(markdown: string): BlockSpan[] {
+    if (!this.crepe) return [];
+    return this.crepe.editor.action((ctx) => {
+      const remark = ctx.get(remarkCtx);
+      const tree = remark.runSync(remark.parse(markdown), markdown);
+      return blockSpans(tree as Parameters<typeof blockSpans>[0]);
+    });
   }
 
   /**
