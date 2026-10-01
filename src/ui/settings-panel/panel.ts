@@ -264,17 +264,15 @@ const styles = `
   right: 0;
   z-index: 150;
   padding: 6px;
-  background: #ffffff;
+  /* The surface tokens turn translucent with window transparency; a menu
+     over other controls needs the opaque page colour. */
+  background: var(--ny-app-bg-end);
   border: 1px solid var(--ny-border-strong);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  box-shadow: var(--ny-shadow-float);
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-:root[data-theme="dark"] .ny-settings__select-menu {
-  background: #1a202c;
 }
 
 .ny-settings__select-menu[hidden] {
@@ -294,7 +292,8 @@ const styles = `
   cursor: pointer;
 }
 
-.ny-settings__select-option:hover {
+.ny-settings__select-option:hover,
+.ny-settings__select-option:focus-visible {
   background: color-mix(in srgb, var(--ny-border-strong), transparent 60%);
 }
 
