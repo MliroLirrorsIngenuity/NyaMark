@@ -24,6 +24,7 @@ import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
 import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
 import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
+import { imageRatio } from './plugins/image-ratio';
 import { markdownOutput } from './plugins/markdown-output';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import {
@@ -103,6 +104,7 @@ export class NyaEditor {
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
+    crepe.editor.use(imageRatio);
     crepe.editor.use(tableCells);
     crepe.editor.use(searchPlugin);
     crepe.editor.use(this.docChangedPlugin());
