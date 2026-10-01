@@ -1364,6 +1364,17 @@
 }
 
 /*
+ * Until the first hover places it, the block handle has no offsets and sat in
+ * flow after the document, its 32px hanging below the end: the page scrolled
+ * that much further, and scrolled to the bottom, the first hover took it back
+ * and the text dropped under the pointer. `bottom` keeps it inside; `auto` to
+ * a length does not transition, so the first show does not slide in.
+ */
+.ny-editor-root .milkdown .milkdown-block-handle:not([style]) {
+  bottom: 0;
+}
+
+/*
  * Drag-selection guard -- see `plugins/drag-guard.ts`.
  *
  * While `data-ny-drag-select` is up on <html>, every hover-triggered overlay
