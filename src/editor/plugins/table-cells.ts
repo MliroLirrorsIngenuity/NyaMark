@@ -152,6 +152,15 @@ function moveVertically(view: EditorView, dir: 1 | -1): boolean {
 
   const x = view.coordsAtPos($head.pos).left;
   const $next = nextCell($cell, 'vert', dir);
+  // A cell's text sits inside its padding, right of the text around the
+  // table: measured from the cell's edge, the start of a cell leads to the
+  // start of the line next to the table.
+  const cellBox = (
+    view.nodeDOM($cell.pos) as HTMLElement | null
+  )?.getBoundingClientRect();
+  const outX = cellBox
+    ? cellBox.left + x - view.coordsAtPos($cell.pos + 2).left
+    : x;
   let target: Selection | null;
   if ($next) {
     target = caretInCell(view, $next.pos, x, dir) ?? Selection.near($next, 1);
@@ -166,7 +175,7 @@ function moveVertically(view: EditorView, dir: 1 | -1): boolean {
         caretInTextblock(
           view,
           dir > 0 ? $out.pos : $out.pos - block.nodeSize,
-          x,
+          outX,
           dir > 0 ? 'first' : 'last'
         )) ??
       Selection.near($out, dir);
