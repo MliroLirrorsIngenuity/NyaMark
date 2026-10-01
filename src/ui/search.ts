@@ -92,6 +92,7 @@ export class SearchPanel {
   private readonly elCount: HTMLElement;
   private releaseEscape: (() => void) | null = null;
   private stopWatchingDoc: (() => void) | null = null;
+  private stopFollowingBar: (() => void) | null = null;
 
   constructor(private readonly getEditor: () => NyaEditor | null) {
     ensureStyle('search-panel', searchStyles);
@@ -181,6 +182,7 @@ export class SearchPanel {
   show() {
     if (this.elPanel.hidden) {
       this.releaseEscape = pushEscapeLayer({ dismiss: () => this.hide() });
+      this.placeUnderFormatBar();
       this.elPanel.hidden = false;
       // Edits (or another file) change the matches under an open panel.
       this.stopWatchingDoc =
@@ -192,6 +194,36 @@ export class SearchPanel {
     this.elInput.select();
   }
 
+  /**
+   * Hangs the panel under the formatting bar, flush with its right end. At a
+   * fixed offset from the window it sat on the bar's right half, and on the
+   * outline once that was docked. The bar narrows as the outline opens and
+   * the window resizes, and the panel follows. Source mode has no bar.
+   */
+  private placeUnderFormatBar() {
+    const bar = document.querySelector('.milkdown-top-bar');
+    const place = () => {
+      const box =
+        bar && bar.getClientRects().length > 0
+          ? bar.getBoundingClientRect()
+          : null;
+      this.elPanel.style.top = box ? `${Math.round(box.bottom + 8)}px` : '';
+      this.elPanel.style.right = box
+        ? `${Math.round(document.documentElement.clientWidth - box.right)}px`
+        : '';
+    };
+    place();
+    if (!bar) return;
+    // A wide window centres a bar at its widest without resizing it.
+    const observer = new ResizeObserver(place);
+    observer.observe(bar);
+    window.addEventListener('resize', place);
+    this.stopFollowingBar = () => {
+      observer.disconnect();
+      window.removeEventListener('resize', place);
+    };
+  }
+
   /** Closes the panel; the editor keeps the last match selected. */
   hide() {
     if (this.elPanel.hidden) return;
@@ -200,6 +232,8 @@ export class SearchPanel {
     this.releaseEscape = null;
     this.stopWatchingDoc?.();
     this.stopWatchingDoc = null;
+    this.stopFollowingBar?.();
+    this.stopFollowingBar = null;
     this.elCount.textContent = '';
     this.getEditor()?.endSearch();
   }
