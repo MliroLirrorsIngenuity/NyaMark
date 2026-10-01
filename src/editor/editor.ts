@@ -19,6 +19,7 @@ import { buildCrepeConfig } from './config';
 import { replaceChangedRange } from './doc-diff';
 import { blockSelection } from './plugins/block-selection';
 import { installDragSelectGuard } from './plugins/drag-guard';
+import { keepFloatingOffEdge } from './plugins/floating-gutter';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
 import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
 import { keepImageAlt } from './plugins/image-alt';
@@ -117,6 +118,7 @@ export class NyaEditor {
     this.crepe = crepe;
     await crepe.create();
     this.imageMetaPanel.attach();
+    keepFloatingOffEdge(this.root);
   }
 
   /**

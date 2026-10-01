@@ -632,6 +632,10 @@
     color-mix(in srgb, var(--crepe-color-outline), transparent 84%) !important;
   border-radius: 10px !important;
   background: var(--ny-editor-floating-bg) !important;
+  /* It sits over the selected line itself: unblurred, a heading's glyphs
+   * showed through between the buttons. */
+  backdrop-filter: blur(14px) saturate(1.6) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.6) !important;
   box-shadow: var(--ny-editor-floating-shadow) !important;
 }
 
