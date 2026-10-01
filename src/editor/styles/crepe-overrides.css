@@ -26,6 +26,14 @@
   font-size: inherit !important;
 }
 
+/*
+ * Inline math sits in its line as text does. Crepe pads it 4px each side, and
+ * the punctuation after a formula, `$r$，`, stood apart from it.
+ */
+.ny-editor-root .milkdown .ProseMirror span[data-type="math_inline"] {
+  padding: 0 1px !important;
+}
+
 .ny-editor-root .milkdown .ProseMirror a {
   color: var(--nyamark-accent) !important;
   text-decoration-color: color-mix(
