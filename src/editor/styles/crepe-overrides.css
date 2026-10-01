@@ -1032,10 +1032,16 @@
  * Ensure the line-number gutter is always laid out by basicSetup. Some upstream
  * resets/global :has() rules can collapse it; pin a min-width so the column
  * stays visible even when CodeMirror temporarily has nothing rendered yet.
- * 32px is the natural width of one number (1.5em at 12px plus the 14px of
- * .cm-gutterElement padding below), not a fold-arrow allowance.
+ *
+ * The width goes on the numbers' own column as well. Under border-box their
+ * 1.5em minimum already counts the padding, so the column came to 21px inside
+ * a 32px gutter, and the active line's band stopped 11px short of the code: a
+ * pale strip between the number and its line.
  */
-.ny-editor-root .milkdown .milkdown-code-block .cm-gutters {
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  :is(.cm-gutters, .cm-lineNumbers) {
   min-width: 32px;
 }
 

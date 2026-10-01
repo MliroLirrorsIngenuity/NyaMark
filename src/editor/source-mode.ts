@@ -131,12 +131,33 @@ const css = `
 .ny-source-pane .cm-gutters {
   border-right: 1px solid var(--ny-editor-panel-border, rgba(186, 196, 210, 0.6)) !important;
   min-width: 45px;
-  color: var(--ny-text-secondary);
-  opacity: 0.8;
+  color: color-mix(in srgb, var(--ny-text-secondary) 80%, transparent);
 }
 
 .ny-source-pane .cm-gutter {
   background-color: transparent !important;
+}
+
+/*
+ * The active line's band runs from the edge of the pane to the divider and on
+ * from it: the gutter's last column fills the gutter, and the lines carry the
+ * content's side padding, which a line's band does not cover.
+ */
+.ny-source-pane .cm-gutter:last-child {
+  flex-grow: 1;
+}
+
+/* One band across both: CodeMirror's own pair are two different blues. */
+.ny-source-pane :is(.cm-activeLine, .cm-activeLineGutter) {
+  background-color: var(--ny-editor-active-line) !important;
+}
+
+.ny-source-pane .cm-content {
+  padding-inline: 0;
+}
+
+.ny-source-pane .cm-content .cm-line {
+  padding: 0 14px 0 18px;
 }
 
 .ny-source-pane .cm-content {
