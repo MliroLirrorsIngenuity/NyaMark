@@ -10,6 +10,7 @@ import { redo, undo } from '@milkdown/kit/prose/history';
 import { AllSelection, type Command } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
+import { codeClearOfBar } from './plugins/caret-scroll';
 import { closeFenceOnEnter } from './plugins/code-fence-exit';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
@@ -47,6 +48,7 @@ function codeBlockExtensions(getView: () => EditorView | null) {
     closeFenceOnEnter(getView),
     codeSearchMatches,
     rememberCodeCopy(getView),
+    codeClearOfBar,
   ];
 }
 

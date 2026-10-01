@@ -33,6 +33,7 @@ import { blockEdges, freeHeadingEdges } from './plugins/block-edges';
 import { handleBlocksOnly } from './plugins/block-handle-blocks';
 import { restHiddenBlockHandle } from './plugins/block-handle-rest';
 import { blockSelection } from './plugins/block-selection';
+import { caretScroll } from './plugins/caret-scroll';
 import { codePreview } from './plugins/code-preview';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { fenceInput } from './plugins/fence-input';
@@ -158,6 +159,7 @@ export class NyaEditor {
     crepe.editor.config(keepCellAlignment);
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.config(handleBlocksOnly);
+    crepe.editor.use(caretScroll);
     crepe.editor.use(markdownOutput);
     crepe.editor.use(dollarTextParse);
     crepe.editor.use(gfmAlerts);
