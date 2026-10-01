@@ -200,7 +200,7 @@
       "insertPolicy": "Insert policy for local images",
       "preferRelativePath": "Prefer relative paths",
       "ensureDotSlash": "Prefix relative paths with ./",
-      "escapePath": "Escape spaces in paths",
+      "escapePath": "Encode spaces in paths as %20",
       "customDirectory": "Custom folder",
       "noCustomDirectory": "No custom folder selected",
       "chooseDirectory": "Choose…",

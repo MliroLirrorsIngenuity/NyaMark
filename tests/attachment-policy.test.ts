@@ -130,7 +130,18 @@ describe('relocateLocalReference', () => {
         ...options,
         escapePath: true,
       })
-    ).toBe('a/my\\ img.png');
+    ).toBe('a/my%20img.png');
+  });
+
+  test('turns the old backslash escape into percent-encoding', () => {
+    expect(
+      relocateLocalReference(
+        './my\\ img.png',
+        '/docs/a/one.md',
+        '/docs/two.md',
+        options
+      )
+    ).toBe('a/my%20img.png');
   });
 });
 
@@ -141,7 +152,7 @@ describe('relocateLocalReference with percent-encoding', () => {
     escapePath: true,
   };
 
-  test('keeps the percent-encoded style instead of backslash escapes', () => {
+  test('keeps the percent-encoded style', () => {
     expect(
       relocateLocalReference(
         './My%20Image.png',

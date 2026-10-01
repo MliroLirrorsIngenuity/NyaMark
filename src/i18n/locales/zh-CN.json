@@ -199,7 +199,7 @@
       "insertPolicy": "本地图片插入策略",
       "preferRelativePath": "优先使用相对路径",
       "ensureDotSlash": "相对路径以 ./ 开头",
-      "escapePath": "转义路径中的空格",
+      "escapePath": "将路径中的空格编码为 %20",
       "customDirectory": "自定义文件夹",
       "noCustomDirectory": "未选择自定义文件夹",
       "chooseDirectory": "选择…",

@@ -68,10 +68,10 @@ export function normalizePath(path: string) {
   return joinRoot(root, joined);
 }
 
-export function escapeMarkdownPath(path: string) {
-  return path.replace(/ /g, '\\ ');
-}
-
+/**
+ * Older versions wrote spaces as `\ `, which CommonMark reads as a literal
+ * backslash. Reading the form back keeps those documents resolving.
+ */
 export function unescapeMarkdownPath(path: string) {
   return path.replace(/\\ /g, ' ');
 }
@@ -90,7 +90,11 @@ export function decodeMarkdownPath(reference: string) {
   }
 }
 
-/** The inverse of `decodeMarkdownPath` for the characters it is used for. */
+/**
+ * The inverse of `decodeMarkdownPath` for the characters it is used for. This
+ * is what `escapePath` writes: CommonMark has no escape for a space inside a
+ * link destination, while `%20` reads back in every renderer and browser.
+ */
 export function percentEncodeMarkdownPath(path: string) {
   return path.replace(/%/g, '%25').replace(/ /g, '%20');
 }
@@ -216,7 +220,7 @@ export function formatAttachmentReference(
     reference = `./${reference}`;
   }
 
-  return options.escapePath ? escapeMarkdownPath(reference) : reference;
+  return options.escapePath ? percentEncodeMarkdownPath(reference) : reference;
 }
 
 function joinPaths(base: string, child: string) {

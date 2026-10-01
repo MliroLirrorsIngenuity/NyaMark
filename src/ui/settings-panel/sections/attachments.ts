@@ -76,7 +76,7 @@ export function renderAttachmentsSection(
       </label>
       <label class="ny-settings__field ny-settings__field--checkbox">
         <input type="checkbox" data-key="escapePath" />
-        <span data-i18n="settings.attachments.escapePath">Escape spaces in paths</span>
+        <span data-i18n="settings.attachments.escapePath">Encode spaces in paths as %20</span>
       </label>
     </div>
   `;

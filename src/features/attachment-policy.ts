@@ -9,7 +9,6 @@ import {
   formatAttachmentReference,
   isAbsolutePath,
   normalizePath,
-  percentEncodeMarkdownPath,
   resolveAttachmentPath,
   unescapeMarkdownPath,
 } from './attachment-paths';
@@ -182,18 +181,17 @@ export function relocateLocalReference(
 
   const decoded = decodeMarkdownPath(unescapeMarkdownPath(value));
   const wasRelative = !isAbsolutePath(normalizePath(decoded));
-  // A reference written with `%20` keeps that style rather than switching
-  // to the backslash escape the settings may prefer.
-  const percentEncoded = decoded !== value;
+  // A reference written with `%20` (or the old `\ `) stays encoded even when
+  // the settings leave spaces alone.
+  const encoded = decoded !== value;
   const absolutePath = resolveAttachmentPath(fromDocument, value);
   if (!absolutePath) return null;
 
-  let next = formatAttachmentReference(toDocument, absolutePath, {
+  const next = formatAttachmentReference(toDocument, absolutePath, {
     ...options,
     preferRelativePath: options.preferRelativePath || wasRelative,
-    escapePath: options.escapePath && !percentEncoded,
+    escapePath: options.escapePath || encoded,
   });
-  if (percentEncoded) next = percentEncodeMarkdownPath(next);
   return next === value ? null : next;
 }
 

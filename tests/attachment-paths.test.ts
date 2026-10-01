@@ -35,7 +35,7 @@ describe('formatAttachmentReference', () => {
       '/docs/note.md',
       '/docs/My Image.png',
       { ...options, escapePath: true },
-      'My\\ Image.png',
+      'My%20Image.png',
     ],
     [
       'keeps absolute paths when relative roots differ',
