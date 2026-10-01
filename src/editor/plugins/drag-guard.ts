@@ -42,7 +42,8 @@ const OVERLAY_SELECTOR = [
   '.milkdown-table-block .button-group',
   '.milkdown-table-block .cell-handle',
   '.milkdown-table-block .line-handle',
-  '.ny-image-meta',
+  '.nyamark-image-meta',
+  '.nyamark-image-meta-toggle',
 ].join(',');
 
 /**
