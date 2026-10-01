@@ -110,6 +110,40 @@ describe('normalizeOutput', () => {
     );
   });
 
+  test('leaves an emptied cell blank', () => {
+    // A cell holds a paragraph; an emptied one comes as Milkdown's `<br />`.
+    const cell = (...children: object[]) => ({ type: 'tableCell', children });
+    const text = (value: string) => ({ type: 'text', value });
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'table',
+          children: [
+            { type: 'tableRow', children: [cell(text('a')), cell(text('b'))] },
+            {
+              type: 'tableRow',
+              children: [
+                cell(text('1')),
+                cell({
+                  type: 'paragraph',
+                  children: [{ type: 'html', value: '<br />' }],
+                }),
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const processor = unified()
+      .use(remarkGfm)
+      .use(remarkStringify)
+      .use(normalizeOutput);
+    expect(processor.stringify(tree as never)).toBe(
+      '| a | b |\n| - | - |\n| 1 |   |\n'
+    );
+  });
+
   test('lines up a CJK table by display width', () => {
     const processor = unified()
       .use(remarkParse)

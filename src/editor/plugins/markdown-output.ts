@@ -27,6 +27,10 @@
  * a paragraph are an indent the user made (Tab inserts four) and keep their
  * entities; a heading has no indent to keep.
  *
+ * Empty cells: a cell's text sits in a paragraph, and an emptied one was
+ * written as the `<br />` Milkdown keeps for an empty line -- a stray tag in
+ * the table for anyone reading the file. An empty GFM cell is left blank.
+ *
  * Tables: the pipes of a saved table are lined up by padding each cell, and
  * remark measured a cell by its character count. A Chinese character takes two
  * columns in a monospace editor, so a CJK table came out ragged, with odd
@@ -88,16 +92,26 @@ function trimLeadingSpace(block: MdNode) {
   );
 }
 
+const isLineBreak = (node: MdNode) =>
+  node.type === 'html' && LINE_BREAK.test(node.value?.trim() ?? '');
+
 /** Empty, or holding only the `<br />` Milkdown writes for an empty line. */
 function isEmptyParagraph(node: MdNode) {
   return (
     node.type === 'paragraph' &&
     (node.children ?? []).every(
-      (child) =>
-        (child.type === 'text' && !child.value) ||
-        (child.type === 'html' && LINE_BREAK.test(child.value?.trim() ?? ''))
+      (child) => (child.type === 'text' && !child.value) || isLineBreak(child)
     )
   );
+}
+
+function clearEmptyCell(cell: MdNode) {
+  const children = cell.children ?? [];
+  if (
+    children.every((child) => isEmptyParagraph(child) || isLineBreak(child))
+  ) {
+    cell.children = [];
+  }
 }
 
 /** Columns `value` takes in a monospace font. */
@@ -111,6 +125,7 @@ export function normalizeForOutput<T extends MdNode>(tree: T): T {
   const visit = (node: MdNode) => {
     if (node.type === 'list') normalizeList(node);
     if (node.type === 'blockquote') unescapeAlertMarker(node);
+    if (node.type === 'tableCell') clearEmptyCell(node);
     if (node.type === 'paragraph' || node.type === 'heading') {
       trimLeadingSpace(node);
     }
