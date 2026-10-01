@@ -188,7 +188,7 @@ pub fn run() {
             let paths: Vec<String> = args
                 .iter()
                 .skip(1)
-                .filter_map(|arg| sessions::normalize_file_path(arg))
+                .filter_map(sessions::normalize_file_path)
                 .collect();
 
             if paths.is_empty() {
@@ -212,13 +212,13 @@ pub fn run() {
         }))
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::Focused(true) => {
-                sessions::remember_last_focused_window(&window.app_handle(), window.label());
+                sessions::remember_last_focused_window(window.app_handle(), window.label());
             }
             tauri::WindowEvent::Destroyed => {
                 let app = window.app_handle();
-                sessions::forget_window_file(&app, window.label());
-                sessions::forget_window_dirty(&app, window.label());
-                sessions::clear_last_focused_window(&app, window.label());
+                sessions::forget_window_file(app, window.label());
+                sessions::forget_window_dirty(app, window.label());
+                sessions::clear_last_focused_window(app, window.label());
             }
             _ => {}
         })
