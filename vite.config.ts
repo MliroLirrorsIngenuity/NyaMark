@@ -2,7 +2,9 @@ import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 
 // @ts-expect-error process is a nodejs global
-const host = process.env.TAURI_DEV_HOST;
+const env = process.env;
+const host = env.TAURI_DEV_HOST;
+const debug = !!env.TAURI_ENV_DEBUG;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -27,5 +29,13 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ['**/src-tauri/**'],
     },
+  },
+  // 4. expose Tauri's build-time variables (TAURI_ENV_PLATFORM, ...) next to VITE_*
+  envPrefix: ['VITE_', 'TAURI_ENV_'],
+  build: {
+    // WebView2 is Chromium; macOS and Linux run WebKit
+    target: env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
+    minify: debug ? false : 'esbuild',
+    sourcemap: debug,
   },
 }));
