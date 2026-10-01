@@ -93,6 +93,13 @@ const css = `
   white-space: pre-wrap;
 }
 
+.ny-html-source .ny-html-preview {
+  color: var(--ny-text-muted);
+  font-family: var(--ny-font-mono);
+  font-size: 0.88em;
+  white-space: pre-wrap;
+}
+
 .ny-html-inline .ny-html-editor {
   display: inline-block;
   width: auto;
@@ -156,8 +163,18 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
     editor.spellcheck = false;
 
     const render = (value: string) => {
-      if (block) preview.innerHTML = sanitizeHtmlBlock(value);
-      else preview.textContent = value;
+      if (!block) {
+        preview.textContent = value;
+        return;
+      }
+      preview.innerHTML = sanitizeHtmlBlock(value);
+      // A comment, or a closing tag on its own such as the `</details>` after
+      // the folded content, shows nothing: the block stood as a blank gap that
+      // no click could find. It shows its source instead, as a tag in running
+      // text does.
+      const blank = !preview.querySelector('*') && !preview.textContent?.trim();
+      dom.classList.toggle('ny-html-source', blank);
+      if (blank) preview.textContent = value;
     };
     render(node.attrs.value);
     editor.value = node.attrs.value;
