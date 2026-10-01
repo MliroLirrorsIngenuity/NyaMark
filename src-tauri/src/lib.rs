@@ -49,9 +49,7 @@ fn resolve_current_window_file(window: Window, app: AppHandle) -> Result<Option<
     sessions::remember_window_file(&app, &label, first.clone());
 
     for path in rest {
-        if let Err(error) = windows::open_editor_window(&app, path.clone()) {
-            eprintln!("Failed to open startup window for {:?}: {error}", path);
-        }
+        windows::spawn_editor_window(&app, path.clone());
     }
 
     sessions::mark_main_bootstrap_complete(&app);
@@ -59,14 +57,16 @@ fn resolve_current_window_file(window: Window, app: AppHandle) -> Result<Option<
     Ok(Some(first.clone()))
 }
 
+// Async so the window builds off the IPC thread (see `windows::build_window`)
+// and a failure reaches the caller.
 #[tauri::command]
-fn open_markdown_in_new_window(app: AppHandle, path: String) -> Result<(), String> {
-    windows::open_editor_window(&app, path).map_err(|error| error.to_string())
+async fn open_markdown_in_new_window(app: AppHandle, path: String) -> Result<(), String> {
+    windows::open_editor_window(&app, path).map_err(|error| format!("{error:#}"))
 }
 
 #[tauri::command]
-fn open_new_window(app: AppHandle) -> Result<(), String> {
-    windows::open_blank_editor_window(&app).map_err(|error| error.to_string())
+async fn open_new_window(app: AppHandle) -> Result<(), String> {
+    windows::open_blank_editor_window(&app).map_err(|error| format!("{error:#}"))
 }
 
 /// Bind a document the webview opened or saved on its own (dialog, save-as) to
@@ -201,9 +201,7 @@ pub fn run() {
 
             if sessions::is_main_bootstrap_complete(app) {
                 for path in paths {
-                    if let Err(error) = windows::open_editor_window(app, path.clone()) {
-                        eprintln!("Failed to open runtime window for {:?}: {error}", path);
-                    }
+                    windows::spawn_editor_window(app, path);
                 }
             } else {
                 sessions::extend_pending_launch_files(app, paths);
@@ -275,9 +273,7 @@ fn handle_opened_urls(app: &AppHandle, urls: &[tauri::Url]) {
 
     if sessions::is_main_bootstrap_complete(app) {
         for path in paths {
-            if let Err(error) = windows::open_editor_window(app, path.clone()) {
-                eprintln!("Failed to open runtime window for {:?}: {error}", path);
-            }
+            windows::spawn_editor_window(app, path);
         }
         return;
     }

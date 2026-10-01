@@ -188,6 +188,7 @@ export class FileController {
       await openNewWindow();
     } catch (error) {
       console.error('Failed to create new file window:', error);
+      await errorDialog(String(error));
     }
   }
 

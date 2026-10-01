@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use tauri::utils::config::WindowConfig;
 use tauri::{AppHandle, Runtime, WebviewWindowBuilder, Window};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::sessions;
 
@@ -59,6 +60,9 @@ pub fn create_main_window<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
 }
 
 /// Open a new editor window bound to an existing markdown file on disk.
+///
+/// Builds on the calling thread, so it may only run from an async command (see
+/// `build_window`). Synchronous callers use `spawn_editor_window`.
 pub fn open_editor_window<R: Runtime>(app: &AppHandle<R>, path: String) -> Result<()> {
     let normalized_path = sessions::normalize_file_path(&path)
         .with_context(|| format!("Invalid markdown file path: {path}"))?;
@@ -70,30 +74,31 @@ pub fn open_editor_window<R: Runtime>(app: &AppHandle<R>, path: String) -> Resul
     // `resolve_current_window_file` lookup cannot race ahead of it.
     sessions::remember_window_file(app, &label, normalized_path);
 
-    let app = app.clone();
-    std::thread::spawn(move || {
-        if let Err(error) = build_window(&app, &config) {
-            sessions::forget_window_file(&app, &label);
-            eprintln!("Failed to open editor window: {error}");
-        }
-    });
-
-    Ok(())
+    build_window(app, &config).inspect_err(|_| sessions::forget_window_file(app, &label))
 }
 
-/// Open a blank editor window not yet bound to any file on disk.
+/// Open a blank editor window not yet bound to any file on disk. Same thread
+/// rule as `open_editor_window`.
 pub fn open_blank_editor_window<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     let mut config = base_window_config(app)?;
     config.label = sessions::next_window_label(app);
+    build_window(app, &config)
+}
 
+/// `open_editor_window` for event handlers and synchronous commands: builds on
+/// a fresh thread and, with no caller left to return the error to, reports a
+/// failure in a native dialog.
+pub fn spawn_editor_window<R: Runtime>(app: &AppHandle<R>, path: String) {
     let app = app.clone();
     std::thread::spawn(move || {
-        if let Err(error) = build_window(&app, &config) {
-            eprintln!("Failed to open blank editor window: {error}");
+        if let Err(error) = open_editor_window(&app, path.clone()) {
+            eprintln!("Failed to open editor window for {path:?}: {error:#}");
+            app.dialog()
+                .message(format!("Could not open {path}\n\n{error:#}"))
+                .kind(MessageDialogKind::Error)
+                .show(|_| {});
         }
     });
-
-    Ok(())
 }
 
 #[cfg(target_os = "windows")]
