@@ -36,6 +36,7 @@ import { imageRatio } from './plugins/image-ratio';
 import { linkInput } from './plugins/link-input';
 import { listItemView } from './plugins/list-item-view';
 import { displayWidth, markdownOutput } from './plugins/markdown-output';
+import { mathInlineKeys } from './plugins/math-inline-keys';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import { pasteOnEmptyLine } from './plugins/paste-line';
 import {
@@ -128,6 +129,7 @@ export class NyaEditor {
     crepe.editor.use(fenceInput);
     crepe.editor.use(listItemView);
     crepe.editor.use(pasteOnEmptyLine);
+    crepe.editor.use(mathInlineKeys);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
     crepe.editor.use(codePreview);
