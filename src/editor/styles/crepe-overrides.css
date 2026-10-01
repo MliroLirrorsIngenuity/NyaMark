@@ -313,8 +313,11 @@
   height: 0 !important;
 }
 
+/* Drawn like the text caret: its colour in either theme, and as heavy. */
 .ny-editor-root .milkdown .editor .ProseMirror-gapcursor::after {
   top: 0.3em !important;
+  border-top: 2px solid var(--ny-editor-text-primary) !important;
+  border-radius: 1px;
 }
 
 .ny-editor-root .milkdown .editor .ProseMirror-gapcursor:first-child::after {

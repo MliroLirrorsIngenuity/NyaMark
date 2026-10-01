@@ -30,6 +30,7 @@
 
 import type { Ctx } from '@milkdown/kit/ctx';
 import { addRowWithAlignment } from '@milkdown/kit/preset/gfm';
+import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import {
   NodeSelection,
   Plugin,
@@ -178,7 +179,11 @@ function moveVertically(view: EditorView, dir: 1 | -1): boolean {
           outX,
           dir > 0 ? 'first' : 'last'
         )) ??
-      Selection.near($out, dir);
+      // Nothing past a table that opens the document: the gap above it,
+      // where typing starts a line.
+      (!block && $out.depth === 0
+        ? new GapCursor($out)
+        : Selection.near($out, dir));
   }
   view.dispatch(state.tr.setSelection(target).scrollIntoView());
   return !CELL_TYPES.has(selection.$from.parent.type.name);

@@ -21,6 +21,11 @@
  * Positions in code are measured from the start of its line and set against
  * the left edge of the block, where the text around it starts, so the start
  * of a line of code leads to the start of a paragraph and back.
+ *
+ * A document that opens with code, a table, an image or a rule had no place
+ * above it for the caret: up from its top went nowhere, and there was no way
+ * to start a line in front of it. There the caret becomes a gap cursor above
+ * the block; typing or Enter there starts a paragraph.
  */
 
 import { EditorView as CodeMirror } from '@codemirror/view';
@@ -76,6 +81,52 @@ function caretX(view: EditorView): number | null {
   const caret = code.cm.coordsAtPos(head);
   const start = code.cm.coordsAtPos(state.doc.lineAt(head).from);
   return caret && start ? code.left + caret.left - start.left : null;
+}
+
+/** The gap above the document's first block, when it holds no line of text. */
+function gapAtTop(state: EditorState): GapCursor | null {
+  const first = state.doc.firstChild;
+  if (!first) return null;
+  const { spec } = first.type;
+  return spec.code || spec.isolating || (first.isBlock && first.isAtom)
+    ? new GapCursor(state.doc.resolve(0))
+    : null;
+}
+
+/**
+ * A key that types, pressed at a gap cursor: the line it goes on is made
+ * before the browser takes the key. An IME composes into the line that holds
+ * the caret when it starts, and at a gap there was none -- the text was lost.
+ */
+function lineAtGap(view: EditorView, event: KeyboardEvent): boolean {
+  const { state } = view;
+  const { selection } = state;
+  if (!(selection instanceof GapCursor)) return false;
+  if (event.metaKey || event.ctrlKey) return false;
+  const types =
+    event.key.length === 1 || event.key === 'Process' || event.keyCode === 229;
+  if (!types) return false;
+  const { $head } = selection;
+  const line = $head.parent.contentMatchAt($head.index()).defaultType;
+  if (!line?.isTextblock) return false;
+  const tr = state.tr.insert($head.pos, line.create());
+  tr.setSelection(TextSelection.create(tr.doc, $head.pos + 1));
+  view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
+/** Up or left from the top of a code block that opens the document. */
+function leavesCodeAtTop(view: EditorView, key: string): boolean {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  if (!isCode(selection) || selection.$head.before(1) !== 0) return false;
+  const code = codeMirrorAt(view, 0);
+  if (!code) return false;
+  const { main } = code.cm.state.selection;
+  if (!main.empty) return false;
+  return key === 'ArrowUp'
+    ? code.cm.state.doc.lineAt(main.head).number === 1
+    : main.head === 0;
 }
 
 /** An image or a rule as a selected node, or a gap cursor next to one. */
@@ -135,8 +186,31 @@ export const blockArrows = $prose(() => {
   return new Plugin({
     key: new PluginKey('nyamark/block-arrows'),
     props: {
+      handleDOMEvents: {
+        // Text that comes with no key, as from dictation or the character
+        // viewer, lands at the gap the same way.
+        beforeinput(view, event) {
+          const { state } = view;
+          if (!(state.selection instanceof GapCursor)) return false;
+          if (event.inputType !== 'insertText' || !event.data) return false;
+          event.preventDefault();
+          view.dispatch(state.tr.insertText(event.data).scrollIntoView());
+          return true;
+        },
+      },
       // WebKit's own move into code, which lands at the start of a line.
       handleKeyDown(view, event) {
+        // Nothing above the gap at the top. Unhandled, the key moved the
+        // browser's hidden selection into the block below, and the caret
+        // followed it there a moment later.
+        if (
+          pending &&
+          pending.dir < 0 &&
+          view.state.selection instanceof GapCursor &&
+          view.state.selection.head === 0
+        ) {
+          return true;
+        }
         const arrow = pending;
         if (!arrow?.vertical) return false;
         const { selection } = view.state;
@@ -175,7 +249,10 @@ export const blockArrows = $prose(() => {
       if (stopsOnAtom(state, arrow.dir)) {
         const from = arrow.dir > 0 ? target.$to : target.$from;
         const past = Selection.findFrom(from, arrow.dir, true);
-        if (!past) return null;
+        if (!past) {
+          const gap = arrow.dir < 0 && gapAtTop(state);
+          return gap ? state.tr.setSelection(gap) : null;
+        }
         target = past;
       } else if (
         !arrow.vertical ||
@@ -198,10 +275,22 @@ export const blockArrows = $prose(() => {
       // ProseMirror runs.
       const onKeyDown = (event: KeyboardEvent) => {
         pending = null;
+        if (lineAtGap(view, event)) return;
         const arrow = ARROWS[event.key];
         if (!arrow || event.isComposing || view.composing) return;
         if (event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) {
           return;
+        }
+        // Ahead of the code block's own keys, which keep the caret in it.
+        if (arrow[0] < 0 && leavesCodeAtTop(view, event.key)) {
+          const gap = gapAtTop(view.state);
+          if (gap) {
+            event.preventDefault();
+            event.stopPropagation();
+            view.dispatch(view.state.tr.setSelection(gap).scrollIntoView());
+            view.focus();
+            return;
+          }
         }
         pending = {
           dir: arrow[0],
