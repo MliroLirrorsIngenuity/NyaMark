@@ -1472,10 +1472,6 @@
   .milkdown
   .ProseMirror
   .milkdown-table-block.ny-block-selected::after,
-.ny-editor-root
-  .milkdown
-  .ProseMirror
-  .milkdown-image-block.ny-block-selected::after,
 .ny-editor-root .milkdown .ProseMirror .ny-html-block.ny-block-selected::after {
   content: "";
   position: absolute;
@@ -1487,9 +1483,53 @@
 }
 
 .ny-editor-root .milkdown .ProseMirror .milkdown-table-block.ny-block-selected,
-.ny-editor-root .milkdown .ProseMirror .milkdown-image-block.ny-block-selected,
 .ny-editor-root .milkdown .ProseMirror .ny-html-block.ny-block-selected {
   position: relative !important;
+}
+
+/*
+ * An image block runs the width of the page with the picture centred in it, so
+ * the wash covers the picture alone: across the whole block it was a grey band
+ * from margin to margin. Crepe tints a clicked image the same way, in its own
+ * paler colour; both now take the accent.
+ */
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-image-block.ny-block-selected
+  > .image-wrapper,
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-image-block.selected
+  > .image-wrapper {
+  position: relative !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-image-block.ny-block-selected
+  > .image-wrapper::before,
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-image-block.selected
+  > .image-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ny-accent), transparent 72%) !important;
+  pointer-events: none;
+}
+
+/* The native selection over the picture would tint it a second time. */
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-image-block.ny-block-selected
+  img::selection {
+  background: transparent !important;
 }
 
 /*
