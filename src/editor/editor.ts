@@ -84,6 +84,7 @@ export class NyaEditor {
           const resolver = this.options.proxyDomURL;
           return resolver ? resolver(src) : src;
         },
+        getView: () => this.getView(),
       })
     );
 

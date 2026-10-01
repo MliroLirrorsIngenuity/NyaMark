@@ -1,7 +1,11 @@
 import { autocompletion } from '@codemirror/autocomplete';
 import { languages as codeLanguages } from '@codemirror/language-data';
-import { tooltips } from '@codemirror/view';
+import { Prec } from '@codemirror/state';
+import { EditorView as CodeMirror, keymap, tooltips } from '@codemirror/view';
 import { type Crepe, CrepeFeature } from '@milkdown/crepe';
+import { redo, undo } from '@milkdown/kit/prose/history';
+import type { Command } from '@milkdown/kit/prose/state';
+import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
 import { renderMermaidPreview } from './plugins/mermaid';
 
@@ -10,6 +14,7 @@ export type CrepeConfigOptions = {
   defaultValue: string;
   onUpload: (file: File) => Promise<string>;
   proxyDomURL: (src: string) => Promise<string> | string;
+  getView: () => EditorView | null;
 };
 
 /**
@@ -27,10 +32,53 @@ export type CrepeConfigOptions = {
  * code block clips its own content to get rounded corners, and a tooltip
  * rendered inside would be cut off at the block's edge.
  */
-const codeBlockExtensions = [
-  autocompletion({ activateOnTyping: false }),
-  tooltips({ parent: document.body }),
-];
+function codeBlockExtensions(getView: () => EditorView | null) {
+  return [
+    autocompletion({ activateOnTyping: false }),
+    tooltips({ parent: document.body }),
+    codeBlockHistory(getView),
+  ];
+}
+
+/**
+ * Undo and redo in a code block run ProseMirror's history, the one the rest
+ * of the document uses. basicSetup gives every block a CodeMirror history of
+ * its own, and the block handed Cmd+Z to ProseMirror only while ProseMirror
+ * had something to undo; one Cmd+Z past that, CodeMirror undid what
+ * ProseMirror had already undone and wrote it back. A paragraph merged into a
+ * code block came back twice, in the block and below it.
+ *
+ * An undo that puts the caret outside the block focuses the document, so the
+ * caret is where the undo put it; it stayed in the block before.
+ */
+function codeBlockHistory(getView: () => EditorView | null) {
+  const run = (command: Command) => () => {
+    const view = getView();
+    if (view && command(view.state, view.dispatch)) view.focus();
+    return true;
+  };
+  return Prec.highest([
+    keymap.of([
+      { key: 'Mod-z', run: run(undo) },
+      { key: 'Shift-Mod-z', run: run(redo) },
+      { key: 'Mod-y', run: run(redo) },
+    ]),
+    // Edit > Undo in the menu bar arrives as an input event.
+    CodeMirror.domEventHandlers({
+      beforeinput: (event) => {
+        const command =
+          event.inputType === 'historyUndo'
+            ? undo
+            : event.inputType === 'historyRedo'
+              ? redo
+              : null;
+        if (!command) return false;
+        event.preventDefault();
+        return run(command)();
+      },
+    }),
+  ]);
+}
 
 /**
  * Anchors the block handle to the text rather than to the border box.
@@ -181,7 +229,7 @@ export function buildCrepeConfig(
         ...labels[CrepeFeature.CodeMirror],
         languages: codeLanguages,
         renderPreview: renderMermaidPreview,
-        extensions: codeBlockExtensions,
+        extensions: codeBlockExtensions(opts.getView),
       },
       [CrepeFeature.ImageBlock]: {
         ...labels[CrepeFeature.ImageBlock],
