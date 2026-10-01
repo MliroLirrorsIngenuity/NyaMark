@@ -80,6 +80,7 @@ import { keepCellAlignment } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
 import { fitTopBar } from './plugins/top-bar-fit';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
+import { undoByLine } from './plugins/undo-lines';
 import { type BlockSpan, blockSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
 import { countLines, countWords } from './text-stats';
@@ -186,6 +187,7 @@ export class NyaEditor {
     crepe.editor.use(markInput);
     crepe.editor.use(markCursor);
     crepe.editor.use(enterAfterTypedBlock);
+    crepe.editor.use(undoByLine);
     crepe.editor.use(linkInput);
     crepe.editor.use(fenceInput);
     crepe.editor.use(listItemView);
