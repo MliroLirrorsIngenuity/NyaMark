@@ -14,6 +14,7 @@ import {
   openExternalUrl,
 } from '../bridge/ipc/attachments';
 import {
+  confirmDialog,
   errorDialog,
   openDirectoryDialog,
   openImageFileDialog,
@@ -27,7 +28,12 @@ import {
   subscribeSettings,
 } from '../state/settings';
 import { ImagePolicyDialog } from '../ui/image-policy-dialog';
-import { looksLikeExternalResource } from './attachment-paths';
+import {
+  dirnamePath,
+  isWithinDirectory,
+  looksLikeExternalResource,
+  resolveStorageDir,
+} from './attachment-paths';
 import {
   basename,
   classifyLinkTarget,
@@ -65,6 +71,8 @@ export class AttachmentController {
   private readonly imagePolicyDialog = new ImagePolicyDialog();
   private imageSettings = getSettings().attachments;
   private unsubscribeSettings: (() => void) | null = null;
+  /** Answers to `allowCopyTarget`, keyed by document and folder. */
+  private readonly copyTargetAnswers = new Map<string, boolean>();
 
   constructor(options: AttachmentControllerOptions) {
     this.options = options;
@@ -392,15 +400,57 @@ export class AttachmentController {
   }
 
   private async resolveExistingLocalImageRule(): Promise<InsertRule | null> {
-    const documentTarget = getDocumentCopyTarget(this.options.getMarkdown());
-    if (documentTarget) {
-      return { mode: 'copy', targetDir: documentTarget };
-    }
+    const documentRule = await this.documentCopyRule();
+    if (documentRule) return documentRule;
 
     return await this.ruleForPolicy(
       this.imageSettings.insertPolicy,
       this.imageSettings.customCopyDirectory
     );
+  }
+
+  /**
+   * The copy rule from the document's front matter, or `null` when it names
+   * no folder or the user refused it, which leaves the attachment settings
+   * in charge.
+   */
+  private async documentCopyRule(): Promise<InsertRule | null> {
+    const targetDir = getDocumentCopyTarget(this.options.getMarkdown());
+    if (!targetDir) return null;
+    const documentPath = this.options.getDocumentPath();
+    if (
+      documentPath &&
+      !(await this.allowCopyTarget(documentPath, targetDir))
+    ) {
+      return null;
+    }
+    return { mode: 'copy', targetDir };
+  }
+
+  /**
+   * Front matter may point anywhere (`../static`, an absolute path), so a
+   * downloaded document could make NyaMark write into any folder it can
+   * reach. A folder inside the document's own is used as is; anything else
+   * waits for the user, whose answer holds for the rest of the session.
+   */
+  private async allowCopyTarget(documentPath: string, targetDir: string) {
+    const directory = resolveStorageDir(documentPath, targetDir);
+    if (isWithinDirectory(directory, dirnamePath(documentPath))) return true;
+
+    const key = `${documentPath}\n${directory}`;
+    const known = this.copyTargetAnswers.get(key);
+    if (known !== undefined) return known;
+
+    const allowed = await confirmDialog(
+      i18next.t('dialog.copyTarget.body', { directory }),
+      {
+        title: i18next.t('dialog.copyTarget.title'),
+        okLabel: i18next.t('dialog.copyTarget.allow'),
+        cancelLabel: i18next.t('dialog.copyTarget.useSettings'),
+      }
+    );
+    this.copyTargetAnswers.set(key, allowed);
+    return allowed;
   }
 
   /**
@@ -430,10 +480,8 @@ export class AttachmentController {
   }
 
   private async resolvePastedImageRule(): Promise<InsertRule | null> {
-    const documentTarget = getDocumentCopyTarget(this.options.getMarkdown());
-    if (documentTarget) {
-      return { mode: 'copy', targetDir: documentTarget };
-    }
+    const documentRule = await this.documentCopyRule();
+    if (documentRule) return documentRule;
 
     if (this.imageSettings.pastedImagePolicy) {
       return await this.ruleForPolicy(

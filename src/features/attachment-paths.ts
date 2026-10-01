@@ -267,6 +267,12 @@ export function formatAttachmentReference(
   return options.escapePath ? percentEncodeMarkdownPath(reference) : reference;
 }
 
+/** Whether `path` is `directory` itself or somewhere below it. */
+export function isWithinDirectory(path: string, directory: string) {
+  const relative = diffPaths(path, directory);
+  return relative !== null && relative !== '..' && !relative.startsWith('../');
+}
+
 function joinPaths(base: string, child: string) {
   return normalizePath(`${normalizePath(base).replace(/\/+$/, '')}/${child}`);
 }

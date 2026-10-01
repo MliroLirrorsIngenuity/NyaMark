@@ -99,6 +99,12 @@
       "reload": "重新載入",
       "keep": "保留我的版本"
     },
+    "copyTarget": {
+      "title": "將圖片複製到文件資料夾之外？",
+      "body": "此文件的 front matter 要求把圖片複製到「{{directory}}」，該位置在文件所在資料夾之外。允許，還是依你的附件設定處理？",
+      "allow": "允許",
+      "useSettings": "依我的設定"
+    },
     "unsavedChanges": {
       "title": "未儲存的變更",
       "body": "「{{fileName}}」有未儲存的變更。關閉前要儲存嗎？",

@@ -99,6 +99,12 @@
       "reload": "重新加载",
       "keep": "保留我的版本"
     },
+    "copyTarget": {
+      "title": "将图片复制到文档文件夹之外？",
+      "body": "此文档的 front matter 要求把图片复制到“{{directory}}”，该位置在文档所在文件夹之外。允许，还是按你的附件设置处理？",
+      "allow": "允许",
+      "useSettings": "按我的设置"
+    },
     "unsavedChanges": {
       "title": "未保存的更改",
       "body": "“{{fileName}}”有未保存的更改。关闭前要保存吗？",

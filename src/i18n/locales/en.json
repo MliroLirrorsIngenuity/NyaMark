@@ -100,6 +100,12 @@
       "reload": "Reload",
       "keep": "Keep my version"
     },
+    "copyTarget": {
+      "title": "Copy images outside the document folder?",
+      "body": "This document’s front matter asks for images to be copied into \"{{directory}}\", which is outside its folder. Allow it, or follow your attachment settings instead?",
+      "allow": "Allow",
+      "useSettings": "Use my settings"
+    },
     "unsavedChanges": {
       "title": "Unsaved changes",
       "body": "\"{{fileName}}\" has unsaved changes. Save them before closing?",

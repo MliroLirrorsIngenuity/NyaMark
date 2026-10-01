@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   dirnamePath,
   formatAttachmentReference,
+  isWithinDirectory,
   normalizePath,
   resolveAttachmentPath,
   resolveStorageDir,
@@ -200,5 +201,18 @@ describe('sanitizeFileName', () => {
     expect(sanitizeFileName(`${'中'.repeat(100)}.png`)).toBe(
       `${'中'.repeat(65)}.png`
     );
+  });
+});
+
+describe('isWithinDirectory', () => {
+  test.each([
+    ['the directory itself', '/docs', '/docs', true],
+    ['a nested folder', '/docs/assets/img', '/docs', true],
+    ['a sibling folder', '/static/images', '/docs', false],
+    ['the parent folder', '/', '/docs', false],
+    ['a name that only shares a prefix', '/docs-old', '/docs', false],
+    ['another drive', 'D:/docs', 'C:/docs', false],
+  ])('%s', (_label, path, directory, expected) => {
+    expect(isWithinDirectory(path, directory)).toBe(expected);
   });
 });
