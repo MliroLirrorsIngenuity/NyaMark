@@ -70,6 +70,13 @@
       "descriptionPlaceholder": "Write image description",
       "path": "Path",
       "pathPlaceholder": "Image path"
+    },
+    "alert": {
+      "note": "Note",
+      "tip": "Tip",
+      "important": "Important",
+      "warning": "Warning",
+      "caution": "Caution"
     }
   },
   "dialog": {

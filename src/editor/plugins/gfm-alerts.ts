@@ -19,10 +19,11 @@
  * the markdown source is preserved byte-for-byte.
  */
 
-import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
+import { Plugin, PluginKey, type Transaction } from '@milkdown/kit/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { $prose } from '@milkdown/kit/utils';
+import i18next from 'i18next';
 import { ensureStyle } from '../../style/register';
 
 const ALERT_KINDS = ['note', 'tip', 'important', 'warning', 'caution'] as const;
@@ -98,10 +99,15 @@ function findMarker(paragraph: ProseNode): MarkerHit | null {
   return null;
 }
 
-function buildDecorations(doc: ProseNode): DecorationSet {
+/** Decorations for every alert in the top-level blocks overlapping `from..to`. */
+function decorationsBetween(
+  doc: ProseNode,
+  from: number,
+  to: number
+): Decoration[] {
   const decorations: Decoration[] = [];
 
-  doc.descendants((node, pos) => {
+  doc.nodesBetween(from, to, (node, pos) => {
     if (node.type.name !== 'blockquote') return true;
 
     const firstChild = node.firstChild;
@@ -144,7 +150,59 @@ function buildDecorations(doc: ProseNode): DecorationSet {
     return false;
   });
 
-  return DecorationSet.create(doc, decorations);
+  return decorations;
+}
+
+export function buildDecorations(doc: ProseNode): DecorationSet {
+  return DecorationSet.create(
+    doc,
+    decorationsBetween(doc, 0, doc.content.size)
+  );
+}
+
+/**
+ * The ranges `tr` touched, in final-document positions, widened to whole
+ * top-level blocks and merged. An alert lives entirely inside one top-level
+ * block, so only these blocks can have gained or lost one.
+ */
+function changedBlockRanges(tr: Transaction): [number, number][] {
+  const { doc, mapping } = tr;
+  const ranges: [number, number][] = [];
+  mapping.maps.forEach((map, index) => {
+    const rest = mapping.slice(index + 1);
+    map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
+      const $from = doc.resolve(rest.map(newStart, -1));
+      const $to = doc.resolve(rest.map(newEnd, 1));
+      ranges.push([
+        $from.depth > 0 ? $from.before(1) : $from.pos,
+        $to.depth > 0 ? $to.after(1) : $to.pos,
+      ]);
+    });
+  });
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const range of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+    else merged.push(range);
+  }
+  return merged;
+}
+
+export function updateDecorations(
+  tr: Transaction,
+  previous: DecorationSet
+): DecorationSet {
+  let set = previous.map(tr.mapping, tr.doc);
+  for (const [from, to] of changedBlockRanges(tr)) {
+    // `find` also returns decorations that merely touch the range, such as
+    // a neighbouring alert ending at `from`; keep those.
+    const stale = set
+      .find(from, to)
+      .filter((decoration) => decoration.from >= from && decoration.to <= to);
+    set = set.remove(stale).add(tr.doc, decorationsBetween(tr.doc, from, to));
+  }
+  return set;
 }
 
 export const gfmAlerts = $prose(
@@ -153,8 +211,8 @@ export const gfmAlerts = $prose(
       key: pluginKey,
       state: {
         init: (_, state) => buildDecorations(state.doc),
-        apply: (tr, prev, _old, newState) =>
-          tr.docChanged ? buildDecorations(newState.doc) : prev,
+        apply: (tr, prev) =>
+          tr.docChanged ? updateDecorations(tr, prev) : prev,
       },
       props: {
         decorations(state) {
@@ -226,17 +284,16 @@ const css = `
   border-radius: 0 !important;
 }
 
-.ny-editor-root .milkdown .ProseMirror .ny-alert::before { content: "Alert"; }
 .ny-editor-root .milkdown .ProseMirror .ny-alert-note { --ny-alert-color: var(--ny-alert-note-color); --ny-alert-bg: var(--ny-alert-note-bg); }
-.ny-editor-root .milkdown .ProseMirror .ny-alert-note::before { content: "Note"; }
+.ny-editor-root .milkdown .ProseMirror .ny-alert-note::before { content: var(--ny-alert-label-note, "Note"); }
 .ny-editor-root .milkdown .ProseMirror .ny-alert-tip { --ny-alert-color: var(--ny-alert-tip-color); --ny-alert-bg: var(--ny-alert-tip-bg); }
-.ny-editor-root .milkdown .ProseMirror .ny-alert-tip::before { content: "Tip"; }
+.ny-editor-root .milkdown .ProseMirror .ny-alert-tip::before { content: var(--ny-alert-label-tip, "Tip"); }
 .ny-editor-root .milkdown .ProseMirror .ny-alert-important { --ny-alert-color: var(--ny-alert-important-color); --ny-alert-bg: var(--ny-alert-important-bg); }
-.ny-editor-root .milkdown .ProseMirror .ny-alert-important::before { content: "Important"; }
+.ny-editor-root .milkdown .ProseMirror .ny-alert-important::before { content: var(--ny-alert-label-important, "Important"); }
 .ny-editor-root .milkdown .ProseMirror .ny-alert-warning { --ny-alert-color: var(--ny-alert-warning-color); --ny-alert-bg: var(--ny-alert-warning-bg); }
-.ny-editor-root .milkdown .ProseMirror .ny-alert-warning::before { content: "Warning"; }
+.ny-editor-root .milkdown .ProseMirror .ny-alert-warning::before { content: var(--ny-alert-label-warning, "Warning"); }
 .ny-editor-root .milkdown .ProseMirror .ny-alert-caution { --ny-alert-color: var(--ny-alert-caution-color); --ny-alert-bg: var(--ny-alert-caution-bg); }
-.ny-editor-root .milkdown .ProseMirror .ny-alert-caution::before { content: "Caution"; }
+.ny-editor-root .milkdown .ProseMirror .ny-alert-caution::before { content: var(--ny-alert-label-caution, "Caution"); }
 
 /*
  * Hide ONLY the marker span, never the surrounding paragraph.
@@ -273,6 +330,23 @@ const css = `
 }
 `;
 
+// The labels are drawn by CSS, so they reach it as custom properties.
+function applyAlertLabels() {
+  const { style } = document.documentElement;
+  for (const kind of ALERT_KINDS) {
+    style.setProperty(
+      `--ny-alert-label-${kind}`,
+      JSON.stringify(i18next.t(`editor.alert.${kind}`))
+    );
+  }
+}
+
+let labelsBound = false;
+
 export function registerGfmAlertStyles() {
   ensureStyle('editor-gfm-alerts', css);
+  if (labelsBound) return;
+  labelsBound = true;
+  applyAlertLabels();
+  i18next.on('languageChanged', applyAlertLabels);
 }
