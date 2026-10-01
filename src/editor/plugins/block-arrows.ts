@@ -293,7 +293,17 @@ function underX(
   // The line's own box: a paragraph's padding holds the gap above it.
   const edge = view.coordsAtPos(dir > 0 ? start : end);
   const hit = view.posAtCoords({ left: x, top: (edge.top + edge.bottom) / 2 });
-  if (!hit || hit.pos < start || hit.pos > end) return null;
+  if (!hit) return null;
+  if (hit.pos >= start && hit.pos <= end) {
+    return TextSelection.create(view.state.doc, hit.pos);
+  }
+  // Into a table, the cell under the caret in the row it comes to: the move
+  // that lands in the row picks its first or last cell.
+  const row = tableDepth($head) + 1;
+  if (row < 1) return null;
+  const $hit = view.state.doc.resolve(hit.pos);
+  if (!$hit.parent.isTextblock || $hit.depth <= row) return null;
+  if ($hit.before(row) !== $head.before(row)) return null;
   return TextSelection.create(view.state.doc, hit.pos);
 }
 
