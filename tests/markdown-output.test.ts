@@ -86,4 +86,23 @@ describe('normalizeOutput', () => {
     const processor = unified().use(remarkStringify).use(normalizeOutput);
     expect(processor.stringify(tree as never)).toBe('<br />\n\nend\n');
   });
+
+  test('leaves out spaces at the start of a block', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'heading',
+          depth: 2,
+          children: [{ type: 'text', value: ' 二' }],
+        },
+        { type: 'paragraph', children: [{ type: 'text', value: '\t world' }] },
+        { type: 'paragraph', children: [{ type: 'text', value: '　缩进' }] },
+      ],
+    };
+    const processor = unified().use(remarkStringify).use(normalizeOutput);
+    expect(processor.stringify(tree as never)).toBe(
+      '## 二\n\nworld\n\n　缩进\n'
+    );
+  });
 });

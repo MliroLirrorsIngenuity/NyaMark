@@ -19,6 +19,11 @@
  * leaving a quote with Enter adds another. They were saved as a blank line or
  * a `<br />` at the end of the file. Empty lines at the very end carry nothing
  * in markdown, so they are dropped.
+ *
+ * Leading spaces: Enter just before a space splits "一 二" into "一" and " 二",
+ * and markdown drops the space at the start of a paragraph or heading, so it
+ * was written as `&#x20;二` to survive. It is left out instead, the way it
+ * would read when the file is opened again.
  */
 
 import { $remark } from '@milkdown/kit/utils';
@@ -62,6 +67,12 @@ function unescapeAlertMarker(blockquote: MdNode) {
   );
 }
 
+function trimLeadingSpace(block: MdNode) {
+  const first = block.children?.[0];
+  if (first?.type !== 'text' || !first.value) return;
+  first.value = first.value.replace(/^[ \t]+/, '');
+}
+
 /** Empty, or holding only the `<br />` Milkdown writes for an empty line. */
 function isEmptyParagraph(node: MdNode) {
   return (
@@ -75,16 +86,20 @@ function isEmptyParagraph(node: MdNode) {
 }
 
 export function normalizeForOutput<T extends MdNode>(tree: T): T {
+  const visit = (node: MdNode) => {
+    if (node.type === 'list') normalizeList(node);
+    if (node.type === 'blockquote') unescapeAlertMarker(node);
+    if (node.type === 'paragraph' || node.type === 'heading') {
+      trimLeadingSpace(node);
+    }
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(tree);
+  // After the trim: a last line of nothing but spaces is empty too.
   const blocks = tree.children;
   while (blocks?.length && isEmptyParagraph(blocks[blocks.length - 1])) {
     blocks.pop();
   }
-  const visit = (node: MdNode) => {
-    if (node.type === 'list') normalizeList(node);
-    if (node.type === 'blockquote') unescapeAlertMarker(node);
-    for (const child of node.children ?? []) visit(child);
-  };
-  visit(tree);
   return tree;
 }
 
