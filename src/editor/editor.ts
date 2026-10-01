@@ -53,6 +53,7 @@ import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
 import { linkInput } from './plugins/link-input';
 import { listItemView } from './plugins/list-item-view';
+import { markCursor } from './plugins/mark-cursor';
 import { markInput } from './plugins/mark-input';
 import {
   displayWidth,
@@ -169,6 +170,7 @@ export class NyaEditor {
       strikethroughInputRule,
     ]);
     crepe.editor.use(markInput);
+    crepe.editor.use(markCursor);
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(linkInput);
     crepe.editor.use(fenceInput);

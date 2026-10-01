@@ -1,0 +1,161 @@
+import { describe, expect, test } from 'bun:test';
+import { type Mark, Schema } from '@milkdown/kit/prose/model';
+import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import {
+  clickedSide,
+  outsideAtEdge,
+  stepOver,
+} from '../src/editor/plugins/mark-cursor';
+
+const schema = new Schema({
+  nodes: {
+    doc: { content: 'block+' },
+    paragraph: { group: 'block', content: 'inline*' },
+    text: { group: 'inline' },
+  },
+  marks: {
+    strong: {},
+    code: { code: true },
+    link: { attrs: { href: {} } },
+  },
+});
+
+const code = schema.mark('code');
+const link = schema.mark('link', { href: 'https://e.com' });
+const strong = schema.mark('strong');
+
+/** A paragraph of `parts`, each text with its marks, the caret at `at`. */
+function line(parts: [string, Mark[]][], at: number) {
+  const doc = schema.node('doc', null, [
+    schema.node(
+      'paragraph',
+      null,
+      parts.map(([text, marks]) => schema.text(text, marks))
+    ),
+  ]);
+  return EditorState.create({
+    doc,
+    selection: TextSelection.create(doc, at),
+  });
+}
+
+const names = (marks: readonly Mark[] | null | undefined) =>
+  marks?.map((mark) => mark.type.name);
+
+/** Where the caret is and the marks typing takes after `keys`. */
+function press(state: EditorState, ...keys: string[]) {
+  let current = state;
+  for (const key of keys) {
+    const tr = stepOver(current, key);
+    if (!tr) return null;
+    current = current.apply(tr);
+  }
+  const { $head } = current.selection;
+  return [$head.pos, names(current.storedMarks ?? $head.marks())];
+}
+
+// 运行 `npm` with the caret at the end of the line, in the code.
+const codeAtEnd = line(
+  [
+    ['运行 ', []],
+    ['npm', [code]],
+  ],
+  7
+);
+
+describe('stepOver', () => {
+  test('steps out of code at the end of a line before it moves on', () => {
+    expect(press(codeAtEnd, 'ArrowRight')).toEqual([7, []]);
+    expect(
+      stepOver(codeAtEnd.apply(codeAtEnd.tr.setStoredMarks([])), 'ArrowRight')
+    ).toBeNull();
+  });
+
+  test('steps back in from outside', () => {
+    expect(press(codeAtEnd, 'ArrowRight', 'ArrowLeft')).toEqual([7, ['code']]);
+  });
+
+  test('steps out of a mark that opens a line', () => {
+    const state = line(
+      [
+        ['npm', [code]],
+        [' 是', []],
+      ],
+      1
+    );
+    expect(press(state, 'ArrowLeft')).toEqual([1, []]);
+  });
+
+  test('lands on an edge on the side it came from', () => {
+    const state = line(
+      [
+        ['a', []],
+        ['b', [strong]],
+        ['cd', []],
+      ],
+      4
+    );
+    // Typed at 3 with no key pressed, the text would go bold.
+    expect(names(state.doc.resolve(3).marks())).toEqual(['strong']);
+    expect(press(state, 'ArrowLeft')).toEqual([3, []]);
+  });
+});
+
+describe('outsideAtEdge', () => {
+  test('puts the caret after code at the end of a line', () => {
+    const tr = outsideAtEdge(codeAtEnd, 1);
+    expect(names(tr?.storedMarks)).toEqual([]);
+  });
+
+  test('puts it before a link opening a line', () => {
+    const state = line(
+      [
+        ['官网', [link]],
+        [' 见', []],
+      ],
+      1
+    );
+    expect(names(outsideAtEdge(state, -1)?.storedMarks)).toEqual([]);
+  });
+
+  test('leaves bold and lines that end in text alone', () => {
+    expect(outsideAtEdge(line([['粗', [strong]]], 2), 1)).toBeNull();
+    expect(outsideAtEdge(line([['文', []]], 2), 1)).toBeNull();
+  });
+
+  test('acts only at the edge of the line', () => {
+    expect(outsideAtEdge(codeAtEnd, -1)).toBeNull();
+  });
+});
+
+describe('clickedSide', () => {
+  const on = (tag: string | null) =>
+    ({
+      closest: (selector: string) => (selector === tag ? {} : null),
+    }) as unknown as Element;
+
+  test('takes the code clicked on and leaves it for a click past it', () => {
+    const $pos = codeAtEnd.selection.$head;
+    expect(names(clickedSide($pos, on('code')))).toEqual(['code']);
+    expect(names(clickedSide($pos, on(null)))).toEqual([]);
+  });
+
+  test('takes the link clicked on', () => {
+    const state = line(
+      [
+        ['看', []],
+        ['官网', [link]],
+        ['吧', []],
+      ],
+      4
+    );
+    const $pos = state.selection.$head;
+    expect(names(clickedSide($pos, on('a')))).toEqual(['link']);
+    expect(names(clickedSide($pos, on(null)))).toEqual([]);
+  });
+
+  test('leaves edges of other marks to the browser', () => {
+    const state = line([['粗', [strong]]], 2);
+    expect(clickedSide(state.selection.$head, on(null))).toBeNull();
+  });
+});

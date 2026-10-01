@@ -327,6 +327,8 @@ export function buildCrepeConfig(
     },
     featureConfigs: {
       ...labels,
+      // Drawn by mark-cursor, which also knows the edges of a line.
+      [CrepeFeature.Cursor]: { virtual: false },
       [CrepeFeature.BlockEdit]: {
         ...labels[CrepeFeature.BlockEdit],
         blockHandle: { getOffset: () => 8, getPosition: textBoxRect },
