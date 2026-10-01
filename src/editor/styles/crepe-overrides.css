@@ -1129,6 +1129,23 @@
   outline-offset: -1px !important;
 }
 
+/* They follow the caret: a block the caret has left keeps none of them. */
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .cm-editor:not(.cm-focused)
+  :is(.cm-matchingBracket, .cm-nonmatchingBracket) {
+  outline: none !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .cm-editor:not(.cm-focused)
+  .cm-selectionMatch {
+  background: transparent !important;
+}
+
 .ny-editor-root .milkdown .milkdown-code-block .preview-panel {
   padding: 0 !important;
   /* Same hairline as the block's own edge, not the heavier panel divider. */
