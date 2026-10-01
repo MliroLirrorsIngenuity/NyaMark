@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
-import { backspaceAtBlockStart } from '../src/editor/plugins/block-backspace';
+import {
+  backspaceAtBlockStart,
+  deleteAtBlockEnd,
+} from '../src/editor/plugins/block-edges';
 
 const schema = new Schema({
   nodes: {
@@ -26,19 +29,25 @@ const bullets = (...items: Node[]) => schema.node('bullet_list', null, items);
 const numbers = (...items: Node[]) => schema.node('ordered_list', null, items);
 const doc = (...blocks: Node[]) => schema.node('doc', null, blocks);
 
-/** Backspace with the caret at the start of the textblock holding `text`. */
-function backspaceBefore(start: Node, text: string) {
+/** A state with the caret at the start or end of the textblock holding `text`. */
+function caretAt(start: Node, text: string, end = false) {
   let at = -1;
   start.descendants((node, pos) => {
-    if (at < 0 && node.isTextblock && node.textContent === text) at = pos + 1;
+    if (at < 0 && node.isTextblock && node.textContent === text) {
+      at = pos + 1 + (end ? node.content.size : 0);
+    }
     return at < 0;
   });
-  const state = EditorState.create({
+  return EditorState.create({
     doc: start,
     selection: TextSelection.create(start, at),
   });
-  return backspaceAtBlockStart(state);
 }
+
+const backspaceBefore = (start: Node, text: string) =>
+  backspaceAtBlockStart(caretAt(start, text));
+const deleteAfter = (start: Node, text: string) =>
+  deleteAtBlockEnd(caretAt(start, text, true));
 
 describe('backspaceAtBlockStart', () => {
   test('takes the first item out of its list', () => {
@@ -85,5 +94,25 @@ describe('backspaceAtBlockStart', () => {
       selection: TextSelection.create(start, 10),
     });
     expect(backspaceAtBlockStart(state)).toBeNull();
+  });
+});
+
+describe('deleteAtBlockEnd', () => {
+  test('moves into the code below without joining it', () => {
+    const start = doc(p('before'), code('let x'));
+    const tr = deleteAfter(start, 'before');
+    expect(tr?.docChanged).toBe(false);
+    expect(tr?.selection.from).toBe('before'.length + 3);
+  });
+
+  test('removes an empty paragraph above code', () => {
+    const tr = deleteAfter(doc(p('a'), p(''), code('x')), '');
+    expect(tr?.doc.toJSON()).toEqual(doc(p('a'), code('x')).toJSON());
+    expect(tr?.selection.from).toBe(4);
+  });
+
+  test('leaves other blocks to the join', () => {
+    expect(deleteAfter(doc(p('a'), p('b')), 'a')).toBeNull();
+    expect(deleteAfter(doc(p('a'), quote(p('b'))), 'a')).toBeNull();
   });
 });

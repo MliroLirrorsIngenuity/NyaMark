@@ -1,6 +1,8 @@
 /**
- * Backspace at the start of a block. Milkdown binds Backspace to "join this
- * textblock to the one before it", whatever lies in between:
+ * Backspace at the start of a block and Delete at its end.
+ *
+ * Milkdown binds Backspace to "join this textblock to the one before it",
+ * whatever lies in between:
  *
  * - at the start of a quote, the quoted text ran into the paragraph above;
  * - at the start of a list's first item, the list was merged into a list just
@@ -11,6 +13,10 @@
  * at the start of a heading turns it into a paragraph, and a paragraph after
  * code moves the caret to the end of the code. An empty paragraph after code
  * is still removed by Milkdown's join.
+ *
+ * Delete at the end of a paragraph pulled the code block below into it: the
+ * code became text and the block was gone. It moves the caret into the code
+ * instead, and an empty paragraph is removed on the way.
  */
 
 import { liftListItem } from '@milkdown/kit/prose/schema-list';
@@ -92,17 +98,60 @@ export function backspaceAtBlockStart(state: EditorState): Transaction | null {
   return liftFirstItem(state) ?? liftOutOfQuote(state) ?? stopAtCode(state);
 }
 
-export const blockBackspace = $prose(
+/** Where a forward join would pull from: the start of the next textblock. */
+function startOfTextblockAfter(state: EditorState) {
+  const { $from } = state.selection;
+  let cut = -1;
+  for (let d = $from.depth - 1; d >= 0; d -= 1) {
+    if ($from.index(d) + 1 < $from.node(d).childCount) {
+      cut = $from.after(d + 1);
+      break;
+    }
+    if ($from.node(d).type.spec.isolating) return null;
+  }
+  if (cut < 0) return null;
+  let node = state.doc.resolve(cut).nodeAfter;
+  let start = cut + 1;
+  while (node && !node.isTextblock) {
+    if (node.type.spec.isolating) return null;
+    node = node.firstChild;
+    start += 1;
+  }
+  return node ? { node, start } : null;
+}
+
+export function deleteAtBlockEnd(state: EditorState): Transaction | null {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+  const { $from } = selection;
+  const { parent } = $from;
+  if (!parent.isTextblock || $from.parentOffset !== parent.content.size) {
+    return null;
+  }
+  const after = startOfTextblockAfter(state);
+  if (!after?.node.type.spec.code) return null;
+  const tr = state.tr;
+  if (parent.content.size === 0 && $from.node(-1).childCount > 1) {
+    tr.delete($from.before(), $from.after());
+  }
+  return tr.setSelection(
+    TextSelection.create(tr.doc, tr.mapping.map(after.start))
+  );
+}
+
+export const blockEdges = $prose(
   () =>
     new Plugin({
-      key: new PluginKey('nyamark/block-backspace'),
+      key: new PluginKey('nyamark/block-edges'),
       props: {
         handleKeyDown(view, event) {
-          if (event.key !== 'Backspace' || event.metaKey || event.altKey) {
-            return false;
-          }
-          if (event.isComposing) return false;
-          const tr = backspaceAtBlockStart(view.state);
+          if (event.metaKey || event.altKey || event.isComposing) return false;
+          const tr =
+            event.key === 'Backspace'
+              ? backspaceAtBlockStart(view.state)
+              : event.key === 'Delete'
+                ? deleteAtBlockEnd(view.state)
+                : null;
           if (!tr) return false;
           view.dispatch(tr.scrollIntoView());
           return true;
