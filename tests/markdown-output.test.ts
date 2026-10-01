@@ -66,4 +66,24 @@ describe('normalizeOutput', () => {
     );
     expect(roundTrip('[!NOTE] outside\n')).toBe('\\[!NOTE] outside\n');
   });
+
+  test('drops empty lines at the end of the document', () => {
+    // The tree Milkdown hands over: the last empty paragraph has no children,
+    // the ones before it hold a `<br />`.
+    const br = () => ({
+      type: 'paragraph',
+      children: [{ type: 'html', value: '<br />' }],
+    });
+    const tree = {
+      type: 'root',
+      children: [
+        br(),
+        { type: 'paragraph', children: [{ type: 'text', value: 'end' }] },
+        br(),
+        { type: 'paragraph', children: [] },
+      ],
+    };
+    const processor = unified().use(remarkStringify).use(normalizeOutput);
+    expect(processor.stringify(tree as never)).toBe('<br />\n\nend\n');
+  });
 });

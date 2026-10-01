@@ -13,6 +13,12 @@
  * `\[!NOTE]`, which GitHub then shows as plain text. It is written verbatim,
  * and a hard break typed after it becomes a plain line break: GitHub does not
  * accept `[!NOTE]\` as a marker line.
+ *
+ * Trailing empty paragraphs: the editor keeps an empty paragraph after a
+ * closing quote, list or code block so the caret has somewhere to go, and
+ * leaving a quote with Enter adds another. They were saved as a blank line or
+ * a `<br />` at the end of the file. Empty lines at the very end carry nothing
+ * in markdown, so they are dropped.
  */
 
 import { $remark } from '@milkdown/kit/utils';
@@ -26,6 +32,7 @@ type MdNode = {
 };
 
 const ALERT_MARKER = /^\[!(?:note|tip|important|warning|caution)\]/i;
+const LINE_BREAK = /^<br\s*\/?>$/i;
 
 function normalizeList(list: MdNode) {
   const loose = list.spread === true || list.spread === 'true';
@@ -55,7 +62,23 @@ function unescapeAlertMarker(blockquote: MdNode) {
   );
 }
 
+/** Empty, or holding only the `<br />` Milkdown writes for an empty line. */
+function isEmptyParagraph(node: MdNode) {
+  return (
+    node.type === 'paragraph' &&
+    (node.children ?? []).every(
+      (child) =>
+        (child.type === 'text' && !child.value) ||
+        (child.type === 'html' && LINE_BREAK.test(child.value?.trim() ?? ''))
+    )
+  );
+}
+
 export function normalizeForOutput<T extends MdNode>(tree: T): T {
+  const blocks = tree.children;
+  while (blocks?.length && isEmptyParagraph(blocks[blocks.length - 1])) {
+    blocks.pop();
+  }
   const visit = (node: MdNode) => {
     if (node.type === 'list') normalizeList(node);
     if (node.type === 'blockquote') unescapeAlertMarker(node);
