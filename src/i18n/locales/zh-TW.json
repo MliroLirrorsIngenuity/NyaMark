@@ -43,7 +43,7 @@
   },
   "statusbar": {
     "words": "{{count}} 個字",
-    "line": "第 {{line}} 行",
+    "lines": "共 {{count}} 行",
     "modeMarkdown": "Markdown",
     "modeSource": "原始碼",
     "modeToggle": "切換原始碼模式",

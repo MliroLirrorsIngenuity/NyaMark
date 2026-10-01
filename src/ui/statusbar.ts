@@ -39,8 +39,8 @@ export class Statusbar {
     this.elWords.textContent = i18next.t('statusbar.words', {
       count: state.wordCount,
     });
-    this.elLines.textContent = i18next.t('statusbar.line', {
-      line: state.lineCount,
+    this.elLines.textContent = i18next.t('statusbar.lines', {
+      count: state.lineCount,
     });
     this.elMode.textContent = i18next.t(
       state.sourceMode ? 'statusbar.modeSource' : 'statusbar.modeMarkdown'

@@ -31,6 +31,7 @@ import {
   searchPlugin,
 } from './plugins/search';
 import { registerEditorStyles } from './styles';
+import { countWords } from './text-stats';
 
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
@@ -200,10 +201,12 @@ export class NyaEditor {
   getStats(markdown?: string) {
     if (!this.crepe) return { words: 0, lines: 1 };
     const view = this.crepe.editor.ctx.get(editorViewCtx);
-    const text = view.state.doc.textContent.trim();
+    const { doc } = view.state;
+    // `textContent` runs the blocks together; keep them apart.
+    const text = doc.textBetween(0, doc.content.size, '\n', ' ');
     const source = markdown ?? this.getMarkdown();
     return {
-      words: text ? text.split(/\s+/).length : 0,
+      words: countWords(text),
       lines: source ? source.split(/\r?\n/).length : 1,
     };
   }
