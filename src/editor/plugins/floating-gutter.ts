@@ -7,6 +7,12 @@
  * the left edge, its rounded corner and shadow cut off, and a formula at the
  * start of a line had its box there too.
  *
+ * Crepe centres the selection toolbar between the two ends of the selection,
+ * and from the start of one line to the start of another both ends are at
+ * the left of the page: the toolbar sat in the left gutter, away from the
+ * text selected, whatever its length. It is centred on the text selected on
+ * the first line, the one it sits over.
+ *
  * The selection toolbar goes above the selection, and flips below it only
  * when the page runs out above. The format bar pinned along the top of the
  * page is not the page's edge, so text selected on the line just under it put
@@ -49,6 +55,17 @@ function clearOfBar(el: HTMLElement, box: DOMRect, page: DOMRect): number {
   return under + TOOLBAR_OFFSET_PX - box.top;
 }
 
+/** Where the selection toolbar's left edge centres it on the text selected. */
+function overSelection(el: HTMLElement, box: DOMRect): number {
+  if (!el.classList.contains('milkdown-toolbar')) return box.left;
+  const selection = getSelection();
+  if (!selection?.rangeCount) return box.left;
+  const rects = Array.from(selection.getRangeAt(0).getClientRects());
+  const line = rects.find((rect) => rect.width >= 1);
+  if (!line) return box.left;
+  return line.left + (line.width - box.width) / 2;
+}
+
 function nudge(el: HTMLElement) {
   const left = Number.parseFloat(el.style.left);
   const top = Number.parseFloat(el.style.top);
@@ -65,7 +82,7 @@ function nudge(el: HTMLElement) {
   const target =
     box.width > max - min
       ? min
-      : Math.min(Math.max(box.left, min), max - box.width);
+      : Math.min(Math.max(overSelection(el, box), min), max - box.width);
   const dx = target - box.left;
   const dy = clearOfBar(el, box, page);
   if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
