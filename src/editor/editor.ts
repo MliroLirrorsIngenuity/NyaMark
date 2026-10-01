@@ -76,6 +76,7 @@ import {
 import { tabFocus } from './plugins/tab-focus';
 import { keepCellAlignment } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
+import { fitTopBar } from './plugins/top-bar-fit';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
 import { type BlockSpan, blockSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
@@ -211,6 +212,7 @@ export class NyaEditor {
     this.imageMetaPanel.attach();
     keepFloatingOffEdge(this.root);
     restHiddenBlockHandle(this.root);
+    fitTopBar(this.root);
   }
 
   /**
