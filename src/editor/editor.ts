@@ -49,6 +49,7 @@ import {
   markdownOutput,
   writeText,
 } from './plugins/markdown-output';
+import { dollarInput, dollarTextParse } from './plugins/math-dollars';
 import { mathInlineKeys } from './plugins/math-inline-keys';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import { pasteOnEmptyLine } from './plugins/paste-line';
@@ -139,10 +140,12 @@ export class NyaEditor {
     crepe.editor.config(keepCellAlignment);
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.use(markdownOutput);
+    crepe.editor.use(dollarTextParse);
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(blockEdges);
     crepe.editor.use(hrInput);
     crepe.editor.use(headingInput);
+    crepe.editor.use(dollarInput);
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(linkInput);
     crepe.editor.use(fenceInput);

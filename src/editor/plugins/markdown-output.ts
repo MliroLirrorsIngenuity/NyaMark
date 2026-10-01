@@ -42,11 +42,18 @@
  * in every paragraph the file held. An underscore between two letters or
  * digits never opens or closes emphasis, and hashes start a heading only when
  * six or fewer are followed by a space: `writeText` leaves those unescaped.
+ *
+ * Dollars: remark-math escapes every `$` in text, so `$5` was saved as `\$5`.
+ * A paragraph whose dollars all come back as text when the file is opened
+ * (see `math-dollars`) has them written as typed. One that has math in it,
+ * or two dollars around something that would be read as math, keeps them
+ * escaped.
  */
 
 import { $remark } from '@milkdown/kit/utils';
 import type { Handle } from 'mdast-util-to-markdown';
 import type { Processor } from 'unified';
+import { isDollarText } from './math-dollars';
 
 type MdNode = {
   type: string;
@@ -135,12 +142,73 @@ export function relaxEscapes(markdown: string): string {
     );
 }
 
+/** Text whose dollars are written as typed (see `markDollarText`). */
+const dollarText = new WeakSet<object>();
+
 /** Milkdown's handler for text, its escapes relaxed. */
 export const writeText: Handle = (node, _parent, state, info) => {
   const value: string = node.value;
-  if (/^[^*_\\]*\s+$/.test(value)) return value;
-  return relaxEscapes(state.safe(value, { ...info, encode: [] }));
+  const dollars = dollarText.has(node);
+  // Milkdown writes text that ends in a space as it is, dollars and all.
+  if (/^[^*_\\]*\s+$/.test(value)) {
+    return dollars ? value : value.replace(/\$/g, '\\$');
+  }
+  const text = relaxEscapes(state.safe(value, { ...info, encode: [] }));
+  return dollars ? text.replace(/\\\$/g, '$') : text;
 };
+
+/**
+ * `node`'s inline content as a parser sees its dollars: text as it is, and a
+ * stand-in for the rest, or null when a dollar outside text is in the way.
+ */
+function dollarSource(node: MdNode): string | null {
+  if (node.type === 'text') return node.value ?? '';
+  if (node.type === 'break') return '\n';
+  if (node.type === 'inlineMath') return null;
+  // Code and HTML are written as they are, with any dollar in them.
+  if (node.type === 'inlineCode' || node.type === 'html') {
+    return node.value?.includes('$') ? null : '`';
+  }
+  if (!node.children) return '!';
+  let source = '';
+  for (const child of node.children) {
+    const part = dollarSource(child);
+    if (part === null) return null;
+    source += part;
+  }
+  // Emphasis, links and the like: their markers are no spaces.
+  return `*${source}*`;
+}
+
+/** What a parser keeps of the text between two dollars as math. */
+function mathValue(between: string) {
+  const padded = /^[ \n]/.test(between) && /[ \n]$/.test(between);
+  return padded && /[^ \n]/.test(between) ? between.slice(1, -1) : between;
+}
+
+/** Whether every dollar in `source`, unescaped, would be read as text. */
+export function dollarsStayText(source: string): boolean {
+  if (source.includes('$$')) return false;
+  let open = source.indexOf('$');
+  while (open !== -1) {
+    const close = source.indexOf('$', open + 1);
+    if (close === -1) return true;
+    if (!isDollarText(mathValue(source.slice(open + 1, close)))) return false;
+    open = source.indexOf('$', close + 1);
+  }
+  return true;
+}
+
+/** The text of a paragraph, heading or cell, its dollars written as typed. */
+function markDollarText(block: MdNode) {
+  const source = dollarSource(block);
+  if (!source?.includes('$') || !dollarsStayText(source)) return;
+  const mark = (node: MdNode) => {
+    if (node.type === 'text') dollarText.add(node);
+    for (const child of node.children ?? []) mark(child);
+  };
+  mark(block);
+}
 
 /** Columns `value` takes in a monospace font. */
 export function displayWidth(value: string): number {
@@ -156,6 +224,13 @@ export function normalizeForOutput<T extends MdNode>(tree: T): T {
     if (node.type === 'tableCell') clearEmptyCell(node);
     if (node.type === 'paragraph' || node.type === 'heading') {
       trimLeadingSpace(node);
+    }
+    if (
+      node.type === 'paragraph' ||
+      node.type === 'heading' ||
+      node.type === 'tableCell'
+    ) {
+      markDollarText(node);
     }
     for (const child of node.children ?? []) visit(child);
   };
