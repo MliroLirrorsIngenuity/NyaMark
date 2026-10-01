@@ -21,6 +21,7 @@ import { blockSelection } from './plugins/block-selection';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
 import { htmlBlockView, registerHtmlBlockStyles } from './plugins/html-block';
+import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { markdownOutput } from './plugins/markdown-output';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
@@ -95,6 +96,7 @@ export class NyaEditor {
         rule: '-' as const,
       }));
     });
+    crepe.editor.config(keepImageAlt);
     crepe.editor.use(markdownOutput);
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(htmlBlockView);
