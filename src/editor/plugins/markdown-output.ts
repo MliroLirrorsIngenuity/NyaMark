@@ -48,6 +48,10 @@
  * (see `math-dollars`) has them written as typed. One that has math in it,
  * or two dollars around something that would be read as math, keeps them
  * escaped.
+ *
+ * Tildes: every `~` was escaped, so a range was saved as `3\~5 天`. One tilde
+ * starts no strikethrough, and is written as typed unless another is next to
+ * it.
  */
 
 import { $remark } from '@milkdown/kit/utils';
@@ -145,16 +149,30 @@ export function relaxEscapes(markdown: string): string {
 /** Text whose dollars are written as typed (see `markDollarText`). */
 const dollarText = new WeakSet<object>();
 
+/**
+ * `text`, written by remark, with a tilde unescaped where it stands alone:
+ * a strikethrough takes two (see `tilde-text`). `before` and `after` are the
+ * characters written around it.
+ */
+export function relaxTildes(text: string, before = '', after = ''): string {
+  return text.replace(/\\~/g, (escaped, offset: number) => {
+    const previous = offset > 0 ? text[offset - 1] : before;
+    const rest = text.slice(offset + 2);
+    const next = rest ? rest.replace(/^\\(?=~)/, '')[0] : after;
+    return previous === '~' || next === '~' ? escaped : '~';
+  });
+}
+
 /** Milkdown's handler for text, its escapes relaxed. */
 export const writeText: Handle = (node, _parent, state, info) => {
   const value: string = node.value;
-  const dollars = dollarText.has(node);
-  // Milkdown writes text that ends in a space as it is, dollars and all.
-  if (/^[^*_\\]*\s+$/.test(value)) {
-    return dollars ? value : value.replace(/\$/g, '\\$');
-  }
-  const text = relaxEscapes(state.safe(value, { ...info, encode: [] }));
-  return dollars ? text.replace(/\\\$/g, '$') : text;
+  // Milkdown writes text that ends in a space as it is, but for the dollars
+  // and tildes that could start math or a strikethrough.
+  const text = /^[^*_\\]*\s+$/.test(value)
+    ? value.replace(/[$~]/g, '\\$&')
+    : relaxEscapes(state.safe(value, { ...info, encode: [] }));
+  const relaxed = relaxTildes(text, info.before, info.after);
+  return dollarText.has(node) ? relaxed.replace(/\\\$/g, '$') : relaxed;
 };
 
 /**

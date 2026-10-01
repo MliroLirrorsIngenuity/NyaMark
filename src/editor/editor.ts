@@ -11,7 +11,10 @@ import {
   remarkCtx,
   remarkStringifyOptionsCtx,
 } from '@milkdown/kit/core';
-import { remarkGFMPlugin } from '@milkdown/kit/preset/gfm';
+import {
+  remarkGFMPlugin,
+  strikethroughInputRule,
+} from '@milkdown/kit/preset/gfm';
 import { Fragment, Slice } from '@milkdown/kit/prose/model';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import { $prose, outline } from '@milkdown/kit/utils';
@@ -62,6 +65,7 @@ import {
 import { tabFocus } from './plugins/tab-focus';
 import { keepCellAlignment } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
+import { strikethroughInput } from './plugins/tilde-text';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
 import { type BlockSpan, blockSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
@@ -130,10 +134,12 @@ export class NyaEditor {
         rule: '-' as const,
         handlers: { ...options.handlers, text: writeText },
       }));
-      // Table pipes line up by display width (see markdown-output).
+      // Table pipes line up by display width (see markdown-output), and a
+      // strikethrough takes two tildes (see tilde-text).
       ctx.update(remarkGFMPlugin.options.key, (options) => ({
         ...options,
         stringLength: displayWidth,
+        singleTilde: false,
       }));
     });
     crepe.editor.config(keepImageAlt);
@@ -146,6 +152,9 @@ export class NyaEditor {
     crepe.editor.use(hrInput);
     crepe.editor.use(headingInput);
     crepe.editor.use(dollarInput);
+    // Removed before the editor is created, so at once (see tilde-text).
+    void crepe.editor.remove(strikethroughInputRule);
+    crepe.editor.use(strikethroughInput);
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(linkInput);
     crepe.editor.use(fenceInput);
