@@ -73,7 +73,8 @@
       "description": "Description",
       "descriptionPlaceholder": "Write image description",
       "path": "Path",
-      "pathPlaceholder": "Image path"
+      "pathPlaceholder": "Image path",
+      "broken": "Can't load this image"
     },
     "alert": {
       "note": "Note",

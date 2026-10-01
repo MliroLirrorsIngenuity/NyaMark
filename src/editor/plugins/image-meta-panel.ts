@@ -152,6 +152,7 @@ export class ImageMetaPanel {
     const image = wrapper.querySelector('img');
     if (image instanceof HTMLImageElement) {
       image.draggable = false;
+      this.syncBroken(host, wrapper, image, currentSrc);
     }
 
     if (!host.dataset.nyamarkMetaBound) {
@@ -303,6 +304,53 @@ export class ImageMetaPanel {
     ) {
       pathInput.value = currentSrc;
     }
+  }
+
+  /**
+   * A picture that fails to load showed WebKit's broken-image glyph in a bare
+   * 100px box, with no word of what went wrong or which path was tried. It
+   * gives way to a card that says so and names the path, for the info panel
+   * to correct.
+   */
+  private syncBroken(
+    host: HTMLElement,
+    wrapper: HTMLElement,
+    image: HTMLImageElement,
+    src: string
+  ) {
+    let card = wrapper.querySelector<HTMLElement>('.nyamark-image-broken');
+    if (!card) {
+      card = document.createElement('div');
+      card.className = 'nyamark-image-broken';
+      card.setAttribute('contenteditable', 'false');
+      card.innerHTML = `
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 3l18 18" />
+          <path d="M9 4h10a1 1 0 0 1 1 1v10" />
+          <path d="M20 19.5a1 1 0 0 1-1 .5H5a1 1 0 0 1-1-1V5a1 1 0 0 1 .5-.9" />
+          <path d="M4 16l4.5-4.5L12 15" />
+        </svg>
+        <span class="nyamark-image-broken__title" data-i18n="editor.image.broken">Can't load this image</span>
+        <span class="nyamark-image-broken__path"></span>
+      `;
+      translateDOM(card);
+      image.after(card);
+    }
+    const path = card.querySelector('.nyamark-image-broken__path');
+    if (path && path.textContent !== src) path.textContent = src;
+
+    // Settled before this saw it, or settling later (a corrected path loads).
+    const update = () =>
+      host.classList.toggle(
+        'nyamark-image-broken',
+        image.complete && image.naturalWidth === 0 && !!image.src
+      );
+    if (!image.dataset.nyamarkWatched) {
+      image.dataset.nyamarkWatched = 'true';
+      image.addEventListener('load', update);
+      image.addEventListener('error', update);
+    }
+    update();
   }
 
   private updateImageNodeAttrs(

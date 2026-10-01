@@ -245,3 +245,62 @@
   .image-icon {
   color: #b5c1cf !important;
 }
+
+/* A picture that failed to load (see `syncBroken`). */
+.ny-editor-root .milkdown .milkdown-image-block .nyamark-image-broken {
+  display: none !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block.nyamark-image-broken
+  > .image-wrapper
+  > img,
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block.nyamark-image-broken
+  .image-resize-handle {
+  display: none !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block.nyamark-image-broken
+  .nyamark-image-broken {
+  display: grid !important;
+  justify-items: center !important;
+  gap: 6px !important;
+  box-sizing: border-box !important;
+  width: 360px !important;
+  max-width: 100% !important;
+  padding: 26px 24px !important;
+  border: 1px dashed var(--ny-editor-codeblock-border) !important;
+  border-radius: 12px !important;
+  background: var(--ny-editor-codeblock-bg) !important;
+  color: var(--ny-editor-button-text) !important;
+  text-align: center !important;
+  cursor: default !important;
+}
+
+.ny-editor-root .milkdown .nyamark-image-broken__title {
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  font-weight: 600 !important;
+  color: var(--ny-editor-text-primary) !important;
+}
+
+.ny-editor-root .milkdown .nyamark-image-broken__path {
+  max-width: 100% !important;
+  font-family: var(--ny-font-mono) !important;
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  .milkdown-image-block.nyamark-image-broken
+  > .image-wrapper::before {
+  border-radius: 12px !important;
+}

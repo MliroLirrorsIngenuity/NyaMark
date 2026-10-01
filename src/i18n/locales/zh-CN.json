@@ -71,7 +71,8 @@
       "description": "描述",
       "descriptionPlaceholder": "填写图片描述",
       "path": "路径",
-      "pathPlaceholder": "图片路径"
+      "pathPlaceholder": "图片路径",
+      "broken": "图片无法加载"
     },
     "alert": {
       "note": "注意",

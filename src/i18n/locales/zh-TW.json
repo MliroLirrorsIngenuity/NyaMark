@@ -71,7 +71,8 @@
       "description": "描述",
       "descriptionPlaceholder": "填寫圖片描述",
       "path": "路徑",
-      "pathPlaceholder": "圖片路徑"
+      "pathPlaceholder": "圖片路徑",
+      "broken": "圖片無法載入"
     },
     "alert": {
       "note": "附註",
