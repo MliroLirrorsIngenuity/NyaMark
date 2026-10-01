@@ -143,7 +143,13 @@
 .ny-editor-root .milkdown .ProseMirror th,
 .ny-editor-root .milkdown .ProseMirror td {
   min-width: 0 !important;
+  padding: 0.4em 0.8em !important;
   vertical-align: top !important;
+}
+
+/* paragraph gap: a cell holds one paragraph; the cell padding is the gap. */
+.ny-editor-root .milkdown .editor :is(th, td) > p {
+  padding: 0 !important;
 }
 
 .ny-editor-root .milkdown .ProseMirror th code,
@@ -171,12 +177,16 @@
  * below. That reproduces the old collapsed spacing exactly -- with collapsing,
  * the following block's top margin was already the value that won -- and it
  * stays correct for node types this file never enumerates.
+ *
+ * A table's `tbody` is a `.content-dom` too, and it has to stay a table: as a
+ * flex column every row sized its cells on its own and the column lines
+ * stopped lining up from one row to the next.
  */
 .ny-editor-root .milkdown .editor,
 .ny-editor-root .milkdown .editor blockquote,
 .ny-editor-root .milkdown .editor ul,
 .ny-editor-root .milkdown .editor ol,
-.ny-editor-root .milkdown .editor .content-dom {
+.ny-editor-root .milkdown .editor .content-dom:not(tbody) {
   display: flex !important;
   flex-direction: column !important;
 }
@@ -185,7 +195,7 @@
 .ny-editor-root .milkdown .editor blockquote > *,
 .ny-editor-root .milkdown .editor ul > *,
 .ny-editor-root .milkdown .editor ol > *,
-.ny-editor-root .milkdown .editor .content-dom > * {
+.ny-editor-root .milkdown .editor .content-dom:not(tbody) > * {
   /* Long documents must not squeeze their blocks to fit a constrained host. */
   flex: 0 0 auto !important;
   margin-bottom: 0 !important;
