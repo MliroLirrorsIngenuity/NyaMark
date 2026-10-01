@@ -45,6 +45,13 @@ describe('formatAttachmentReference', () => {
       'D:/assets/image.png',
     ],
     [
+      'turns file URIs into relative paths',
+      '/docs/note.md',
+      'file:///docs/assets/My%20Image.png',
+      options,
+      'assets/My Image.png',
+    ],
+    [
       'leaves external resources unchanged',
       '/docs/note.md',
       'https://example.com/image.png',

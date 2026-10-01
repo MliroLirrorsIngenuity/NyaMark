@@ -27,6 +27,7 @@ import {
   subscribeSettings,
 } from '../state/settings';
 import { ImagePolicyDialog } from '../ui/image-policy-dialog';
+import { looksLikeExternalResource } from './attachment-paths';
 import {
   basename,
   classifyLinkTarget,
@@ -34,7 +35,6 @@ import {
   extractClipboardFilePaths,
   getDocumentCopyTarget,
   IMAGE_EXTENSIONS,
-  isExternalResource,
   isImagePath,
   policyToInsertRule,
   type InsertRule,
@@ -166,7 +166,7 @@ export class AttachmentController {
   }
 
   async resolvePreviewUrl(src: string) {
-    if (!src || isExternalResource(src)) return src;
+    if (!src || looksLikeExternalResource(src)) return src;
 
     const absolutePath = await resolveDocumentAssetPath(
       this.options.getDocumentPath(),

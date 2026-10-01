@@ -114,13 +114,6 @@ export function extractClipboardFilePaths(
   return Array.from(new Set([...uriList, ...plainText]));
 }
 
-export function isExternalResource(value: string) {
-  return (
-    !/^[a-zA-Z]:[\\/]/.test(value) &&
-    /^(https?:|data:|blob:|asset:|mailto:|tel:)/i.test(value)
-  );
-}
-
 export type LinkTarget =
   | { kind: 'url'; url: string }
   | { kind: 'local'; reference: string }

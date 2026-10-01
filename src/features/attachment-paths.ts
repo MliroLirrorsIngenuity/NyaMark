@@ -119,6 +119,10 @@ export function fileUriToPath(uri: string): string | null {
   }
 }
 
+/**
+ * Values that name something other than a local file. `file:` URIs are local
+ * files and go through `fileUriToPath` instead.
+ */
 export function looksLikeExternalResource(value: string) {
   return /^(?:https?:|data:|blob:|asset:|mailto:|tel:)/i.test(value);
 }
@@ -205,7 +209,12 @@ export function formatAttachmentReference(
     return trimmed;
   }
 
-  const normalizedTarget = normalizePath(unescapeMarkdownPath(trimmed));
+  const localPath = /^file:/i.test(trimmed)
+    ? fileUriToPath(trimmed)
+    : unescapeMarkdownPath(trimmed);
+  if (!localPath) return trimmed;
+
+  const normalizedTarget = normalizePath(localPath);
   const documentDir = documentPath ? dirnamePath(documentPath) : null;
   let reference = normalizedTarget;
 
