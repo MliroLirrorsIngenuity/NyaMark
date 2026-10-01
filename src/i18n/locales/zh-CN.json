@@ -108,7 +108,8 @@
     },
     "attachmentError": {
       "insertFailed": "无法插入“{{name}}”：{{reason}}",
-      "openFailed": "无法打开“{{name}}”：{{reason}}"
+      "openFailed": "无法打开“{{name}}”：{{reason}}",
+      "base64TooLarge": "图片大小 {{size}} MB，超过 Base64 内嵌上限 {{limit}} MB。请先保存文档，改为把图片复制到文件夹。"
     },
     "documentError": {
       "notUtf8": "“{{fileName}}”不是 UTF-8 编码，NyaMark 没有改动它。请先转换为 UTF-8 再打开。",

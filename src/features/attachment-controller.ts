@@ -40,6 +40,12 @@ import {
   type InsertRule,
 } from './attachment-policy';
 
+/**
+ * Largest image embedded as Base64. The text grows by a third, and a document
+ * over the 20 MiB open limit could never be reopened.
+ */
+const MAX_BASE64_IMAGE_BYTES = 5 * 1024 * 1024;
+
 /** One file to insert: a name for the error message and how to load it. */
 type AttachmentSource = {
   name: string;
@@ -476,6 +482,14 @@ export class AttachmentController {
   }
 
   private async readFileAsDataUrl(file: File) {
+    if (file.size > MAX_BASE64_IMAGE_BYTES) {
+      throw new Error(
+        i18next.t('dialog.attachmentError.base64TooLarge', {
+          size: (file.size / 1024 / 1024).toFixed(1),
+          limit: MAX_BASE64_IMAGE_BYTES / 1024 / 1024,
+        })
+      );
+    }
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result ?? ''));
