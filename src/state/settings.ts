@@ -1,4 +1,8 @@
-import { type ImageSettings, defaultImageSettings } from './image-settings';
+import {
+  type ImageInsertPolicy,
+  type ImageSettings,
+  defaultImageSettings,
+} from './image-settings';
 import {
   hasPersistedLanguage as hasStoredLanguage,
   loadPersistedSettings,
@@ -77,6 +81,21 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+/** `clamp` for a stored value that may be missing or not a number at all. */
+function clampSetting(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number
+) {
+  const number = Number(value ?? fallback);
+  return clamp(Number.isFinite(number) ? number : fallback, min, max);
+}
+
+function booleanSetting(value: unknown, fallback: boolean) {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 async function applyWindowEffects(transparency: boolean) {
   const platform = getPlatform();
   if (platform === 'linux') {
@@ -122,27 +141,27 @@ export function sanitizeAppearanceSettings(
       theme === 'light' || theme === 'dark'
         ? theme
         : defaultSettings.appearance.theme,
-    fontSize: clamp(
-      Number(appearance?.fontSize ?? defaultSettings.appearance.fontSize),
+    fontSize: clampSetting(
+      appearance?.fontSize,
+      defaultSettings.appearance.fontSize,
       11,
       22
     ),
-    lineHeight: clamp(
-      Number(appearance?.lineHeight ?? defaultSettings.appearance.lineHeight),
+    lineHeight: clampSetting(
+      appearance?.lineHeight,
+      defaultSettings.appearance.lineHeight,
       1.2,
       2.2
     ),
-    readableMaxWidth: clamp(
-      Number(
-        appearance?.readableMaxWidth ??
-          defaultSettings.appearance.readableMaxWidth
-      ),
+    readableMaxWidth: clampSetting(
+      appearance?.readableMaxWidth,
+      defaultSettings.appearance.readableMaxWidth,
       520,
       1100
     ),
-    windowTransparency: Boolean(
-      appearance?.windowTransparency ??
-        defaultSettings.appearance.windowTransparency
+    windowTransparency: booleanSetting(
+      appearance?.windowTransparency,
+      defaultSettings.appearance.windowTransparency
     ),
   };
 }
@@ -164,14 +183,52 @@ function sanitizeSaveSettings(
   save: Partial<SaveSettings> | undefined
 ): SaveSettings {
   return {
-    autoSave: Boolean(save?.autoSave),
-    autoSaveIntervalMs: clamp(
-      Number(
-        save?.autoSaveIntervalMs ?? defaultSettings.save.autoSaveIntervalMs
-      ),
+    autoSave: booleanSetting(save?.autoSave, defaultSettings.save.autoSave),
+    autoSaveIntervalMs: clampSetting(
+      save?.autoSaveIntervalMs,
+      defaultSettings.save.autoSaveIntervalMs,
       60_000,
       3_600_000
     ),
+  };
+}
+
+const INSERT_POLICIES: readonly ImageInsertPolicy[] = [
+  'use-path',
+  'copy-same-folder',
+  'copy-assets',
+  'copy-custom-folder',
+  'base64',
+];
+
+function isInsertPolicy(value: unknown): value is ImageInsertPolicy {
+  return INSERT_POLICIES.includes(value as ImageInsertPolicy);
+}
+
+function sanitizeAttachmentSettings(
+  attachments: Partial<ImageSettings> | undefined
+): ImageSettings {
+  const defaults = defaultSettings.attachments;
+  const pasted: unknown = attachments?.pastedImagePolicy;
+  const directory = attachments?.customCopyDirectory;
+  return {
+    insertPolicy: isInsertPolicy(attachments?.insertPolicy)
+      ? attachments.insertPolicy
+      : defaults.insertPolicy,
+    // A pasted image has no source file, so it can never keep its own path.
+    pastedImagePolicy:
+      isInsertPolicy(pasted) && pasted !== 'use-path' ? pasted : null,
+    preferRelativePath: booleanSetting(
+      attachments?.preferRelativePath,
+      defaults.preferRelativePath
+    ),
+    ensureDotSlash: booleanSetting(
+      attachments?.ensureDotSlash,
+      defaults.ensureDotSlash
+    ),
+    escapePath: booleanSetting(attachments?.escapePath, defaults.escapePath),
+    customCopyDirectory:
+      typeof directory === 'string' && directory.trim() ? directory : null,
   };
 }
 
@@ -191,17 +248,14 @@ export function previewAppearance(appearance: AppearanceSettings) {
   applyAppearance(sanitizeAppearanceSettings(appearance));
 }
 
-function normalizeSettings(
+export function normalizeSettings(
   parsed: Partial<Settings> | null | undefined
 ): Settings {
   return {
     general: sanitizeGeneralSettings(parsed?.general),
     appearance: sanitizeAppearanceSettings(parsed?.appearance),
     save: sanitizeSaveSettings(parsed?.save),
-    attachments: {
-      ...defaultSettings.attachments,
-      ...(parsed?.attachments ?? {}),
-    },
+    attachments: sanitizeAttachmentSettings(parsed?.attachments),
   };
 }
 
