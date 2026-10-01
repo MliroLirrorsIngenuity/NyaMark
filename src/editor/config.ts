@@ -7,7 +7,7 @@ import { EditorView as CodeMirror, keymap, tooltips } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { type Crepe, CrepeFeature } from '@milkdown/crepe';
 import { redo, undo } from '@milkdown/kit/prose/history';
-import type { Command } from '@milkdown/kit/prose/state';
+import { AllSelection, type Command } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
 import { renderMermaidPreview } from './plugins/mermaid';
@@ -40,6 +40,7 @@ function codeBlockExtensions(getView: () => EditorView | null) {
     autocompletion({ activateOnTyping: false }),
     tooltips({ parent: document.body }),
     codeBlockHistory(getView),
+    codeBlockSelectAll(getView),
   ];
 }
 
@@ -150,6 +151,35 @@ function codeBlockHistory(getView: () => EditorView | null) {
       },
     }),
   ]);
+}
+
+/**
+ * Cmd+A in a code block selects its code, and pressed again with the code all
+ * selected, the whole document, as it does from text. CodeMirror kept it to
+ * the block however often it was pressed, and there was no way to select the
+ * document from inside one.
+ */
+function codeBlockSelectAll(getView: () => EditorView | null) {
+  return Prec.highest(
+    keymap.of([
+      {
+        key: 'Mod-a',
+        run: (cm) => {
+          const { main } = cm.state.selection;
+          if (main.from > 0 || main.to < cm.state.doc.length) return false;
+          const view = getView();
+          if (!view) return false;
+          const { state } = view;
+          view.dispatch(state.tr.setSelection(new AllSelection(state.doc)));
+          view.focus();
+          // Its own highlight stayed on the code, a shade over the document's.
+          // Out of focus, CodeMirror passes the change on to no one.
+          cm.dispatch({ selection: { anchor: main.head } });
+          return true;
+        },
+      },
+    ])
+  );
 }
 
 /**
