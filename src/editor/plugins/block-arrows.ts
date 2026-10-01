@@ -292,6 +292,25 @@ export const blockArrows = $prose(() => {
           view.dispatch(state.tr.insertText(event.data).scrollIntoView());
           return true;
         },
+        // For a moment after it takes focus, ProseMirror reads a caret at the
+        // top of the document as one the browser dropped there and puts it
+        // back: ArrowUp from code onto the first line, pressed again at once,
+        // was lost. Focus that comes back from code inside the editor was
+        // handed over with the caret already placed.
+        focus(view, event) {
+          const from = event.relatedTarget;
+          if (!(from instanceof HTMLElement) || !view.dom.contains(from)) {
+            return false;
+          }
+          // After ProseMirror's own handler, which notes the time.
+          queueMicrotask(() => {
+            const { input } = view as unknown as {
+              input?: { lastFocus?: number };
+            };
+            if (typeof input?.lastFocus === 'number') input.lastFocus = 0;
+          });
+          return false;
+        },
       },
       // WebKit's own move into code, which lands at the start of a line.
       handleKeyDown(view, event) {
