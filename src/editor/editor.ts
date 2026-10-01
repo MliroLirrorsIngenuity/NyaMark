@@ -34,6 +34,7 @@ import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
 import { linkInput } from './plugins/link-input';
+import { listItemView } from './plugins/list-item-view';
 import { displayWidth, markdownOutput } from './plugins/markdown-output';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import {
@@ -122,6 +123,7 @@ export class NyaEditor {
     crepe.editor.use(hrInput);
     crepe.editor.use(linkInput);
     crepe.editor.use(fenceInput);
+    crepe.editor.use(listItemView);
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(blockSelection);
     crepe.editor.use(codePreview);
