@@ -130,6 +130,10 @@
         "none": "None",
         "wide": "Wide"
       }
+    },
+    "settingsReset": {
+      "title": "Settings were reset",
+      "body": "NyaMark could not read its settings file and started with the defaults. The unreadable file was kept at \"{{path}}\"."
     }
   },
   "updates": {

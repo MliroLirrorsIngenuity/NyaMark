@@ -21,11 +21,13 @@ import {
   hydrateSettings,
   previewAppearance,
   subscribeSettings,
+  takeUnreadableSettingsBackup,
   updateSettings,
 } from './state/settings';
 import { initI18n, i18next, resolveLanguage } from './i18n';
 import { translateDOM } from './i18n/dom';
 import { updateMacosMenu } from './bridge/ipc/menu';
+import { warningDialog } from './bridge/ipc/files';
 import { OutlinePanel } from './ui/outline';
 import { SearchPanel } from './ui/search';
 import {
@@ -93,6 +95,15 @@ export class App {
     }
 
     translateDOM(document.body);
+
+    const unreadableSettings = takeUnreadableSettingsBackup();
+    if (unreadableSettings) {
+      void warningDialog(
+        i18next.t('dialog.settingsReset.body', { path: unreadableSettings }),
+        i18next.t('dialog.settingsReset.title')
+      );
+    }
+
     this.theme = new ThemeManager();
     this.bindThemeToggle();
     this.bindAutoSave();

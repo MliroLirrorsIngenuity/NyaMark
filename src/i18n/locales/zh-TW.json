@@ -129,6 +129,10 @@
         "none": "無",
         "wide": "寬"
       }
+    },
+    "settingsReset": {
+      "title": "設定已重設",
+      "body": "NyaMark 無法讀取設定檔，已改用預設設定。無法讀取的原檔案保留在「{{path}}」。"
     }
   },
   "updates": {

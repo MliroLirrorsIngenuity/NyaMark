@@ -58,6 +58,7 @@ export const defaultSettings: Settings = {
 
 let cached: Settings = structuredClone(defaultSettings);
 let hydrated = false;
+let unreadableSettingsBackup: string | null = null;
 let themeApplier: ((theme: ThemePreference) => void) | null = null;
 
 /**
@@ -211,7 +212,9 @@ export function getSettings(): Settings {
 export async function hydrateSettings(): Promise<Settings> {
   if (hydrated) return cached;
   try {
-    cached = normalizeSettings(await loadPersistedSettings());
+    const persisted = await loadPersistedSettings();
+    cached = normalizeSettings(persisted.settings);
+    unreadableSettingsBackup = persisted.unreadableBackup;
   } catch (error) {
     console.error('Failed to load settings:', error);
     cached = structuredClone(defaultSettings);
@@ -243,6 +246,16 @@ async function followOtherWindows() {
   } catch (error) {
     console.error('Failed to subscribe to settings changes:', error);
   }
+}
+
+/**
+ * Where an unreadable settings file was copied before the defaults took over,
+ * so the user can be told once. Cleared by the call.
+ */
+export function takeUnreadableSettingsBackup(): string | null {
+  const backup = unreadableSettingsBackup;
+  unreadableSettingsBackup = null;
+  return backup;
 }
 
 export async function hasPersistedLanguage() {

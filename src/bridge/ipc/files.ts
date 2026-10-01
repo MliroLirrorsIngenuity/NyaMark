@@ -36,6 +36,10 @@ export async function errorDialog(msg: string): Promise<void> {
   await message(msg, { kind: 'error' });
 }
 
+export async function warningDialog(msg: string, title: string): Promise<void> {
+  await message(msg, { kind: 'warning', title });
+}
+
 export type UnsavedChangesAction = 'save' | 'discard' | 'cancel';
 
 /** Native three-button prompt; dismissing the dialog counts as cancel. */
