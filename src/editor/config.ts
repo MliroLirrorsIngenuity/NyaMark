@@ -11,6 +11,7 @@ import { AllSelection, type Command } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
 import { closeFenceOnEnter } from './plugins/code-fence-exit';
+import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
 
 export type CrepeConfigOptions = {
@@ -43,6 +44,7 @@ function codeBlockExtensions(getView: () => EditorView | null) {
     codeBlockHistory(getView),
     codeBlockSelectAll(getView),
     closeFenceOnEnter(getView),
+    codeSearchMatches,
   ];
 }
 

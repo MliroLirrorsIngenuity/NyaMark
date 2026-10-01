@@ -4,9 +4,9 @@
  * decorations, so they stay visible while focus sits in the search field
  * and the editor's own selection is not drawn.
  *
- * Code blocks are searched too, but CodeMirror renders them and ignores
- * ProseMirror decorations: a match there is counted and scrolled to
- * without a highlight.
+ * Code blocks are searched too. CodeMirror renders them and ignores
+ * ProseMirror decorations, so they are handed their matches to mark
+ * themselves (`code-search.ts`).
  */
 
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
@@ -14,6 +14,7 @@ import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 import { ensureStyle } from '../../style/register';
+import { showCodeMatches } from './code-search';
 
 export type SearchMatch = { from: number; to: number };
 
@@ -139,6 +140,13 @@ export function createSearchPlugin() {
     props: {
       decorations: (state) => searchKey.getState(state)?.decorations,
     },
+    view: () => ({
+      update(view, previous) {
+        const search = searchKey.getState(view.state);
+        if (!search || search === searchKey.getState(previous)) return;
+        showCodeMatches(view, search.matches, search.active);
+      },
+    }),
   });
 }
 
