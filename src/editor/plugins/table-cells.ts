@@ -26,11 +26,24 @@
  * Enter: Milkdown leaves the table onto a new empty paragraph every time, so
  * a table already followed by one -- always the case at the end of a document
  * -- gained another, saved as a stray `<br />`. The one already there is used.
+ *
+ * A line typed as a table's top row, `| 名称 | 数量 |`, stayed text on Enter:
+ * the table's own shortcut is `|2x2|`, which nobody types. Enter at its end
+ * turns it into a table with those headings and an empty row to fill in, the
+ * way other Markdown editors do.
  */
 
 import type { Ctx } from '@milkdown/kit/ctx';
-import { addRowWithAlignment } from '@milkdown/kit/preset/gfm';
+import {
+  addRowWithAlignment,
+  tableCellSchema,
+  tableHeaderRowSchema,
+  tableHeaderSchema,
+  tableRowSchema,
+  tableSchema,
+} from '@milkdown/kit/preset/gfm';
 import { GapCursor } from '@milkdown/kit/prose/gapcursor';
+import type { Fragment, Node } from '@milkdown/kit/prose/model';
 import {
   NodeSelection,
   Plugin,
@@ -224,6 +237,84 @@ function enterParagraphBelow(view: EditorView): boolean {
   return true;
 }
 
+/**
+ * The cells of a line typed as a table row, `| 名称 | 数量 |`, each the text
+ * between two bars with its marks; null for any other line.
+ */
+export function rowCells(line: Node): Fragment[] | null {
+  const bars: number[] = [];
+  let plain = true;
+  line.forEach((child, offset) => {
+    const text = child.isText ? (child.text ?? '') : null;
+    if (text === null) {
+      plain = false;
+      return;
+    }
+    for (let i = text.indexOf('|'); i >= 0; i = text.indexOf('|', i + 1)) {
+      bars.push(offset + i);
+    }
+  });
+  if (!plain || bars.length < 2) return null;
+  // Only text, so a character's index is its offset in the line.
+  const text = line.textContent;
+  const first = bars[0] ?? 0;
+  const last = bars[bars.length - 1] ?? 0;
+  if (text.slice(0, first).trim() || text.slice(last + 1).trim()) return null;
+  const cells: Fragment[] = [];
+  for (let i = 1; i < bars.length; i += 1) {
+    let from = (bars[i - 1] ?? 0) + 1;
+    let to = bars[i] ?? 0;
+    while (from < to && /\s/.test(text.charAt(from))) from += 1;
+    while (to > from && /\s/.test(text.charAt(to - 1))) to -= 1;
+    cells.push(line.content.cut(from, to));
+  }
+  return cells.some((cell) => cell.size > 0) ? cells : null;
+}
+
+/** Enter at the end of `| 名称 | 数量 |`: a table with those headings. */
+function tableFromLine(ctx: Ctx, view: EditorView): boolean {
+  const { state } = view;
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  const { $head } = selection;
+  const line = $head.parent;
+  if (line.type.name !== 'paragraph') return false;
+  if ($head.parentOffset !== line.content.size) return false;
+  const cells = rowCells(line);
+  const table = tableSchema.type(ctx);
+  if (
+    !cells ||
+    !$head.node(-1).canReplaceWith($head.index(-1), $head.indexAfter(-1), table)
+  ) {
+    return false;
+  }
+  const paragraph = line.type;
+  // No alignment, as a table read from `| --- |` has.
+  const plain = { alignment: null };
+  const node = table.create(null, [
+    tableHeaderRowSchema.type(ctx).create(
+      null,
+      cells.map((content) =>
+        tableHeaderSchema
+          .type(ctx)
+          .create(plain, paragraph.create(null, content))
+      )
+    ),
+    tableRowSchema.type(ctx).create(
+      null,
+      cells.map(() =>
+        tableCellSchema.type(ctx).create(plain, paragraph.create())
+      )
+    ),
+  ]);
+  const start = $head.before();
+  const tr = state.tr.replaceWith(start, $head.after(), node);
+  const body = start + 1 + (node.firstChild?.nodeSize ?? 0);
+  tr.setSelection(Selection.near(tr.doc.resolve(body + 1), 1));
+  view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
 export const tableCells = $prose(
   (ctx) =>
     new Plugin({
@@ -250,7 +341,9 @@ export const tableCells = $prose(
           if (event.key === 'Tab' && !event.metaKey) {
             return addRowFromLastCell(ctx, view);
           }
-          if (event.key === 'Enter') return enterParagraphBelow(view);
+          if (event.key === 'Enter') {
+            return enterParagraphBelow(view) || tableFromLine(ctx, view);
+          }
           return false;
         },
       },

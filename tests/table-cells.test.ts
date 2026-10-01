@@ -5,7 +5,7 @@ import {
   NodeSelection,
   TextSelection,
 } from '@milkdown/kit/prose/state';
-import { keepsCellCaret } from '../src/editor/plugins/table-cells';
+import { keepsCellCaret, rowCells } from '../src/editor/plugins/table-cells';
 
 const schema = new Schema({
   nodes: {
@@ -18,6 +18,7 @@ const schema = new Schema({
     table_cell: { content: 'paragraph' },
     text: { group: 'inline' },
   },
+  marks: { strong: {} },
 });
 
 const p = (text: string) => schema.node('paragraph', null, [schema.text(text)]);
@@ -57,5 +58,37 @@ describe('a click in a table cell', () => {
       keepsCellCaret(state.tr.setSelection(TextSelection.create(doc, 12, 14)))
     ).toBe(true);
     expect(keepsCellCaret(state.tr.insertText('x', 12))).toBe(true);
+  });
+});
+
+describe('a line typed as a table row', () => {
+  const cells = (line: Node) =>
+    rowCells(line)?.map((cell) => cell.textBetween(0, cell.size));
+
+  test('gives the text between each pair of bars, trimmed', () => {
+    expect(cells(p('| 名称 | 数量 |'))).toEqual(['名称', '数量']);
+    expect(cells(p('|a|b|c|'))).toEqual(['a', 'b', 'c']);
+    expect(cells(p('  | 一 |  '))).toEqual(['一']);
+    expect(cells(p('| a |  | b |'))).toEqual(['a', '', 'b']);
+  });
+
+  test('keeps the marks on the text', () => {
+    const bold = schema.text('名称', [schema.mark('strong')]);
+    const line = schema.node('paragraph', null, [
+      schema.text('| '),
+      bold,
+      schema.text(' | 数量 |'),
+    ]);
+    const first = rowCells(line)?.[0];
+    expect(first?.firstChild?.marks.map((mark) => mark.type.name)).toEqual([
+      'strong',
+    ]);
+  });
+
+  test('is not any other line', () => {
+    for (const text of ['a | b', '| a | b', 'a | b |', '|', '| |', '|  |  |']) {
+      expect(rowCells(p(text))).toBeNull();
+    }
+    expect(rowCells(schema.node('paragraph'))).toBeNull();
   });
 });
