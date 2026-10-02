@@ -154,7 +154,77 @@ export function outsideAfterPaste(state: EditorState): Transaction | null {
   );
 }
 
-function cursorRect(view: EditorView, toStart: boolean) {
+type Rect = { left: number; right: number; top: number; bottom: number };
+
+/**
+ * How the caret came to where it is, which settles the side of a break in a
+ * wrapped line it is drawn on: a key that takes it to the end of the line
+ * above (-1) or the start of the one below (1), ↑ or ↓ from the line at a
+ * height in the editor, a click at a height in it, or typing and deleting
+ * back, which leave it after the letter before it.
+ */
+type Came =
+  | { side: -1 | 1 }
+  | { line: number; dir: -1 | 1 }
+  | { y: number }
+  | { typed: true };
+
+const middle = (rect: Rect, top: number) => (rect.top + rect.bottom) / 2 - top;
+
+/**
+ * The side of a break in a wrapped line the caret is drawn on, and its box
+ * there; the end of one line and the start of the next are one place in the
+ * text. It goes to the end after End, ⌘→, a click past the line or what was
+ * typed or deleted there, to the start after Home, ⌘←, an arrow across or a
+ * click on the line below, and after ↑ or ↓ to the nearer of the two past the line it
+ * left, as the browser's own caret goes. Drawn where the browser puts a
+ * range, it went to the start of the next line every time.
+ */
+function wrapSide(
+  view: EditorView,
+  came: Came
+): { side: -1 | 1; rect: Rect } | null {
+  const { selection } = view.state;
+  if (!selection.empty) return null;
+  const { $head } = selection;
+  if (!$head.nodeBefore?.isText || !$head.nodeAfter?.isText) return null;
+  const end = { side: -1 as const, rect: view.coordsAtPos($head.pos, -1) };
+  const start = { side: 1 as const, rect: view.coordsAtPos($head.pos, 1) };
+  const height = start.rect.bottom - start.rect.top;
+  if (start.rect.top - end.rect.top < height / 2) return null;
+  if ('side' in came) return came.side < 0 ? end : start;
+  if ('typed' in came) return end;
+  const top = view.dom.getBoundingClientRect().top;
+  const at = 'y' in came ? came.y : came.line;
+  const off = (wrap: typeof end | typeof start) => middle(wrap.rect, top) - at;
+  if ('dir' in came) {
+    const past = [end, start].filter((wrap) => off(wrap) * came.dir > 4);
+    if (past.length === 1) return past[0];
+  }
+  return Math.abs(off(end)) <= Math.abs(off(start)) ? end : start;
+}
+
+/**
+ * After a change, puts the browser's caret at the end of the line above
+ * where the caret is drawn there, for ↑, ↓, Home and End to go on from the
+ * line it is seen on. Typed at the end of a line, the letters went on there
+ * and the browser had the caret at the start of the next line.
+ */
+function keepAtEnd(view: EditorView, came: Came) {
+  if (wrapSide(view, came)?.side !== -1) return;
+  const selection = view.dom.ownerDocument.getSelection();
+  const node = selection?.focusNode;
+  if (!selection?.isCollapsed || !node || !view.dom.contains(node)) return;
+  const offset = selection.focusOffset;
+  selection.modify('move', 'backward', 'character');
+  selection.modify('move', 'forward', 'lineboundary');
+  // The line ended elsewhere: back as it was.
+  if (selection.focusNode !== node || selection.focusOffset !== offset) {
+    selection.collapse(node, offset);
+  }
+}
+
+function cursorRect(view: EditorView, toStart: boolean): Rect {
   const range = getSelection()?.getRangeAt(0)?.cloneRange();
   if (range) {
     range.collapse(toStart);
@@ -194,13 +264,20 @@ function codeCaretX(
   return edge < 0 ? box.right + 1 : box.left - 1;
 }
 
-function drawCursor(view: EditorView, cursor: HTMLElement) {
-  if (view.isDestroyed) return;
+/** Draws the caret; the middle of its height in the editor, if drawn. */
+function drawCursor(
+  view: EditorView,
+  cursor: HTMLElement,
+  came: Came
+): number | null {
+  if (view.isDestroyed) return null;
   const { state, dom } = view;
   const { selection } = state;
-  if (!(selection instanceof TextSelection)) return;
-  if (!getSelection()?.rangeCount) return;
-  const rect = cursorRect(view, selection.$head === selection.$from);
+  if (!(selection instanceof TextSelection)) return null;
+  if (!getSelection()?.rangeCount) return null;
+  const rect =
+    wrapSide(view, came)?.rect ??
+    cursorRect(view, selection.$head === selection.$from);
   const box = dom.getBoundingClientRect();
   let x = rect.left;
   const $pos = selection.$head;
@@ -217,6 +294,25 @@ function drawCursor(view: EditorView, cursor: HTMLElement) {
   cursor.style.height = `${rect.bottom - rect.top}px`;
   cursor.style.left = `${x - box.left}px`;
   cursor.style.top = `${rect.top - box.top}px`;
+  return middle(rect, box.top);
+}
+
+const MODIFIERS = new Set(['Shift', 'Meta', 'Alt', 'Control', 'CapsLock']);
+
+/** How a key takes the caret, for `Came`; null for one that leaves it be. */
+function cameBy(event: KeyboardEvent, line: number): Came | null {
+  if (event.isComposing || MODIFIERS.has(event.key)) return null;
+  const jump = jumpOf(event);
+  if (jump) return { side: jump < 0 ? 1 : -1 };
+  const bare = !event.metaKey && !event.ctrlKey;
+  if (bare && event.key === 'ArrowUp') return { line, dir: -1 };
+  if (bare && event.key === 'ArrowDown') return { line, dir: 1 };
+  // ⌃E, the Mac's end of a line.
+  if (event.ctrlKey && event.key === 'e') return { side: -1 };
+  if (bare && (event.key.length === 1 || event.key === 'Backspace')) {
+    return { typed: true };
+  }
+  return event.key === 'Delete' ? null : { side: 1 };
 }
 
 const key = new PluginKey('prosemirror-virtual-cursor');
@@ -227,6 +323,9 @@ export const markCursor = $prose(() => {
   let jump: -1 | 0 | 1 = 0;
   // While the paste event is handled, by whichever plugin takes it.
   let pasting = false;
+  let came: Came = { side: 1 };
+  // The middle of the caret last drawn, in the editor.
+  let line = 0;
   return new Plugin({
     key,
     appendTransaction(trs, _old, state) {
@@ -240,13 +339,18 @@ export const markCursor = $prose(() => {
       return outsideAtEdge(state, dir);
     },
     view(view) {
-      const draw = () => drawCursor(view, cursor);
+      const draw = () => {
+        line = drawCursor(view, cursor, came) ?? line;
+      };
       const resize = new ResizeObserver(draw);
       resize.observe(view.dom);
       const doc = view.dom.ownerDocument;
       doc.addEventListener('selectionchange', draw);
       return {
-        update: draw,
+        update(view, prev) {
+          if (!prev.doc.eq(view.state.doc)) keepAtEnd(view, came);
+          draw();
+        },
         destroy() {
           doc.removeEventListener('selectionchange', draw);
           resize.disconnect();
@@ -256,17 +360,24 @@ export const markCursor = $prose(() => {
     props: {
       handleDOMEvents: {
         keydown(view, event) {
+          came = cameBy(event, line) ?? came;
           jump = jumpOf(event);
           // Already there, the caret does not move for it to follow.
           const tr = jump && outsideAtEdge(view.state, jump);
           if (tr) view.dispatch(tr);
           return false;
         },
-        mousedown() {
+        mousedown(view, event) {
           jump = 0;
+          came = { y: event.clientY - view.dom.getBoundingClientRect().top };
+          return false;
+        },
+        compositionend() {
+          came = { typed: true };
           return false;
         },
         paste() {
+          came = { typed: true };
           pasting = true;
           setTimeout(() => {
             pasting = false;
