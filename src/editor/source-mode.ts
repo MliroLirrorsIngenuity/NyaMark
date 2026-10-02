@@ -427,6 +427,11 @@ export class SourceModeController {
             if (!update.docChanged || this.applyingEditorText) return;
             this.invalidateAnchors();
             this.scheduleSync();
+            // Unsaved at once: a quit decided before the sync above reached
+            // the editor exited without asking, and the keys were lost.
+            if (!this.store.getState().isDirty) {
+              this.store.update({ isDirty: true });
+            }
           }),
         ],
       }),
