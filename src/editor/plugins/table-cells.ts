@@ -75,6 +75,7 @@ import {
 } from '@milkdown/kit/prose/tables';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { verticalGoal } from './block-arrows';
 import { replaceLineWith } from './fence-input';
 
 const CELL_TYPES = new Set(['table_cell', 'table_header']);
@@ -145,7 +146,7 @@ function enterTable(view: EditorView, dir: 1 | -1): boolean {
   if (!row) return false;
   const rowPos =
     tablePos + 1 + (dir > 0 ? 0 : table.content.size - row.nodeSize);
-  const x = view.coordsAtPos($head.pos).left;
+  const x = verticalGoal()?.x ?? view.coordsAtPos($head.pos).left;
   let cellPos = rowPos + 1;
   let distance = Number.POSITIVE_INFINITY;
   row.forEach((_cell, offset) => {
@@ -185,17 +186,21 @@ function moveVertically(view: EditorView, dir: 1 | -1): boolean {
     return false;
   }
 
-  const x = view.coordsAtPos($head.pos).left;
+  // Where the run of arrows set out from, past the short cells on the way.
+  const goal = verticalGoal();
+  const x = goal?.x ?? view.coordsAtPos($head.pos).left;
   const $next = nextCell($cell, 'vert', dir);
   // A cell's text sits inside its padding, right of the text around the
   // table: measured from the cell's edge, the start of a cell leads to the
-  // start of the line next to the table.
+  // start of the line next to the table. A run that came in from that line
+  // goes back to where it set out.
   const cellBox = (
     view.nodeDOM($cell.pos) as HTMLElement | null
   )?.getBoundingClientRect();
-  const outX = cellBox
-    ? cellBox.left + x - view.coordsAtPos($cell.pos + 2).left
-    : x;
+  const outX =
+    cellBox && (!goal || goal.inCell)
+      ? cellBox.left + x - view.coordsAtPos($cell.pos + 2).left
+      : x;
   let target: Selection | null;
   if ($next) {
     target = caretInCell(view, $next.pos, x, dir) ?? Selection.near($next, 1);

@@ -32,6 +32,11 @@
  * to start a line in front of it. There the caret becomes a gap cursor above
  * the block; typing or Enter there starts a paragraph.
  *
+ * A run of up and down arrows aims for where the first of them set out
+ * from, as it does between lines of text. Across a table or code block it
+ * aimed for where the caret was before each press, and a short cell or line
+ * on the way took it to the start of the line past the block.
+ *
  * Shift and an arrow from the edge of the text next to one of these blocks
  * left the selection to the browser, which reached into the block's own view
  * where ProseMirror could not follow: the highlight showed one range and
@@ -79,6 +84,23 @@ const ARROWS: Record<string, [1 | -1, boolean]> = {
 
 const isCode = (selection: Selection) =>
   !!selection.$head.parent.type.spec.code;
+
+/** Where a run of up and down arrows set out from, and if from a cell. */
+type Goal = { x: number; inCell: boolean; doc: Node };
+let goal: Goal | null = null;
+
+/** The x the up or down arrow being handled aims for, as `caretX` gives it. */
+export function verticalGoal(): Goal | null {
+  return goal;
+}
+
+const plainVertical = (event: KeyboardEvent) =>
+  (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+  !event.shiftKey &&
+  !event.altKey &&
+  !event.metaKey &&
+  !event.ctrlKey &&
+  !event.isComposing;
 
 /**
  * The caret in `cm`, on the row it is drawn on. Where a long line of code wraps
@@ -550,6 +572,11 @@ export const blockArrows = $prose(() => {
       // ProseMirror runs.
       const onKeyDown = (event: KeyboardEvent) => {
         pending = null;
+        if (plainVertical(event) && goal?.doc !== view.state.doc) {
+          const x = caretX(view);
+          const inCell = tableDepth(view.state.selection.$head) >= 0;
+          goal = x == null ? null : { x, inCell, doc: view.state.doc };
+        }
         if (lineToType(view, event)) return;
         const arrow = ARROWS[event.key];
         if (!arrow || event.isComposing || view.composing) return;
@@ -576,7 +603,7 @@ export const blockArrows = $prose(() => {
         pending = {
           dir: arrow[0],
           vertical: arrow[1],
-          x: arrow[1] ? caretX(view) : null,
+          x: arrow[1] ? (goal?.x ?? caretX(view)) : null,
           origin: view.state.selection.$head.start(),
         };
         // The moves this key makes are dispatched while it is handled.
@@ -587,8 +614,17 @@ export const blockArrows = $prose(() => {
       const done = () => {
         pending = null;
       };
+      // Anything but another plain up or down ends the run, ahead of the
+      // editor's own handlers: a click, a key, typing in the search box.
+      const endRun = (event: Event) => {
+        if (!(event instanceof KeyboardEvent && plainVertical(event))) {
+          goal = null;
+        }
+      };
       view.dom.addEventListener('keydown', onKeyDown, true);
       window.addEventListener('keydown', done);
+      window.addEventListener('keydown', endRun, true);
+      window.addEventListener('mousedown', endRun, true);
       return {
         // A math or diagram block hides its source until the caret is in it,
         // so the line under the caret is found once it shows -- a frame on,
@@ -617,6 +653,9 @@ export const blockArrows = $prose(() => {
         destroy: () => {
           view.dom.removeEventListener('keydown', onKeyDown, true);
           window.removeEventListener('keydown', done);
+          window.removeEventListener('keydown', endRun, true);
+          window.removeEventListener('mousedown', endRun, true);
+          goal = null;
           editor = null;
         },
       };
