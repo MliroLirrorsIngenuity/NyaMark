@@ -128,6 +128,25 @@ describe('marks around marks', () => {
     expect(save(['a', 'strong', 'link'])).toBe('**[a](u)**\n');
   });
 
+  test('keeps bold whole past a link all in bold', () => {
+    expect(save(['a', 'strong', 'link'], ['b', 'strong'])).toBe(
+      '**[a](u)b**\n'
+    );
+    expect(save(['a', 'strong', 'link'], [' b', 'strong'])).toBe(
+      '**[a](u) b**\n'
+    );
+    expect(
+      save(['x', 'strong'], ['a', 'strong', 'link'], ['b', 'strong'])
+    ).toBe('**x[a](u)b**\n');
+    expect(
+      save(
+        ['a', 'strong', 'link'],
+        ['b', 'emphasis', 'strong'],
+        ['c', 'strong']
+      )
+    ).toBe('**[a](u)*b*c**\n');
+  });
+
   test('writes the spaces at either end beside the mark', () => {
     expect(save(['word ', 'strong'], ['next'])).toBe('**word** next\n');
     expect(save(['word ', 'link'], ['next'])).toBe('[word](u) next\n');

@@ -202,7 +202,7 @@ function moveEdgeSpaces(node: MdNode) {
   const children = node.children;
   if (!children) return;
   for (const child of children) moveEdgeSpaces(child);
-  node.children = children.flatMap((child) => {
+  node.children = joinAlike(children.map(linkInside)).flatMap((child) => {
     if (!SPACED.has(child.type)) return [child];
     const inner = child.children ?? [];
     const first = inner[0];
@@ -211,7 +211,7 @@ function moveEdgeSpaces(node: MdNode) {
     const after = last?.type === 'text' ? edge(last, /\s+$/) : '';
     return [
       ...(before ? [{ type: 'text', value: before }] : []),
-      linkInside(child),
+      child,
       ...(after ? [{ type: 'text', value: after }] : []),
     ];
   });
@@ -237,6 +237,52 @@ function linkInside(node: MdNode): MdNode {
   node.children = only.children;
   only.children = [node];
   return only;
+}
+
+/** The node with no children, to tell whether two marks are alike. */
+const markOf = ({ children: _, ...mark }: MdNode) => JSON.stringify(mark);
+
+/**
+ * `node` with the mark alike to `like` taken out to its outside, from the
+ * marks it alone holds: `*` in `**` read as `**` in `*`. Or `node` as it is.
+ */
+function markOutside(node: MdNode, like: MdNode): MdNode {
+  if (!SPACED.has(node.type) || markOf(node) === markOf(like)) return node;
+  let parent = node;
+  let found = node.children?.length === 1 ? node.children[0] : undefined;
+  while (found && markOf(found) !== markOf(like)) {
+    if (!SPACED.has(found.type) || found.children?.length !== 1) return node;
+    parent = found;
+    found = found.children[0];
+  }
+  if (!found) return node;
+  parent.children = found.children;
+  found.children = [node];
+  return found;
+}
+
+/**
+ * Bold that runs on past a link all in bold is one bold, `**[a](u)b**`.
+ * Milkdown joins the bold before a link to the link's, but wrote the bold
+ * after it apart, `**[a](u)****b**`, and the four stars came back as text.
+ * Bold in italics after it is taken in the same way, as Milkdown takes it.
+ */
+function joinAlike(children: MdNode[]): MdNode[] {
+  const joined: MdNode[] = [];
+  for (const node of children) {
+    const last = joined[joined.length - 1];
+    const bold = last && ATTENTION.has(last.type) ? last : null;
+    const child = bold ? markOutside(node, bold) : node;
+    if (bold && markOf(bold) === markOf(child)) {
+      bold.children = joinAlike([
+        ...(bold.children ?? []),
+        ...(child.children ?? []),
+      ]);
+    } else {
+      joined.push(child);
+    }
+  }
+  return joined;
 }
 
 const isLineBreak = (node: MdNode) =>
