@@ -78,6 +78,9 @@ describe('`[^1]` typed into a line', () => {
       null
     );
   });
+  test('stays text across a line break or image', () => {
+    expect(REFERENCE.exec('a[^1\ufffc2]')).toBeNull();
+  });
 });
 
 describe('`[^1]: ` typed at the start of a line', () => {

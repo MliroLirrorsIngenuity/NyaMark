@@ -25,8 +25,11 @@ import {
 } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
 
-/** A footnote's label: no space, bracket, caret or backslash in it. */
-const LABEL = String.raw`([^\s[\]^\\]+)`;
+/**
+ * A footnote's label: no space, bracket, caret or backslash in it, nor the
+ * character a line break or image in the text stands as here.
+ */
+const LABEL = String.raw`([^\s[\]^\\\ufffc]+)`;
 // Not after `\`, which keeps the bracket text.
 export const REFERENCE = new RegExp(String.raw`(^|[^\\])\[\^${LABEL}\]$`);
 /** What a footnote mark, as an atom, stands as in the text before the caret. */
