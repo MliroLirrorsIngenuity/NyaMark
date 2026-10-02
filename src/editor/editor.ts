@@ -66,7 +66,7 @@ import { languagePickerRoom } from './plugins/language-picker-room';
 import { linkBox } from './plugins/link-box';
 import { linkInput } from './plugins/link-input';
 import { linkKey } from './plugins/link-key';
-import { linkMark } from './plugins/link-mark';
+import { typeOutsideLinks } from './plugins/link-mark';
 import { listEnter } from './plugins/list-enter';
 import { keepListItemSelected, listItemView } from './plugins/list-item-view';
 import { markCursor } from './plugins/mark-cursor';
@@ -188,6 +188,7 @@ export class NyaEditor {
     });
     crepe.editor.config(keepImageAlt);
     crepe.editor.config(keepBareLinks);
+    crepe.editor.config(typeOutsideLinks);
     crepe.editor.config(keepCellAlignment);
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.config(handleBlocksOnly);
@@ -219,7 +220,6 @@ export class NyaEditor {
     crepe.editor.use(bareLinkInput);
     crepe.editor.use(footnoteInput);
     crepe.editor.use(footnoteMark);
-    crepe.editor.use(linkMark);
     crepe.editor.use(linkBox);
     crepe.editor.use(linkKey);
     crepe.editor.use(slashMenuRoom);
