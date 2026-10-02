@@ -235,6 +235,27 @@ describe('writeText', () => {
       .processSync(markdown)
       .toString();
 
+  test('keeps a bracket that starts nothing', () => {
+    const markdown = '见 [1] 注释，数组 a[0] 和 [a]**b**\n\n[注] 开头\n';
+    expect(write(markdown)).toBe(markdown);
+  });
+
+  test('escapes a bracket that could start a link, footnote, task or alert', () => {
+    for (const markdown of [
+      '\\[ ] 任务\n',
+      '- \\[x] 任务\n',
+      '\\[^1] 脚注\n',
+      '> \\[!NOTE] 提示\n',
+      'a \\[b]\\(c) 与 \\[d][e]\n',
+      '\\[g][链接](https://x.com)\n',
+      '\\[a]: b\n',
+      '\\[未闭合\n',
+      '[链接里的 \\[1\\]](https://x.com)\n',
+    ]) {
+      expect(write(markdown)).toBe(markdown);
+    }
+  });
+
   test('keeps underscores inside a word', () => {
     const markdown = 'a_b_c 和 snake_case_name 与 1_000 和 中_文\n';
     expect(write(markdown)).toBe(markdown);

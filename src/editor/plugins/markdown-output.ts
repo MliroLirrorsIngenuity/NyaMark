@@ -171,6 +171,51 @@ export function relaxEscapes(markdown: string): string {
     );
 }
 
+/**
+ * Where the bracket escaped at `open` in written `text` closes, or -1. An
+ * escaped closing bracket closes nothing.
+ */
+function closingBracket(text: string, open: number): number {
+  let depth = 0;
+  for (let index = open; index < text.length; index++) {
+    const char = text[index];
+    if (char === '\\') {
+      if (text[index + 1] === '[') depth += 1;
+      index += 1;
+    } else if (char === ']') {
+      depth -= 1;
+      if (depth === 0) return index;
+    } else if (char === '[') {
+      depth += 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * `text`, written by remark, with an opening bracket unescaped where it
+ * starts nothing: `[1]`, `a[0]`, `[注]`. Kept escaped are a bracket left
+ * open, one that looks like a footnote (`[^`), an alert (`[!`), an image
+ * (`![`) or a task box at the start of a line, and one whose closing
+ * bracket is followed by `(`, `[` or `:`, in the text or as `after`, the
+ * character written next. Milkdown turns reference definitions into inline
+ * links as it reads, so no document defines `[1]`.
+ */
+export function relaxBrackets(text: string, after = ''): string {
+  return text.replace(/\\\[/g, (escaped, offset: number) => {
+    const close = closingBracket(text, offset);
+    if (close < 0) return escaped;
+    const next = text.slice(close + 1).replace(/^\\/, '')[0] ?? after;
+    if (/^[([:]/.test(next)) return escaped;
+    if (/[!^]/.test(text[offset + 2] ?? '') || text[offset - 1] === '!') {
+      return escaped;
+    }
+    const atLineStart = offset === 0 || text[offset - 1] === '\n';
+    if (atLineStart && /^\\\[[ xX]\]/.test(text.slice(offset))) return escaped;
+    return '[';
+  });
+}
+
 /** Text whose dollars are written as typed (see `markDollarText`). */
 const dollarText = new WeakSet<object>();
 
@@ -196,7 +241,12 @@ export const writeText: Handle = (node, _parent, state, info) => {
   const text = /^[^*_\\]*\s+$/.test(value)
     ? value.replace(/[$~]/g, '\\$&')
     : relaxEscapes(state.safe(value, { ...info, encode: [] }));
-  const relaxed = relaxTildes(text, info.before, info.after);
+  // Brackets in a link's own text stay as remark wrote them.
+  const bracketed =
+    state.stack.includes('label') || state.stack.includes('reference')
+      ? text
+      : relaxBrackets(text, info.after);
+  const relaxed = relaxTildes(bracketed, info.before, info.after);
   return dollarText.has(node) ? relaxed.replace(/\\\$/g, '$') : relaxed;
 };
 
