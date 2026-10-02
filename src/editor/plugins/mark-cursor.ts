@@ -24,7 +24,11 @@
  * typed after a pasted address went into its link.
  */
 
-import { Mark, type ResolvedPos } from '@milkdown/kit/prose/model';
+import {
+  Mark,
+  type Node as ProseNode,
+  type ResolvedPos,
+} from '@milkdown/kit/prose/model';
 import {
   type EditorState,
   Plugin,
@@ -264,6 +268,34 @@ function codeCaretX(
   return edge < 0 ? box.right + 1 : box.left - 1;
 }
 
+/** The caret last drawn, for the selection it was drawn for, in the editor. */
+let drawn: {
+  view: EditorView;
+  doc: ProseNode;
+  head: number;
+  left: number;
+  top: number;
+  bottom: number;
+} | null = null;
+
+/**
+ * The caret as it is drawn, in the window: the row it is seen on, which at a
+ * break in a wrapped line is not always the one its position measures to.
+ */
+export function caretBox(view: EditorView): Rect | null {
+  const { doc, selection } = view.state;
+  if (drawn?.view !== view || drawn.doc !== doc) return null;
+  if (!selection.empty || drawn.head !== selection.head) return null;
+  const box = view.dom.getBoundingClientRect();
+  const left = box.left + drawn.left;
+  return {
+    left,
+    right: left,
+    top: box.top + drawn.top,
+    bottom: box.top + drawn.bottom,
+  };
+}
+
 /** Draws the caret; the middle of its height in the editor, if drawn. */
 function drawCursor(
   view: EditorView,
@@ -294,6 +326,14 @@ function drawCursor(
   cursor.style.height = `${rect.bottom - rect.top}px`;
   cursor.style.left = `${x - box.left}px`;
   cursor.style.top = `${rect.top - box.top}px`;
+  drawn = {
+    view,
+    doc: state.doc,
+    head: selection.head,
+    left: x - box.left,
+    top: rect.top - box.top,
+    bottom: rect.bottom - box.top,
+  };
   return middle(rect, box.top);
 }
 

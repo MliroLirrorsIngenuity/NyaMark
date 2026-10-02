@@ -35,7 +35,10 @@
  * A run of up and down arrows aims for where the first of them set out
  * from, as it does between lines of text. Across a table or code block it
  * aimed for where the caret was before each press, and a short cell or line
- * on the way took it to the start of the line past the block.
+ * on the way took it to the start of the line past the block. WebKit's own
+ * moves aim for where the caret was last set down by anything but them, so
+ * once a block or a formula has had it set down, the rest of the run goes
+ * from row to row here.
  *
  * Shift and an arrow from the edge of the text next to one of these blocks
  * left the selection to the browser, which reached into the block's own view
@@ -72,6 +75,7 @@ import {
   isHtmlBlockSelected,
   selectHtmlBlockAt,
 } from './html-block';
+import { caretBox } from './mark-cursor';
 
 type Arrow = {
   dir: 1 | -1;
@@ -92,8 +96,11 @@ const ARROWS: Record<string, [1 | -1, boolean]> = {
 const isCode = (selection: Selection) =>
   !!selection.$head.parent.type.spec.code;
 
-/** Where a run of up and down arrows set out from, and if from a cell. */
-type Goal = { x: number; inCell: boolean; doc: Node };
+/**
+ * Where a run of up and down arrows set out from, if from a cell, and if a
+ * key handled by the editor has set the caret down on the way since.
+ */
+type Goal = { x: number; inCell: boolean; doc: Node; placed: boolean };
 let goal: Goal | null = null;
 
 /** The x the up or down arrow being handled aims for, as `caretX` gives it. */
@@ -169,7 +176,9 @@ function codeMirrorAt(view: EditorView, pos: number) {
 function caretX(view: EditorView): number | null {
   const { selection } = view.state;
   if (!(selection instanceof TextSelection) || !selection.empty) return null;
-  if (!isCode(selection)) return view.coordsAtPos(selection.head).left;
+  if (!isCode(selection)) {
+    return (caretBox(view) ?? view.coordsAtPos(selection.head)).left;
+  }
   const code = codeMirrorAt(view, selection.$head.before());
   if (!code) return null;
   const { state } = code.cm;
@@ -296,6 +305,67 @@ function stopsOnAtom(state: EditorState, dir: 1 | -1): boolean {
 }
 
 /**
+ * The side of a formula or another inline node under `x` that is nearer it.
+ * ProseMirror gives the position before the node wherever `x` falls on it,
+ * and the caret coming down onto the right half of a formula went to its left.
+ */
+function besideInline(
+  view: EditorView,
+  hit: { pos: number; inside: number },
+  x: number
+): number {
+  const node = hit.inside >= 0 ? view.state.doc.nodeAt(hit.inside) : null;
+  if (!node?.isInline || node.isText) return hit.pos;
+  const dom = view.nodeDOM(hit.inside);
+  if (!(dom instanceof HTMLElement)) return hit.pos;
+  const box = dom.getBoundingClientRect();
+  return x > (box.left + box.right) / 2
+    ? hit.inside + node.nodeSize
+    : hit.inside;
+}
+
+/**
+ * The position nearest `x` on a row of the text from `from` going `dir` as
+ * far as `to`: the first row there past the row `past`, or with none given
+ * the row `from` is on. Null when no row is past it. Measured position by
+ * position, as a hit test finds nothing off the screen, where a walk down
+ * the page goes at its foot. At a break in a wrapped line the position is
+ * both the end of one row and the start of the next, measured on each.
+ */
+function nearestOnRow(
+  view: EditorView,
+  from: number,
+  to: number,
+  dir: 1 | -1,
+  x: number,
+  past: { top: number; bottom: number } | null
+): number | null {
+  let row: { top: number; bottom: number } | null = null;
+  let best: number | null = null;
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let pos = from; dir > 0 ? pos <= to : pos >= to; pos += dir) {
+    for (const side of [-1, 1] as const) {
+      const box = view.coordsAtPos(pos, side);
+      const middle = (box.top + box.bottom) / 2;
+      if (!row) {
+        if (past && (dir > 0 ? middle <= past.bottom : middle >= past.top)) {
+          continue;
+        }
+        row = box;
+      }
+      if (dir > 0 ? middle > row.bottom : middle < row.top) return best;
+      if (dir > 0 ? middle < row.top : middle > row.bottom) continue;
+      const off = Math.abs(box.left - x);
+      if (off < nearest) {
+        nearest = off;
+        best = pos;
+      }
+    }
+  }
+  return best;
+}
+
+/**
  * The caret under `x` on the line of `target`'s textblock that faces the way
  * the caret came in: its first line going down, its last going up.
  */
@@ -332,12 +402,24 @@ function underX(
     return TextSelection.create(view.state.doc, start + offset);
   }
 
+  if (tableDepth($head) < 0) {
+    const pos = nearestOnRow(
+      view,
+      dir > 0 ? start : end,
+      dir > 0 ? end : start,
+      dir,
+      x,
+      null
+    );
+    return pos == null ? null : TextSelection.create(view.state.doc, pos);
+  }
+
   // The line's own box: a paragraph's padding holds the gap above it.
   const edge = view.coordsAtPos(dir > 0 ? start : end);
   const hit = view.posAtCoords({ left: x, top: (edge.top + edge.bottom) / 2 });
   if (!hit) return null;
   if (hit.pos >= start && hit.pos <= end) {
-    return TextSelection.create(view.state.doc, hit.pos);
+    return TextSelection.create(view.state.doc, besideInline(view, hit, x));
   }
   // Into a table, the cell under the caret in the row it comes to: the move
   // that lands in the row picks its first or last cell.
@@ -524,8 +606,35 @@ export const blockArrows = $prose(() => {
           : arrow.dir > 0
             ? 'forward'
             : 'backward';
-        if (isCode(selection) || !view.endOfTextblock(edge)) return false;
+        if (isCode(selection)) return false;
         const { $head } = selection;
+        // Once the caret has been set down on the way, WebKit aims for where
+        // it was set: past a formula or out of code the run drifted from
+        // where it set out, and from the end of a row of a wrapped line it
+        // went past the row under it. Rows are gone over here from then on.
+        // Tables keep their own way from row to row.
+        const steer =
+          arrow.vertical &&
+          arrow.x != null &&
+          !!goal?.placed &&
+          tableDepth($head) < 0;
+        if (steer && arrow.x != null) {
+          const pos = nearestOnRow(
+            view,
+            $head.pos,
+            arrow.dir > 0 ? $head.end() : $head.start(),
+            arrow.dir,
+            arrow.x,
+            caretBox(view) ?? view.coordsAtPos($head.pos)
+          );
+          if (pos != null) {
+            const row = TextSelection.create(view.state.doc, pos);
+            view.dispatch(view.state.tr.setSelection(row).scrollIntoView());
+            return true;
+          }
+        } else if (!view.endOfTextblock(edge)) {
+          return false;
+        }
         const $side = view.state.doc.resolve(
           arrow.dir > 0 ? $head.after() : $head.before()
         );
@@ -540,6 +649,19 @@ export const blockArrows = $prose(() => {
             view.state.tr.setSelection(placed ?? past).scrollIntoView()
           );
           return true;
+        }
+        if (
+          steer &&
+          arrow.x != null &&
+          next instanceof TextSelection &&
+          !isCode(next) &&
+          tableDepth(next.$head) < 0
+        ) {
+          const placed = underX(view, next, arrow.x, arrow.dir);
+          if (placed) {
+            view.dispatch(view.state.tr.setSelection(placed).scrollIntoView());
+            return true;
+          }
         }
         if (!arrow.vertical || !next || !isCode(next)) return false;
         view.dispatch(view.state.tr.setSelection(next).scrollIntoView());
@@ -585,6 +707,7 @@ export const blockArrows = $prose(() => {
         unmeasured = { x: arrow.x, dir: arrow.dir };
       }
       if (!placed && target === state.selection) return null;
+      if (arrow.vertical && goal) goal.placed = true;
       return state.tr.setSelection(placed ?? target).scrollIntoView();
     },
     view(view) {
@@ -596,7 +719,10 @@ export const blockArrows = $prose(() => {
         if (plainVertical(event) && goal?.doc !== view.state.doc) {
           const x = caretX(view);
           const inCell = tableDepth(view.state.selection.$head) >= 0;
-          goal = x == null ? null : { x, inCell, doc: view.state.doc };
+          goal =
+            x == null
+              ? null
+              : { x, inCell, doc: view.state.doc, placed: false };
         }
         if (lineToType(view, event)) return;
         const arrow = ARROWS[event.key];
@@ -633,8 +759,13 @@ export const blockArrows = $prose(() => {
           pending = null;
         });
       };
-      const done = () => {
+      const done = (event: KeyboardEvent) => {
         pending = null;
+        // Handled, the key set the caret down where WebKit's own move would
+        // have taken it on.
+        if (goal && plainVertical(event) && event.defaultPrevented) {
+          goal.placed = true;
+        }
       };
       // Anything but another plain up or down ends the run, ahead of the
       // editor's own handlers: a click, a key, typing in the search box.
