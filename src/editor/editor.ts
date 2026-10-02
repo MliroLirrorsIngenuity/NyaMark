@@ -81,6 +81,7 @@ import { pasteIntoCell } from './plugins/paste-cell';
 import { pasteCodeAsCode } from './plugins/paste-code';
 import { pasteOnEmptyLine } from './plugins/paste-line';
 import { pasteTextLines } from './plugins/paste-text-lines';
+import { plusLine } from './plugins/plus-line';
 import { quoteInput } from './plugins/quote-input';
 import {
   type SearchMeta,
@@ -212,6 +213,7 @@ export class NyaEditor {
     crepe.editor.use(linkBox);
     crepe.editor.use(linkKey);
     crepe.editor.use(slashMenuRoom);
+    crepe.editor.use(plusLine);
     crepe.editor.use(fenceInput);
     crepe.editor.use(listItemView);
     crepe.editor.use(keepListItemSelected);
