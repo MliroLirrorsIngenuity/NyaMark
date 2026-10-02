@@ -2,10 +2,11 @@ import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
 import { translateDOM } from '../../i18n/dom';
 import {
   type Settings,
+  changedSettings,
   getSettings,
   previewAppearance,
   resetSettings,
-  saveSettings,
+  updateSettings,
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
 import { animationsSettled, openModal } from '../modal';
@@ -548,7 +549,8 @@ export class SettingsPanel {
     document.body.appendChild(overlay);
     this.overlay = overlay;
 
-    let working: Settings = structuredClone(getSettings());
+    const opened = structuredClone(getSettings());
+    let working: Settings = structuredClone(opened);
     let previewTimer: number | null = null;
 
     const dialog = document.createElement('div');
@@ -670,8 +672,9 @@ export class SettingsPanel {
       // `working` is always a sanitized, valid snapshot (each section clamps on
       // commit and reverts invalid input), so OK never needs to be blocked by a
       // transient :invalid field. Persist in the background and always close;
-      // never let a slow or failed save trap the dialog open.
-      void saveSettings(working).catch((error) => {
+      // never let a slow or failed save trap the dialog open. Only what was
+      // changed here is written, over what other windows changed meanwhile.
+      void updateSettings(changedSettings(opened, working)).catch((error) => {
         void errorDialog(String(error));
       });
       await close();

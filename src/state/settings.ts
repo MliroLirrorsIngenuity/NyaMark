@@ -345,6 +345,25 @@ export type SettingsPatch = {
   [Section in keyof Settings]?: Partial<Settings[Section]>;
 };
 
+/**
+ * The fields `to` changes from `from`, as a patch for `updateSettings`: a
+ * dialog saving its whole copy wrote back, unchanged, what another window had
+ * changed while it was open.
+ */
+export function changedSettings(from: Settings, to: Settings): SettingsPatch {
+  const patch: Record<string, Record<string, unknown>> = {};
+  for (const section of Object.keys(to) as Array<keyof Settings>) {
+    const before = from[section] as Record<string, unknown>;
+    const after = to[section] as Record<string, unknown>;
+    for (const [key, value] of Object.entries(after)) {
+      if (JSON.stringify(value) === JSON.stringify(before[key])) continue;
+      patch[section] ??= {};
+      patch[section][key] = value;
+    }
+  }
+  return patch as SettingsPatch;
+}
+
 export async function updateSettings(partial: SettingsPatch) {
   const current = getSettings();
   const merged: Settings = {

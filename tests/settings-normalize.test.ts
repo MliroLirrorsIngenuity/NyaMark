@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { defaultSettings, normalizeSettings } from '../src/state/settings';
+import {
+  changedSettings,
+  defaultSettings,
+  normalizeSettings,
+} from '../src/state/settings';
 
 describe('normalizeSettings', () => {
   test('falls back to defaults for missing or non-numeric numbers', () => {
@@ -73,5 +77,19 @@ describe('normalizeSettings', () => {
   ])('reads language %p as %p', (language, expected) => {
     const settings = normalizeSettings({ general: { language } } as never);
     expect(settings.general.language).toBe(expected);
+  });
+});
+
+describe('changedSettings', () => {
+  test('holds only the fields changed', () => {
+    const from = structuredClone(defaultSettings);
+    const to = structuredClone(defaultSettings);
+    to.appearance.fontSize = 16;
+    to.save.autoSave = true;
+    expect(changedSettings(from, to)).toEqual({
+      appearance: { fontSize: 16 },
+      save: { autoSave: true },
+    });
+    expect(changedSettings(from, structuredClone(from))).toEqual({});
   });
 });
