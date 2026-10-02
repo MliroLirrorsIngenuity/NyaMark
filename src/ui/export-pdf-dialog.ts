@@ -227,6 +227,7 @@ const exportPdfDialogStyles = `
   background: color-mix(in srgb, var(--ny-surface-elevated), transparent 10%);
   color: var(--ny-text-primary);
   font: inherit;
+  font-size: 13px;
   cursor: default;
 }
 

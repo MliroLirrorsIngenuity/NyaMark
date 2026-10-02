@@ -155,6 +155,7 @@ const imagePolicyDialogStyles = `
   background: color-mix(in srgb, var(--ny-surface-elevated), transparent 12%);
   color: var(--ny-text-primary);
   font: inherit;
+  font-size: 13px;
   cursor: default;
 }
 
