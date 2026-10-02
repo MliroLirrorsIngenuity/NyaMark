@@ -4,6 +4,9 @@ index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2
 diff --git a/node_modules/@milkdown/components/.bun-tag-5a9ca029d36dc0f3 b/.bun-tag-5a9ca029d36dc0f3
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@milkdown/components/.bun-tag-9b1333c99ee9d6f1 b/.bun-tag-9b1333c99ee9d6f1
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/node_modules/@milkdown/components/.bun-tag-a0b30a26eef2256 b/.bun-tag-a0b30a26eef2256
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
@@ -79,10 +82,32 @@ index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..e168ef97e6296c6612bb5312106d1040
          ))
        )) : null));
 diff --git a/lib/link-tooltip/index.js b/lib/link-tooltip/index.js
-index 05e8d8e1fe3075df57f48b4bcbe8107e90530e12..165b92e0a4cf5628a7d156ae84f43b7c70927c7e 100644
+index 05e8d8e1fe3075df57f48b4bcbe8107e90530e12..2d4fb02139a25ff14141866e091b4397e6ba1cbf 100644
 --- a/lib/link-tooltip/index.js
 +++ b/lib/link-tooltip/index.js
-@@ -295,6 +295,9 @@ class LinkEditTooltip {
+@@ -8,6 +8,21 @@ import DOMPurify from 'dompurify';
+ import { h, defineComponent, ref, watch, createApp } from 'vue';
+ import clsx from 'clsx';
+ import { debounce } from 'lodash-es';
++import { flip, shift } from '@floating-ui/dom';
++
++// NyaMark: a link's boxes go under the line where above it they would cover
++// the format bar, on a line just under it. They lay over the bar's buttons.
++const besideTopBar = {
++  middleware: [
++    flip(({ elements }) => {
++      const bar = elements.floating.parentElement?.querySelector(":scope > .milkdown-top-bar");
++      if (!bar) return {};
++      const top = bar.getBoundingClientRect().bottom;
++      return { boundary: { x: 0, y: top, width: window.innerWidth, height: Math.max(0, window.innerHeight - top) } };
++    }),
++    shift()
++  ]
++};
+ 
+ var __defProp$3 = Object.defineProperty;
+ var __getOwnPropSymbols$3 = Object.getOwnPropertySymbols;
+@@ -295,6 +310,9 @@ class LinkEditTooltip {
        requestAnimationFrame(() => {
          var _a;
          (_a = __privateGet$1(this, _content$1).querySelector("input")) == null ? void 0 : _a.focus();
@@ -92,3 +117,23 @@ index 05e8d8e1fe3075df57f48b4bcbe8107e90530e12..165b92e0a4cf5628a7d156ae84f43b7c
        });
      });
      this.update = (view) => {
+@@ -348,7 +366,8 @@ class LinkEditTooltip {
+     __privateSet$1(this, _provider$1, new TooltipProvider({
+       content,
+       debounce: 0,
+-      shouldShow: () => false
++      shouldShow: () => false,
++      floatingUIOptions: besideTopBar
+     }));
+     __privateGet$1(this, _provider$1).onHide = () => {
+       requestAnimationFrame(() => {
+@@ -581,7 +600,8 @@ class LinkPreviewTooltip {
+     __privateSet(this, _provider, new TooltipProvider({
+       debounce: 0,
+       content: __privateGet(this, _content),
+-      shouldShow: () => false
++      shouldShow: () => false,
++      floatingUIOptions: besideTopBar
+     }));
+     __privateGet(this, _provider).update(view);
+     __privateSet(this, _slice, ctx.use(linkTooltipState.key));
