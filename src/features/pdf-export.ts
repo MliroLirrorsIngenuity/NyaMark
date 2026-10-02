@@ -62,6 +62,17 @@ async function exportAsPdf(settings: ExportPdfSettings) {
 
   const root = document.documentElement;
   root.classList.add('ny-exporting-pdf');
+  // The page prints in the light theme: white paper keeps the colours as
+  // they are (print-color-adjust), and the dark theme's pale ink on it all
+  // but vanished.
+  const theme = {
+    name: root.dataset.theme,
+    dark: root.classList.contains('dark'),
+    scheme: root.style.colorScheme,
+  };
+  root.dataset.theme = 'light';
+  root.classList.remove('dark');
+  root.style.colorScheme = 'light';
 
   const previousZoom = document.body.style.zoom;
   const printStyle = document.createElement('style');
@@ -84,6 +95,10 @@ async function exportAsPdf(settings: ExportPdfSettings) {
     printStyle.remove();
     document.body.style.zoom = previousZoom;
     root.classList.remove('ny-exporting-pdf');
+    if (theme.name === undefined) delete root.dataset.theme;
+    else root.dataset.theme = theme.name;
+    root.classList.toggle('dark', theme.dark);
+    root.style.colorScheme = theme.scheme;
     if (previousSourceMode) {
       store.update({ sourceMode: true });
     }
