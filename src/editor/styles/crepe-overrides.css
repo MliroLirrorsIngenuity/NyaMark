@@ -2000,6 +2000,26 @@
 }
 
 /*
+ * A formula in a line inside the selection is washed whole, in the band of
+ * the text around it. The selection painted the bits of its letters alone,
+ * with holes between them.
+ */
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  span[data-type="math_inline"].ny-block-selected {
+  background: color-mix(in srgb, var(--ny-accent), transparent 72%);
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  span[data-type="math_inline"].ny-block-selected
+  *::selection {
+  background: transparent;
+}
+
+/*
  * A rule inside the selection: the line takes the accent, in a band of the
  * wash kept to the width of the text. WebKit paints its own selection over
  * the rule's box, a pale line through the middle of it.

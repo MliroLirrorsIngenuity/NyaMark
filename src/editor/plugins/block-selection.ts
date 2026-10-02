@@ -15,7 +15,8 @@
  * own partial range, and washing it whole would claim more than is selected.
  * Blocks in a list item or a quote are washed too: only the top level was
  * looked at, and Cmd+A over a list left its code, formulas and tables as
- * holes in the band.
+ * holes in the band. A formula in a line is washed whole too: the selection
+ * painted the bits of its letters alone, with holes between them.
  *
  * Implemented as a plugin view that toggles a class straight on the node
  * view's DOM rather than as a ProseMirror node decoration: decoration changes
@@ -41,7 +42,7 @@ const COVERED_CLASS = 'ny-block-selected';
  * so one inside it showed nothing of being about to go with the rest.
  */
 const WASHABLE_SELECTOR =
-  '.milkdown-code-block,.milkdown-table-block,.milkdown-image-block,.ny-html-block,hr';
+  '.milkdown-code-block,.milkdown-table-block,.milkdown-image-block,.ny-html-block,hr,span[data-type="math_inline"]';
 
 function coveredBlocks(view: EditorView): HTMLElement[] {
   const { selection, doc } = view.state;
@@ -50,14 +51,15 @@ function coveredBlocks(view: EditorView): HTMLElement[] {
   const { from, to } = selection;
   const covered: HTMLElement[] = [];
   doc.nodesBetween(from, to, (node, pos) => {
+    if (node.isText) return false;
     // Reached into, not covered: what it holds may be.
-    if (pos < from || pos + node.nodeSize > to) return !node.isTextblock;
+    if (pos < from || pos + node.nodeSize > to) return true;
     const dom = view.nodeDOM(pos);
     if (dom instanceof HTMLElement && dom.matches(WASHABLE_SELECTOR)) {
       covered.push(dom);
       return false;
     }
-    return !node.isTextblock;
+    return true;
   });
   return covered;
 }
