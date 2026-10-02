@@ -79,6 +79,67 @@
   background-color: var(--ny-editor-rule) !important;
 }
 
+/*
+ * A footnote reads as one: its number in front of its text, both a size
+ * down, the number in the colour of the mark that points to it. The number
+ * stood on a line of its own, under the line above, and the text as a
+ * paragraph below it.
+ */
+.ny-editor-root .milkdown .ProseMirror dl[data-type="footnote_definition"] {
+  display: flex;
+  gap: 0.6em;
+  margin: 0.4em 0;
+  font-size: 0.9em;
+  color: var(--ny-text-secondary);
+}
+
+/* The first of a run stands off from the text above it. */
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  :not(dl[data-type="footnote_definition"])
+  + dl[data-type="footnote_definition"] {
+  margin-top: 1.2em;
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  dl[data-type="footnote_definition"]
+  > dt {
+  flex: none;
+  min-width: 1em;
+  color: var(--ny-accent);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  dl[data-type="footnote_definition"]
+  > dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  dl[data-type="footnote_definition"]
+  > dd
+  > p {
+  padding: 0 !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror sup[data-type="footnote_reference"] {
+  padding: 0 0.1em;
+  color: var(--ny-accent);
+  font-size: 0.75em;
+  cursor: default;
+}
+
 .milkdown {
   box-shadow: none !important;
   background: transparent !important;
