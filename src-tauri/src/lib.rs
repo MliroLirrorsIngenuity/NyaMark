@@ -194,11 +194,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            // A relative path names a file in the folder the second launch
+            // ran from; this process may well sit in another.
             let paths: Vec<String> = args
                 .iter()
                 .skip(1)
-                .filter_map(sessions::normalize_file_path)
+                .filter_map(|arg| sessions::normalize_file_path(Path::new(&cwd).join(arg)))
                 .collect();
 
             if paths.is_empty() {
