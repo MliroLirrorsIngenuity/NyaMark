@@ -172,6 +172,42 @@
   padding: 0 !important;
 }
 
+/*
+ * A table's handles and the menu one opens float over the table as the code
+ * block's tool pill floats over the code, and look as it does. In Crepe's
+ * colours they took the page's own dark and a black shadow: on a dark page the
+ * menu and the row handle could hardly be told from the page, and their icons,
+ * drawn in the colour of the table's lines, not at all.
+ */
+.ny-editor-root .milkdown .milkdown-table-block .cell-handle,
+.ny-editor-root .milkdown .milkdown-table-block .cell-handle .button-group,
+.ny-editor-root .milkdown .milkdown-table-block .line-handle .add-button {
+  border: 1px solid var(--ny-editor-codetools-border);
+  background-color: var(--ny-editor-codetools-bg) !important;
+  backdrop-filter: blur(14px) saturate(1.6);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow: var(--ny-editor-codetools-shadow);
+  color: var(--ny-editor-button-text);
+}
+
+.ny-editor-root .milkdown .milkdown-table-block .button-group button {
+  color: inherit;
+}
+
+.ny-editor-root .milkdown .milkdown-table-block .handle svg {
+  fill: currentColor;
+}
+
+.ny-editor-root .milkdown .milkdown-table-block .cell-handle:hover,
+.ny-editor-root .milkdown .milkdown-table-block .add-button:hover,
+.ny-editor-root .milkdown .milkdown-table-block .button-group button:hover {
+  color: var(--ny-editor-text-primary);
+}
+
+.ny-editor-root .milkdown .milkdown-table-block .button-group button:hover {
+  background-color: var(--ny-editor-codetools-hover);
+}
+
 .ny-editor-root .milkdown .ProseMirror th code,
 .ny-editor-root .milkdown .ProseMirror td code {
   display: inline !important;
