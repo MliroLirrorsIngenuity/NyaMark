@@ -70,6 +70,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { alertMarkerAt } from './gfm-alerts';
 import {
   isHtmlBlock,
   isHtmlBlockSelected,
@@ -392,6 +393,10 @@ function besideInline(
  * position, as a hit test finds nothing off the screen, where a walk down
  * the page goes at its foot. At a break in a wrapped line the position is
  * both the end of one row and the start of the next, measured on each.
+ *
+ * The hidden marker of an alert is left out. Measured, it made a row of its
+ * own over the first line of the alert, and up from that line went to its
+ * start and no further.
  */
 function nearestOnRow(
   view: EditorView,
@@ -404,8 +409,14 @@ function nearestOnRow(
   let row: { top: number; bottom: number } | null = null;
   let best: number | null = null;
   let nearest = Number.POSITIVE_INFINITY;
+  const marker = alertMarkerAt(view.state.doc, from);
+  const hidden = (pos: number, side: -1 | 1) =>
+    !!marker &&
+    pos >= marker.from &&
+    (pos < marker.to || (pos === marker.to && side < 0));
   for (let pos = from; dir > 0 ? pos <= to : pos >= to; pos += dir) {
     for (const side of [-1, 1] as const) {
+      if (hidden(pos, side)) continue;
       const box = view.coordsAtPos(pos, side);
       const middle = (box.top + box.bottom) / 2;
       if (!row) {
