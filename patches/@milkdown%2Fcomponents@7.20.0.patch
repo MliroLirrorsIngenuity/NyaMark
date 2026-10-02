@@ -188,3 +188,21 @@ index 05e8d8e1fe3075df57f48b4bcbe8107e90530e12..2d4fb02139a25ff14141866e091b4397
      }));
      __privateGet(this, _provider).update(view);
      __privateSet(this, _slice, ctx.use(linkTooltipState.key));
+diff --git a/lib/table-block/index.js b/lib/table-block/index.js
+index 5ecaaae6c915e01d78b343aa64bbd32c626eb27c..e2530c21bb4289b9bb757b719a642e06a9b1de34 100644
+--- a/lib/table-block/index.js
++++ b/lib/table-block/index.js
+@@ -243,7 +243,12 @@ function handleDrag(refs, event, ctx, fn) {
+   const view = ctx == null ? void 0 : ctx.get(editorViewCtx);
+   if (!(view == null ? void 0 : view.editable)) return;
+   event.stopPropagation();
+-  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
++  // NyaMark: WebKit drops nothing of a drag that carries no data: a row or a
++  // column dragged by its handle was let go and stayed where it was.
++  if (event.dataTransfer) {
++    event.dataTransfer.effectAllowed = "move";
++    event.dataTransfer.setData("text/plain", "");
++  }
+   const context = prepareDndContext(refs);
+   if (!context) return;
+   requestAnimationFrame(() => {
