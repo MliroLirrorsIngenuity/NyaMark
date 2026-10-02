@@ -40,7 +40,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
-import { caretBox as drawnCaret } from './mark-cursor';
+import { caretBox as drawnBox } from './mark-cursor';
 
 const MOVES = new Set([
   'ArrowUp',
@@ -103,6 +103,23 @@ function scrollToCode(view: EditorView): boolean {
   return true;
 }
 
+/**
+ * The caret drawn over the text at `head`, once the browser's selection is
+ * there too: the caret leaving a code block is drawn where the browser's was,
+ * in the block, until ProseMirror takes the selection over.
+ */
+function drawnCaret(view: EditorView, head: number) {
+  const selection = view.dom.ownerDocument.getSelection();
+  const focus = selection?.focusNode;
+  if (!selection || !focus || !view.dom.contains(focus)) return null;
+  try {
+    if (view.posAtDOM(focus, selection.focusOffset) !== head) return null;
+  } catch {
+    return null;
+  }
+  return drawnBox(view);
+}
+
 /** Where the browser's caret is drawn, in ProseMirror or in a code block. */
 function caretBox(view: EditorView, selection: Selection, focus: Node) {
   const code = (
@@ -111,7 +128,7 @@ function caretBox(view: EditorView, selection: Selection, focus: Node) {
   try {
     if (!code) {
       const head = view.posAtDOM(focus, selection.focusOffset);
-      const drawn = head === view.state.selection.head && drawnCaret(view);
+      const drawn = head === view.state.selection.head && drawnBox(view);
       return drawn || view.coordsAtPos(head);
     }
     // The caret came in from a line beside the block: CodeMirror took it up
@@ -217,7 +234,7 @@ export const caretScroll = $prose(() => {
         // The caret drawn at the end was left there: End on a line under the
         // format bar, or Backspace at the end of one, left it out of sight
         // with the next line in sight and the page still.
-        const caret = drawnCaret(view);
+        const caret = drawnCaret(view, selection.head);
         if (!caret || Math.abs(caret.top - coords.top) < 1) return false;
         const box = page.getBoundingClientRect();
         const over = box.top + top - caret.top;
