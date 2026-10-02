@@ -1306,6 +1306,24 @@
   height: 196px !important;
 }
 
+/*
+ * The slash menu, the heading list and the link and formula boxes open over
+ * the page as the language list does, and look as it does. In Crepe's own
+ * surface, the page's colour under a faint shadow, their edges could hardly
+ * be told from the page in the dark theme.
+ */
+.ny-editor-root .milkdown .milkdown-slash-menu,
+.ny-editor-root .milkdown .milkdown-top-bar .top-bar-heading-dropdown,
+.ny-editor-root .milkdown .milkdown-link-preview > .link-preview,
+.ny-editor-root .milkdown .milkdown-link-edit > .link-edit,
+.ny-editor-root .milkdown .milkdown-latex-inline-edit {
+  border: 1px solid var(--ny-editor-button-border) !important;
+  background: color-mix(in srgb, var(--ny-editor-floating-bg), transparent 4%) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+  box-shadow: var(--ny-editor-floating-shadow) !important;
+}
+
 .ny-editor-root .milkdown .milkdown-code-block .language-list-item {
   display: flex !important;
   align-items: center !important;
