@@ -9,12 +9,14 @@
  * A list a button makes joins a list of its kind right before or after it:
  * an item taken out of a list and put back made a list of its own, set apart
  * from the items either side and saved with other bullets to keep it apart.
+ * Each line the selection runs over becomes an item of its own, as a list
+ * typed line by line would be; they all went into the one item.
  */
 
 import { editorViewCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
 import type { Node } from '@milkdown/kit/prose/model';
-import { liftListItem } from '@milkdown/kit/prose/schema-list';
+import { liftListItem, wrapRangeInList } from '@milkdown/kit/prose/schema-list';
 import type { EditorState, Transaction } from '@milkdown/kit/prose/state';
 import { canJoin, liftTarget } from '@milkdown/kit/prose/transform';
 
@@ -58,15 +60,44 @@ export function toggleList(
     return true;
   }
   const pos = state.selection.$from.before(at.depth);
-  const list = state.selection.$from.node(at.depth);
   const ordered = kind === 'ordered';
-  const { spread } = list.attrs;
+  const { spread } = state.selection.$from.node(at.depth).attrs;
   const tr = state.tr.setNodeMarkup(
     pos,
     ordered ? schema.nodes.ordered_list : schema.nodes.bullet_list,
     ordered ? { order: 1, spread } : { spread }
   );
-  list.forEach((item, offset, index) => {
+  markItems(tr, pos, kind);
+  dispatch?.(tr.scrollIntoView());
+  return true;
+}
+
+/**
+ * The button of `kind` outside a list: the blocks the selection runs over
+ * made a list of that kind, an item to a line. False where no list can go.
+ */
+export function wrapInListOf(
+  state: EditorState,
+  kind: ListKind,
+  dispatch?: Dispatch
+): boolean {
+  const { $from, $to } = state.selection;
+  const range = $from.blockRange($to);
+  const { schema, tr } = state;
+  const type =
+    kind === 'ordered' ? schema.nodes.ordered_list : schema.nodes.bullet_list;
+  if (!range || !wrapRangeInList(tr, range, type)) return false;
+  if (tr.doc.nodeAt(range.start)?.type === type) {
+    markItems(tr, range.start, kind);
+  }
+  dispatch?.(tr.scrollIntoView());
+  return true;
+}
+
+/** The items of the list at `pos` marked as items of a list of `kind`. */
+function markItems(tr: Transaction, pos: number, kind: ListKind) {
+  const ordered = kind === 'ordered';
+  tr.doc.nodeAt(pos)?.forEach((item, offset, index) => {
     tr.setNodeMarkup(pos + 1 + offset, undefined, {
       ...item.attrs,
       listType: ordered ? 'ordered' : 'bullet',
@@ -74,8 +105,6 @@ export function toggleList(
       checked: kind === 'task' ? (item.attrs.checked ?? false) : null,
     });
   });
-  dispatch?.(tr.scrollIntoView());
-  return true;
 }
 
 /** The kind of list `node` is, if it is one. */
@@ -154,7 +183,12 @@ export function intoToggles(builder: Builder) {
     item.onRun = (ctx) => {
       const view = ctx.get(editorViewCtx);
       const lifts = listAt(view.state)?.kind === kind;
-      if (!toggleList(view.state, kind, view.dispatch)) wrap(ctx);
+      if (
+        !toggleList(view.state, kind, view.dispatch) &&
+        !wrapInListOf(view.state, kind, view.dispatch)
+      ) {
+        wrap(ctx);
+      }
       if (!lifts) joinNeighbours(view.state, view.dispatch);
       view.focus();
     };

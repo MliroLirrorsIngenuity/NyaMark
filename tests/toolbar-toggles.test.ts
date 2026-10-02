@@ -11,6 +11,7 @@ import {
   liftFromQuote,
   listAt,
   toggleList,
+  wrapInListOf,
 } from '../src/editor/plugins/toolbar-toggles';
 
 const schema = new Schema({
@@ -112,6 +113,38 @@ describe('a list button in a list', () => {
 
   test('is left to the toolbar outside a list', () => {
     expect(toggleList(at(doc(p('a')), 'a'), 'bullet')).toBe(false);
+  });
+});
+
+describe('a list button outside a list', () => {
+  const lines = doc(p('甲'), p('乙'), p('丙'));
+  /** A state with the selection from the start of 甲 to the end of 丙. */
+  const across = () =>
+    EditorState.create({
+      doc: lines,
+      selection: TextSelection.create(lines, 1, lines.content.size - 1),
+    });
+  const wrap = (kind: ListKind) =>
+    run((s, d) => wrapInListOf(s, kind, d), across());
+
+  test('makes each line an item of its own', () => {
+    expect(
+      wrap('bullet')?.eq(doc(ul(item(p('甲')), item(p('乙')), item(p('丙')))))
+    ).toBe(true);
+  });
+
+  test('numbers the items of an ordered list', () => {
+    const list = wrap('ordered')?.firstChild;
+    expect(list?.type.name).toBe('ordered_list');
+    expect(list?.childCount).toBe(3);
+    expect(list?.child(2).attrs.label).toBe('3.');
+    expect(list?.child(2).attrs.listType).toBe('ordered');
+  });
+
+  test('makes each line a task', () => {
+    expect(
+      wrap('task')?.eq(doc(ul(task(p('甲')), task(p('乙')), task(p('丙')))))
+    ).toBe(true);
   });
 });
 
