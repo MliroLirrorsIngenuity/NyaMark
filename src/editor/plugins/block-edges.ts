@@ -40,7 +40,9 @@
  * makes the heading a paragraph in one press, and Delete deletes. *
  * In a list item Milkdown took Delete, as Backspace, to join the line to the
  * one before it: Delete at the start of an item moved the item into the one
- * above it, and never took the letter after the caret. It deletes.
+ * above it, and never took the letter after the caret. It deletes. Backspace
+ * under an image in an item deleted the image at once, where outside a list
+ * it selects it first; it selects it there too.
  */
 
 import type { Ctx } from '@milkdown/kit/ctx';
@@ -160,6 +162,23 @@ function selectHtmlBlock(state: EditorState, dir: 1 | -1): Transaction | null {
   return tr.setSelection(selectHtmlBlockAt(tr.doc, pos));
 }
 
+/** A rule or an image right before the caret's textblock, selected. */
+function selectAtomBefore(state: EditorState): Transaction | null {
+  const { $from } = state.selection;
+  const index = $from.index(-1);
+  if (index === 0) return null;
+  const before = $from.node(-1).child(index - 1);
+  if (
+    !before.isAtom ||
+    !before.isBlock ||
+    !NodeSelection.isSelectable(before)
+  ) {
+    return null;
+  }
+  const pos = $from.before() - before.nodeSize;
+  return state.tr.setSelection(NodeSelection.create(state.doc, pos));
+}
+
 export function backspaceAtBlockStart(state: EditorState): Transaction | null {
   const { selection } = state;
   if (!(selection instanceof TextSelection) || !selection.empty) return null;
@@ -171,7 +190,8 @@ export function backspaceAtBlockStart(state: EditorState): Transaction | null {
     liftOutOfQuote(state) ??
     stopAtCode(state) ??
     intoTable(state, -1) ??
-    selectHtmlBlock(state, -1)
+    selectHtmlBlock(state, -1) ??
+    selectAtomBefore(state)
   );
 }
 

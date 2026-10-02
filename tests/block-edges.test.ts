@@ -178,6 +178,14 @@ describe('backspaceAtBlockStart', () => {
     expect(tr?.selection.from).toBe(1);
   });
 
+  test('selects a rule above in a list item instead of deleting it', () => {
+    const start = doc(bullets(item(p('a'), hr(), p('b'))));
+    const tr = backspaceBefore(start, 'b');
+    expect(tr?.docChanged).toBe(false);
+    expect(tr?.selection).toBeInstanceOf(NodeSelection);
+    expect((tr?.selection as NodeSelection).node.type.name).toBe('hr');
+  });
+
   test('ignores a caret inside the text', () => {
     const start = doc(p('above'), quote(p('q1')));
     const state = EditorState.create({
