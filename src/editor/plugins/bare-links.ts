@@ -150,14 +150,27 @@ export function keepBareLinks(ctx: Ctx) {
     return {
       ...schema,
       attrs: { ...schema.attrs, bare: { default: false } },
-      // The page's link carries what a link in HTML has, not this.
+      // The page's link carries what a link in HTML has, and a mark that it
+      // was bare: copied and pasted, a bare link was written in brackets.
       toDOM: (mark, inline) => {
-        const [tag, { bare: _, ...attrs }] = schema.toDOM?.(mark, inline) as [
+        const [tag, { bare, ...attrs }] = schema.toDOM?.(mark, inline) as [
           string,
           Record<string, unknown>,
         ];
-        return [tag, attrs];
+        return [tag, bare ? { ...attrs, 'data-bare': '' } : attrs];
       },
+      parseDOM: schema.parseDOM?.map((rule) =>
+        typeof rule.tag === 'string'
+          ? {
+              ...rule,
+              getAttrs: (dom: HTMLElement) => {
+                const attrs = rule.getAttrs?.(dom);
+                if (attrs === false) return false;
+                return { ...attrs, bare: dom.hasAttribute('data-bare') };
+              },
+            }
+          : rule
+      ),
       parseMarkdown: {
         match: ({ type }) => type === 'link',
         runner: (state, node, type) => {
