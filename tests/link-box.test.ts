@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { Schema } from '@milkdown/kit/prose/model';
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
-import { caretAfterLink, linkAtCaret } from '../src/editor/plugins/link-box';
+import {
+  caretAfterLink,
+  linkAddress,
+  linkAtCaret,
+} from '../src/editor/plugins/link-box';
 
 const schema = new Schema({
   nodes: {
@@ -99,6 +103,19 @@ describe('linkAtCaret', () => {
     expect(next.storedMarks).toEqual([]);
   });
 
+  test('reads as the address typed, to the address with its scheme', () => {
+    const state = atCaret();
+    const next = state.apply(
+      linkAtCaret(state, 'https://d.com', 'd.com') as NonNullable<
+        ReturnType<typeof linkAtCaret>
+      >
+    );
+    const added = next.doc.firstChild?.child(1);
+    expect(added?.text).toBe('d.com');
+    expect(added?.marks[0].attrs.href).toBe('https://d.com');
+    expect(next.selection.from).toBe(5 + 'd.com'.length);
+  });
+
   test('keeps the marks being typed with on the link and after it', () => {
     const state = atCaret(true);
     const next = state.apply(
@@ -129,5 +146,32 @@ describe('linkAtCaret', () => {
       selection: TextSelection.create(doc, 3),
     });
     expect(linkAtCaret(state, 'https://d.com')).toBeNull();
+  });
+});
+
+describe('linkAddress', () => {
+  test('gives a website typed bare its https', () => {
+    expect(linkAddress('example.com')).toBe('https://example.com');
+    expect(linkAddress(' www.a.org/b?c=1 ')).toBe('https://www.a.org/b?c=1');
+    expect(linkAddress('github.com/a/b.md')).toBe('https://github.com/a/b.md');
+    expect(linkAddress('a.cn:8080')).toBe('https://a.cn:8080');
+  });
+
+  test('gives an email address its mailto', () => {
+    expect(linkAddress('me@a.moe')).toBe('mailto:me@a.moe');
+  });
+
+  test('leaves an address with a scheme, and a file, as typed', () => {
+    for (const typed of [
+      'https://a.com',
+      'mailto:me@a.com',
+      'notes.md',
+      'img/a.png',
+      './a.com',
+      '#heading',
+      'localhost:3000',
+    ]) {
+      expect(linkAddress(typed)).toBe(typed);
+    }
   });
 });

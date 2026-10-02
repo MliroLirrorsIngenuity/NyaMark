@@ -9,6 +9,10 @@
  * With nothing selected, the address goes in at the caret as the text of its
  * link. It went nowhere: the box put the link on the empty selection, closed,
  * and the address typed was lost.
+ *
+ * A website typed without its `https://`, as `example.com` or `www.…`, gets
+ * one, and an email address its `mailto:`. The link was opened as a file of
+ * that name beside the document, which was not there.
  */
 
 import {
@@ -45,10 +49,30 @@ export function caretAfterLink(
   return state.tr.setSelection(at).setStoredMarks(marksAround(at.$head)[1]);
 }
 
-/** `href` put in at the caret as a link to itself, the caret after it. */
+// Endings of a name that is a website's rather than a file's.
+const WEB_ENDING =
+  /\.(com|net|org|edu|gov|io|dev|ai|co|me|moe|info|xyz|top|site|tech|cn|jp|uk|de|fr|tv|us)$/i;
+
+/** `typed` as the address of a link, with the scheme it was typed without. */
+export function linkAddress(typed: string): string {
+  const value = typed.trim();
+  if (/^[^\s@/:]+@[^\s@/]+\.[a-z]{2,}$/i.test(value)) return `mailto:${value}`;
+  const host = /^([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?::\d+)?(?:[/?#]|$)/i.exec(
+    value
+  );
+  if (host && (/^www\./i.test(host[1]) || WEB_ENDING.test(host[1]))) {
+    return `https://${value}`;
+  }
+  return value;
+}
+
+/**
+ * `href` put in at the caret as a link reading `text`, the caret after it.
+ */
 export function linkAtCaret(
   state: EditorState,
-  href: string
+  href: string,
+  text = href
 ): Transaction | null {
   const { selection } = state;
   const link = state.schema.marks.link;
@@ -58,13 +82,13 @@ export function linkAtCaret(
   if ($from.parent.type.spec.code) return null;
   const typed = link.removeFromSet(state.storedMarks ?? $from.marks());
   const marks = link.create({ href }).addToSet(typed);
-  const tr = state.tr.insert($from.pos, state.schema.text(href, marks));
-  const at = TextSelection.create(tr.doc, $from.pos + href.length);
+  const tr = state.tr.insert($from.pos, state.schema.text(text, marks));
+  const at = TextSelection.create(tr.doc, $from.pos + text.length);
   return tr.setSelection(at).setStoredMarks(typed);
 }
 
-/** The address in the link box, when `event` confirms it: Enter, or a press on its button. */
-function confirmed(event: Event): string | null {
+/** The link box's field, when `event` confirms it: Enter, or a press on its button. */
+function confirmed(event: Event): HTMLInputElement | null {
   const target = event.target as Element | null;
   const box = target?.closest?.('.milkdown-link-edit');
   if (!box) return null;
@@ -73,16 +97,24 @@ function confirmed(event: Event): string | null {
   } else if (!target?.closest('.confirm')) {
     return null;
   }
-  return box.querySelector('input')?.value.trim() || null;
+  return box.querySelector('input');
 }
 
 /**
- * Ahead of the box's own handlers: those put the link on the selection. The
- * caret moving off the place the box was opened at closes it.
+ * Ahead of the box's own handlers: those put the link on the selection, with
+ * the address the field holds as it is changed here. The caret moving off the
+ * place the box was opened at closes it.
  */
 function linkTyped(view: EditorView, event: Event) {
-  const href = confirmed(event);
-  const tr = href && linkAtCaret(view.state, href);
+  const field = confirmed(event);
+  const typed = field?.value.trim();
+  if (!field || !typed) return;
+  const href = linkAddress(typed);
+  if (href !== field.value) {
+    field.value = href;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  const tr = linkAtCaret(view.state, href, typed);
   if (!tr) return;
   event.preventDefault();
   event.stopPropagation();
