@@ -1,0 +1,77 @@
+diff --git a/node_modules/@milkdown/components/.bun-tag-2600de8b1fca23e4 b/.bun-tag-2600de8b1fca23e4
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@milkdown/components/.bun-tag-5a9ca029d36dc0f3 b/.bun-tag-5a9ca029d36dc0f3
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@milkdown/components/.bun-tag-b5230b2e48bb2337 b/.bun-tag-b5230b2e48bb2337
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/lib/code-block/index.js b/lib/code-block/index.js
+index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..e168ef97e6296c6612bb5312106d10405430bb22 100644
+--- a/lib/code-block/index.js
++++ b/lib/code-block/index.js
+@@ -260,22 +260,33 @@ const LanguagePicker = defineComponent({
+     const onSearchKeydown = (e) => {
+       if (e.key === "Escape") filter.value = "";
+     };
++    // NyaMark: the block's language is marked when its fence names it by an
++    // alias (js, sh), and a search lists exact names, then names begun by it,
++    // then names holding it, the block's own among them. It was left out of
++    // every search, so one only it matched found nothing, and "java" listed
++    // JavaScript over Java.
++    const isCurrent = (languageInfo) => {
++      const current = language.value.toLowerCase();
++      return languageInfo.name.toLowerCase() === current || languageInfo.alias.includes(current);
++    };
+     const languages = computed(() => {
+       var _a;
+       if (!showPicker.value) return [];
+       const all = (_a = getAllLanguages()) != null ? _a : [];
+-      const selected = all.find(
+-        (languageInfo) => languageInfo.name.toLowerCase() === language.value.toLowerCase()
+-      );
+-      const filtered = all.filter((languageInfo) => {
+-        const currentValue = filter.value.toLowerCase();
+-        return (languageInfo.name.toLowerCase().includes(currentValue) || languageInfo.alias.some(
+-          (alias) => alias.toLowerCase().includes(currentValue)
+-        )) && languageInfo !== selected;
+-      });
+-      if (filtered.length === 0) return [];
+-      if (!selected) return filtered;
+-      return [selected, ...filtered];
++      const selected = all.find(isCurrent);
++      const currentValue = filter.value.trim().toLowerCase();
++      if (!currentValue) {
++        return selected ? [selected, ...all.filter((languageInfo) => languageInfo !== selected)] : all;
++      }
++      const rank = (languageInfo) => {
++        const words = [languageInfo.name.toLowerCase(), ...languageInfo.alias];
++        if (words.includes(currentValue)) return 0;
++        if (words.some((word) => word.startsWith(currentValue))) return 1;
++        return words.some((word) => word.includes(currentValue)) ? 2 : 3;
++      };
++      return all.map((languageInfo) => [languageInfo, rank(languageInfo)]).filter(([, r]) => r < 3).sort(
++        ([a, ra], [b, rb]) => ra - rb || (a === selected ? -1 : b === selected ? 1 : 0)
++      ).map(([languageInfo]) => languageInfo);
+     });
+     const clickHandler = (e) => {
+       const target = e.target;
+@@ -346,7 +357,7 @@ const LanguagePicker = defineComponent({
+             role: "listitem",
+             tabindex: "0",
+             class: "language-list-item",
+-            "aria-selected": languageInfo.name.toLowerCase() === language.value.toLowerCase(),
++            "aria-selected": isCurrent(languageInfo),
+             "data-language": languageInfo.name,
+             onClick: () => {
+               setLanguage(languageInfo.name);
+@@ -355,7 +366,7 @@ const LanguagePicker = defineComponent({
+           },
+           config.renderLanguage(
+             languageInfo.name,
+-            languageInfo.name.toLowerCase() === language.value.toLowerCase()
++            isCurrent(languageInfo)
+           )
+         ))
+       )) : null));
