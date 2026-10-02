@@ -26,6 +26,8 @@ const bridge = {
   saveDialogCalls: 0,
   keepLocalEdits: true,
   conflictPrompts: 0,
+  /** Holds the reload question open until it settles. */
+  conflictAnswered: null as Promise<void> | null,
   watchers: new Map<string, () => void>(),
 };
 
@@ -46,6 +48,7 @@ mock.module('../src/bridge/ipc/files', () => ({
   },
   confirmDialog: async () => {
     bridge.conflictPrompts += 1;
+    await bridge.conflictAnswered;
     return !bridge.keepLocalEdits;
   },
   watchMarkdownFile: async (path: string, handler: () => void) => {
@@ -129,6 +132,7 @@ beforeEach(() => {
   bridge.saveDialogCalls = 0;
   bridge.keepLocalEdits = true;
   bridge.conflictPrompts = 0;
+  bridge.conflictAnswered = null;
 });
 
 afterEach(() => {
@@ -326,6 +330,25 @@ describe('changes made by other programs', () => {
 
     await fire('changed elsewhere');
 
+    expect(synced).toEqual(['changed elsewhere']);
+    expect(store.getState().isDirty).toBe(false);
+  });
+
+  test('auto-save waits while the reload question is open', async () => {
+    const { fire, edit, controller, synced } = await watched('old');
+    bridge.keepLocalEdits = false;
+    const answer = deferred();
+    bridge.conflictAnswered = answer.promise;
+    edit('local edit');
+
+    const firing = fire('changed elsewhere');
+    await settle();
+    await controller.autoSaveFile();
+    answer.resolve();
+    await firing;
+    await settle();
+
+    expect(bridge.writes).toEqual([]);
     expect(synced).toEqual(['changed elsewhere']);
     expect(store.getState().isDirty).toBe(false);
   });

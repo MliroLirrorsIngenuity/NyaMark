@@ -268,6 +268,10 @@ export class FileController {
   }
 
   async autoSaveFile() {
+    // While the reload question is open the file holds the other program's
+    // version; a tick wrote over it, and "Reload" then loaded a version no
+    // longer on disk.
+    if (this.conflictPrompting) return;
     try {
       await this.saveCurrentDocument({
         forceDialog: false,
