@@ -300,6 +300,36 @@ export class SourceModeController {
     });
   }
 
+  /**
+   * Takes the source pane to heading `id`, the caret at the end of its line
+   * and the line at the top, and the preview after it. Scrolled alone, the
+   * preview left the source where it was, and the next key typed there
+   * took the preview back. False outside source mode.
+   */
+  revealHeading(id: string) {
+    const cm = this.cmView;
+    const view = this.previewView;
+    if (!cm || !view) return false;
+    this.flush();
+    const end = this.editor.headingEnd(id);
+    if (end < 0) return false;
+    const text = cm.state.doc.toString();
+    const spans = this.editor.blockSpans(text);
+    const line = cm.state.doc.lineAt(
+      sourceOffset(view.state.doc, end, text, spans, -1)
+    );
+    this.markScrollSource(cm.scrollDOM);
+    cm.dispatch({
+      selection: { anchor: line.to },
+      effects: EditorView.scrollIntoView(line.from, {
+        y: 'start',
+        yMargin: 24,
+      }),
+    });
+    cm.focus();
+    return true;
+  }
+
   /** Opens the source pane's own find bar; false outside source mode. */
   find() {
     if (!this.cmView) return false;

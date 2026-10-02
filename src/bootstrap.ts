@@ -202,7 +202,10 @@ export class App {
 
   private toggleOutline() {
     if (!this.editor) return;
-    this.outline ??= new OutlinePanel(this.editor);
+    const editor = this.editor;
+    this.outline ??= new OutlinePanel(editor, (id) => {
+      if (!this.sourceMode?.revealHeading(id)) editor.scrollToHeading(id);
+    });
     this.outline.toggle();
   }
 

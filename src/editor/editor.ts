@@ -434,6 +434,18 @@ export class NyaEditor {
     return { words, lines: countLines(source) };
   }
 
+  /** Where the text of heading `id` ends, or -1 when none has that id. */
+  headingEnd(id: string) {
+    let end = -1;
+    this.getView()?.state.doc.descendants((node, pos) => {
+      if (end >= 0) return false;
+      if (node.type.name !== 'heading') return !node.isTextblock;
+      if (node.attrs.id === id) end = pos + node.nodeSize - 1;
+      return false;
+    });
+    return end;
+  }
+
   /**
    * Scrolls heading `id` to the top and puts the caret at its end, so typing
    * after a jump from the outline goes on there. In source mode the caret
@@ -444,13 +456,7 @@ export class NyaEditor {
     const view = this.getView();
     if (!view) return;
     const sourceMode = view.dom.closest('.is-source-mode') != null;
-    let end = -1;
-    view.state.doc.descendants((node, pos) => {
-      if (end >= 0) return false;
-      if (node.type.name !== 'heading') return !node.isTextblock;
-      if (node.attrs.id === id) end = pos + node.nodeSize - 1;
-      return false;
-    });
+    const end = this.headingEnd(id);
     if (end >= 0 && !sourceMode) {
       const { tr } = view.state;
       view.dispatch(tr.setSelection(TextSelection.create(tr.doc, end)));

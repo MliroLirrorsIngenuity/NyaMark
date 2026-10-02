@@ -155,7 +155,11 @@ export class OutlinePanel {
   private spyFrame: number | null = null;
   private readonly unsubscribe: () => void;
 
-  constructor(private editor: NyaEditor) {
+  /** `goTo` takes the page to a heading clicked in the list. */
+  constructor(
+    private editor: NyaEditor,
+    private goTo = (id: string) => editor.scrollToHeading(id)
+  ) {
     ensureStyle('outline-panel', outlineStyles);
 
     this.elPanel = document.createElement('div');
@@ -327,7 +331,7 @@ export class OutlinePanel {
     // A heading near the end cannot scroll up to the reading line.
     this.pinnedId = id;
     this.setActive(id, false);
-    this.editor.scrollToHeading(id);
+    this.goTo(id);
   };
 
   private releasePin = (event: Event) => {
