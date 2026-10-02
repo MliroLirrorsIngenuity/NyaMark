@@ -101,6 +101,22 @@ describe('stepOver', () => {
     expect(press(state, 'ArrowLeft')).toEqual([3, []]);
   });
 
+  test('keeps the marks of the one letter it goes over', () => {
+    // 粗 bold, 后 plain, 码 code, 后 plain: a letter to each run.
+    const state = (at: number) =>
+      line(
+        [
+          ['粗', [strong]],
+          ['后', []],
+          ['码', [code]],
+          ['后', []],
+        ],
+        at
+      );
+    expect(press(state(2), 'ArrowRight')).toEqual([3, []]);
+    expect(press(state(5), 'ArrowLeft')).toEqual([4, []]);
+  });
+
   test('leaves the edges of bold and links to the arrows', () => {
     const state = (mark: Mark, at: number) =>
       line(

@@ -78,18 +78,12 @@ export function stepOver(state: EditorState, key: string): Transaction | null {
       return state.tr.setStoredMarks(side);
     }
   }
-  const node = $pos.parent.maybeChild($pos.index());
-  const onto =
-    left && $pos.textOffset === 1
-      ? $pos.pos - 1
-      : !left && node && $pos.textOffset + 1 === node.nodeSize
-        ? $pos.pos + 1
-        : null;
-  if (onto === null || !codeEdge(...marksAround(state.doc.resolve(onto)))) {
-    return null;
-  }
+  const over = left ? $pos.nodeBefore : $pos.nodeAfter;
+  if (!over?.isText) return null;
+  const onto = $pos.pos + (left ? -1 : 1);
+  if (!codeEdge(...marksAround(state.doc.resolve(onto)))) return null;
   const to = TextSelection.create(state.doc, onto);
-  return state.tr.setSelection(to).setStoredMarks($pos.marks());
+  return state.tr.setSelection(to).setStoredMarks(over.marks);
 }
 
 const isCode = (mark: Mark) => !!mark.type.spec.code;
