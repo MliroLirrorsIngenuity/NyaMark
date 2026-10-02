@@ -1,5 +1,5 @@
 diff --git a/lib/cjs/feature/block-edit/index.js b/lib/cjs/feature/block-edit/index.js
-index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..933fd7dadcfbc9a2effb8282623f8305fe97a6ff 100644
+index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..69bef6d4ea8c91435045bdc71aaaa5e1cd651422 100644
 --- a/lib/cjs/feature/block-edit/index.js
 +++ b/lib/cjs/feature/block-edit/index.js
 @@ -800,6 +800,14 @@ const Menu = vue.defineComponent({
@@ -17,8 +17,37 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..933fd7dadcfbc9a2effb8282623f8305
      const onHover = (index, after) => {
        const prevHoverIndex = hoverIndex.value;
        const next = typeof index === "function" ? index(prevHoverIndex) : index;
+@@ -985,6 +993,9 @@ class MenuView {
+     app.mount(content);
+     __privateSet$1(this, _content$1, content);
+     const self = this;
++    // NyaMark: the menu stands under the "/" it was opened with. It moved
++    // along the line with each letter typed after it.
++    let anchorShift = 0;
+     __privateSet$1(this, _slashProvider, new slash.SlashProvider({
+       content: __privateGet$1(this, _content$1),
+       debounce: 20,
+@@ -999,6 +1010,8 @@ class MenuView {
+         if (!isSelectionAtEndOfNode(view2.state.selection)) {
+           return false;
+         }
++        const { $from } = view2.state.selection;
++        anchorShift = view2.coordsAtPos($from.start()).left - view2.coordsAtPos($from.pos).left;
+         const pos = __privateGet$1(self, _programmaticallyPos);
+         filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
+         if (typeof pos === "number") {
+@@ -1013,7 +1026,8 @@ class MenuView {
+         if (!currentText.startsWith("/")) return false;
+         return true;
+       },
+-      offset: 10
++      offset: 10,
++      middleware: [{ name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) }]
+     }));
+     __privateGet$1(this, _slashProvider).onShow = () => {
+       show.value = true;
 diff --git a/lib/cjs/index.js b/lib/cjs/index.js
-index 9726836fbea853e8be52f11df9b14b5589d457b3..79faacb8aece1b83c5dd4dab096aabdae1bde711 100644
+index 9726836fbea853e8be52f11df9b14b5589d457b3..b0953f76f203b2b78e5307e76b3db41ce8ab10f1 100644
 --- a/lib/cjs/index.js
 +++ b/lib/cjs/index.js
 @@ -1183,6 +1183,14 @@ const Menu = vue.defineComponent({
@@ -36,8 +65,37 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..79faacb8aece1b83c5dd4dab096aabda
      const onHover = (index, after) => {
        const prevHoverIndex = hoverIndex.value;
        const next = typeof index === "function" ? index(prevHoverIndex) : index;
+@@ -1368,6 +1376,9 @@ class MenuView {
+     app.mount(content);
+     __privateSet$5(this, _content$3, content);
+     const self = this;
++    // NyaMark: the menu stands under the "/" it was opened with. It moved
++    // along the line with each letter typed after it.
++    let anchorShift = 0;
+     __privateSet$5(this, _slashProvider, new slash.SlashProvider({
+       content: __privateGet$5(this, _content$3),
+       debounce: 20,
+@@ -1382,6 +1393,8 @@ class MenuView {
+         if (!isSelectionAtEndOfNode(view2.state.selection)) {
+           return false;
+         }
++        const { $from } = view2.state.selection;
++        anchorShift = view2.coordsAtPos($from.start()).left - view2.coordsAtPos($from.pos).left;
+         const pos = __privateGet$5(self, _programmaticallyPos);
+         filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
+         if (typeof pos === "number") {
+@@ -1396,7 +1409,8 @@ class MenuView {
+         if (!currentText.startsWith("/")) return false;
+         return true;
+       },
+-      offset: 10
++      offset: 10,
++      middleware: [{ name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) }]
+     }));
+     __privateGet$5(this, _slashProvider).onShow = () => {
+       show.value = true;
 diff --git a/lib/esm/feature/block-edit/index.js b/lib/esm/feature/block-edit/index.js
-index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..74b7d735ba794e0c0126facf0baec7823944b95c 100644
+index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..c457ebf128907e9fbf7b856b6c35f58dc2e1a9ff 100644
 --- a/lib/esm/feature/block-edit/index.js
 +++ b/lib/esm/feature/block-edit/index.js
 @@ -798,6 +798,14 @@ const Menu = defineComponent({
@@ -55,8 +113,37 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..74b7d735ba794e0c0126facf0baec782
      const onHover = (index, after) => {
        const prevHoverIndex = hoverIndex.value;
        const next = typeof index === "function" ? index(prevHoverIndex) : index;
+@@ -983,6 +991,9 @@ class MenuView {
+     app.mount(content);
+     __privateSet$1(this, _content$1, content);
+     const self = this;
++    // NyaMark: the menu stands under the "/" it was opened with. It moved
++    // along the line with each letter typed after it.
++    let anchorShift = 0;
+     __privateSet$1(this, _slashProvider, new SlashProvider({
+       content: __privateGet$1(this, _content$1),
+       debounce: 20,
+@@ -997,6 +1008,8 @@ class MenuView {
+         if (!isSelectionAtEndOfNode(view2.state.selection)) {
+           return false;
+         }
++        const { $from } = view2.state.selection;
++        anchorShift = view2.coordsAtPos($from.start()).left - view2.coordsAtPos($from.pos).left;
+         const pos = __privateGet$1(self, _programmaticallyPos);
+         filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
+         if (typeof pos === "number") {
+@@ -1011,7 +1024,8 @@ class MenuView {
+         if (!currentText.startsWith("/")) return false;
+         return true;
+       },
+-      offset: 10
++      offset: 10,
++      middleware: [{ name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) }]
+     }));
+     __privateGet$1(this, _slashProvider).onShow = () => {
+       show.value = true;
 diff --git a/lib/esm/index.js b/lib/esm/index.js
-index ea68de6cfb124faa35d9f047d82788a1043d255c..c12661c71140f6093864cef88472976943529bd1 100644
+index ea68de6cfb124faa35d9f047d82788a1043d255c..156e4a8fbc4bc2d1df896f742f1f5a70a57ba141 100644
 --- a/lib/esm/index.js
 +++ b/lib/esm/index.js
 @@ -1181,6 +1181,14 @@ const Menu = defineComponent({
@@ -74,3 +161,32 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c12661c71140f6093864cef884729769
      const onHover = (index, after) => {
        const prevHoverIndex = hoverIndex.value;
        const next = typeof index === "function" ? index(prevHoverIndex) : index;
+@@ -1366,6 +1374,9 @@ class MenuView {
+     app.mount(content);
+     __privateSet$5(this, _content$3, content);
+     const self = this;
++    // NyaMark: the menu stands under the "/" it was opened with. It moved
++    // along the line with each letter typed after it.
++    let anchorShift = 0;
+     __privateSet$5(this, _slashProvider, new SlashProvider({
+       content: __privateGet$5(this, _content$3),
+       debounce: 20,
+@@ -1380,6 +1391,8 @@ class MenuView {
+         if (!isSelectionAtEndOfNode(view2.state.selection)) {
+           return false;
+         }
++        const { $from } = view2.state.selection;
++        anchorShift = view2.coordsAtPos($from.start()).left - view2.coordsAtPos($from.pos).left;
+         const pos = __privateGet$5(self, _programmaticallyPos);
+         filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
+         if (typeof pos === "number") {
+@@ -1394,7 +1407,8 @@ class MenuView {
+         if (!currentText.startsWith("/")) return false;
+         return true;
+       },
+-      offset: 10
++      offset: 10,
++      middleware: [{ name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) }]
+     }));
+     __privateGet$5(this, _slashProvider).onShow = () => {
+       show.value = true;
