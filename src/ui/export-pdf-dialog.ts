@@ -189,11 +189,24 @@ const exportPdfDialogStyles = `
   accent-color: var(--ny-accent);
 }
 
+/* The ring goes round the slider and its value; round the slider alone the
+   webview drew it square. */
+.ny-export-pdf-dialog__range-wrap:has(.ny-export-pdf-dialog__range:focus-visible) {
+  border-radius: 999px;
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline-offset: 4px;
+}
+
+.ny-export-pdf-dialog input.ny-export-pdf-dialog__range:focus-visible {
+  outline: none;
+}
+
 .ny-export-pdf-dialog__range-value {
   min-width: 52px;
   color: var(--ny-text-primary);
   font-size: 13px;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
