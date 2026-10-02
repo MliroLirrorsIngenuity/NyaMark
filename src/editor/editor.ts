@@ -90,6 +90,7 @@ import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import { pasteIntoCell } from './plugins/paste-cell';
 import { pasteCodeAsCode } from './plugins/paste-code';
 import { pasteOnEmptyLine } from './plugins/paste-line';
+import { pasteLinkOverText } from './plugins/paste-link';
 import { pasteTextLines } from './plugins/paste-text-lines';
 import { plusLine } from './plugins/plus-line';
 import { quoteEnter } from './plugins/quote-enter';
@@ -241,6 +242,7 @@ export class NyaEditor {
     crepe.editor.use(quoteEnter);
     crepe.editor.use(listItemView);
     crepe.editor.use(keepListItemSelected);
+    crepe.editor.use(pasteLinkOverText);
     crepe.editor.use(pasteOnEmptyLine);
     crepe.editor.use(pasteCodeAsCode);
     crepe.editor.use(pasteTextLines);
