@@ -66,6 +66,7 @@ import { linkBox } from './plugins/link-box';
 import { linkInput } from './plugins/link-input';
 import { linkKey } from './plugins/link-key';
 import { linkMark } from './plugins/link-mark';
+import { listEnter } from './plugins/list-enter';
 import { keepListItemSelected, listItemView } from './plugins/list-item-view';
 import { markCursor } from './plugins/mark-cursor';
 import { markInput } from './plugins/mark-input';
@@ -219,6 +220,7 @@ export class NyaEditor {
     crepe.editor.use(slashMenuRoom);
     crepe.editor.use(plusLine);
     crepe.editor.use(fenceInput);
+    crepe.editor.use(listEnter);
     crepe.editor.use(listItemView);
     crepe.editor.use(keepListItemSelected);
     crepe.editor.use(pasteOnEmptyLine);
