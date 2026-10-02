@@ -47,6 +47,9 @@ pub struct WindowDirtyFlags(pub Mutex<HashMap<String, bool>>);
 /// Set while an updater-triggered restart waits for dirty windows to close.
 pub struct RestartPending(pub AtomicBool);
 
+/// Set while a quit (or restart) waits for the dirty windows' prompts.
+pub struct QuitPending(pub AtomicBool);
+
 pub fn normalize_file_path(path: impl AsRef<Path>) -> Option<String> {
     let path = path.as_ref();
     if !path.is_file() {
@@ -216,6 +219,15 @@ pub fn forget_window_dirty<R: Runtime>(app: &AppHandle<R>, label: &str) {
         .remove(label);
 }
 
+pub fn is_window_dirty<R: Runtime>(app: &AppHandle<R>, label: &str) -> bool {
+    app.state::<WindowDirtyFlags>()
+        .0
+        .lock_or_recover()
+        .get(label)
+        .copied()
+        .unwrap_or(false)
+}
+
 /// True when any window that still exists reports unsaved changes.
 pub fn any_window_dirty<R: Runtime>(app: &AppHandle<R>) -> bool {
     let flags = app.state::<WindowDirtyFlags>();
@@ -233,6 +245,16 @@ pub fn set_restart_pending<R: Runtime>(app: &AppHandle<R>, pending: bool) {
 
 pub fn is_restart_pending<R: Runtime>(app: &AppHandle<R>) -> bool {
     app.state::<RestartPending>().0.load(Ordering::Acquire)
+}
+
+pub fn set_quit_pending<R: Runtime>(app: &AppHandle<R>, pending: bool) {
+    app.state::<QuitPending>()
+        .0
+        .store(pending, Ordering::Release);
+}
+
+pub fn is_quit_pending<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.state::<QuitPending>().0.load(Ordering::Acquire)
 }
 
 pub fn is_main_bootstrap_complete<R: Runtime>(app: &AppHandle<R>) -> bool {

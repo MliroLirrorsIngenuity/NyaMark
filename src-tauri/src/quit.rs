@@ -2,9 +2,10 @@
 //!
 //! Every path that ends the process is funnelled through the per-window
 //! close-request flow: the webview listens for `tauri://close-requested`,
-//! prompts for unsaved changes and destroys the window itself. Once the last
-//! window is gone the runtime raises `ExitRequested { code: None }`, which is
-//! where an updater restart is completed.
+//! prompts for unsaved changes and destroys the window itself. A quit asks
+//! the windows with unsaved changes alone; once the last of them is gone
+//! ([`continue_pending_quit`]) the app exits, or restarts for an update.
+//! A Cancel in any prompt ends the quit with every other window still open.
 //!
 //! Paths covered:
 //! - titlebar close / Alt+F4 / Cmd+W: native `CloseRequested`, nothing to do here;
@@ -17,19 +18,39 @@ use tauri::{AppHandle, Manager, Runtime};
 
 use crate::sessions;
 
-/// Ask every window to close; dirty ones prompt on the webview side.
-pub fn close_all_windows<R: Runtime>(app: &AppHandle<R>) {
+/// Start a quit by asking the windows with unsaved changes to close; each
+/// prompts on the webview side. The others stay until every prompt is
+/// answered: closed at once, they were gone after a Cancel.
+pub fn close_dirty_windows<R: Runtime>(app: &AppHandle<R>) {
+    sessions::set_quit_pending(app, true);
     for (label, window) in app.webview_windows() {
+        if !sessions::is_window_dirty(app, &label) {
+            continue;
+        }
         if let Err(error) = window.close() {
             eprintln!("Failed to request close for window {label}: {error}");
         }
     }
 }
 
+/// Run once a window is gone: a quit waiting on its prompt ends the app when
+/// no window with unsaved changes is left.
+pub fn continue_pending_quit<R: Runtime>(app: &AppHandle<R>) {
+    if !sessions::is_quit_pending(app) || sessions::any_window_dirty(app) {
+        return;
+    }
+    sessions::set_quit_pending(app, false);
+    if sessions::is_restart_pending(app) {
+        app.restart();
+    } else {
+        app.exit(0);
+    }
+}
+
 /// Quit requested by the user (menu item / Cmd+Q).
 pub fn request_quit<R: Runtime>(app: &AppHandle<R>) {
     if sessions::any_window_dirty(app) {
-        close_all_windows(app);
+        close_dirty_windows(app);
     } else {
         app.exit(0);
     }
@@ -51,7 +72,7 @@ pub fn handle_exit_requested<R: Runtime>(
 
     if sessions::any_window_dirty(app) {
         api.prevent_exit();
-        close_all_windows(app);
+        close_dirty_windows(app);
         return;
     }
 
@@ -93,7 +114,7 @@ mod macos {
         if !crate::sessions::any_window_dirty(app) {
             return NSApplicationTerminateReply::TerminateNow;
         }
-        super::close_all_windows(app);
+        super::close_dirty_windows(app);
         NSApplicationTerminateReply::TerminateCancel
     }
 

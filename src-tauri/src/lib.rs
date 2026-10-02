@@ -20,8 +20,8 @@ use tauri_plugin_fs::FsExt;
 use crate::{
     document::{DocumentError, DocumentFormat, MarkdownDocument},
     sessions::{
-        LastFocusedWindow, MainWindowBootstrapComplete, PendingLaunchFiles, RestartPending,
-        WindowCounter, WindowDirtyFlags, WindowSessions,
+        LastFocusedWindow, MainWindowBootstrapComplete, PendingLaunchFiles, QuitPending,
+        RestartPending, WindowCounter, WindowDirtyFlags, WindowSessions,
     },
 };
 
@@ -140,12 +140,12 @@ fn set_window_dirty(window: Window, app: AppHandle, dirty: bool) {
 }
 
 /// Restart after an update was installed. Dirty windows get their prompt first;
-/// the restart itself happens once the last window closed (see `quit.rs`).
+/// the restart itself happens once the last of them closed (see `quit.rs`).
 #[tauri::command]
 fn request_app_restart(app: AppHandle) -> Result<(), String> {
     if sessions::any_window_dirty(&app) {
         sessions::set_restart_pending(&app, true);
-        quit::close_all_windows(&app);
+        quit::close_dirty_windows(&app);
         return Ok(());
     }
     app.restart()
@@ -158,10 +158,12 @@ fn any_window_dirty(app: AppHandle) -> bool {
     sessions::any_window_dirty(&app)
 }
 
-/// The user cancelled an unsaved-changes prompt, so a pending restart is off.
+/// The user cancelled an unsaved-changes prompt, so a pending quit or restart
+/// is off.
 #[tauri::command]
 fn cancel_pending_quit(app: AppHandle) {
     sessions::set_restart_pending(&app, false);
+    sessions::set_quit_pending(&app, false);
 }
 
 #[tauri::command]
@@ -186,6 +188,7 @@ pub fn run() {
         .manage(MainWindowBootstrapComplete(AtomicBool::new(false)))
         .manage(WindowDirtyFlags(Mutex::new(HashMap::new())))
         .manage(RestartPending(AtomicBool::new(false)))
+        .manage(QuitPending(AtomicBool::new(false)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -226,6 +229,7 @@ pub fn run() {
                 sessions::forget_window_file(app, window.label());
                 sessions::forget_window_dirty(app, window.label());
                 sessions::clear_last_focused_window(app, window.label());
+                quit::continue_pending_quit(app);
             }
             _ => {}
         })
