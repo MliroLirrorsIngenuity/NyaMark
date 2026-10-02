@@ -16,7 +16,9 @@
  *
  * On an empty line of a list item the block takes the line's place, under the
  * item above, as one typed there does. The line stayed above the block as an
- * empty bullet, saved as `<br />`.
+ * empty bullet, saved as `<br />`. The code block and quote buttons did
+ * nothing on the first line of a list item, which has to stay text; the line
+ * goes there as code or a quote too.
  */
 
 import { editorViewCtx } from '@milkdown/kit/core';
@@ -67,6 +69,38 @@ export function insertBlock(view: EditorView, node: Node) {
   view.focus();
 }
 
+/**
+ * The first line of a list item made code or a quote, under the item above,
+ * the caret where it was in the line. False anywhere else.
+ */
+function itemLineInto(view: EditorView, type: 'code' | 'quote'): boolean {
+  const { state } = view;
+  const { $head, $anchor } = state.selection;
+  const line = $head.parent;
+  if (!$head.sameParent($anchor) || line.type.name !== 'paragraph')
+    return false;
+  if ($head.node(-1).type.name !== 'list_item' || $head.index(-1) > 0) {
+    return false;
+  }
+  const { schema } = state;
+  const text = line.textContent;
+  const block =
+    type === 'code'
+      ? schema.nodes.code_block.create(null, text ? schema.text(text) : null)
+      : schema.nodes.blockquote.create(null, line);
+  const placed = replaceLineWith(state, block);
+  if (!placed) return false;
+  const { tr, at } = placed;
+  const caret =
+    type === 'code'
+      ? at + 1 + Math.min($head.parentOffset, text.length)
+      : at + 2 + $head.parentOffset;
+  tr.setSelection(TextSelection.create(tr.doc, caret));
+  view.dispatch(tr.scrollIntoView());
+  view.focus();
+  return true;
+}
+
 type Item = { key: string; onRun?: (ctx: Ctx) => void };
 type Builder = { build: () => { key: string; items: Item[] }[] };
 
@@ -98,8 +132,9 @@ export function intoInsertedBlocks(builder: Builder) {
   const toCode = code?.onRun;
   if (code && toCode) {
     code.onRun = (ctx) => {
-      const { $from } = ctx.get(editorViewCtx).state.selection;
-      if (!$from.parent.type.spec.code) toCode(ctx);
+      const view = ctx.get(editorViewCtx);
+      if (view.state.selection.$from.parent.type.spec.code) return;
+      if (!itemLineInto(view, 'code')) toCode(ctx);
     };
   }
   // A code block quoted is drawn anew. The old one had the focus as it went,
@@ -113,7 +148,7 @@ export function intoInsertedBlocks(builder: Builder) {
       if (view.state.selection.$from.parent.type.spec.code) {
         view.dom.focus({ preventScroll: true });
       }
-      toQuote(ctx);
+      if (!itemLineInto(view, 'quote')) toQuote(ctx);
     };
   }
 }
