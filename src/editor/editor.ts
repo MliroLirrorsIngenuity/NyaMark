@@ -38,6 +38,7 @@ import { blockSelection } from './plugins/block-selection';
 import { caretScroll } from './plugins/caret-scroll';
 import { fenceLanguageWord } from './plugins/code-language';
 import { codePreview } from './plugins/code-preview';
+import { ctrlArrows } from './plugins/ctrl-arrows';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { fenceInput } from './plugins/fence-input';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
@@ -211,6 +212,7 @@ export class NyaEditor {
     crepe.editor.use(markInput);
     crepe.editor.use(markCursor);
     crepe.editor.use(homeEnd);
+    crepe.editor.use(ctrlArrows);
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(undoByLine);
     crepe.editor.use(linkInput);
