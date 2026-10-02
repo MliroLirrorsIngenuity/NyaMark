@@ -8,6 +8,10 @@
  *
  * A new table or column starts unaligned too, as one typed from `| a | b |`
  * does; they were written `| :- |`.
+ *
+ * A page made from Markdown, as on GitHub, aligns a cell with its `align`
+ * attribute, which is read as well: a centred column pasted from one came in
+ * unaligned.
  */
 
 import type { Ctx } from '@milkdown/kit/ctx';
@@ -17,7 +21,8 @@ import type { DOMOutputSpec, NodeSpec } from '@milkdown/kit/prose/model';
 const ALIGNMENTS = ['left', 'center', 'right'];
 
 export function alignmentFromDOM(dom: HTMLElement): string | null {
-  const align = dom.style.textAlign;
+  const align =
+    dom.style.textAlign || dom.getAttribute('align')?.toLowerCase() || '';
   return ALIGNMENTS.includes(align) ? align : null;
 }
 
