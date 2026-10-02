@@ -344,8 +344,15 @@ const styles = `
   background: color-mix(in srgb, var(--ny-surface-elevated), transparent 28%);
 }
 
+/* As the same choice looks in the dialog a pasted image asks it in. */
+.ny-settings__option:has(input:checked) {
+  border-color: color-mix(in srgb, var(--ny-accent), transparent 45%);
+  background: color-mix(in srgb, var(--ny-accent), transparent 90%);
+}
+
 .ny-settings__option input[type="radio"] {
   margin-top: 3px;
+  accent-color: var(--ny-accent);
 }
 
 .ny-settings__option strong {
