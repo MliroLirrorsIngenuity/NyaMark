@@ -10,6 +10,7 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { translateDOM } from '../../i18n/dom';
 import { i18next } from '../../i18n/index';
 import { pushEscapeLayer } from '../../ui/escape-layers';
+import { forInputMethod } from '../../ui/ime';
 
 const IMAGE_BLOCK = 'image-block';
 
@@ -269,7 +270,7 @@ export class ImageMetaPanel {
       captionInput.addEventListener('compositionend', scheduleCaptionCommit);
       // Enter is done: the panel closes, and the blur commits the field.
       const closeOnEnter = (event: KeyboardEvent) => {
-        if (event.key !== 'Enter' || event.isComposing) return;
+        if (event.key !== 'Enter' || forInputMethod(event)) return;
         event.preventDefault();
         this.setOpen(host, false);
       };

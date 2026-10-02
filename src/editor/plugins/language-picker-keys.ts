@@ -17,6 +17,7 @@
  */
 
 import { pushEscapeLayer } from '../../ui/escape-layers';
+import { forInputMethod } from '../../ui/ime';
 
 const LANGUAGE = '.language-list-item[data-language]';
 /** On the language the arrows have reached. */
@@ -32,7 +33,7 @@ export function languagePickerKeys(root: HTMLElement) {
     'keydown',
     (event) => {
       const target = event.target;
-      if (event.isComposing || !(target instanceof HTMLElement)) return;
+      if (forInputMethod(event) || !(target instanceof HTMLElement)) return;
       const picker = target.closest('.milkdown-code-block .language-picker');
       if (!picker) return;
       const languages = Array.from(

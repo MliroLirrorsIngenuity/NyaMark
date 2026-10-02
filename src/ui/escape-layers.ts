@@ -5,6 +5,8 @@
  * dialog does.
  */
 
+import { forInputMethod } from './ime';
+
 export type EscapeLayer = {
   dismiss: () => void;
   /** Whether Escape may dismiss right now; the key is taken either way. */
@@ -17,7 +19,7 @@ const layers: EscapeLayer[] = [];
 
 function onKeyDown(event: KeyboardEvent) {
   // Escape during an IME composition cancels the composition.
-  if (event.key !== 'Escape' || event.isComposing) return;
+  if (event.key !== 'Escape' || forInputMethod(event)) return;
   // Taken already, by a menu listening on the window (the slash menu).
   if (event.defaultPrevented) return;
   const top = layers[layers.length - 1];

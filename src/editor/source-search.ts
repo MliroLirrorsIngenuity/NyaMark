@@ -27,6 +27,7 @@ import {
 import { i18next } from '../i18n';
 import { translateDOM } from '../i18n/dom';
 import { ensureStyle } from '../style/register';
+import { forInputMethod } from '../ui/ime';
 
 const styles = `
 /* Docked above the text rather than floating over it: a floating panel hid
@@ -245,7 +246,7 @@ function createPanel(view: EditorView): Panel {
   replaceField.addEventListener('compositionend', () => commit(false));
 
   dom.addEventListener('keydown', (event) => {
-    if (event.isComposing) return;
+    if (forInputMethod(event)) return;
     // Escape, Mod-G and the rest of CodeMirror's search keys.
     if (runScopeHandlers(view, event, 'search-panel')) {
       event.preventDefault();

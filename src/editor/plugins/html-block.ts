@@ -11,6 +11,7 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 import { $ctx, $prose, $view } from '@milkdown/kit/utils';
 import DOMPurify, { type Config } from 'dompurify';
 import { ensureStyle } from '../../style/register';
+import { forInputMethod } from '../../ui/ime';
 
 /**
  * Raw HTML blocks come straight from the opened markdown file, which may be
@@ -382,7 +383,7 @@ export const htmlBlockView = $view(htmlSchema.node, (ctx) => {
     // Escape, and Enter in a tag, end the editing; the arrows leave a block
     // past its first or last line, as they leave code.
     (editor as HTMLElement).addEventListener('keydown', (e) => {
-      if (e.isComposing) return;
+      if (forInputMethod(e)) return;
       if (e.key === 'Escape' || (!block && e.key === 'Enter')) {
         e.preventDefault();
         e.stopPropagation();

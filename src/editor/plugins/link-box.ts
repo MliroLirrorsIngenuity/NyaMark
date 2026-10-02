@@ -29,6 +29,7 @@ import {
 import { AddMarkStep } from '@milkdown/kit/prose/transform';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { forInputMethod } from '../../ui/ime';
 import { marksAround } from './mark-cursor';
 
 /** The caret after the link `trs` put on all of the selection, if they did. */
@@ -98,7 +99,7 @@ function confirmed(event: Event): HTMLInputElement | null {
   const box = target?.closest?.('.milkdown-link-edit');
   if (!box) return null;
   if (event instanceof KeyboardEvent) {
-    if (event.key !== 'Enter' || event.isComposing) return null;
+    if (event.key !== 'Enter' || forInputMethod(event)) return null;
   } else if (!target?.closest('.confirm')) {
     return null;
   }

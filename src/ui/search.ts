@@ -3,6 +3,7 @@ import { i18next } from '../i18n';
 import { translateDOM } from '../i18n/dom';
 import { ensureStyle } from '../style/register';
 import { pushEscapeLayer } from './escape-layers';
+import { forInputMethod } from './ime';
 
 /**
  * Boxes in the page that close on Escape themselves: one pressed in them
@@ -177,7 +178,7 @@ export class SearchPanel {
     this.elInput.addEventListener('compositionend', () => this.search('first'));
 
     this.elInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.isComposing) {
+      if (e.key === 'Enter' && !forInputMethod(e)) {
         e.preventDefault();
         this.search(e.shiftKey ? 'prev' : 'next');
       }
