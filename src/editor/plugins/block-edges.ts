@@ -10,8 +10,9 @@
  * - after a code or math block, the paragraph ran into the code.
  *
  * Here the quote and the list let go of the block instead, the way Backspace
- * at the start of a heading turns it into a paragraph, and a paragraph after
- * code moves the caret to the end of the code. An empty paragraph after code
+ * at the start of a heading turns it into a paragraph, a footnote goes back to
+ * the text it was typed as (see footnote-input), and a paragraph after code
+ * moves the caret to the end of the code. An empty paragraph after code
  * is still removed by Milkdown's join.
  *
  * Delete at the end of a paragraph pulled the code block below into it: the
@@ -59,6 +60,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import { liftTarget } from '@milkdown/kit/prose/transform';
 import { $prose } from '@milkdown/kit/utils';
+import { footnoteToText } from './footnote-input';
 import {
   isHtmlBlock,
   isHtmlBlockSelected,
@@ -188,6 +190,7 @@ export function backspaceAtBlockStart(state: EditorState): Transaction | null {
     headingToParagraph(state) ??
     liftFirstItem(state) ??
     liftOutOfQuote(state) ??
+    footnoteToText(state) ??
     stopAtCode(state) ??
     intoTable(state, -1) ??
     selectHtmlBlock(state, -1) ??

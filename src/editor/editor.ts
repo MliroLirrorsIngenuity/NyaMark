@@ -40,6 +40,7 @@ import { codePreview } from './plugins/code-preview';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { fenceInput } from './plugins/fence-input';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
+import { footnoteInput } from './plugins/footnote-input';
 import {
   alertMarkers,
   gfmAlerts,
@@ -202,6 +203,7 @@ export class NyaEditor {
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(undoByLine);
     crepe.editor.use(linkInput);
+    crepe.editor.use(footnoteInput);
     crepe.editor.use(linkBox);
     crepe.editor.use(slashMenuRoom);
     crepe.editor.use(fenceInput);
