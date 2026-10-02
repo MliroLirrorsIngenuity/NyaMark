@@ -125,7 +125,8 @@ const css = `
   flex: 1;
   height: 100%;
   font-family: var(--ny-font-mono);
-  font-size: 13px;
+  /* As a code block's: larger with the text, from 13px at the default. */
+  font-size: max(13px, calc(13em / 14));
   line-height: 1.45;
   outline: none;
 }

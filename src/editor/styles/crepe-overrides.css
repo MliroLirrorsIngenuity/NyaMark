@@ -1191,12 +1191,17 @@
   margin: 0 !important;
   background: transparent !important;
   border-radius: 0 !important;
-  font-size: 13px !important;
+  /*
+   * 13px beside text at the 14px default, and as much larger as the text is
+   * set larger. Held at 13px, the code stayed small beside text set to 22px.
+   * It goes no smaller: a line stays tall enough for the tool pill.
+   */
+  font-size: max(13px, calc(13em / 14)) !important;
   /*
    * 1.45 rather than CodeMirror's tighter default: it is the same line-height
    * source mode uses, and at 1.35 the code ran visibly denser than the 1.52
    * body text right above it, which is half of why the block read as a foreign
-   * pane. A line is now 13 * 1.45 = 18.85px, still inside the 30px floor
+   * pane. A line is at least 13 * 1.45 = 18.85px, still inside the 30px floor
    * `.codemirror-host` needs for the 24px tool pill.
    */
   line-height: 1.45 !important;
@@ -1211,7 +1216,8 @@
   background: transparent !important;
   color: var(--ny-editor-gutter-text) !important;
   border-right: 0 !important;
-  font-size: 12px !important;
+  /* 12px beside 13px code. */
+  font-size: calc(12em / 13) !important;
 }
 
 /* Nobody folds a five-line note block, and the arrow column costs real width. */
