@@ -11,13 +11,20 @@
  * and from the start of one line to the start of another both ends are at
  * the left of the page: the toolbar sat in the left gutter, away from the
  * text selected, whatever its length. It is centred on the text selected on
- * the first line, the one it sits over.
+ * the line it sits by: the first, or the last when it sits under the whole
+ * selection. Centred on the first there, it hung beside the end of a short
+ * last line, under nothing selected.
  *
  * The selection toolbar goes above the selection, and flips below it only
  * when the page runs out above. The format bar pinned along the top of the
  * page is not the page's edge, so text selected on the line just under it put
  * the toolbar over the bar's own buttons. There it goes below the selection
  * instead, or below its first line when the rest runs out of view.
+ *
+ * The lines are those of the text selected. A selection from the end of a
+ * line holds nothing on it, and a block it takes whole has a box as wide as
+ * the page: the toolbar stood a line above the text selected, centred on the
+ * page.
  *
  * Crepe owns their positioning and takes no padding for it, so the position
  * it writes is nudged once it lands.
@@ -36,34 +43,88 @@ const FLOATING = [
 /** The position each popup was last moved to, so its own write is not redone. */
 const written = new WeakMap<HTMLElement, string>();
 
-/** How far down the selection toolbar moves to keep off the format bar. */
-function clearOfBar(el: HTMLElement, box: DOMRect, page: DOMRect): number {
-  if (!el.classList.contains('milkdown-toolbar')) return 0;
-  const bar = el.closest('.milkdown')?.querySelector('.milkdown-top-bar');
-  if (!bar) return 0;
-  const barBox = bar.getBoundingClientRect();
-  if (barBox.height === 0 || box.top >= barBox.bottom + GUTTER_PX) return 0;
-  const selection = getSelection();
-  if (!selection?.rangeCount) return 0;
-  const range = selection.getRangeAt(0);
-  const whole = range.getBoundingClientRect();
-  const fits =
-    whole.bottom + TOOLBAR_OFFSET_PX + box.height <= page.bottom - GUTTER_PX;
-  const under = fits
-    ? whole.bottom
-    : (range.getClientRects()[0]?.bottom ?? whole.bottom);
-  return under + TOOLBAR_OFFSET_PX - box.top;
+/** The text nodes `range` takes in, in order: none of a widget's labels. */
+function textsIn(range: Range): Text[] {
+  const root = range.commonAncestorContainer;
+  if (root instanceof Text) return [root];
+  const texts: Text[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!range.intersectsNode(node)) {
+      if (texts.length) break;
+      continue;
+    }
+    if (node instanceof Text && node.parentElement?.isContentEditable) {
+      texts.push(node);
+    }
+  }
+  return texts;
 }
 
-/** Where the selection toolbar's left edge centres it on the text selected. */
-function overSelection(el: HTMLElement, box: DOMRect): number {
-  if (!el.classList.contains('milkdown-toolbar')) return box.left;
+/** A box for each line of `text` that `range` selects. */
+function boxesOf(text: Text, range: Range): DOMRect[] {
+  const part = document.createRange();
+  part.selectNodeContents(text);
+  if (text === range.startContainer) part.setStart(text, range.startOffset);
+  if (text === range.endContainer) part.setEnd(text, range.endOffset);
+  return Array.from(part.getClientRects()).filter((box) => box.width >= 1);
+}
+
+/** The text selected on the first line with any (`step` 1) or the last (-1). */
+function lineOf(texts: Text[], range: Range, step: 1 | -1): DOMRect | null {
+  let line: DOMRect | null = null;
+  for (
+    let i = step > 0 ? 0 : texts.length - 1;
+    i >= 0 && i < texts.length;
+    i += step
+  ) {
+    const boxes = boxesOf(texts[i], range);
+    if (step < 0) boxes.reverse();
+    for (const box of boxes) {
+      if (!line) {
+        line = box;
+        continue;
+      }
+      const middle = (box.top + box.bottom) / 2;
+      if (middle < line.top || middle > line.bottom) return line;
+      const left = Math.min(line.left, box.left);
+      const right = Math.max(line.right, box.right);
+      const top = Math.min(line.top, box.top);
+      const bottom = Math.max(line.bottom, box.bottom);
+      line = new DOMRect(left, top, right - left, bottom - top);
+    }
+  }
+  return line;
+}
+
+/**
+ * How far down the selection toolbar moves to sit by the text selected, clear
+ * of the format bar, and the line of it it then sits by.
+ */
+function bySelection(
+  el: HTMLElement,
+  box: DOMRect,
+  page: DOMRect
+): { dy: number; line: DOMRect } | null {
+  if (!el.classList.contains('milkdown-toolbar')) return null;
   const selection = getSelection();
-  if (!selection?.rangeCount) return box.left;
-  const rects = Array.from(selection.getRangeAt(0).getClientRects());
-  const line = rects.find((rect) => rect.width >= 1);
-  if (!line) return box.left;
-  return line.left + (line.width - box.width) / 2;
+  if (!selection?.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  const texts = textsIn(range);
+  const first = lineOf(texts, range, 1);
+  const last = lineOf(texts, range, -1);
+  if (!first || !last) return null;
+  const bar = el
+    .closest('.milkdown')
+    ?.querySelector('.milkdown-top-bar')
+    ?.getBoundingClientRect();
+  const ceiling = (bar?.height ? bar.bottom : page.top) + GUTTER_PX;
+  const above = first.top - TOOLBAR_OFFSET_PX - box.height;
+  if (above >= ceiling) return { dy: above - box.top, line: first };
+  const fits =
+    last.bottom + TOOLBAR_OFFSET_PX + box.height <= page.bottom - GUTTER_PX;
+  const line = fits ? last : first;
+  return { dy: line.bottom + TOOLBAR_OFFSET_PX - box.top, line };
 }
 
 function nudge(el: HTMLElement) {
@@ -78,13 +139,17 @@ function nudge(el: HTMLElement) {
   const box = el.getBoundingClientRect();
   const min = page.left + GUTTER_PX;
   const max = page.right - GUTTER_PX;
+  const by = bySelection(el, box, page);
+  const dy = by?.dy ?? 0;
+  const centred = by
+    ? by.line.left + (by.line.width - box.width) / 2
+    : box.left;
   // A popup wider than the room left keeps its start in view.
   const target =
     box.width > max - min
       ? min
-      : Math.min(Math.max(overSelection(el, box), min), max - box.width);
+      : Math.min(Math.max(centred, min), max - box.width);
   const dx = target - box.left;
-  const dy = clearOfBar(el, box, page);
   if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
   el.style.left = `${left + dx}px`;
   el.style.top = `${top + dy}px`;
