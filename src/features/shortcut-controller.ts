@@ -23,6 +23,18 @@ export function hasPrimaryModifier(event: KeyboardEvent | MouseEvent) {
 }
 
 /**
+ * The key a shortcut was pressed with, named as `event.code` names keys:
+ * the letter the layout puts on it, so Mod-F is the F of AZERTY or Dvorak
+ * as in the menus, and the key's QWERTY place under a layout of another
+ * script, as ProseMirror and CodeMirror read their keys.
+ */
+export function shortcutKey(event: KeyboardEvent) {
+  if (/^[a-z]$/i.test(event.key)) return `Key${event.key.toUpperCase()}`;
+  if (event.key === ',') return 'Comma';
+  return event.code;
+}
+
+/**
  * Every application-level keyboard shortcut lives here. On macOS the native
  * menu owns the accelerators it lists (New, Open, Save, Save As, Export PDF,
  * Settings, Quit); binding them here as well would fire each action twice
@@ -47,7 +59,7 @@ export class ShortcutController {
    */
   private find(event: KeyboardEvent) {
     if (!hasPrimaryModifier(event) || event.altKey || event.shiftKey) return;
-    if (event.code !== 'KeyF' || event.isComposing) return;
+    if (shortcutKey(event) !== 'KeyF' || event.isComposing) return;
     // A dialog holds the keys: the bar opened behind it took the focus,
     // and what was typed next went there.
     if (this.targetsSourcePane(event) || isModalOpen()) return;
@@ -61,7 +73,8 @@ export class ShortcutController {
     if (event.repeat || event.isComposing) return;
     if (isModalOpen()) return;
 
-    if (event.code === 'KeyO' && event.shiftKey) {
+    const key = shortcutKey(event);
+    if (key === 'KeyO' && event.shiftKey) {
       event.preventDefault();
       this.handlers.toggleOutline();
       return;
@@ -70,14 +83,14 @@ export class ShortcutController {
     if (this.menuOwnsFileShortcuts) return;
 
     if (event.shiftKey) {
-      if (event.code === 'KeyS') {
+      if (key === 'KeyS') {
         event.preventDefault();
         void this.handlers.saveFileAs();
       }
       return;
     }
 
-    switch (event.code) {
+    switch (key) {
       case 'KeyS':
         event.preventDefault();
         void this.handlers.saveFile();
