@@ -5,6 +5,8 @@ import {
   EMPHASIS_STAR,
   EMPHASIS_UNDERSCORE,
   STRIKETHROUGH,
+  STRONG_EMPHASIS_STARS,
+  STRONG_EMPHASIS_UNDERSCORES,
   STRONG_STARS,
   STRONG_UNDERSCORES,
   markText,
@@ -49,6 +51,14 @@ describe('typed emphasis', () => {
     expect(closes(STRONG_UNDERSCORES, '__粗__')).toBe(true);
   });
 
+  test('takes three stars or underscores as bold and italic', () => {
+    expect(closes(STRONG_EMPHASIS_STARS, '前文***重点***')).toBe(true);
+    expect(closes(STRONG_EMPHASIS_UNDERSCORES, '前 ___重点___')).toBe(true);
+    expect(closes(STRONG_EMPHASIS_UNDERSCORES, '前___重点___')).toBe(false);
+    expect(closes(STRONG_STARS, '***重点**')).toBe(false);
+    expect(closes(EMPHASIS_STAR, '***重点*')).toBe(false);
+  });
+
   test('closes only on the key typed', () => {
     expect(closes(EMPHASIS_UNDERSCORE, '转义 _b_ 后好')).toBe(false);
     expect(closes(STRIKETHROUGH, '好的 ~~a~~ 后')).toBe(false);
@@ -77,6 +87,31 @@ describe('markText', () => {
     expect(tr?.doc.toJSON().content[0].content).toEqual([
       { type: 'text', text: '要 ' },
       { type: 'text', text: '粗', marks: [{ type: 'strong' }] },
+    ]);
+    expect(tr?.storedMarks).toEqual([]);
+  });
+
+  test('gives the text both marks, and what is typed next neither', () => {
+    const before = '要 ***粗**';
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, schema.text(before)),
+    ]);
+    const end = before.length + 1;
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, end),
+    });
+    const match = `${before}*`.match(STRONG_EMPHASIS_STARS);
+    if (!match) throw new Error('no match');
+    const tr = markText(['strong', 'em'])(
+      state,
+      match,
+      end - (match[0].length - 1),
+      end
+    );
+    expect(tr?.doc.toJSON().content[0].content).toEqual([
+      { type: 'text', text: '要 ' },
+      { type: 'text', text: '粗', marks: [{ type: 'strong' }, { type: 'em' }] },
     ]);
     expect(tr?.storedMarks).toEqual([]);
   });

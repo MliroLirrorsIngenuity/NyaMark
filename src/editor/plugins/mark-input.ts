@@ -19,7 +19,9 @@
  *   opened (`singleTilde: false` in `editor`).
  *
  * Each rule here closes on the key being typed and takes no space next to
- * the marks; underscores inside a word stay text.
+ * the marks; underscores inside a word stay text. Three stars or underscores
+ * on each side make the text bold and italic; with none of Milkdown's rules
+ * for them, `***text***` stayed text, saved escaped.
  */
 
 import { InputRule, inputRules } from '@milkdown/kit/prose/inputrules';
@@ -27,6 +29,12 @@ import type { Attrs } from '@milkdown/kit/prose/model';
 import type { EditorState } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
 
+/** `***text***` closed by the star typed. */
+export const STRONG_EMPHASIS_STARS =
+  /(?<!\*)\*\*\*([^*\s](?:[^*]*[^*\s])?)\*\*\*$/;
+/** `___text___` closed by the underscore typed, not inside a word. */
+export const STRONG_EMPHASIS_UNDERSCORES =
+  /(?<![\p{L}\p{N}_])___([^_\s](?:[^_]*[^_\s])?)___$/u;
 /** `**text**` closed by the star typed. */
 export const STRONG_STARS = /(?<!\*)\*\*([^*\s](?:[^*]*[^*\s])?)\*\*$/;
 /** `__text__` closed by the underscore typed, not inside a word. */
@@ -41,36 +49,48 @@ export const EMPHASIS_UNDERSCORE =
 export const STRIKETHROUGH = /(?<!~)~~([^~\s](?:[^~]*[^~\s])?)~~$/;
 
 /**
- * The handler for the mark `name` typed around text: `match[0]` is the text
- * with its delimiters, the last of which is the key being typed, and
- * `match[1]` the text. The delimiters go and the text takes the mark; what
+ * The handler for the marks `names` typed around text: `match[0]` is the
+ * text with its delimiters, the last of which is the key being typed, and
+ * `match[1]` the text. The delimiters go and the text takes the marks; what
  * is typed next does not.
  */
-export function markText(name: string, attrs?: Attrs) {
+export function markText(names: string | readonly string[], attrs?: Attrs) {
+  const list = typeof names === 'string' ? [names] : names;
   return (
     state: EditorState,
     match: RegExpMatchArray,
     start: number,
     end: number
   ) => {
-    const type = state.schema.marks[name];
-    if (!type) return null;
+    const types = list.map((name) => state.schema.marks[name]);
+    if (!types.length || types.some((type) => !type)) return null;
     const [whole, text = ''] = match;
     const open = whole.indexOf(text);
-    return state.tr
+    const tr = state.tr
       .delete(start + open + text.length, end)
-      .delete(start, start + open)
-      .addMark(start, start + text.length, type.create(attrs))
-      .removeStoredMark(type);
+      .delete(start, start + open);
+    for (const type of types) {
+      if (type) tr.addMark(start, start + text.length, type.create(attrs));
+    }
+    // After every mark is in: each step drops the marks stored before it.
+    for (const type of types) if (type) tr.removeStoredMark(type);
+    return tr;
   };
 }
 
-const rule = (pattern: RegExp, name: string, attrs?: Attrs) =>
-  new InputRule(pattern, markText(name, attrs), { inCodeMark: false });
+const rule = (
+  pattern: RegExp,
+  names: string | readonly string[],
+  attrs?: Attrs
+) => new InputRule(pattern, markText(names, attrs), { inCodeMark: false });
 
 export const markInput = $prose(() =>
   inputRules({
     rules: [
+      rule(STRONG_EMPHASIS_STARS, ['strong', 'emphasis'], { marker: '*' }),
+      rule(STRONG_EMPHASIS_UNDERSCORES, ['strong', 'emphasis'], {
+        marker: '_',
+      }),
       rule(STRONG_STARS, 'strong', { marker: '*' }),
       rule(STRONG_UNDERSCORES, 'strong', { marker: '_' }),
       rule(EMPHASIS_STAR, 'emphasis', { marker: '*' }),
