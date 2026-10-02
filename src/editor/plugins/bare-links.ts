@@ -10,12 +10,25 @@
  * it or that would keep it from being read. A link written any other way,
  * or one whose text or address was edited, is written the way remark writes
  * it.
+ *
+ * What follows the link is what is written after it, up to the next space:
+ * remark gives a link only the first character of it. Text, a picture or
+ * struck-out text right after a bare address went into the link when the
+ * file was opened again, `https://a.com![](b.png)`. Bold or italics beside
+ * it write the letter at that end of the link as a character reference where
+ * their stars would open or close nothing otherwise, and the link was cut
+ * there, `me@a.co&#x6D;*(b)*`. Those links are written in brackets.
  */
 
 import type { Ctx } from '@milkdown/kit/ctx';
 import { linkSchema } from '@milkdown/kit/preset/commonmark';
 import { $remark } from '@milkdown/kit/utils';
-import { type Handle, defaultHandlers } from 'mdast-util-to-markdown';
+import {
+  type Handle,
+  type Info,
+  type State,
+  defaultHandlers,
+} from 'mdast-util-to-markdown';
 
 type MdNode = {
   type: string;
@@ -48,8 +61,9 @@ function beginsAfter(kind: string, before: string) {
 
 /** Whether a reader ends a link of `kind` right before `after`. */
 function endsBefore(kind: string, after: string) {
-  // An email address ends at anything its domain cannot hold, `。` too.
-  if (kind === 'email') return !/[-_A-Za-z0-9]/.test(after.charAt(0));
+  // An email address ends at anything its domain cannot hold, `。` too, or
+  // at a stop that ends the sentence: `me@a.com.cn` reads on.
+  if (kind === 'email') return !/^\.?[-_A-Za-z0-9]/.test(after);
   return ENDS.test(after);
 }
 
@@ -84,6 +98,74 @@ function readOnFrom(node: object, parent: MdNode | undefined, after: string) {
   return text;
 }
 
+type Parent = Parameters<Handle>[1];
+
+/** Marks whose stars write a letter beside them as a character reference. */
+const ATTENTION = new Set(['emphasis', 'strong']);
+
+/**
+ * What `state` writes for the child of `parent` at `index`, with what it
+ * would write beside it as character references, the state left as it was.
+ */
+function writeAside(
+  parent: Parent,
+  index: number,
+  state: State,
+  info: Info
+): { value: string; encodes: State['attentionEncodeSurroundingInfo'] } {
+  const node = (parent?.children ?? [])[index];
+  const stack = state.indexStack;
+  const at = stack[stack.length - 1];
+  const encodes = state.attentionEncodeSurroundingInfo;
+  // remark-cjk-friendly's note to encode the text after bold.
+  const cjk = state as { cjkFriendlyEncodeAfterSupplementaryText?: boolean };
+  const supplementary = cjk.cjkFriendlyEncodeAfterSupplementaryText;
+  stack[stack.length - 1] = index;
+  try {
+    const value = state.handle(node, parent, state, info);
+    return { value, encodes: state.attentionEncodeSurroundingInfo };
+  } finally {
+    stack[stack.length - 1] = at;
+    state.attentionEncodeSurroundingInfo = encodes;
+    cjk.cjkFriendlyEncodeAfterSupplementaryText = supplementary;
+  }
+}
+
+/**
+ * What is written after `node`, the bare `text` of a link, up to the next
+ * space; null when bold or italics beside it would write a letter at its
+ * ends as a character reference.
+ */
+function writtenAfter(
+  node: MdNode,
+  parent: Parent,
+  state: State,
+  info: Info,
+  text: string
+): string | null {
+  const siblings = (parent?.children ?? []) as MdNode[];
+  const index = siblings.indexOf(node as never);
+  if (index < 0) return readOnFrom(node, parent as MdNode, info.after);
+  const previous = siblings[index - 1];
+  if (previous && ATTENTION.has(previous.type)) {
+    const aside = { ...info, before: '', after: text.charAt(0) };
+    if (writeAside(parent, index - 1, state, aside).encodes?.after) {
+      return null;
+    }
+  }
+  let after = '';
+  let next = index + 1;
+  for (; next < siblings.length && !/[\s<]/.test(after); next++) {
+    const aside = { ...info, before: (after || text).slice(-1), after: '' };
+    const { value, encodes } = writeAside(parent, next, state, aside);
+    if (next === index + 1 && encodes?.before) return null;
+    after += value;
+  }
+  if (next < siblings.length) return after;
+  const last = siblings[siblings.length - 1];
+  return readOnFrom(last, parent as MdNode, last === node ? info.after : after);
+}
+
 /** The text `node` is written as, bare, or null when it must be spelt out. */
 export function bareLinkText(
   node: MdNode,
@@ -106,13 +188,16 @@ export const writeLink = Object.assign(
     // A table cell is written between pipes, which end its text.
     const cell = state.stack.includes('tableCell');
     const edge = (char: string) => (cell && char === '|' ? '' : char);
-    const after = readOnFrom(node, parent, info.after);
+    const text = bareLinkText(node, edge(info.before), '');
+    const after = text && writtenAfter(node, parent, state, info, text);
     return (
-      bareLinkText(
-        node,
-        edge(info.before),
-        cell ? after.split('|')[0] : after
-      ) ?? defaultHandlers.link(node, parent, state, info)
+      (after != null &&
+        bareLinkText(
+          node,
+          edge(info.before),
+          cell ? after.split('|')[0] : after
+        )) ||
+      defaultHandlers.link(node, parent, state, info)
     );
   }) satisfies Handle,
   {

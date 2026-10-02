@@ -4,14 +4,19 @@ import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
 import { markBareLinks, writeLink } from '../src/editor/plugins/bare-links';
-import { writeStrong } from '../src/editor/plugins/markdown-output';
+import {
+  writeEmphasis,
+  writeStrong,
+} from '../src/editor/plugins/markdown-output';
 
 type Tree = { type: string; value?: string; children?: Tree[] };
 
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
-  .use(remarkStringify, { handlers: { link: writeLink, strong: writeStrong } });
+  .use(remarkStringify, {
+    handlers: { link: writeLink, strong: writeStrong, emphasis: writeEmphasis },
+  });
 
 /** Parses `markdown` the way the editor does, edits it, and writes it. */
 function roundTrip(markdown: string, edit?: (tree: Tree) => void) {
@@ -91,5 +96,61 @@ describe('bare links', () => {
     expect(typed).toBe('**<https://a.com>**和**me@b.com**见\n');
     const markdown = '句末 **https://d.com/e**.\n';
     expect(roundTrip(markdown)).toBe(markdown);
+  });
+  test('spells out a bare link that what follows would read on into', () => {
+    const text = (value: string): Tree => ({ type: 'text', value });
+    const typed = (link: Tree, after: Tree) =>
+      roundTrip('见 x\n', (tree) => {
+        (find(tree, 'paragraph') as Tree).children?.push(
+          text(' '),
+          link,
+          after
+        );
+      });
+    const link = (url: string, value: string): Tree =>
+      ({
+        type: 'link',
+        url,
+        data: { bare: true },
+        children: [text(value)],
+      }) as Tree;
+    const picture = { type: 'image', url: 'b.png', alt: '' } as Tree;
+    expect(typed(link('https://a.com', 'https://a.com'), picture)).toBe(
+      '见 x <https://a.com>![](b.png)\n'
+    );
+    expect(typed(link('mailto:me@a.com', 'me@a.com'), text('.cn'))).toBe(
+      '见 x <me@a.com>.cn\n'
+    );
+    expect(typed(link('mailto:me@a.com', 'me@a.com'), text('. 好'))).toBe(
+      '见 x me@a.com. 好\n'
+    );
+  });
+
+  test('spells out a bare link that bold or italics beside it would cut', () => {
+    const paragraph = (...children: Tree[]) =>
+      processor.stringify({
+        type: 'root',
+        children: [{ type: 'paragraph', children }],
+      } as never);
+    const text = (value: string): Tree => ({ type: 'text', value });
+    const link = (url: string, value: string): Tree =>
+      ({
+        type: 'link',
+        url,
+        data: { bare: true },
+        children: [text(value)],
+      }) as Tree;
+    const italics = { type: 'emphasis', children: [text('(b)')] };
+    const bold = { type: 'strong', children: [text('Note:')] };
+    expect(paragraph(link('mailto:me@a.com', 'me@a.com'), italics)).toBe(
+      '<me@a.com>*(b)*\n'
+    );
+    expect(paragraph(bold, link('https://a.com', 'https://a.com'))).toBe(
+      '**Note:**<https://a.com>\n'
+    );
+    const plain = { type: 'emphasis', children: [text('斜')] };
+    expect(paragraph(link('mailto:me@a.com', 'me@a.com'), plain)).toBe(
+      'me@a.com*斜*\n'
+    );
   });
 });
