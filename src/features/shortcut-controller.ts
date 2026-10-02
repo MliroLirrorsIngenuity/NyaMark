@@ -1,4 +1,5 @@
 import { isMacOS } from '../platform/detect';
+import { isModalOpen } from '../ui/modal';
 
 type ShortcutHandlers = {
   newFile: () => unknown;
@@ -47,7 +48,9 @@ export class ShortcutController {
   private find(event: KeyboardEvent) {
     if (!hasPrimaryModifier(event) || event.altKey || event.shiftKey) return;
     if (event.code !== 'KeyF' || event.isComposing) return;
-    if (this.targetsSourcePane(event)) return;
+    // A dialog holds the keys: the bar opened behind it took the focus,
+    // and what was typed next went there.
+    if (this.targetsSourcePane(event) || isModalOpen()) return;
     event.preventDefault();
     event.stopPropagation();
     if (!event.repeat) this.handlers.find();
@@ -56,6 +59,7 @@ export class ShortcutController {
   private dispatch(event: KeyboardEvent) {
     if (!hasPrimaryModifier(event) || event.altKey) return;
     if (event.repeat || event.isComposing) return;
+    if (isModalOpen()) return;
 
     if (event.code === 'KeyO' && event.shiftKey) {
       event.preventDefault();

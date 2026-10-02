@@ -118,6 +118,11 @@ function onPointerDown() {
   }
 }
 
+/** Whether a dialog is open; what the keys would do behind it waits. */
+export function isModalOpen() {
+  return stack.length > 0;
+}
+
 /** Call once the dialog is attached to the document. */
 export function openModal(options: ModalOptions): ModalHandle {
   const { overlay, dialog } = options;
