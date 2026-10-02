@@ -14,12 +14,25 @@ const imagePolicyDialogStyles = `
   inset: 0;
   z-index: var(--ny-layer-image-policy-dialog);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
+  padding: 0 24px;
   background: color-mix(in srgb, var(--ny-app-bg-end), transparent 26%);
   backdrop-filter: blur(10px) saturate(1.08);
   -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  overflow-y: auto;
+}
+
+/*
+ * Centres the dialog, as in the settings. Centred by the overlay instead, a
+ * dialog taller than a short window stood out over both its edges, its
+ * heading under the title bar and its buttons below the window, out of reach.
+ */
+.ny-image-policy-overlay::before,
+.ny-image-policy-overlay::after {
+  content: "";
+  flex: 1;
+  min-height: 48px;
 }
 
 .ny-image-policy-overlay[hidden] {
@@ -28,6 +41,7 @@ const imagePolicyDialogStyles = `
 
 .ny-image-policy-dialog {
   width: min(480px, calc(100vw - 40px));
+  flex-shrink: 0;
   padding: 22px 22px 18px;
   border: 1px solid var(--ny-border-strong);
   border-radius: 24px;
