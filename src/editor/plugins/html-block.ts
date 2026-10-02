@@ -60,6 +60,32 @@ export const htmlImageSource = $ctx<
   'nyamarkHtmlImageSource'
 >((src) => src, 'nyamarkHtmlImageSource');
 
+const LINKING_TAG = /<(?:img|a|source|video|audio)\b[^>]*>/gi;
+const ADDRESS =
+  /(\s(?:src|href|poster)\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
+
+/**
+ * `html` with the address of each image and link in it run through `mapper`
+ * (see `rewriteLocalReferences`); an address it returns null for stays.
+ */
+export function htmlReferencesMapped(
+  html: string,
+  mapper: (reference: string) => string | null
+): string {
+  return html.replace(LINKING_TAG, (tag) =>
+    tag.replace(ADDRESS, (whole, lead: string, ...values: unknown[]) => {
+      const [double, single, bare] = values as Array<string | undefined>;
+      const reference = double ?? single ?? bare ?? '';
+      const next = mapper(reference);
+      const quote = single === undefined ? '"' : "'";
+      if (next === null || next === reference || next.includes(quote)) {
+        return whole;
+      }
+      return `${lead}${quote}${next}${quote}`;
+    })
+  );
+}
+
 /** Addresses the webview loads as they are. */
 const LOADS_AS_IS = /^(?:https?:|data:|blob:|asset:)/i;
 

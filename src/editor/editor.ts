@@ -78,6 +78,7 @@ import {
   htmlBlockSelection,
   htmlBlockView,
   htmlImageSource,
+  htmlReferencesMapped,
   registerHtmlBlockStyles,
 } from './plugins/html-block';
 import { imageAddressCaret } from './plugins/image-address-caret';
@@ -671,7 +672,10 @@ export class NyaEditor {
   }
 }
 
-/** `state` with every image `src` and link `href` run through `mapper`. */
+/**
+ * `state` with every image `src` and link `href` run through `mapper`, those
+ * written in HTML too.
+ */
 function referencesRewritten(
   state: EditorState,
   mapper: (reference: string) => string | null
@@ -683,6 +687,16 @@ function referencesRewritten(
   // Attribute and mark changes never move positions, so the positions of
   // the untouched document stay valid for the whole walk.
   state.doc.descendants((node, pos) => {
+    if (node.type.name === 'html') {
+      const value = String(node.attrs.value ?? '');
+      const next = htmlReferencesMapped(value, mapper);
+      if (next !== value) {
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, value: next });
+        rewritten += 1;
+      }
+      return false;
+    }
+
     if (node.type.name === 'image-block' || node.type.name === 'image') {
       const src = typeof node.attrs.src === 'string' ? node.attrs.src : '';
       const next = src ? mapper(src) : null;
