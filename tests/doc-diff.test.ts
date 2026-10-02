@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
 import { EditorState } from '@milkdown/kit/prose/state';
-import { replaceChangedRange, settleParsed } from '../src/editor/doc-diff';
+import {
+  replaceChangedRange,
+  settleParsed,
+  textChange,
+} from '../src/editor/doc-diff';
 
 const schema = new Schema({
   nodes: {
@@ -94,5 +98,40 @@ describe('settleParsed', () => {
       expect(oldStart).toBeGreaterThan(shown.child(0).nodeSize);
       expect(oldEnd).toBeLessThan(shown.content.size - 2);
     });
+  });
+});
+
+describe('textChange', () => {
+  const applied = (current: string, next: string) => {
+    const { from, to, insert } = textChange(current, next);
+    return current.slice(0, from) + insert + current.slice(to);
+  };
+
+  test('covers only what differs', () => {
+    expect(
+      textChange('# A\n\none\n\nend\n', '# A\n\none, two\n\nend\n')
+    ).toEqual({
+      from: 8,
+      to: 8,
+      insert: ', two',
+    });
+    expect(textChange('same', 'same')).toEqual({ from: 4, to: 4, insert: '' });
+  });
+
+  test('turns one text into the other', () => {
+    for (const [a, b] of [
+      ['aaaa', 'aaaaa'],
+      ['abab', 'ab'],
+      ['', 'x'],
+      ['x', ''],
+      ['start', 'restart'],
+    ]) {
+      expect(applied(a, b)).toBe(b);
+    }
+  });
+
+  test('keeps surrogate pairs whole', () => {
+    const change = textChange('a😀b', 'a😃b');
+    expect(change).toEqual({ from: 1, to: 3, insert: '😃' });
   });
 });

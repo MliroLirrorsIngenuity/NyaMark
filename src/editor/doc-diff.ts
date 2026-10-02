@@ -55,3 +55,29 @@ export function settleParsed(
   if (end) transform.insert(transform.doc.content.size, end);
   return transform.doc;
 }
+
+/**
+ * The one change that turns `current` into `next`: what lies between their
+ * common start and common end. Neither end splits a surrogate pair.
+ */
+export function textChange(current: string, next: string) {
+  const shorter = Math.min(current.length, next.length);
+  let from = 0;
+  while (from < shorter && current[from] === next[from]) from++;
+  let tail = 0;
+  while (
+    tail < shorter - from &&
+    current[current.length - 1 - tail] === next[next.length - 1 - tail]
+  ) {
+    tail++;
+  }
+  const isLow = (text: string, at: number) =>
+    /[\uDC00-\uDFFF]/.test(text[at] ?? '');
+  if (from > 0 && isLow(current, from)) from--;
+  if (tail > 0 && isLow(current, current.length - tail)) tail--;
+  return {
+    from,
+    to: current.length - tail,
+    insert: next.slice(from, next.length - tail),
+  };
+}

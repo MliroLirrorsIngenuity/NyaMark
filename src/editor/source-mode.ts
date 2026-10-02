@@ -24,7 +24,12 @@ import {
   syntaxTree,
 } from '@codemirror/language';
 import { openSearchPanel } from '@codemirror/search';
-import { Compartment, EditorSelection, EditorState } from '@codemirror/state';
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Transaction,
+} from '@codemirror/state';
 import { oneDarkTheme } from '@codemirror/theme-one-dark';
 import { keymap } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
@@ -34,6 +39,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
+import { textChange } from './doc-diff';
 import type { NyaEditor } from './editor';
 import { normalizeHeadingText, syncedScrollTop } from './scroll-sync';
 import { docPosition, sourceOffset } from './source-caret';
@@ -371,12 +377,16 @@ export class SourceModeController {
     if (!this.cmView) return;
     const text = this.editor.getMarkdown();
     this.lastSyncedText = text;
-    const { doc } = this.cmView.state;
-    if (doc.toString() === text) return;
+    const current = this.cmView.state.doc.toString();
+    if (current === text) return;
     this.applyingEditorText = true;
     try {
+      // Only what differs is replaced, and out of the undo history as in the
+      // editor: swapping the whole text put the caret at the top, and Cmd+Z
+      // brought back the text from before the reload.
       this.cmView.dispatch({
-        changes: { from: 0, to: doc.length, insert: text },
+        changes: textChange(current, text),
+        annotations: Transaction.addToHistory.of(false),
       });
     } finally {
       this.applyingEditorText = false;
