@@ -1413,6 +1413,16 @@
   background: color-mix(in srgb, var(--nyamark-accent), transparent 90%) !important;
 }
 
+/* While a search is typed, the language Enter chooses -- see
+   `plugins/language-picker-keys.ts`. */
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .list-wrapper:has(.search-input:focus:not(:placeholder-shown))
+  .language-list-item[data-language]:first-child {
+  background: var(--crepe-color-hover);
+}
+
 .ny-editor-root .milkdown .milkdown-code-block .language-list-item .leading,
 .ny-editor-root
   .milkdown
