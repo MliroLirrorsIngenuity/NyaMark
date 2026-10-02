@@ -93,6 +93,35 @@
     padding-bottom: 0 !important;
   }
 
+  /*
+   * What the editor shows of the work in hand stays off the page: the source
+   * of a formula or diagram the caret is in, the line and selection a code
+   * block marks, and find's highlights.
+   */
+  :root.ny-exporting-pdf
+    .milkdown
+    .milkdown-code-block:has(> .preview-panel)
+    > .codemirror-host {
+    display: none !important;
+  }
+
+  :root.ny-exporting-pdf .milkdown .milkdown-code-block > .preview-panel {
+    border-top: 0 !important;
+    border-radius: 12px !important;
+  }
+
+  :root.ny-exporting-pdf .milkdown .cm-activeLine,
+  :root.ny-exporting-pdf .milkdown .cm-activeLineGutter,
+  :root.ny-exporting-pdf .ny-search-match {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  :root.ny-exporting-pdf .milkdown .cm-selectionLayer,
+  :root.ny-exporting-pdf .milkdown .cm-cursorLayer {
+    display: none !important;
+  }
+
   :root.ny-exporting-pdf .milkdown pre,
   :root.ny-exporting-pdf .milkdown blockquote,
   :root.ny-exporting-pdf .milkdown table,
