@@ -1301,10 +1301,19 @@
  * The visible caret is a drawn `border-left`, not a real one -- `caret-color`
  * on .cm-content is overridden to transparent by drawSelection and does
  * nothing.
+ *
+ * It is as thick as the caret in text and blinks at its pace. At CodeMirror's
+ * 1.2px it thinned on the way into a code block and thickened on the way out.
  */
 .ny-editor-root .milkdown .milkdown-code-block .cm-cursor,
 .ny-editor-root .milkdown .milkdown-code-block .cm-dropCursor {
   border-left-color: var(--ny-editor-text-primary) !important;
+  border-left-width: 2px !important;
+  margin-left: -1px !important;
+}
+
+.ny-editor-root .milkdown .milkdown-code-block .cm-cursorLayer {
+  animation-duration: 1.06s !important;
 }
 
 /*
