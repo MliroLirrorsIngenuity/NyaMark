@@ -10,7 +10,11 @@
  * mark opening a line for what was typed in front of it. Here the start and
  * the end of a block count as text with no marks: → at the end of a line
  * steps out of its marks before it moves on, ← at the start of one does the
- * same, and the caret shows the side it is on.
+ * same, and the format bar's buttons light for the marks typing goes on in.
+ *
+ * The caret is a plain bar on either side of an edge. Drawn as a bracket
+ * turned to the side typing went to, as the plugin drew it, it stood over
+ * the last letter like a stray character after the text.
  *
  * Code and links show where they end, and the caret goes by that. A click
  * past the end of one puts the caret outside it, as ⌘→ or End to the end of
@@ -195,22 +199,15 @@ function drawCursor(view: EditorView, cursor: HTMLElement) {
   if (!getSelection()?.rangeCount) return;
   const rect = cursorRect(view, selection.$head === selection.$from);
   const box = dom.getBoundingClientRect();
-  let className = 'prosemirror-virtual-cursor';
   let x = rect.left;
   const $pos = selection.$head;
   const [before, after] = marksAround($pos);
-  if (selection.empty && !Mark.sameSet(before, after)) {
-    const marks = typedMarks(state, $pos);
-    if (Mark.sameSet(before, marks)) {
-      className += ' prosemirror-virtual-cursor-left';
-    } else if (Mark.sameSet(after, marks)) {
-      className += ' prosemirror-virtual-cursor-right';
-    }
-    const edge = codeEdge(before, after);
-    const inside = marks.some((mark) => mark.type.spec.code);
-    if (edge) x = codeCaretX(view, $pos.pos, edge, inside) ?? x;
+  const edge = selection.empty ? codeEdge(before, after) : 0;
+  if (edge) {
+    const inside = typedMarks(state, $pos).some((mark) => mark.type.spec.code);
+    x = codeCaretX(view, $pos.pos, edge, inside) ?? x;
   }
-  cursor.className = className;
+  cursor.className = 'prosemirror-virtual-cursor';
   cursor.classList.remove('prosemirror-virtual-cursor-animation');
   void cursor.offsetWidth;
   cursor.classList.add('prosemirror-virtual-cursor-animation');

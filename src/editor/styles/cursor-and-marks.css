@@ -9,3 +9,30 @@
 .ny-editor-root .milkdown .ProseMirror-focused {
   --prosemirror-virtual-cursor-color: var(--ny-editor-text-primary);
 }
+
+/*
+ * The caret blinks on and off as the Mac's does, with a short fade between.
+ * The plugin's own blink faded it out and in over the whole second, and it
+ * stood half grey most of the time.
+ */
+.ny-editor-root
+  .milkdown
+  .ProseMirror-focused
+  .prosemirror-virtual-cursor-animation {
+  animation-name: ny-caret-blink;
+  animation-duration: 1.06s;
+}
+
+@keyframes ny-caret-blink {
+  0%,
+  44% {
+    opacity: 1;
+  }
+  52%,
+  92% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
