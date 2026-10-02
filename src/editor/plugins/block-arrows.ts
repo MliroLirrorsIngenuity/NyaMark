@@ -43,6 +43,11 @@
  * Backspace deleted another -- the rest of the document past a formula, or a
  * code block turned into a paragraph. The selection now takes the block whole
  * and its head goes on to the text past it, under the caret going up or down.
+ *
+ * Cmd and the left or right arrow at the end of the line they point to keep
+ * the caret there, as in any text on a Mac. ProseMirror went on to an image,
+ * a rule or an HTML block next to the line and selected it, and Backspace or
+ * the next letter typed took it away.
  */
 
 import { EditorSelection, Prec, findClusterBreak } from '@codemirror/state';
@@ -227,6 +232,19 @@ function lineToType(view: EditorView, event: KeyboardEvent): boolean {
   if (!tr) return false;
   view.dispatch(tr.scrollIntoView());
   return true;
+}
+
+/** Cmd+Left at the start of a line of text, or Cmd+Right at its end. */
+function cmdArrowAtLineEnd(view: EditorView, event: KeyboardEvent): boolean {
+  const arrow = ARROWS[event.key];
+  if (!arrow || arrow[1] || !event.metaKey) return false;
+  if (event.ctrlKey || event.altKey || event.shiftKey) return false;
+  const { selection } = view.state;
+  return (
+    selection instanceof TextSelection &&
+    selection.empty &&
+    view.endOfTextblock(arrow[0] > 0 ? 'forward' : 'backward')
+  );
 }
 
 /** Up or left from the top of a code block that opens the document. */
@@ -462,7 +480,8 @@ export const blockArrows = $prose(() => {
       },
       // WebKit's own moves into code, which lands at the start of a line,
       // and beside an HTML block, which leaves no transaction to take over.
-      handleKeyDown(view) {
+      handleKeyDown(view, event) {
+        if (cmdArrowAtLineEnd(view, event)) return true;
         // Nothing above the gap at the top. Unhandled, the key moved the
         // browser's hidden selection into the block below, and the caret
         // followed it there a moment later.
