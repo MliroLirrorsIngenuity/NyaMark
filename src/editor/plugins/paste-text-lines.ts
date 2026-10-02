@@ -13,7 +13,8 @@
  * document. Its first line went into the line as text: `## 标题` pasted after
  * a word gave the word and `标题`, and a list's first item ran on from it.
  * The line now ends at the caret and the block goes in below it; pasted at
- * the start of the line, the blocks go in above it.
+ * the start of the line, the blocks go in above it. A fence the text ends
+ * with stays a block too, as a code block pasted from a page does.
  */
 
 import { parserCtx } from '@milkdown/kit/core';
@@ -31,6 +32,7 @@ import {
   type Transaction,
 } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
+import { closeCodeEdges } from './paste-code-edges';
 
 /** A line break that Markdown reads as a space. */
 const softBreak = (node: Node) =>
@@ -87,7 +89,14 @@ export function pasteText(state: EditorState, doc: Node): Transaction | null {
     line.content.size > 0 &&
     first.type.name !== 'paragraph' &&
     holds(first.type);
-  if (!lines && !keepFirst) return null;
+  const open = Slice.maxOpen(content);
+  const whole = new Slice(
+    content,
+    keepFirst ? 0 : open.openStart,
+    open.openEnd
+  );
+  const slice = closeCodeEdges(whole);
+  if (!lines && !keepFirst && slice === whole) return null;
   const tr = state.tr;
   if (keepFirst && selection.empty && $from.parentOffset === 0) {
     const at = $from.before();
@@ -95,9 +104,7 @@ export function pasteText(state: EditorState, doc: Node): Transaction | null {
     const end = tr.doc.resolve(at + content.size);
     return tr.setSelection(Selection.near(end, -1));
   }
-  const open = Slice.maxOpen(content);
-  const start = keepFirst ? 0 : open.openStart;
-  return tr.replaceSelection(new Slice(content, start, open.openEnd));
+  return tr.replaceSelection(slice);
 }
 
 export const pasteTextLines = $prose(

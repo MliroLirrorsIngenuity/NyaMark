@@ -1,12 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import { Schema } from '@milkdown/kit/prose/model';
-import { splitSoftLines } from '../src/editor/plugins/paste-text-lines';
+import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import {
+  pasteText,
+  splitSoftLines,
+} from '../src/editor/plugins/paste-text-lines';
 
 const schema = new Schema({
   nodes: {
     doc: { content: 'block+' },
     paragraph: { group: 'block', content: 'inline*' },
     blockquote: { group: 'block', content: 'block+' },
+    code_block: { group: 'block', content: 'text*', code: true, marks: '' },
     hardbreak: {
       group: 'inline',
       inline: true,
@@ -48,5 +53,35 @@ describe('splitSoftLines', () => {
     const quote = schema.node('blockquote', null, [p('引一', soft(), '引二')]);
     const result = splitSoftLines(schema.node('doc', null, [quote, p('a')]));
     expect(result).toBeNull();
+  });
+});
+
+describe('pasteText', () => {
+  const code = (text: string) =>
+    schema.node('code_block', null, [schema.text(text)]);
+  /** The blocks after pasting `blocks` between 前 and 后. */
+  const paste = (blocks: ReturnType<typeof p>[]) => {
+    const doc = schema.node('doc', null, [p('前后')]);
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, 2),
+    });
+    const tr = pasteText(state, schema.node('doc', null, blocks));
+    return (
+      tr?.doc.children.map((block) => [block.type.name, block.textContent]) ??
+      null
+    );
+  };
+
+  test('keeps a fence the text ends with a block of its own', () => {
+    expect(paste([p('说明'), code('z')])).toEqual([
+      ['paragraph', '前说明'],
+      ['code_block', 'z'],
+      ['paragraph', '后'],
+    ]);
+  });
+
+  test('leaves paragraphs without line breaks to Milkdown', () => {
+    expect(paste([p('一'), p('二')])).toBeNull();
   });
 });
