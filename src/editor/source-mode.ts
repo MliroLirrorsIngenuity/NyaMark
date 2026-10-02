@@ -28,6 +28,7 @@ import {
   Compartment,
   EditorSelection,
   EditorState,
+  Prec,
   Transaction,
 } from '@codemirror/state';
 import { oneDarkTheme } from '@codemirror/theme-one-dark';
@@ -43,6 +44,7 @@ import { textChange } from './doc-diff';
 import type { NyaEditor } from './editor';
 import { normalizeHeadingText, syncedScrollTop } from './scroll-sync';
 import { docPosition, sourceOffset } from './source-caret';
+import { continueMarkup } from './source-list-exit';
 import { sourceSearch } from './source-search';
 
 const SYNC_DELAY_MS = 180;
@@ -486,6 +488,7 @@ export class SourceModeController {
           // pane, and what was typed next went there and was lost at the
           // next sync.
           keymap.of([indentWithTab]),
+          Prec.high(keymap.of([{ key: 'Enter', run: continueMarkup }])),
           // GitHub's Markdown, as the file is read and written: struck text,
           // tables and task boxes were plain text here, the tildes and boxes
           // drawn like the words. Its sub- and superscripts are no part of
