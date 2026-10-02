@@ -28,6 +28,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange } from './doc-diff';
+import { bareLinkInput } from './plugins/bare-link-input';
 import { bareLinkParse, keepBareLinks, writeLink } from './plugins/bare-links';
 import { blockArrows } from './plugins/block-arrows';
 import { blockEdges, freeHeadingEdges } from './plugins/block-edges';
@@ -204,6 +205,7 @@ export class NyaEditor {
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(undoByLine);
     crepe.editor.use(linkInput);
+    crepe.editor.use(bareLinkInput);
     crepe.editor.use(footnoteInput);
     crepe.editor.use(footnoteMark);
     crepe.editor.use(linkBox);
