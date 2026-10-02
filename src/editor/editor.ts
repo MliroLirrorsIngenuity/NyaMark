@@ -37,6 +37,7 @@ import { restHiddenBlockHandle } from './plugins/block-handle-rest';
 import { blockKeys, dropWrapKeys } from './plugins/block-keys';
 import { blockSelection } from './plugins/block-selection';
 import { caretScroll } from './plugins/caret-scroll';
+import { cjkBreaks } from './plugins/cjk-breaks';
 import { codeKey } from './plugins/code-key';
 import { fenceLanguageWord } from './plugins/code-language';
 import { codePreview } from './plugins/code-preview';
@@ -221,6 +222,7 @@ export class NyaEditor {
     ]);
     crepe.editor.use(markInput);
     crepe.editor.use(markCursor);
+    crepe.editor.use(cjkBreaks);
     crepe.editor.use(marginClick);
     crepe.editor.use(homeEnd);
     crepe.editor.use(ctrlArrows);

@@ -82,6 +82,11 @@
   background-color: var(--ny-editor-rule) !important;
 }
 
+/* A line break of the Markdown between Chinese characters (see cjk-breaks). */
+.ny-editor-root .milkdown .ProseMirror .ny-break-joined {
+  font-size: 0;
+}
+
 /*
  * A footnote reads as one: its number in front of its text, both a size
  * down, the number in the colour of the mark that points to it. The number
