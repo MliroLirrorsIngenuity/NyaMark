@@ -656,6 +656,32 @@
 }
 
 /*
+ * A number of two digits or more is wider than the column. It stays on one
+ * line, its period at the column's right edge, and reaches out to the left,
+ * into the margin; it broke in two, the digits above the item's line and the
+ * period under them.
+ */
+.ny-editor-root
+  .milkdown
+  .editor
+  li.list-item
+  > .label-wrapper:has(> .label.ordered) {
+  justify-content: flex-end !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .editor
+  li.list-item
+  > .label-wrapper
+  > .label.ordered {
+  flex: none !important;
+  width: max-content !important;
+  min-width: 100% !important;
+  white-space: nowrap !important;
+}
+
+/*
  * A selection over the list takes its text alone, as next to a bullet or a
  * checkbox: being text, the numbers were washed with it.
  */
