@@ -37,7 +37,8 @@
  * A line typed as a table's top row, `| 名称 | 数量 |`, stayed text on Enter:
  * the table's own shortcut is `|2x2|`, which nobody types. Enter at its end
  * turns it into a table with those headings and an empty row to fill in, the
- * way other Markdown editors do.
+ * way other Markdown editors do. Typed in a list item, the list split the
+ * item first and the row stayed text; the table goes under the item above.
  */
 
 import type { Ctx } from '@milkdown/kit/ctx';
@@ -64,6 +65,7 @@ import {
 import { cellAround, nextCell, selectedRect } from '@milkdown/kit/prose/tables';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { replaceLineWith } from './fence-input';
 
 const CELL_TYPES = new Set(['table_cell', 'table_header']);
 
@@ -348,13 +350,8 @@ function tableFromLine(ctx: Ctx, view: EditorView): boolean {
   if (line.type.name !== 'paragraph') return false;
   if ($head.parentOffset !== line.content.size) return false;
   const cells = rowCells(line);
+  if (!cells) return false;
   const table = tableSchema.type(ctx);
-  if (
-    !cells ||
-    !$head.node(-1).canReplaceWith($head.index(-1), $head.indexAfter(-1), table)
-  ) {
-    return false;
-  }
   const paragraph = line.type;
   // No alignment, as a table read from `| --- |` has.
   const plain = { alignment: null };
@@ -374,9 +371,10 @@ function tableFromLine(ctx: Ctx, view: EditorView): boolean {
       )
     ),
   ]);
-  const start = $head.before();
-  const tr = state.tr.replaceWith(start, $head.after(), node);
-  const body = start + 1 + (node.firstChild?.nodeSize ?? 0);
+  const placed = replaceLineWith(state, node);
+  if (!placed) return false;
+  const { tr, at } = placed;
+  const body = at + 1 + (node.firstChild?.nodeSize ?? 0);
   tr.setSelection(Selection.near(tr.doc.resolve(body + 1), 1));
   view.dispatch(tr.scrollIntoView());
   return true;
@@ -395,6 +393,12 @@ export const tableCells = $prose(
             if (event.isComposing || view.composing) return false;
             if (event.shiftKey || event.altKey || event.metaKey) return false;
             if (event.ctrlKey) return false;
+            // Ahead of the list's Enter, which split the item the row was
+            // typed in.
+            if (event.key === 'Enter' && tableFromLine(ctx, view)) {
+              event.preventDefault();
+              return true;
+            }
             const dir =
               event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
             if (!dir || !moveVertically(view, dir)) return false;
@@ -410,7 +414,7 @@ export const tableCells = $prose(
           }
           if (event.key === 'Enter') {
             if (!event.metaKey && enterCellBelow(ctx, view)) return true;
-            return enterParagraphBelow(view) || tableFromLine(ctx, view);
+            return enterParagraphBelow(view);
           }
           return false;
         },

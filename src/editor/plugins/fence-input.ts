@@ -15,6 +15,7 @@
  * "```py " there stayed text and the code typed after it ran on in the line.
  */
 
+import type { Node } from '@milkdown/kit/prose/model';
 import {
   type EditorState,
   Plugin,
@@ -25,6 +26,44 @@ import {
 import { $prose } from '@milkdown/kit/utils';
 
 const FENCE = /^```([^\s`]*)$/;
+
+/**
+ * The caret's line replaced with `block`, and where the block went. A list
+ * item opens with a line of text, so from one the block goes under the item
+ * above; from the first item, in front of the list. A table typed as its top
+ * row goes there the same way.
+ */
+export function replaceLineWith(
+  state: EditorState,
+  block: Node
+): { tr: Transaction; at: number } | null {
+  const { $head } = state.selection;
+  const item = $head.node(-1);
+  if (item.type.name === 'list_item' && $head.index(-1) === 0) {
+    if (item.childCount !== 1) return null;
+    const itemFrom = $head.before(-1);
+    const itemTo = $head.after(-1);
+    if ($head.index(-2) > 0) {
+      // The end of the item above, inside it.
+      const at = itemFrom - 1;
+      return { tr: state.tr.delete(itemFrom, itemTo).insert(at, block), at };
+    }
+    const $list = state.doc.resolve($head.before(-2));
+    const index = $list.index();
+    if (!$list.parent.canReplaceWith(index, index, block.type)) return null;
+    const at = $list.pos;
+    const tr =
+      $head.node(-2).childCount === 1
+        ? state.tr.replaceWith(at, $head.after(-2), block)
+        : state.tr.delete(itemFrom, itemTo).insert(at, block);
+    return { tr, at };
+  }
+
+  const index = $head.index(-1);
+  if (!$head.node(-1).canReplaceWith(index, index + 1, block.type)) return null;
+  const at = $head.before();
+  return { tr: state.tr.replaceWith(at, $head.after(), block), at };
+}
 
 export function fenceFromLine(state: EditorState): Transaction | null {
   const code = state.schema.nodes.code_block;
@@ -37,36 +76,9 @@ export function fenceFromLine(state: EditorState): Transaction | null {
   const text = (line.childCount === 1 && line.firstChild?.text) || '';
   const language = text === '$$' ? 'LaTeX' : FENCE.exec(text)?.[1];
   if (language == null) return null;
-  const block = code.create({ language });
-
-  const item = $head.node(-1);
-  if (item.type.name === 'list_item' && $head.index(-1) === 0) {
-    if (item.childCount !== 1) return null;
-    const itemFrom = $head.before(-1);
-    const itemTo = $head.after(-1);
-    let at: number;
-    let tr = state.tr;
-    if ($head.index(-2) > 0) {
-      // The end of the item above, inside it.
-      at = itemFrom - 1;
-      tr = tr.delete(itemFrom, itemTo).insert(at, block);
-    } else {
-      const $list = state.doc.resolve($head.before(-2));
-      const index = $list.index();
-      if (!$list.parent.canReplaceWith(index, index, code)) return null;
-      at = $list.pos;
-      tr =
-        $head.node(-2).childCount === 1
-          ? tr.replaceWith(at, $head.after(-2), block)
-          : tr.delete(itemFrom, itemTo).insert(at, block);
-    }
-    return tr.setSelection(TextSelection.create(tr.doc, at + 1));
-  }
-
-  const index = $head.index(-1);
-  if (!$head.node(-1).canReplaceWith(index, index + 1, code)) return null;
-  const at = $head.before();
-  const tr = state.tr.replaceWith(at, $head.after(), block);
+  const placed = replaceLineWith(state, code.create({ language }));
+  if (!placed) return null;
+  const { tr, at } = placed;
   return tr.setSelection(TextSelection.create(tr.doc, at + 1));
 }
 
