@@ -37,11 +37,14 @@
  * At the start of a heading Milkdown took both keys to step the level down,
  * h2 to h1 and h1 to text: `## ` typed by mistake and Backspace gave a bigger
  * heading, and Delete there never took the letter after the caret. Backspace
- * makes the heading a paragraph in one press, and Delete deletes.
+ * makes the heading a paragraph in one press, and Delete deletes. *
+ * In a list item Milkdown took Delete, as Backspace, to join the line to the
+ * one before it: Delete at the start of an item moved the item into the one
+ * above it, and never took the letter after the caret. It deletes.
  */
 
 import type { Ctx } from '@milkdown/kit/ctx';
-import { headingKeymap } from '@milkdown/kit/preset/commonmark';
+import { headingKeymap, listItemKeymap } from '@milkdown/kit/preset/commonmark';
 import { liftListItem } from '@milkdown/kit/prose/schema-list';
 import {
   type EditorState,
@@ -276,10 +279,17 @@ export const blockEdges = $prose(
     })
 );
 
-/** `editor.config` hook: frees the two keys from Milkdown's heading keymap. */
+/**
+ * `editor.config` hook: frees the two keys from Milkdown's heading keymap,
+ * and Delete from its list item keymap.
+ */
 export function freeHeadingEdges(ctx: Ctx) {
   ctx.update(headingKeymap.key, (keys) => ({
     ...keys,
     DowngradeHeading: { shortcuts: [] },
+  }));
+  ctx.update(listItemKeymap.key, (keys) => ({
+    ...keys,
+    LiftFirstListItem: { ...keys.LiftFirstListItem, shortcuts: ['Backspace'] },
   }));
 }
