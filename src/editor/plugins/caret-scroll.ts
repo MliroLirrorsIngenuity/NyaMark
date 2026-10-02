@@ -18,6 +18,11 @@
  * A code block's caret is CodeMirror's. ProseMirror scrolled to the top of the
  * block instead, and the caret going down into a block at the foot of the page
  * stood on its first line out of sight. CodeMirror scrolls to its own caret.
+ *
+ * An edit made from the keyboard brings the caret back into sight. ProseMirror
+ * deletes a line break or another inline node beside the caret itself, and
+ * did it without scrolling: after Page Up, Backspace took the break out of
+ * sight and the page stayed where it was.
  */
 
 import { EditorView as CodeMirror } from '@codemirror/view';
@@ -149,8 +154,32 @@ function follow(view: EditorView, page: HTMLElement, before: number) {
 
 export const caretScroll = $prose(() => {
   let pending = false;
+  // While a key pressed in the text is handled.
+  let keyed = false;
   return new Plugin({
     key: new PluginKey('nyamark/caret-scroll'),
+    view(view) {
+      // Ahead of every plugin's keys and ProseMirror's own, and until the
+      // event is done: microtasks run between its listeners. A key in a code
+      // block or a field is CodeMirror's or the field's.
+      const onKey = (event: KeyboardEvent) => {
+        if (keyed || event.isComposing || event.target !== view.dom) return;
+        keyed = true;
+        setTimeout(() => {
+          keyed = false;
+        });
+      };
+      view.dom.addEventListener('keydown', onKey, true);
+      return {
+        destroy: () => view.dom.removeEventListener('keydown', onKey, true),
+      };
+    },
+    appendTransaction(trs, _old, state) {
+      if (!keyed || !trs.some((tr) => tr.docChanged && !tr.scrolledIntoView)) {
+        return null;
+      }
+      return state.tr.scrollIntoView().setMeta('addToHistory', false);
+    },
     props: {
       scrollThreshold: threshold,
       scrollMargin: margin,
