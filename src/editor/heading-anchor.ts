@@ -5,7 +5,35 @@
  * written for either reaches the same headings here.
  */
 
+import type { Node } from '@milkdown/kit/prose/model';
+
 const DROPPED = /[^\p{L}\p{M}\p{N}\p{Pc} -]/gu;
+
+/**
+ * A heading's text as the outline shows it, a formula by its TeX and an image
+ * by its alt text. A heading of a formula or a logo alone has no other text:
+ * it stood in the outline as an empty line, with no id to go to.
+ */
+export function headingLabel(heading: Node): string {
+  return heading
+    .textBetween(0, heading.content.size, undefined, (leaf) =>
+      String(leaf.attrs.value ?? leaf.attrs.alt ?? ' ')
+    )
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Milkdown's id for a heading, made from its label when it has no text. */
+export function headingId(heading: Node): string {
+  const text = heading.textContent.trim()
+    ? heading.textContent
+    : headingLabel(heading);
+  return text.toLowerCase().trim().replace(/\s+/g, '-');
+}
+
+/** The id a heading has on the page, which Milkdown sets for text alone. */
+export const pageId = (heading: Node): string =>
+  String(heading.attrs.id || headingId(heading));
 
 /** The anchor of each heading in `texts`, taken in order. */
 export function headingSlugs(texts: readonly string[]): string[] {

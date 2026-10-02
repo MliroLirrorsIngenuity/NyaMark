@@ -36,12 +36,12 @@ import {
   Selection,
   TextSelection,
 } from '@milkdown/kit/prose/state';
-import { $prose, outline } from '@milkdown/kit/utils';
+import { $prose } from '@milkdown/kit/utils';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange, settleParsed } from './doc-diff';
-import { anchorIndex } from './heading-anchor';
+import { anchorIndex, headingId, headingLabel, pageId } from './heading-anchor';
 import { bareLinkInput } from './plugins/bare-link-input';
 import { bareLinkParse, keepBareLinks, writeLink } from './plugins/bare-links';
 import { blockArrows } from './plugins/block-arrows';
@@ -232,6 +232,8 @@ export class NyaEditor {
         stringLength: displayWidth,
         singleTilde: false,
       }));
+      // A heading of a formula or an image alone gets an id on the page too.
+      ctx.set(headingIdGenerator.key, headingId);
     });
     crepe.editor.config(keepImageAlt);
     crepe.editor.config(keepBareLinks);
@@ -467,9 +469,16 @@ export class NyaEditor {
     this.crepe.setReadonly(readonly);
   }
 
+  /** The headings with anything to show, by their label and page id. */
   getOutline() {
-    if (!this.crepe) return [];
-    return this.crepe.editor.action(outline());
+    const items: { text: string; level: number; id: string }[] = [];
+    this.getView()?.state.doc.descendants((node) => {
+      if (node.type.name !== 'heading') return !node.isTextblock;
+      const text = headingLabel(node);
+      if (text) items.push({ text, level: node.attrs.level, id: pageId(node) });
+      return false;
+    });
+    return items;
   }
 
   /** Pass `markdown` when it is already at hand to skip serializing the document again. */
@@ -494,7 +503,7 @@ export class NyaEditor {
     this.getView()?.state.doc.descendants((node, pos) => {
       if (end >= 0) return false;
       if (node.type.name !== 'heading') return !node.isTextblock;
-      if (node.attrs.id === id) end = pos + node.nodeSize - 1;
+      if (pageId(node) === id) end = pos + node.nodeSize - 1;
       return false;
     });
     return end;
@@ -530,6 +539,7 @@ export class NyaEditor {
    * app's root for a heading "App" and the title bar for "Titlebar".
    */
   headingElement(id: string): HTMLElement | null {
+    if (!id) return null;
     return (
       this.getView()?.dom.querySelector<HTMLElement>(`#${CSS.escape(id)}`) ??
       null
@@ -552,9 +562,9 @@ export class NyaEditor {
       headings.map((node) => node.textContent),
       fragment
     );
-    const id = headings[index]?.attrs.id;
-    if (!id) return false;
-    this.scrollToHeading(String(id));
+    const heading = headings[index];
+    if (!heading) return false;
+    this.scrollToHeading(pageId(heading));
     return true;
   }
 

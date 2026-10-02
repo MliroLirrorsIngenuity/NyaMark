@@ -1,5 +1,67 @@
 import { describe, expect, test } from 'bun:test';
-import { anchorIndex, headingSlugs } from '../src/editor/heading-anchor';
+import { type Node, Schema } from '@milkdown/kit/prose/model';
+import {
+  anchorIndex,
+  headingId,
+  headingLabel,
+  headingSlugs,
+  pageId,
+} from '../src/editor/heading-anchor';
+
+const schema = new Schema({
+  nodes: {
+    doc: { content: 'heading+' },
+    heading: { content: 'inline*', attrs: { id: { default: '' } } },
+    math_inline: { group: 'inline', inline: true, attrs: { value: {} } },
+    image: { group: 'inline', inline: true, attrs: { src: {}, alt: {} } },
+    hardbreak: { group: 'inline', inline: true },
+    text: { group: 'inline' },
+  },
+});
+
+const heading = (...parts: (string | Node)[]) =>
+  schema.node(
+    'heading',
+    null,
+    parts.map((part) => (typeof part === 'string' ? schema.text(part) : part))
+  );
+const math = (value: string) => schema.node('math_inline', { value });
+const image = (alt: string) => schema.node('image', { src: 'a.png', alt });
+
+describe('headingLabel', () => {
+  test('shows a formula by its TeX and an image by its alt text', () => {
+    expect(headingLabel(heading(math('E=mc^2')))).toBe('E=mc^2');
+    expect(headingLabel(heading(image('logo')))).toBe('logo');
+    expect(headingLabel(heading('质能方程 ', math('E=mc^2')))).toBe(
+      '质能方程 E=mc^2'
+    );
+  });
+
+  test('puts a space for a line break and none at the ends', () => {
+    expect(
+      headingLabel(heading(' a', schema.node('hardbreak'), 'b ', image('')))
+    ).toBe('a b');
+    expect(headingLabel(heading())).toBe('');
+  });
+});
+
+describe('headingId', () => {
+  test('is made from the text as Milkdown makes it', () => {
+    expect(headingId(heading('Hello  World', math('x')))).toBe('hello-world');
+  });
+
+  test('is made from the label of a heading with no text', () => {
+    expect(headingId(heading(math('E = mc^2')))).toBe('e-=-mc^2');
+    expect(headingId(heading(image('Logo')))).toBe('logo');
+    expect(headingId(heading())).toBe('');
+  });
+
+  test('gives way to the id Milkdown set', () => {
+    const set = schema.node('heading', { id: 'old' }, [math('x')]);
+    expect(pageId(set)).toBe('old');
+    expect(pageId(heading(math('x')))).toBe('x');
+  });
+});
 
 describe('headingSlugs', () => {
   test('lower case, punctuation dropped, spaces as hyphens', () => {
