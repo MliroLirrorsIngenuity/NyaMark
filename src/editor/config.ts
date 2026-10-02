@@ -242,44 +242,62 @@ function codeBlockDocEdges(getView: () => EditorView | null) {
   );
 }
 
-/**
- * Anchors the block handle to the text rather than to the border box.
- *
- * `crepe-overrides.css.ts` gives a paragraph its inter-block gap as
- * `padding-top` instead of `margin-top`, because a margin sits outside every
- * border box and leaves the band between two paragraphs owned by no block at
- * all -- a click in it can only resolve to a block boundary, never to the
- * column under the cursor. The measurements are in the comment there.
- *
- * The side effect is that a paragraph's border box now starts one gap above
- * its first line, and floating-ui centres the handle on that box: 5.04px above
- * the text it points at, measured. `getPosition` is the supported way to hand
- * it a different reference rect, so the handle is centred on the content box
- * instead. Crepe's own `getPlacement` already subtracts padding when it
- * decides centre-vs-top-align, so this agrees with how it meant to place it.
- *
- * Scoped to `p` on purpose: it exists to undo one specific stylesheet rule.
- * Blocks that draw a card -- code, table, image -- own their padding as part
- * of the frame, and their handle should stay centred on the frame.
- */
-function textBoxRect({ active }: { active: { el: HTMLElement } }) {
-  const el = active.el;
-  const rect = el.getBoundingClientRect();
-  if (el.tagName !== 'P') return rect;
+/** Blocks led by a line of text, and the blocks whose first line leads them. */
+const TEXT_BLOCK = 'p, h1, h2, h3, h4, h5, h6';
+const TEXT_LED = '.milkdown-list-item-block, blockquote';
 
-  const style = getComputedStyle(el);
+/**
+ * The first line of a block's text, across the block's width.
+ *
+ * `crepe-overrides.css` gives a paragraph its inter-block gap as `padding-top`
+ * instead of `margin-top`, because a margin sits outside every border box and
+ * leaves the band between two paragraphs owned by no block at all -- a click
+ * in it can only resolve to a block boundary, never to the column under the
+ * cursor. The measurements are in the comment there. So the text starts one
+ * gap below the top of the box.
+ */
+function firstLine(el: HTMLElement): DOMRect | null {
+  const text = el.matches(TEXT_BLOCK)
+    ? el
+    : el.matches(TEXT_LED)
+      ? el.querySelector<HTMLElement>(TEXT_BLOCK)
+      : null;
+  if (!text) return null;
+  const box = el.getBoundingClientRect();
+  const rect = text.getBoundingClientRect();
+  const style = getComputedStyle(text);
   const top = rect.top + (Number.parseFloat(style.paddingTop) || 0);
   const bottom = rect.bottom - (Number.parseFloat(style.paddingBottom) || 0);
-  return {
-    x: rect.x,
-    y: top,
-    top,
-    bottom,
-    left: rect.left,
-    right: rect.right,
-    width: rect.width,
-    height: bottom - top,
-  };
+  const line =
+    Number.parseFloat(style.lineHeight) ||
+    Number.parseFloat(style.fontSize) * 1.2;
+  return new DOMRect(box.left, top, box.width, Math.min(line, bottom - top));
+}
+
+/**
+ * The block handle stands beside the first line of a paragraph, heading, list
+ * item or quote, centred on it. Crepe centred it on the whole block, or, once
+ * the block was taller than the handle, set their tops level: beside an item
+ * with a list in it, a quote of two lines or a wrapped paragraph it stood
+ * 5-6px below the line it was for. Blocks that draw a card -- code, table,
+ * math, image -- keep Crepe's way, the handle level with the top of the card.
+ */
+function handleRect({ active }: { active: { el: HTMLElement } }) {
+  return firstLine(active.el) ?? active.el.getBoundingClientRect();
+}
+
+function handlePlacement({
+  active,
+  blockDom,
+}: {
+  active: { el: HTMLElement };
+  blockDom: HTMLElement;
+}) {
+  if (firstLine(active.el)) return 'left' as const;
+  const block = active.el.getBoundingClientRect().height;
+  return block > blockDom.getBoundingClientRect().height
+    ? ('left-start' as const)
+    : ('left' as const);
 }
 
 /**
@@ -393,7 +411,11 @@ export function buildCrepeConfig(
       [CrepeFeature.Cursor]: { virtual: false },
       [CrepeFeature.BlockEdit]: {
         ...labels[CrepeFeature.BlockEdit],
-        blockHandle: { getOffset: () => 8, getPosition: textBoxRect },
+        blockHandle: {
+          getOffset: () => 8,
+          getPosition: handleRect,
+          getPlacement: handlePlacement,
+        },
       },
       [CrepeFeature.CodeMirror]: {
         ...labels[CrepeFeature.CodeMirror],
