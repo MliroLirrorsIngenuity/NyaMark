@@ -191,6 +191,9 @@ export class App {
       find: () => {
         if (!this.sourceMode?.find()) searchPanel.show();
       },
+      findAgain: (back) => {
+        if (!store.getState().sourceMode) searchPanel.findAgain(back);
+      },
       toggleOutline: () => this.toggleOutline(),
       openSettings: () => this.settingsPanel.open(),
     });

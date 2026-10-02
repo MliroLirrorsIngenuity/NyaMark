@@ -8,6 +8,7 @@ type ShortcutHandlers = {
   saveFileAs: () => unknown;
   print: () => void;
   find: () => void;
+  findAgain: (back: boolean) => void;
   toggleOutline: () => void;
   openSettings: () => void;
 };
@@ -56,16 +57,24 @@ export class ShortcutController {
    * Mod-F searches the document, from a code block too: CodeMirror's own
    * panel opened inside the block, English and unstyled, and searched only
    * that block. The source pane keeps it; it searches the markdown on show.
+   *
+   * Mod-G and Shift-Mod-G step to the next match and back, as in other Mac
+   * apps and in the source pane, opening the bar again if it was closed.
    */
   private find(event: KeyboardEvent) {
-    if (!hasPrimaryModifier(event) || event.altKey || event.shiftKey) return;
-    if (shortcutKey(event) !== 'KeyF' || event.isComposing) return;
+    if (!hasPrimaryModifier(event) || event.altKey) return;
+    const key = shortcutKey(event);
+    const again = key === 'KeyG';
+    if ((!again && (key !== 'KeyF' || event.shiftKey)) || event.isComposing) {
+      return;
+    }
     // A dialog holds the keys: the bar opened behind it took the focus,
     // and what was typed next went there.
     if (this.targetsSourcePane(event) || isModalOpen()) return;
     event.preventDefault();
     event.stopPropagation();
-    if (!event.repeat) this.handlers.find();
+    if (again) this.handlers.findAgain(event.shiftKey);
+    else if (!event.repeat) this.handlers.find();
   }
 
   private dispatch(event: KeyboardEvent) {

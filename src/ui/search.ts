@@ -216,6 +216,19 @@ export class SearchPanel {
   }
 
   /**
+   * Steps to the next match, or back to the one before, the panel open.
+   * Opened again, the panel takes the match after the caret: that is the
+   * next one, unless the last match is still selected from before.
+   */
+  findAgain(back: boolean) {
+    const fromMatch =
+      !this.elPanel.hidden || Boolean(this.getEditor()?.selectedLine());
+    if (this.elPanel.hidden) this.show();
+    if (!this.elInput.value || !(back || fromMatch)) return;
+    this.search(back ? 'prev' : 'next');
+  }
+
+  /**
    * Hangs the panel under the formatting bar, flush with its right end. At a
    * fixed offset from the window it sat on the bar's right half, and on the
    * outline once that was docked. The bar narrows as the outline opens and
