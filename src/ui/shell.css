@@ -633,6 +633,15 @@ body {
   outline-offset: 2px;
 }
 
+/* Every control in a dialog Tab stops at carries the ring its buttons do.
+   The lists, switches and fields had the webview's own, in the system's
+   colour, beside the accent of the button next to them. */
+[aria-modal="true"]
+  :is(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline-offset: 2px;
+}
+
 @media print {
   body > *:not(#app) {
     display: none !important;
