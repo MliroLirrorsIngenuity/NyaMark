@@ -1563,6 +1563,39 @@
 }
 
 /*
+ * Crepe draws the icons of its menus and boxes in its outline colour, here the
+ * faint one of a hairline edge: in the dark theme the slash menu's icons, the
+ * link box's buttons and the block handle stood at a contrast of 1.4 to 1
+ * with the surface under them, and could hardly be seen. The menus and boxes
+ * take the toolbar's colours, the handle the fainter one of a list's markers.
+ */
+.ny-editor-root .milkdown .milkdown-slash-menu .menu-group li svg,
+.ny-editor-root .milkdown .milkdown-link-preview > .link-preview > * > svg,
+.ny-editor-root .milkdown .milkdown-link-edit > .link-edit > .button > svg {
+  color: var(--crepe-color-on-surface-variant) !important;
+  fill: var(--crepe-color-on-surface-variant) !important;
+}
+
+.ny-editor-root .milkdown .milkdown-link-preview > .link-preview > :hover > svg,
+.ny-editor-root
+  .milkdown
+  .milkdown-link-edit
+  > .link-edit
+  > .button:hover
+  > svg {
+  color: var(--crepe-color-on-surface) !important;
+  fill: var(--crepe-color-on-surface) !important;
+}
+
+.ny-editor-root .milkdown .milkdown-block-handle .operation-item svg {
+  fill: var(--ny-editor-marker) !important;
+}
+
+.ny-editor-root .milkdown .milkdown-block-handle .operation-item:hover svg {
+  fill: var(--crepe-color-on-surface-variant) !important;
+}
+
+/*
  * The slash menu is no taller than the room under its line or over it --
  * see `plugins/slash-menu-room.ts`. At its full height it was taller than
  * either, on a line halfway down a window of the default size, and hung under

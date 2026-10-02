@@ -236,8 +236,17 @@
 }
 
 .ny-editor-root .milkdown .milkdown-image-block .placeholder .uploader,
-.ny-editor-root .milkdown .milkdown-image-block .confirm {
+.ny-editor-root .milkdown .milkdown-image-block .confirm,
+.ny-editor-root .milkdown .milkdown-image-block .image-edit .image-icon {
   color: var(--ny-editor-button-text) !important;
+}
+
+/*
+ * The picture beside the box is drawn in the colour of the words in it. Crepe
+ * fills its icon in its own faint outline colour, whatever the colour given.
+ */
+.ny-editor-root .milkdown .milkdown-image-block .image-edit .image-icon svg {
+  fill: currentColor !important;
 }
 
 .ny-editor-root .milkdown .milkdown-image-block .placeholder .uploader:hover,
