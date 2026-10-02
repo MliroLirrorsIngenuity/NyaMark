@@ -345,6 +345,38 @@ describe('joinInTightItem', () => {
     expect(written('---').same).toBe(true);
   });
 
+  test('keeps what follows an empty line out of its `<br />`', () => {
+    // As Milkdown hands an empty line over: a paragraph of `<br />`.
+    const line = (children: Shape[]) => ({ type: 'paragraph', children });
+    const item = (...children: Shape[]) => ({
+      type: 'listItem',
+      spread: false,
+      children,
+    });
+    const list = (...children: Shape[]) => ({
+      type: 'list',
+      spread: false,
+      children,
+    });
+    const tree = {
+      type: 'root',
+      children: [
+        list(
+          item(
+            { type: 'code', value: 'c' } as Shape,
+            line([{ type: 'html', value: '<br />' } as Shape]),
+            list(item(line([{ type: 'text', value: 'sub' } as Shape])))
+          )
+        ),
+      ],
+    };
+    const out = processor.stringify(tree as never);
+    expect(out).toBe('- ```\n  c\n  ```\n  <br />\n\n  - sub\n');
+    expect(shape(processor.parse(out))).toBe(
+      'root(list(listItem(code,html,list(listItem(paragraph(text))))))'
+    );
+  });
+
   test('leaves code and text line after line', () => {
     expect(written('```\n  c\n  ```').out).toBe(
       '- a\n  ```\n  c\n  ```\n  after\n- b\n'

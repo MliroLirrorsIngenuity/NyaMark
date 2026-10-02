@@ -536,10 +536,14 @@ export const writeRoot: Handle = (node, parent, state, info) => {
 /** A block in a list item that takes in the line written right under it. */
 const RUNS_ON = new Set(['table', 'blockquote', 'list', 'html']);
 
+/** An empty line, as its `<br />`: an HTML block, which runs on as well. */
+const isBreakLine = (node: MdNode) =>
+  isEmptyParagraph(node) && (node.children ?? []).some(isLineBreak);
+
 /** A blank line between two blocks of a list item that would merge without. */
 export const joinInTightItem: Join = (left, right, parent) => {
   if (parent.type !== 'listItem') return undefined;
-  if (RUNS_ON.has(left.type)) return 1;
+  if (RUNS_ON.has(left.type) || isBreakLine(left as MdNode)) return 1;
   if (left.type === 'paragraph' && right.type === 'thematicBreak') return 1;
   return undefined;
 };
