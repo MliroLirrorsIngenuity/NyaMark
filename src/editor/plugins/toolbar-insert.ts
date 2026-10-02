@@ -92,4 +92,18 @@ export function intoInsertedBlocks(builder: Builder) {
       if (!$from.parent.type.spec.code) toCode(ctx);
     };
   }
+  // A code block quoted is drawn anew. The old one had the focus as it went,
+  // and the browser gave it to the new one with the caret at its start; with
+  // the editor focused, the new one takes the caret from the editor.
+  const quote = find('more', 'quote');
+  const toQuote = quote?.onRun;
+  if (quote && toQuote) {
+    quote.onRun = (ctx) => {
+      const view = ctx.get(editorViewCtx);
+      if (view.state.selection.$from.parent.type.spec.code) {
+        view.dom.focus({ preventScroll: true });
+      }
+      toQuote(ctx);
+    };
+  }
 }

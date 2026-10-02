@@ -16,6 +16,7 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
 import { codeArrowsByRow } from './plugins/block-arrows';
 import { codeClearOfBar } from './plugins/caret-scroll';
+import { caretThroughColour } from './plugins/code-colour-caret';
 import { closeFenceOnEnter } from './plugins/code-fence-exit';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
@@ -63,6 +64,7 @@ function codeBlockExtensions(getView: () => EditorView | null) {
     codeSearchMatches,
     rememberCodeCopy(getView),
     codeClearOfBar,
+    caretThroughColour,
   ];
 }
 
