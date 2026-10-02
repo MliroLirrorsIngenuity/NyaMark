@@ -84,6 +84,8 @@ type MdNode = {
   type: string;
   value?: string;
   spread?: unknown;
+  /** A list item's task box: `null` when it has none. */
+  checked?: boolean | null;
   children?: MdNode[];
 };
 
@@ -142,6 +144,19 @@ function isEmptyParagraph(node: MdNode) {
       (child) => (child.type === 'text' && !child.value) || isLineBreak(child)
     )
   );
+}
+
+/**
+ * An emptied list item is written as its bare marker, the way it was read:
+ * Milkdown's `<br />` for its empty line showed up in an untouched `2.` as
+ * soon as anything else changed. A task item keeps it; with no text after
+ * `[ ]` the box would read back as plain text.
+ */
+function clearEmptyItem(item: MdNode) {
+  const children = item.children ?? [];
+  if (item.checked == null && children.length === 1) {
+    if (isEmptyParagraph(children[0])) item.children = [];
+  }
 }
 
 function clearEmptyCell(cell: MdNode) {
@@ -356,6 +371,7 @@ export function normalizeForOutput<T extends MdNode>(tree: T): T {
     if (node.type === 'list') normalizeList(node);
     if (node.type === 'blockquote') unescapeAlertMarker(node);
     if (node.type === 'tableCell') clearEmptyCell(node);
+    if (node.type === 'listItem') clearEmptyItem(node);
     if (node.type === 'paragraph' || node.type === 'heading') {
       trimLeadingSpace(node);
     }

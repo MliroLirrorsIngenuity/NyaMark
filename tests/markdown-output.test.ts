@@ -114,6 +114,50 @@ describe('normalizeOutput', () => {
     );
   });
 
+  test('writes an emptied list item as its bare marker', () => {
+    const br = () => ({
+      type: 'paragraph',
+      children: [{ type: 'html', value: '<br />' }],
+    });
+    const item = (checked: boolean | null, ...children: object[]) => ({
+      type: 'listItem',
+      checked,
+      spread: false,
+      children,
+    });
+    const text = (value: string) => ({
+      type: 'paragraph',
+      children: [{ type: 'text', value }],
+    });
+    const list = (ordered: boolean, ...children: object[]) => ({
+      type: 'list',
+      ordered,
+      start: 1,
+      spread: false,
+      children,
+    });
+    const tree = {
+      type: 'root',
+      children: [
+        list(
+          false,
+          item(null, text('a')),
+          item(null, br()),
+          item(null, text('c'))
+        ),
+        list(true, item(null, text('x')), item(null, br())),
+        list(false, item(false, br())),
+      ],
+    };
+    const processor = unified()
+      .use(remarkGfm)
+      .use(remarkStringify, { bullet: '-', join: [forgetBullet] })
+      .use(normalizeOutput);
+    expect(processor.stringify(tree as never)).toBe(
+      '- a\n-\n- c\n\n1. x\n2.\n\n- [ ] <br />\n'
+    );
+  });
+
   test('leaves an emptied cell blank', () => {
     // A cell holds a paragraph; an emptied one comes as Milkdown's `<br />`.
     const cell = (...children: object[]) => ({ type: 'tableCell', children });
