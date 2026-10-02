@@ -394,6 +394,13 @@ export const markCursor = $prose(() => {
       resize.observe(view.dom);
       const doc = view.dom.ownerDocument;
       doc.addEventListener('selectionchange', draw);
+      // A picture in a line takes its width once it loads, or once it fails
+      // and shows its name, and a badge no taller than the line leaves the
+      // editor's size as it was: the caret after one just typed stayed where
+      // the picture began, over the text before it.
+      const settle = () => requestAnimationFrame(draw);
+      view.dom.addEventListener('load', settle, true);
+      view.dom.addEventListener('error', settle, true);
       return {
         update(view, prev) {
           if (!prev.doc.eq(view.state.doc)) keepAtEnd(view, came);
@@ -401,6 +408,8 @@ export const markCursor = $prose(() => {
         },
         destroy() {
           doc.removeEventListener('selectionchange', draw);
+          view.dom.removeEventListener('load', settle, true);
+          view.dom.removeEventListener('error', settle, true);
           resize.disconnect();
         },
       };
