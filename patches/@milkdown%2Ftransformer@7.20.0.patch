@@ -1,8 +1,43 @@
 diff --git a/lib/index.js b/lib/index.js
-index 1e13d49f4bef95afe49982c3480739c4a622425a..d652b2115df3e18567a37b091ffe2e5152757944 100644
+index 1e13d49f4bef95afe49982c3480739c4a622425a..efe09f25242c5ffe4b24b20f16ad240832ec1a02 100644
 --- a/lib/index.js
 +++ b/lib/index.js
-@@ -375,7 +375,7 @@ var SerializerState = class extends Stack {
+@@ -266,22 +266,18 @@ var SerializerState = class extends Stack {
+ 	#searchType = (child, type) => {
+ 		if (child.type === type) return child;
+ 		if (child.children?.length !== 1) return child;
+-		const searchNode = (node) => {
+-			if (node.type === type) return node.value != null ? null : node;
+-			if (node.children?.length !== 1) return null;
+-			const [firstChild] = node.children;
+-			if (!firstChild) return null;
+-			return searchNode(firstChild);
+-		};
+-		const target = searchNode(child);
+-		if (!target) return child;
+-		const tmp = target.children ? [...target.children] : void 0;
+-		const node = {
+-			...child,
+-			children: tmp
+-		};
+-		node.children = tmp;
+-		target.children = [node];
++		// The marks between `child` and the one found stay around its text:
++		// italics in a link in bold were dropped on the way out.
++		let parent = child;
++		let target = child.children[0];
++		while (target && target.type !== type) {
++			if (target.children?.length !== 1) return child;
++			parent = target;
++			target = target.children[0];
++		}
++		if (!target || target.value != null) return child;
++		parent.children = target.children ? [...target.children] : void 0;
++		target.children = [child];
+ 		return target;
+ 	};
+ 	#maybeMergeChildren = (node) => {
+@@ -375,7 +371,7 @@ var SerializerState = class extends Stack {
  	#closeMark = (mark) => {
  		if (!mark.isInSet(this.#marks)) return;
  		this.#marks = mark.type.removeFromSet(this.#marks);

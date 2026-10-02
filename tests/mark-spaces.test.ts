@@ -44,8 +44,9 @@ const schema = new Schema({
     ),
   },
   marks: {
-    strong: mark('strong'),
+    // In the order Milkdown's preset has them.
     emphasis: mark('emphasis'),
+    strong: mark('strong'),
     link: write(
       (state, mark: { attrs: { href: string } }) => {
         state.withMark(mark as never, 'link', undefined, {
@@ -111,6 +112,16 @@ describe('marks around marks', () => {
     expect(
       save(['see ', 'strong'], ['a', 'strong', 'link'], [' now', 'strong'])
     ).toBe('**see [a](u) now**\n');
+  });
+
+  test('keeps italics on a link in bold', () => {
+    expect(
+      save(
+        ['a ', 'strong'],
+        ['b', 'emphasis', 'strong', 'link'],
+        [' c', 'strong']
+      )
+    ).toBe('**a *[b](u)* c**\n');
   });
 
   test('writes a link all in bold in the bold', () => {
