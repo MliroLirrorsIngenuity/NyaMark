@@ -139,6 +139,7 @@ import { slashMenuRoom } from './plugins/slash-menu-room';
 import { tabFocus } from './plugins/tab-focus';
 import { keepCellAlignment } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
+import { keepPastedTasks } from './plugins/task-paste';
 import { fitTopBar } from './plugins/top-bar-fit';
 import { keepFocusOffBar } from './plugins/top-bar-focus';
 import { markCaretInCode } from './plugins/top-bar-heading-code';
@@ -238,6 +239,7 @@ export class NyaEditor {
     crepe.editor.config(dropWrapKeys);
     crepe.editor.config(headingDigitKeys);
     crepe.editor.config(keepCellAlignment);
+    crepe.editor.config(keepPastedTasks);
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.config(handleBlocksOnly);
     crepe.editor.use(caretScroll);
