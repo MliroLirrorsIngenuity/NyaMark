@@ -23,6 +23,10 @@
  * the table's keymap typed four spaces into the cell. It adds a row and moves
  * into it, the way Tab grows a table in other editors.
  *
+ * Shift+Tab: in a table in a list item, the list's Shift+Tab came first and
+ * took the whole item, table and all, out of the list. It goes to the cell
+ * before, as it does in a table of its own; from the first cell, nowhere.
+ *
  * Enter: Milkdown left the table from any cell, the header's too, so Enter
  * while filling in a row threw the caret out under the table. It goes down a
  * row in the same column instead, and from the last row adds one, the way
@@ -62,7 +66,13 @@ import {
   TextSelection,
   type Transaction,
 } from '@milkdown/kit/prose/state';
-import { cellAround, nextCell, selectedRect } from '@milkdown/kit/prose/tables';
+import {
+  cellAround,
+  goToNextCell,
+  isInTable,
+  nextCell,
+  selectedRect,
+} from '@milkdown/kit/prose/tables';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 import { replaceLineWith } from './fence-input';
@@ -243,6 +253,16 @@ function addRowFromLastCell(ctx: Ctx, view: EditorView): boolean {
   return true;
 }
 
+/** Shift+Tab in a table: to the cell before, from the first one nowhere. */
+export function prevCell(
+  state: EditorState,
+  dispatch?: (tr: Transaction) => void
+): boolean {
+  if (!isInTable(state)) return false;
+  goToNextCell(-1)(state, dispatch);
+  return true;
+}
+
 /** A row with nothing typed in any of its cells. */
 export function isEmptyRow(row: Node): boolean {
   let empty = true;
@@ -408,7 +428,11 @@ export const tableCells = $prose(
         },
         handleKeyDown(view, event) {
           if (event.isComposing || view.composing) return false;
-          if (event.shiftKey || event.altKey || event.ctrlKey) return false;
+          if (event.altKey || event.ctrlKey) return false;
+          if (event.shiftKey) {
+            if (event.key !== 'Tab' || event.metaKey) return false;
+            return prevCell(view.state, view.dispatch);
+          }
           if (event.key === 'Tab' && !event.metaKey) {
             return addRowFromLastCell(ctx, view);
           }

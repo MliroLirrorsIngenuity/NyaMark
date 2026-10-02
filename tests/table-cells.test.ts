@@ -8,6 +8,7 @@ import {
 import {
   isEmptyRow,
   keepsCellCaret,
+  prevCell,
   rowCells,
 } from '../src/editor/plugins/table-cells';
 
@@ -16,10 +17,10 @@ const schema = new Schema({
     doc: { content: 'block+' },
     paragraph: { group: 'block', content: 'inline*' },
     hr: { group: 'block' },
-    table: { group: 'block', content: 'table_row+' },
-    table_row: { content: '(table_header | table_cell)+' },
-    table_header: { content: 'paragraph' },
-    table_cell: { content: 'paragraph' },
+    table: { group: 'block', content: 'table_row+', tableRole: 'table' },
+    table_row: { content: '(table_header | table_cell)+', tableRole: 'row' },
+    table_header: { content: 'paragraph', tableRole: 'header_cell' },
+    table_cell: { content: 'paragraph', tableRole: 'cell' },
     text: { group: 'inline' },
   },
   marks: { strong: {} },
@@ -104,5 +105,27 @@ describe('a row Enter leaves the table from', () => {
     expect(isEmptyRow(row(blank, blank))).toBe(true);
     expect(isEmptyRow(row(blank, cell('table_cell', ' ')))).toBe(false);
     expect(isEmptyRow(row(cell('table_cell', '苹果'), blank))).toBe(false);
+  });
+});
+
+describe('Shift+Tab in a table', () => {
+  const at = (pos: number) =>
+    state.apply(state.tr.setSelection(TextSelection.create(doc, pos)));
+
+  test('goes to the cell before', () => {
+    const from = at(13);
+    const moved: EditorState[] = [];
+    expect(prevCell(from, (tr) => moved.push(from.apply(tr)))).toBe(true);
+    expect(moved[0]?.selection.$head.parent.textContent).toBe('名称');
+  });
+
+  test('stays put in the first cell, the key taken all the same', () => {
+    const moved: unknown[] = [];
+    expect(prevCell(at(4), (tr) => moved.push(tr))).toBe(true);
+    expect(moved).toHaveLength(0);
+  });
+
+  test('is left to others outside a table', () => {
+    expect(prevCell(at(doc.content.size - 2))).toBe(false);
   });
 });
