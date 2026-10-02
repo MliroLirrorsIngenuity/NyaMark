@@ -110,19 +110,33 @@ function caretInCell(
   return TextSelection.create(view.state.doc, hit.pos);
 }
 
-/** The caret under `x` on the first or last line of the textblock at `pos`. */
+/**
+ * The textblock next to `$out` in a block of text going `dir`: the block
+ * itself, or in a list, a quote or an alert the line at its edge.
+ */
+function lineNextTo($out: ResolvedPos, dir: 1 | -1): number {
+  const size = (dir > 0 ? $out.nodeAfter : $out.nodeBefore)?.nodeSize ?? 0;
+  const from = dir > 0 ? $out.pos : $out.pos - size;
+  const next = Selection.findFrom($out, dir, true);
+  if (!(next instanceof TextSelection)) return from;
+  const line = next.$head.before();
+  return line >= from && line < from + size ? line : from;
+}
+
+/**
+ * The caret under `x` on the textblock at `pos`: on its first line going
+ * down, its last going up.
+ */
 function caretInTextblock(
   view: EditorView,
   pos: number,
   x: number,
-  line: 'first' | 'last'
+  dir: 1 | -1
 ): Selection | null {
   const node = view.state.doc.nodeAt(pos);
   if (!node?.isTextblock) return null;
   // The line's own box: a paragraph's padding holds the gap above it.
-  const end = view.coordsAtPos(
-    line === 'first' ? pos + 1 : pos + node.nodeSize - 1
-  );
+  const end = view.coordsAtPos(dir > 0 ? pos + 1 : pos + node.nodeSize - 1);
   const hit = view.posAtCoords({ left: x, top: (end.top + end.bottom) / 2 });
   if (!hit || hit.pos <= pos || hit.pos >= pos + node.nodeSize) return null;
   return TextSelection.create(view.state.doc, hit.pos);
@@ -211,13 +225,7 @@ function moveVertically(view: EditorView, dir: 1 | -1): boolean {
     );
     const block = dir > 0 ? $out.nodeAfter : $out.nodeBefore;
     target =
-      (block &&
-        caretInTextblock(
-          view,
-          dir > 0 ? $out.pos : $out.pos - block.nodeSize,
-          outX,
-          dir > 0 ? 'first' : 'last'
-        )) ??
+      (block && caretInTextblock(view, lineNextTo($out, dir), outX, dir)) ??
       // Nothing past a table that opens the document: the gap above it,
       // where typing starts a line.
       (!block && $out.depth === 0
