@@ -188,6 +188,35 @@
     rgba(255, 255, 255, 0.04) !important;
 }
 
+/*
+ * The picture at the address typed, beside the box, as tall as the box's
+ * text. Crepe leaves it its own size: a photo stood out of the row, over the
+ * lines around it.
+ */
+.ny-editor-root .milkdown .milkdown-image-block .image-edit .image-preview {
+  flex: none !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .image-edit
+  .image-preview.nyamark-preview-broken {
+  display: none !important;
+}
+
+.ny-editor-root .milkdown .milkdown-image-block .image-edit .image-preview img {
+  display: block !important;
+  height: 32px !important;
+  width: auto !important;
+  max-width: 64px !important;
+  object-fit: cover !important;
+  border-radius: 6px !important;
+  box-shadow: 0 0 0 1px var(--ny-editor-panel-border) !important;
+}
+
 .ny-editor-root .milkdown .milkdown-image-block .link-input-area,
 .ny-editor-root .milkdown .milkdown-image-block .caption-input {
   color: var(--ny-editor-text-primary) !important;

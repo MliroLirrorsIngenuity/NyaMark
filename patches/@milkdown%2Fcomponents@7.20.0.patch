@@ -1,6 +1,9 @@
 diff --git a/node_modules/@milkdown/components/.bun-tag-2600de8b1fca23e4 b/.bun-tag-2600de8b1fca23e4
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@milkdown/components/.bun-tag-59b1d69283ff9c1e b/.bun-tag-59b1d69283ff9c1e
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/node_modules/@milkdown/components/.bun-tag-5a9ca029d36dc0f3 b/.bun-tag-5a9ca029d36dc0f3
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
@@ -81,6 +84,54 @@ index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..e168ef97e6296c6612bb5312106d1040
            )
          ))
        )) : null));
+diff --git a/lib/image-block/index.js b/lib/image-block/index.js
+index 921b7aa24a4cf13e5589682aed06d614b3484d51..37d95947035bca2bc24d93bbe0675957ca8473a0 100644
+--- a/lib/image-block/index.js
++++ b/lib/image-block/index.js
+@@ -283,6 +283,10 @@ const ImageInput = defineComponent({
+         console.error(err);
+       });
+     };
++    // NyaMark: the preview and the confirm button are drawn with Vue's own
++    // Fragment, imported as Fragment$1. Named Fragment, which nothing defines,
++    // the box failed to redraw on the first letter of an address: the hint
++    // stayed over the letters, and the preview and the button never came.
+     return () => {
+       return /* @__PURE__ */ h("div", { class: clsx("image-edit", className) }, /* @__PURE__ */ h(Icon, { icon: imageIcon, class: "image-icon" }), /* @__PURE__ */ h("div", { class: clsx("link-importer", focusLinkInput.value && "focus") }, /* @__PURE__ */ h(
+         "input",
+@@ -314,7 +318,7 @@ const ImageInput = defineComponent({
+       ), /* @__PURE__ */ h("label", { class: "uploader", for: uuid.value }, /* @__PURE__ */ h(Icon, { icon: uploadButton })), /* @__PURE__ */ h("span", { class: "text", onClick: () => {
+         var _a2;
+         return (_a2 = linkInputRef.value) == null ? void 0 : _a2.focus();
+-      } }, uploadPlaceholderText))), currentLink.value && /* @__PURE__ */ h(Fragment, null, /* @__PURE__ */ h("div", { class: "image-preview" }, /* @__PURE__ */ h(
++      } }, uploadPlaceholderText))), currentLink.value && /* @__PURE__ */ h(Fragment$1, null, /* @__PURE__ */ h("div", { class: "image-preview" }, /* @__PURE__ */ h(
+         "img",
+         {
+           src: currentLink.value,
+diff --git a/lib/image-inline/index.js b/lib/image-inline/index.js
+index 7654da3d3e9144874d79f827d411bdd3244e0c43..fc13ac71b2d5d08f8bc616f45268c1b3f239ad01 100644
+--- a/lib/image-inline/index.js
++++ b/lib/image-inline/index.js
+@@ -167,6 +167,10 @@ const ImageInput = defineComponent({
+         console.error(err);
+       });
+     };
++    // NyaMark: the preview and the confirm button are drawn with Vue's own
++    // Fragment, imported as Fragment$1. Named Fragment, which nothing defines,
++    // the box failed to redraw on the first letter of an address: the hint
++    // stayed over the letters, and the preview and the button never came.
+     return () => {
+       return /* @__PURE__ */ h("div", { class: clsx("image-edit", className) }, /* @__PURE__ */ h(Icon, { icon: imageIcon, class: "image-icon" }), /* @__PURE__ */ h("div", { class: clsx("link-importer", focusLinkInput.value && "focus") }, /* @__PURE__ */ h(
+         "input",
+@@ -198,7 +202,7 @@ const ImageInput = defineComponent({
+       ), /* @__PURE__ */ h("label", { class: "uploader", for: uuid.value }, /* @__PURE__ */ h(Icon, { icon: uploadButton })), /* @__PURE__ */ h("span", { class: "text", onClick: () => {
+         var _a2;
+         return (_a2 = linkInputRef.value) == null ? void 0 : _a2.focus();
+-      } }, uploadPlaceholderText))), currentLink.value && /* @__PURE__ */ h(Fragment, null, /* @__PURE__ */ h("div", { class: "image-preview" }, /* @__PURE__ */ h(
++      } }, uploadPlaceholderText))), currentLink.value && /* @__PURE__ */ h(Fragment$1, null, /* @__PURE__ */ h("div", { class: "image-preview" }, /* @__PURE__ */ h(
+         "img",
+         {
+           src: currentLink.value,
 diff --git a/lib/link-tooltip/index.js b/lib/link-tooltip/index.js
 index 05e8d8e1fe3075df57f48b4bcbe8107e90530e12..2d4fb02139a25ff14141866e091b4397e6ba1cbf 100644
 --- a/lib/link-tooltip/index.js

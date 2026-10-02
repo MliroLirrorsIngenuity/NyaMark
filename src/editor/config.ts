@@ -388,6 +388,24 @@ function localizedFeatureConfigs() {
 }
 
 /**
+ * The picture beside an image's address box goes while its address loads
+ * none: one half typed, or a path from the file's folder, which the box reads
+ * from the app's. It showed the browser's sign for a broken picture.
+ */
+function hideBrokenPreview(event: Event) {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement)) return;
+  const preview = image.closest('.image-preview');
+  if (!preview) return;
+  preview.classList.add('nyamark-preview-broken');
+  image.addEventListener(
+    'load',
+    () => preview.classList.remove('nyamark-preview-broken'),
+    { once: true }
+  );
+}
+
+/**
  * Single source of truth for the Crepe builder config used by NyaEditor.
  * Anything that wants to tweak features goes here, not in `editor.ts`.
  *
@@ -431,6 +449,7 @@ export function buildCrepeConfig(
         ...labels[CrepeFeature.ImageBlock],
         onUpload: opts.onUpload,
         proxyDomURL: opts.proxyDomURL,
+        onImageLoadError: hideBrokenPreview,
       },
     },
   };
