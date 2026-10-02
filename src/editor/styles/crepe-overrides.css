@@ -647,6 +647,19 @@
   letter-spacing: -0.01em !important;
 }
 
+/*
+ * A selection over the list takes its text alone, as next to a bullet or a
+ * checkbox: being text, the numbers were washed with it.
+ */
+.ny-editor-root
+  .milkdown
+  .editor
+  li.list-item
+  > .label-wrapper
+  > .label.ordered::selection {
+  background: transparent;
+}
+
 .ny-editor-root .milkdown .editor .label.checked::before,
 .ny-editor-root .milkdown .editor .label.unchecked::before {
   content: "" !important;
