@@ -126,6 +126,15 @@ describe('bare links', () => {
     );
   });
 
+  test('keeps the stop before a spelt out www link out of it', () => {
+    const typed = roundTrip('看这个 www.a.com\n', (tree) => {
+      const text = (find(tree, 'paragraph') as Tree).children?.[0] as Tree;
+      text.value = '看这个!';
+    });
+    expect(typed).toBe('看这个\\![www.a.com](http://www.a.com)\n');
+    expect(find(processor.parse(typed) as Tree, 'image')).toBeUndefined();
+  });
+
   test('spells out a bare link that bold or italics beside it would cut', () => {
     const paragraph = (...children: Tree[]) =>
       processor.stringify({

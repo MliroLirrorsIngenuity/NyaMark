@@ -201,10 +201,18 @@ export const writeLink = Object.assign(
     );
   }) satisfies Handle,
   {
-    // The first character written, for the text before the link to escape.
-    peek: ((node, parent, state) =>
-      bareLinkText(node, '', '')?.charAt(0) ??
-      defaultHandlers.link.peek(node, parent, state)) satisfies Handle,
+    // The first character written, for the text before the link to escape:
+    // a `www.` link after `!` is written in brackets, and the `!` before them
+    // made it a picture.
+    peek: ((node, parent, state) => {
+      const siblings = (parent?.children ?? []) as MdNode[];
+      const previous = siblings[siblings.indexOf(node) - 1];
+      const before = previous?.type === 'text' ? (previous.value ?? '') : '';
+      return (
+        bareLinkText(node, before.slice(-1), '')?.charAt(0) ??
+        defaultHandlers.link.peek(node, parent, state)
+      );
+    }) satisfies Handle,
   }
 );
 
