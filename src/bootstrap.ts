@@ -228,9 +228,11 @@ export class App {
       } finally {
         this.suppressDirtyTracking = false;
       }
+      // A stale source pane would write the pre-reload text back on exit.
+      // Left as typed otherwise: rewritten after every save, it lost the
+      // keys pressed while the file was written, and its caret.
+      this.sourceMode?.refreshFromEditor();
     }
-    // A stale source pane would write the pre-reload text back on exit.
-    this.sourceMode?.refreshFromEditor();
     this.refreshStatsSoon();
   }
 

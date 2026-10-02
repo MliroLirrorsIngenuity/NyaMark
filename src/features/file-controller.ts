@@ -380,6 +380,8 @@ export class FileController {
       throw error;
     }
     this.autoSaveFailureShown = false;
+    // What was typed in the source pane while the file was written counts.
+    this.flushPendingEdits();
     const currentMarkdown = this.getEditor()?.getMarkdown() ?? snapshot;
     if (currentMarkdown !== snapshot) {
       store.update({ isDirty: true });

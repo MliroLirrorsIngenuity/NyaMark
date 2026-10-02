@@ -77,7 +77,8 @@ let fileCounter = 0;
 
 function setup(content = '') {
   const path = `/notes/doc-${++fileCounter}.md`;
-  const editor = { markdown: content };
+  // `pending` stands for keys the source pane has yet to hand the editor.
+  const editor = { markdown: content, pending: null as string | null };
   const synced: string[] = [];
   const fakeEditor = {
     getMarkdown: () => editor.markdown,
@@ -88,7 +89,11 @@ function setup(content = '') {
       synced.push(saved);
       editor.markdown = saved;
     },
-    flushPendingEdits: () => {},
+    flushPendingEdits: () => {
+      if (editor.pending == null) return;
+      editor.markdown = editor.pending;
+      editor.pending = null;
+    },
   });
   const edit = (text: string) => {
     editor.markdown = text;
@@ -171,6 +176,24 @@ describe('saving', () => {
     write.resolve();
     await saving;
 
+    expect(store.getState().isDirty).toBe(true);
+    expect(synced).toEqual([]);
+  });
+
+  test('counts keys the source pane still holds when the write ends', async () => {
+    const { path, controller, edit, editor, synced } = setup();
+    store.update({ filePath: path });
+    const write = deferred();
+    bridge.save = () => write.promise;
+
+    edit('typed before saving');
+    const saving = controller.saveFile();
+    await settle();
+    editor.pending = 'typed while saving';
+    write.resolve();
+    await saving;
+
+    expect(editor.markdown).toBe('typed while saving');
     expect(store.getState().isDirty).toBe(true);
     expect(synced).toEqual([]);
   });
