@@ -28,10 +28,13 @@
 
 /*
  * Inline math sits in its line as text does. Crepe pads it 4px each side, and
- * the punctuation after a formula, `$r$，`, stood apart from it.
+ * the punctuation after a formula, `$r$，`, stood apart from it. It took the
+ * accent colour too, the colour of a link, where a formula on its own line
+ * has the colour of the text around it.
  */
 .ny-editor-root .milkdown .ProseMirror span[data-type="math_inline"] {
   padding: 0 1px !important;
+  color: inherit !important;
 }
 
 .ny-editor-root .milkdown .ProseMirror a {
