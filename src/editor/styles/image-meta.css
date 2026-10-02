@@ -144,7 +144,10 @@
   .milkdown
   .milkdown-image-block
   .nyamark-image-meta__input::placeholder {
-  color: var(--ny-editor-button-text) !important;
+  /* As the search box's: a hint, lighter than any value. In the caption's
+     weight, it read as a description already given. */
+  color: var(--ny-text-muted) !important;
+  font-weight: 400 !important;
   opacity: 1 !important;
 }
 
@@ -192,7 +195,11 @@
 }
 
 .ny-editor-root .milkdown .milkdown-image-block .link-input-area::placeholder,
-.ny-editor-root .milkdown .milkdown-image-block .caption-input::placeholder,
+.ny-editor-root .milkdown .milkdown-image-block .caption-input::placeholder {
+  color: var(--ny-text-muted) !important;
+  opacity: 1 !important;
+}
+
 .ny-editor-root .milkdown .milkdown-image-block .placeholder,
 .ny-editor-root .milkdown .milkdown-image-block .placeholder .text {
   color: var(--ny-editor-button-text) !important;
