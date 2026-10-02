@@ -416,9 +416,10 @@ const css = `
   --ny-alert-caution-bg: rgba(248, 81, 73, 0.14);
 }
 
+/* The margin is every quote's, so an alert sits as far from the block above it
+   as from the block below. */
 .ny-editor-root .milkdown .ProseMirror .ny-alert {
   position: relative !important;
-  margin: 0.6em 0 !important;
   padding: 10px 14px 12px 14px !important;
   border-left: 3px solid var(--ny-alert-color, var(--ny-text-muted)) !important;
   border-radius: 0 8px 8px 0 !important;
