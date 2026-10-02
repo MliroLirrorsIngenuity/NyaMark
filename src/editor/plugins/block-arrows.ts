@@ -332,6 +332,17 @@ function wordOverInline(view: EditorView, dir: 1 | -1): boolean {
   }
 }
 
+/**
+ * The caret on an alert's hidden marker, or at the start of its body. WebKit's
+ * move down onto an alert took the marker for its first line, and the caret
+ * went to the start of the body whatever column it came from.
+ */
+function onAlertMarker(selection: Selection): boolean {
+  const { head } = selection;
+  const marker = alertMarkerAt(selection.$head.doc, head);
+  return !!marker && head >= marker.from && head <= (marker.body ?? marker.to);
+}
+
 /** The caret beside an HTML block, in the paragraph that holds it. */
 const besideHtml = (selection: Selection) =>
   selection instanceof TextSelection && isHtmlBlock(selection.$head.parent);
@@ -723,9 +734,9 @@ export const blockArrows = $prose(() => {
           return true;
         }
         if (
-          steer &&
-          arrow.x != null &&
           next instanceof TextSelection &&
+          (steer || (arrow.vertical && onAlertMarker(next))) &&
+          arrow.x != null &&
           !isCode(next) &&
           tableDepth(next.$head) < 0
         ) {
