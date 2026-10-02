@@ -357,6 +357,15 @@ function cameBy(event: KeyboardEvent, line: number): Came | null {
 
 const key = new PluginKey('prosemirror-virtual-cursor');
 
+/**
+ * Marks `tr` as a click at `y` in the window that landed outside the text, for
+ * the caret to be drawn on the side of a break in a wrapped line nearer it.
+ */
+export function clickedAt(tr: Transaction, view: EditorView, y: number) {
+  const came: Came = { y: y - view.dom.getBoundingClientRect().top };
+  return tr.setMeta(key, came);
+}
+
 export const markCursor = $prose(() => {
   const cursor = document.createElement('div');
   // The line edge the last key went to, until the selection gets there.
@@ -369,6 +378,11 @@ export const markCursor = $prose(() => {
   return new Plugin({
     key,
     appendTransaction(trs, _old, state) {
+      const click = trs.find((tr) => tr.getMeta(key))?.getMeta(key);
+      if (click) {
+        came = click;
+        jump = 0;
+      }
       if (pasting && trs.some((tr) => tr.docChanged)) {
         return outsideAfterPaste(state);
       }

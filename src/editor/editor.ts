@@ -70,6 +70,7 @@ import { typeOutsideLinks } from './plugins/link-mark';
 import { listEnter } from './plugins/list-enter';
 import { keepListItemSelected, listItemView } from './plugins/list-item-view';
 import { listTab } from './plugins/list-tab';
+import { marginClick } from './plugins/margin-click';
 import { markCursor } from './plugins/mark-cursor';
 import { markInput } from './plugins/mark-input';
 import {
@@ -213,6 +214,7 @@ export class NyaEditor {
     ]);
     crepe.editor.use(markInput);
     crepe.editor.use(markCursor);
+    crepe.editor.use(marginClick);
     crepe.editor.use(homeEnd);
     crepe.editor.use(ctrlArrows);
     crepe.editor.use(enterAfterTypedBlock);
@@ -505,14 +507,6 @@ export class NyaEditor {
   focus() {
     const view = this.getView();
     if (view?.editable) view.focus();
-  }
-
-  focusAtEnd() {
-    if (!this.crepe) return;
-    const view = this.crepe.editor.ctx.get(editorViewCtx);
-    const selection = TextSelection.atEnd(view.state.doc);
-    view.dispatch(view.state.tr.setSelection(selection).scrollIntoView());
-    view.focus();
   }
 
   insertAttachments(attachments: EditorAttachment[]) {

@@ -137,11 +137,6 @@ export class App {
     void this.attachments.bindWindowFileDrop();
 
     editorContainer.addEventListener('click', (e) => {
-      if (e.target === editorContainer) {
-        this.editor?.focusAtEnd();
-        return;
-      }
-
       // Cmd-click (Ctrl-click elsewhere) opens links/attachments without
       // hijacking normal edit clicks that place the caret inside the link.
       if (!hasPrimaryModifier(e)) return;
