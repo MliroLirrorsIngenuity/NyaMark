@@ -136,7 +136,7 @@ type Heading = { id: string; level: number; text: string };
 /** The element the document scrolls in: the preview pane in source mode. */
 function scrollHostOf(el: Element): Element | null {
   return (
-    el.closest('#editor-container.is-source-mode > .milkdown') ??
+    el.closest('#ny-editor-container.is-source-mode > .milkdown') ??
     el.closest('.ny-shell__body')
   );
 }

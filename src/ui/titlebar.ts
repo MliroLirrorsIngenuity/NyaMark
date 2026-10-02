@@ -64,7 +64,7 @@ export class Titlebar {
   }
 
   private bindWindowChromeRestore() {
-    const titlebar = document.getElementById('titlebar') as HTMLElement;
+    const titlebar = document.getElementById('ny-titlebar') as HTMLElement;
     const isMac = isMacOS();
     let maximizedBeforeClick: Promise<boolean> | null = null;
 

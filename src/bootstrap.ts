@@ -50,7 +50,7 @@ export class App {
   async init() {
     registerShellStyles();
 
-    const appRoot = document.getElementById('app');
+    const appRoot = document.getElementById('ny-app');
     if (!appRoot) {
       void errorDialog('App root not found');
       return;
@@ -80,7 +80,7 @@ export class App {
     const theme = new ThemeManager();
     window.addEventListener('nyamark:themechange', reapplyWindowEffects);
 
-    const editorContainer = document.getElementById('editor-container');
+    const editorContainer = document.getElementById('ny-editor-container');
     if (!editorContainer) {
       void errorDialog('Editor container not found');
       return;

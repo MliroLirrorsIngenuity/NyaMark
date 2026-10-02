@@ -107,10 +107,12 @@ export function renderAppShell(host: HTMLElement) {
 
   document.documentElement.dataset.platform = platformClass;
   host.className = `ny-editor-root ny-shell ny-shell--${platformClass}`;
+  // The shell's ids carry `ny-`: a heading takes its text as its id, and one
+  // named "App" or "Statusbar" was styled as the window or the status bar.
   host.innerHTML = `
     ${isLinux ? renderLinuxResizeHandles() : ''}
 
-    <div id="titlebar" data-tauri-drag-region>
+    <div id="ny-titlebar" data-tauri-drag-region>
       <div class="ny-shell__title-leading">
         <div class="ny-shell__title-quick-actions">${fileActionsMarkup}</div>
       </div>
@@ -153,10 +155,10 @@ export function renderAppShell(host: HTMLElement) {
     </div>
 
     <div class="ny-shell__body">
-      <div id="editor-container"></div>
+      <div id="ny-editor-container"></div>
     </div>
 
-    <div id="statusbar">
+    <div id="ny-statusbar">
       <div class="ny-shell__status-group">
         <span id="sb-words" class="ny-shell__status"></span>
         <span id="sb-lines" class="ny-shell__status"></span>

@@ -4,19 +4,19 @@
  */
 
 @media print {
-  body > *:not(#app) {
+  body > *:not(#ny-app) {
     display: none !important;
   }
 
-  :root.ny-exporting-pdf #app > :not(.ny-shell__body),
-  :root.ny-exporting-pdf .ny-shell__body > :not(#editor-container) {
+  :root.ny-exporting-pdf #ny-app > :not(.ny-shell__body),
+  :root.ny-exporting-pdf .ny-shell__body > :not(#ny-editor-container) {
     display: none !important;
   }
 
   html,
   body,
-  #app,
-  #app.ny-shell {
+  #ny-app,
+  #ny-app.ny-shell {
     height: auto !important;
     min-height: 0 !important;
     overflow: visible !important;
@@ -27,8 +27,8 @@
     print-color-adjust: exact;
   }
 
-  :root.ny-exporting-pdf #titlebar,
-  :root.ny-exporting-pdf #statusbar,
+  :root.ny-exporting-pdf #ny-titlebar,
+  :root.ny-exporting-pdf #ny-statusbar,
   :root.ny-exporting-pdf .ny-shell__resize-handle,
   :root.ny-exporting-pdf .ny-shell__window-controls,
   :root.ny-exporting-pdf .ny-shell__title-leading,
@@ -46,7 +46,7 @@
   }
 
   :root.ny-exporting-pdf .ny-shell__body,
-  :root.ny-exporting-pdf #editor-container,
+  :root.ny-exporting-pdf #ny-editor-container,
   :root.ny-exporting-pdf .ny-shell__body.is-source-mode-host,
   :root.ny-exporting-pdf .milkdown,
   :root.ny-exporting-pdf .milkdown .editor,
@@ -60,7 +60,7 @@
     box-shadow: none !important;
   }
 
-  :root.ny-exporting-pdf #editor-container {
+  :root.ny-exporting-pdf #ny-editor-container {
     display: block !important;
     height: auto !important;
     min-height: 0 !important;

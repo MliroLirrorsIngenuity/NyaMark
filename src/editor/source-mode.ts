@@ -8,7 +8,7 @@
  * back into the editor.
  *
  * Layout strategy:
- *  - we toggle `.is-source-mode` on `#editor-container` AND on its parent
+ *  - we toggle `.is-source-mode` on `#ny-editor-container` AND on its parent
  *    scroll body so the `:has()` rule isn't required for older WebViews,
  *  - the editor container becomes a 50/50 grid that stretches to the body's
  *    height; each pane owns its own scroll so the code pane stays anchored
@@ -58,7 +58,7 @@ const css = `
   min-height: 0;
 }
 
-#editor-container.is-source-mode {
+#ny-editor-container.is-source-mode {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: stretch;
@@ -73,29 +73,29 @@ const css = `
   min-height: 0;
 }
 
-#editor-container.is-source-mode > .ny-source-pane,
-#editor-container.is-source-mode > .milkdown {
+#ny-editor-container.is-source-mode > .ny-source-pane,
+#ny-editor-container.is-source-mode > .milkdown {
   min-width: 0;
   min-height: 0;
   height: 100%;
   overflow: auto;
 }
 
-#editor-container.is-source-mode > .ny-source-pane {
+#ny-editor-container.is-source-mode > .ny-source-pane {
   grid-column: 1;
   border-right: 1px solid var(--ny-editor-panel-border, rgba(186, 196, 210, 0.6));
   background: transparent;
 }
 
-#editor-container.is-source-mode > .milkdown {
+#ny-editor-container.is-source-mode > .milkdown {
   grid-column: 2;
 }
 
-#editor-container.is-source-mode > .milkdown > *:not(.ProseMirror) {
+#ny-editor-container.is-source-mode > .milkdown > *:not(.ProseMirror) {
   display: none !important;
 }
 
-#editor-container.is-source-mode > .milkdown .ProseMirror {
+#ny-editor-container.is-source-mode > .milkdown .ProseMirror {
   user-select: text;
   cursor: default;
   pointer-events: none;

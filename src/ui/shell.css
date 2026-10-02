@@ -127,7 +127,7 @@
 
 html,
 body,
-#app {
+#ny-app {
   height: 100%;
   margin: 0;
 }
@@ -145,11 +145,11 @@ body {
   min-height: 100vh;
 }
 
-#app {
+#ny-app {
   min-height: 100vh;
 }
 
-#app.ny-shell {
+#ny-app.ny-shell {
   width: 100%;
   height: 100%;
   display: flex;
@@ -166,7 +166,7 @@ body {
 }
 
 /* Transparency overrides - MUST be defined after the base background to win */
-:root.ny-shell--transparent #app.ny-shell {
+:root.ny-shell--transparent #ny-app.ny-shell {
   background: transparent !important;
 }
 
@@ -178,7 +178,7 @@ body {
   --ny-statusbar-bg: transparent;
 }
 
-:root[data-theme="dark"].ny-shell--transparent #app.ny-shell {
+:root[data-theme="dark"].ny-shell--transparent #ny-app.ny-shell {
   background: transparent !important;
 }
 
@@ -188,22 +188,22 @@ body {
   --ny-surface-ghost: rgba(15, 23, 42, 0.36);
 }
 
-:root[data-platform="windows"].ny-shell--transparent #titlebar {
+:root[data-platform="windows"].ny-shell--transparent #ny-titlebar {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
 
-#app.ny-shell--macos {
+#ny-app.ny-shell--macos {
   --ny-window-controls-space: 78px;
   border-radius: 0;
 }
 
-#app.ny-shell--windows,
-#app.ny-shell--linux {
+#ny-app.ny-shell--windows,
+#ny-app.ny-shell--linux {
   border-radius: 0;
 }
 
-#app.ny-shell--linux {
+#ny-app.ny-shell--linux {
   border-radius: 0;
 }
 
@@ -280,7 +280,7 @@ body {
   cursor: nwse-resize;
 }
 
-#titlebar {
+#ny-titlebar {
   height: 40px;
   width: 100%;
   position: relative;
@@ -579,7 +579,7 @@ body {
   scroll-padding-top: 40px;
 }
 
-#editor-container {
+#ny-editor-container {
   width: 100%;
   max-width: var(--ny-toolbar-frame-max);
   margin: 0 auto;
@@ -591,7 +591,7 @@ body {
   min-height: 100%;
 }
 
-#statusbar {
+#ny-statusbar {
   height: 32px;
   width: 100%;
   display: flex;
@@ -606,8 +606,8 @@ body {
   font-size: 12px;
 }
 
-:is(#titlebar, #statusbar),
-:is(#titlebar, #statusbar) * {
+:is(#ny-titlebar, #ny-statusbar),
+:is(#ny-titlebar, #ny-statusbar) * {
   user-select: none;
   -webkit-user-select: none;
 }
@@ -661,12 +661,12 @@ body {
 }
 
 @media print {
-  body > *:not(#app) {
+  body > *:not(#ny-app) {
     display: none !important;
   }
 
-  :root.ny-exporting-pdf #app > :not(.ny-shell__body),
-  :root.ny-exporting-pdf .ny-shell__body > :not(#editor-container) {
+  :root.ny-exporting-pdf #ny-app > :not(.ny-shell__body),
+  :root.ny-exporting-pdf .ny-shell__body > :not(#ny-editor-container) {
     display: none !important;
   }
 
@@ -676,8 +676,8 @@ body {
 
   html,
   body,
-  #app,
-  #app.ny-shell {
+  #ny-app,
+  #ny-app.ny-shell {
     height: auto !important;
     min-height: 0 !important;
     overflow: visible !important;
@@ -686,8 +686,8 @@ body {
     border-radius: 0 !important;
   }
 
-  :root.ny-exporting-pdf #titlebar,
-  :root.ny-exporting-pdf #statusbar,
+  :root.ny-exporting-pdf #ny-titlebar,
+  :root.ny-exporting-pdf #ny-statusbar,
   :root.ny-exporting-pdf .ny-shell__resize-handle,
   :root.ny-exporting-pdf .ny-shell__window-controls,
   :root.ny-exporting-pdf .ny-shell__title-leading,
@@ -700,7 +700,7 @@ body {
   }
 
   :root.ny-exporting-pdf .ny-shell__body,
-  :root.ny-exporting-pdf #editor-container,
+  :root.ny-exporting-pdf #ny-editor-container,
   :root.ny-exporting-pdf .milkdown,
   :root.ny-exporting-pdf .milkdown .editor,
   :root.ny-exporting-pdf .milkdown .ProseMirror {
