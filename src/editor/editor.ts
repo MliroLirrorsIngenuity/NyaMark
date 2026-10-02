@@ -98,7 +98,7 @@ import { languagePickerRoom } from './plugins/language-picker-room';
 import { linkBox, restoreOnCancel } from './plugins/link-box';
 import { linkInput } from './plugins/link-input';
 import { linkKey } from './plugins/link-key';
-import { typeOutsideLinks } from './plugins/link-mark';
+import { typeOutsideLinks, writeLinksAround } from './plugins/link-mark';
 import { listEnter } from './plugins/list-enter';
 import { keepListItemSelected, listItemView } from './plugins/list-item-view';
 import { listTab } from './plugins/list-tab';
@@ -228,6 +228,7 @@ export class NyaEditor {
     crepe.editor.config(keepImageAlt);
     crepe.editor.config(keepBareLinks);
     crepe.editor.config(typeOutsideLinks);
+    crepe.editor.config(writeLinksAround);
     crepe.editor.config(restoreOnCancel);
     crepe.editor.config(dropWrapKeys);
     crepe.editor.config(headingDigitKeys);

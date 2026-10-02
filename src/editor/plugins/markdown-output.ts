@@ -136,9 +136,9 @@ function trimLeadingSpace(block: MdNode) {
 const ATTENTION = new Set(['emphasis', 'strong', 'delete']);
 
 /**
- * Emphasis around nothing. Milkdown moves the spaces a mark holds out of it,
- * so a space typed in italics between plain words left `**` behind, read as
- * text when the file was opened again.
+ * Emphasis around nothing. The spaces a mark holds go out of it, so a space
+ * typed in italics between plain words left `**` behind, read as text when
+ * the file was opened again.
  */
 function isEmptyAttention(node: MdNode): boolean {
   return (
@@ -153,6 +153,56 @@ function isEmptyAttention(node: MdNode): boolean {
 function dropEmptyAttention(node: MdNode) {
   if (!node.children?.some(isEmptyAttention)) return;
   node.children = node.children.filter((child) => !isEmptyAttention(child));
+}
+
+/** Marks whose spaces at either end are written beside them. */
+const SPACED = new Set([...ATTENTION, 'link']);
+
+/**
+ * The spaces at either end of emphasis or a link go out of it: `** a**`
+ * reads as no bold at all. Milkdown moved them out of every piece of text in
+ * bold, before the pieces were joined, and `**a `b` c**` was saved as
+ * `**a** **`b`** **c**` (see the patch to `@milkdown/transformer`).
+ */
+function moveEdgeSpaces(node: MdNode) {
+  const children = node.children;
+  if (!children) return;
+  for (const child of children) moveEdgeSpaces(child);
+  node.children = children.flatMap((child) => {
+    if (!SPACED.has(child.type)) return [child];
+    const inner = child.children ?? [];
+    const first = inner[0];
+    const last = inner[inner.length - 1];
+    const before = first?.type === 'text' ? edge(first, /^\s+/) : '';
+    const after = last?.type === 'text' ? edge(last, /\s+$/) : '';
+    return [
+      ...(before ? [{ type: 'text', value: before }] : []),
+      linkInside(child),
+      ...(after ? [{ type: 'text', value: after }] : []),
+    ];
+  });
+}
+
+/** Takes what `pattern` finds off the text, and gives it. */
+function edge(text: MdNode, pattern: RegExp): string {
+  const value = text.value ?? '';
+  const found = pattern.exec(value);
+  if (!found) return '';
+  text.value =
+    value.slice(0, found.index) + value.slice(found.index + found[0].length);
+  return found[0];
+}
+
+/**
+ * A link all in bold is written in the bold, `**[a](u)**`, as Milkdown wrote
+ * it before links went around what is in them.
+ */
+function linkInside(node: MdNode): MdNode {
+  const only = node.children?.length === 1 ? node.children[0] : null;
+  if (node.type !== 'link' || !only || !ATTENTION.has(only.type)) return node;
+  node.children = only.children;
+  only.children = [node];
+  return only;
 }
 
 const isLineBreak = (node: MdNode) =>
@@ -454,6 +504,7 @@ export function normalizeForOutput<T extends MdNode>(tree: T): T {
     }
     for (const child of node.children ?? []) visit(child);
   };
+  moveEdgeSpaces(tree);
   visit(tree);
   frontMatterOnTop(tree);
   // After the trim: a last line of nothing but spaces is empty too.

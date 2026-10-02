@@ -17,3 +17,16 @@ export function typeOutsideLinks(ctx: Ctx) {
     inclusive: false,
   }));
 }
+
+/**
+ * A link is written around the bold or code in its text. Written inside the
+ * bold, `[**粗**体](u)` was saved as two links, `**[粗](u)**[体](u)`, and
+ * `**see [a](u) now**` came apart around the link.
+ */
+export function writeLinksAround(ctx: Ctx) {
+  ctx.update(linkSchema.key, (base) => (schemaCtx) => ({
+    ...base(schemaCtx),
+    // Milkdown writes a mark of a lower priority around one of a higher.
+    priority: 10,
+  }));
+}

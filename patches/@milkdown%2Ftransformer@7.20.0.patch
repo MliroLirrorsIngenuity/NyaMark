@@ -1,0 +1,13 @@
+diff --git a/lib/index.js b/lib/index.js
+index 1e13d49f4bef95afe49982c3480739c4a622425a..d652b2115df3e18567a37b091ffe2e5152757944 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -375,7 +375,7 @@ var SerializerState = class extends Stack {
+ 	#closeMark = (mark) => {
+ 		if (!mark.isInSet(this.#marks)) return;
+ 		this.#marks = mark.type.removeFromSet(this.#marks);
+-		this.#closeNodeAndPush(true);
++		this.#closeNodeAndPush(false);
+ 	};
+ };
+ //#endregion
