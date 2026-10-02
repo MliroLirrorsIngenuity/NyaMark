@@ -4,6 +4,7 @@ import {
   codeText,
   formulaAsMath,
   languageFromClasses,
+  writeCode,
 } from '../src/editor/plugins/code-block-html';
 
 type Fake = {
@@ -105,5 +106,37 @@ describe('formulaAsMath', () => {
   test('leaves other code to the code block', () => {
     expect(write(block('js', 'let a'))).toEqual([['code']]);
     expect(write(block('', 'x^2'))).toEqual([['code']]);
+  });
+});
+
+describe('writeCode', () => {
+  const schema = new Schema({
+    nodes: {
+      doc: { content: 'code_block+' },
+      code_block: {
+        content: 'text*',
+        code: true,
+        attrs: { language: { default: '' }, meta: { default: '' } },
+      },
+      text: {},
+    },
+  });
+  const write = (language: string, meta: string) => {
+    const out: unknown[][] = [];
+    const state = { addNode: (...args: unknown[]) => out.push(args) };
+    const node = schema.node('code_block', { language, meta }, [
+      schema.text('let a'),
+    ]);
+    writeCode(state as never, node);
+    return out;
+  };
+
+  test('keeps what the fence names after the language', () => {
+    expect(write('js', 'title="a.js" {1,3}')).toEqual([
+      ['code', undefined, 'let a', { lang: 'js', meta: 'title="a.js" {1,3}' }],
+    ]);
+    expect(write('js', '')).toEqual([
+      ['code', undefined, 'let a', { lang: 'js', meta: undefined }],
+    ]);
   });
 });

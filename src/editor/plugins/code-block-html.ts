@@ -12,10 +12,14 @@
  * the code block, and this one, built on the plain code block, took its place:
  * once a file was edited, each of its formulas was saved as a ```` ```LaTeX ````
  * code block.
+ *
+ * What a fence names after the language stays with the block: the
+ * `title="app.js"` or `{1,3}` other sites draw a file name or marked lines
+ * from was lost at the first save.
  */
 
 import { codeBlockSchema } from '@milkdown/kit/preset/commonmark';
-import { Fragment } from '@milkdown/kit/prose/model';
+import { type DOMOutputSpec, Fragment } from '@milkdown/kit/prose/model';
 import type { NodeSchema } from '@milkdown/kit/transformer';
 
 /** `language-js`, `lang-js`, GitHub's `highlight-source-js`, MDN's `brush: js`. */
@@ -80,11 +84,27 @@ export function formulaAsMath(write: Runner): Runner {
   };
 }
 
+/** `write` for a code block, its language and what the fence names after. */
+export const writeCode: Runner = (state, node) => {
+  state.addNode('code', undefined, node.textContent, {
+    lang: node.attrs.language,
+    meta: node.attrs.meta || undefined,
+  });
+};
+
 export const codeBlockFromHtml = codeBlockSchema.extendSchema(
   (prev) => (ctx) => {
     const schema = prev(ctx);
     return {
       ...schema,
+      attrs: { ...schema.attrs, meta: { default: '', validate: 'string' } },
+      toDOM: (node) => {
+        const dom = schema.toDOM?.(node);
+        const { meta } = node.attrs;
+        if (!meta || !Array.isArray(dom)) return dom as DOMOutputSpec;
+        const [tag, attrs, ...rest] = dom;
+        return [tag, { ...attrs, 'data-meta': meta }, ...rest];
+      },
       parseDOM: schema.parseDOM?.map((rule) => ({
         ...rule,
         getAttrs: (dom: HTMLElement) => {
@@ -98,7 +118,8 @@ export const codeBlockFromHtml = codeBlockSchema.extendSchema(
               dom.querySelector('code')?.getAttribute('class'),
               dom.parentElement?.getAttribute('class'),
             ]);
-          return { ...attrs, language };
+          const meta = dom.dataset.meta ?? '';
+          return { ...attrs, language, meta };
         },
         getContent: (dom, schema) => {
           let text = codeText(dom);
@@ -106,9 +127,20 @@ export const codeBlockFromHtml = codeBlockSchema.extendSchema(
           return text ? Fragment.from(schema.text(text)) : Fragment.empty;
         },
       })),
+      parseMarkdown: {
+        ...schema.parseMarkdown,
+        runner: (state, node, type) => {
+          state.openNode(type, {
+            language: node.lang ?? '',
+            meta: node.meta ?? '',
+          });
+          if (node.value) state.addText(String(node.value));
+          state.closeNode();
+        },
+      },
       toMarkdown: {
         ...schema.toMarkdown,
-        runner: formulaAsMath(schema.toMarkdown.runner),
+        runner: formulaAsMath(writeCode),
       },
     };
   }
