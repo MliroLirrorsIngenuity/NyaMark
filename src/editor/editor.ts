@@ -55,6 +55,7 @@ import {
 import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
+import { caretPastSelectedBlock, insertBlocks } from './plugins/insert-blocks';
 import { languagePickerKeys } from './plugins/language-picker-keys';
 import { languagePickerRoom } from './plugins/language-picker-room';
 import { linkBox } from './plugins/link-box';
@@ -527,8 +528,12 @@ export class NyaEditor {
     });
 
     if (!nodes.length) return;
+    const images = nodes.every((node) => node.type.name === 'image-block');
+    const placed = images ? insertBlocks(view.state, nodes) : null;
     const slice = new Slice(Fragment.fromArray(nodes), 0, 0);
-    view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
+    const tr =
+      placed ?? caretPastSelectedBlock(view.state.tr.replaceSelection(slice));
+    view.dispatch(tr.scrollIntoView());
     view.focus();
   }
 

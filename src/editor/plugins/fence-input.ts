@@ -15,7 +15,7 @@
  * "```py " there stayed text and the code typed after it ran on in the line.
  */
 
-import type { Node } from '@milkdown/kit/prose/model';
+import { Fragment, type Node } from '@milkdown/kit/prose/model';
 import {
   type EditorState,
   Plugin,
@@ -31,12 +31,13 @@ const FENCE = /^```([^\s`]*)$/;
  * The caret's line replaced with `block`, and where the block went. A list
  * item opens with a line of text, so from one the block goes under the item
  * above; from the first item, in front of the list. A table typed as its top
- * row goes there the same way.
+ * row goes there the same way, and an image pasted on an empty line.
  */
 export function replaceLineWith(
   state: EditorState,
-  block: Node
+  block: Node | Fragment
 ): { tr: Transaction; at: number } | null {
+  const content = block instanceof Fragment ? block : Fragment.from(block);
   const { $head } = state.selection;
   const item = $head.node(-1);
   if (item.type.name === 'list_item' && $head.index(-1) === 0) {
@@ -46,23 +47,23 @@ export function replaceLineWith(
     if ($head.index(-2) > 0) {
       // The end of the item above, inside it.
       const at = itemFrom - 1;
-      return { tr: state.tr.delete(itemFrom, itemTo).insert(at, block), at };
+      return { tr: state.tr.delete(itemFrom, itemTo).insert(at, content), at };
     }
     const $list = state.doc.resolve($head.before(-2));
     const index = $list.index();
-    if (!$list.parent.canReplaceWith(index, index, block.type)) return null;
+    if (!$list.parent.canReplace(index, index, content)) return null;
     const at = $list.pos;
     const tr =
       $head.node(-2).childCount === 1
-        ? state.tr.replaceWith(at, $head.after(-2), block)
-        : state.tr.delete(itemFrom, itemTo).insert(at, block);
+        ? state.tr.replaceWith(at, $head.after(-2), content)
+        : state.tr.delete(itemFrom, itemTo).insert(at, content);
     return { tr, at };
   }
 
   const index = $head.index(-1);
-  if (!$head.node(-1).canReplaceWith(index, index + 1, block.type)) return null;
+  if (!$head.node(-1).canReplace(index, index + 1, content)) return null;
   const at = $head.before();
-  return { tr: state.tr.replaceWith(at, $head.after(), block), at };
+  return { tr: state.tr.replaceWith(at, $head.after(), content), at };
 }
 
 export function fenceFromLine(state: EditorState): Transaction | null {
