@@ -1352,6 +1352,18 @@
   background: transparent !important;
 }
 
+/*
+ * Nor the selection it had: CodeMirror went on drawing it, and a selection
+ * made in the text afterwards showed with it as a second one.
+ */
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .cm-editor:not(:focus-within)
+  .cm-selectionBackground {
+  background: transparent !important;
+}
+
 .ny-editor-root .milkdown .milkdown-code-block .preview-panel {
   padding: 0 !important;
   /* Same hairline as the block's own edge, not the heavier panel divider. */
