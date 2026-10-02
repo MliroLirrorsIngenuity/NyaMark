@@ -47,15 +47,16 @@ const searchStyles = `
   color: var(--ny-text-muted);
 }
 
+/* Room kept for the longest count, so the field typed into stays put: the
+   panel grew to the left with each count, from none to "无结果", and the
+   digits of PingFang, which the count falls back to, are not all one width. */
 .ny-search__count {
+  min-width: 64px;
   color: var(--ny-text-muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  text-align: right;
   white-space: nowrap;
-}
-
-.ny-search__count:empty {
-  display: none;
 }
 
 .ny-search__button {
