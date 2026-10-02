@@ -40,6 +40,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { caretBox as drawnCaret } from './mark-cursor';
 
 const MOVES = new Set([
   'ArrowUp',
@@ -109,7 +110,9 @@ function caretBox(view: EditorView, selection: Selection, focus: Node) {
   )?.closest<HTMLElement>('.cm-editor');
   try {
     if (!code) {
-      return view.coordsAtPos(view.posAtDOM(focus, selection.focusOffset));
+      const head = view.posAtDOM(focus, selection.focusOffset);
+      const drawn = head === view.state.selection.head && drawnCaret(view);
+      return drawn || view.coordsAtPos(head);
     }
     // The caret came in from a line beside the block: CodeMirror took it up
     // from the browser without scrolling to it.
@@ -204,8 +207,23 @@ export const caretScroll = $prose(() => {
         const page = view.dom.closest<HTMLElement>('.ny-shell__body');
         const { selection } = view.state;
         if (!page || !selection.empty) return false;
-        if (!onLastLine(view, view.coordsAtPos(selection.head))) return false;
-        page.scrollTop = foot(page);
+        const coords = view.coordsAtPos(selection.head);
+        if (onLastLine(view, coords)) {
+          page.scrollTop = foot(page);
+          return true;
+        }
+        // Where a line wraps, one place in the text is both the end of the
+        // line and the start of the next, and ProseMirror goes to the start.
+        // The caret drawn at the end was left there: End on a line under the
+        // format bar, or Backspace at the end of one, left it out of sight
+        // with the next line in sight and the page still.
+        const caret = drawnCaret(view);
+        if (!caret || Math.abs(caret.top - coords.top) < 1) return false;
+        const box = page.getBoundingClientRect();
+        const over = box.top + top - caret.top;
+        const under = caret.bottom - (box.bottom - MARGIN_PX);
+        if (over > 0) page.scrollTop -= over;
+        else if (under > 0) page.scrollTop += under;
         return true;
       },
       handleKeyDown(view, event) {
