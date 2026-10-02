@@ -5,15 +5,16 @@ import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
+import { strikethroughOptions } from '../src/editor/plugins/cjk-emphasis';
 import { writeRoot, writeText } from '../src/editor/plugins/markdown-output';
 
 type Tree = { type: string; children?: Tree[] };
 
 const processor = unified()
   .use(remarkParse)
-  .use(remarkGfm)
+  .use(remarkGfm, { singleTilde: false })
   .use(remarkCjkFriendly)
-  .use(remarkCjkFriendlyStrikethrough)
+  .use(remarkCjkFriendlyStrikethrough, strikethroughOptions)
   .use(remarkStringify, { handlers: { root: writeRoot, text: writeText } });
 
 const inline = (markdown: string) =>
@@ -32,6 +33,14 @@ describe('cjk emphasis', () => {
   test('writes it back as it was', () => {
     const markdown = '这是**“引用”**的，价格**100%**以上，~~“删”~~了\n';
     expect(processor.processSync(markdown).toString()).toBe(markdown);
+  });
+
+  test('strikes out between two tildes and leaves one as text', () => {
+    expect(inline('3~5 天，100~200 元，中~~删~~文')).toEqual([
+      'text',
+      'delete',
+      'text',
+    ]);
   });
 
   test('reads other text as CommonMark does', () => {

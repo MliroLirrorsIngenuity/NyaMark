@@ -17,8 +17,16 @@ export const cjkEmphasis = $remark(
   () => remarkCjkFriendly
 );
 
+/**
+ * One tilde is text to this as well, as it is to GFM's own strikethrough
+ * here (see mark-input). Left to itself it took one: `3~5 天，100~200 元`
+ * opened with "5 天，100" struck out.
+ */
+export const strikethroughOptions = { singleTilde: false };
+
 /** The same for `~~`, after GFM's own strikethrough. */
 export const cjkStrikethrough = $remark(
   'nyamark-cjk-strikethrough',
-  () => remarkCjkFriendlyStrikethrough
+  () => remarkCjkFriendlyStrikethrough,
+  strikethroughOptions
 );
