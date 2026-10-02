@@ -122,6 +122,7 @@ import { fitTopBar } from './plugins/top-bar-fit';
 import { keepFocusOffBar } from './plugins/top-bar-focus';
 import { markCaretInCode } from './plugins/top-bar-heading-code';
 import { closeHeadingListOnKeys } from './plugins/top-bar-heading-list';
+import { typeOverBlocks } from './plugins/type-over-blocks';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
 import { undoByLine } from './plugins/undo-lines';
 import { type BlockSpan, blockSpans } from './source-caret';
@@ -217,6 +218,7 @@ export class NyaEditor {
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.config(handleBlocksOnly);
     crepe.editor.use(caretScroll);
+    crepe.editor.use(typeOverBlocks);
     crepe.editor.use(markdownOutput);
     crepe.editor.use(dollarTextParse);
     crepe.editor.use(bareLinkParse);
