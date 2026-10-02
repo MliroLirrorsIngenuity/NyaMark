@@ -77,6 +77,7 @@ import { hrInput, ruleOnEnter } from './plugins/hr-input';
 import {
   htmlBlockSelection,
   htmlBlockView,
+  htmlImageSource,
   registerHtmlBlockStyles,
 } from './plugins/html-block';
 import { imageAddressCaret } from './plugins/image-address-caret';
@@ -184,10 +185,7 @@ export class NyaEditor {
           const upload = this.options.onUploadFile;
           return upload ? upload(file) : URL.createObjectURL(file);
         },
-        proxyDomURL: (src) => {
-          const resolver = this.options.proxyDomURL;
-          return resolver ? resolver(src) : src;
-        },
+        proxyDomURL: (src) => this.imageSource(src),
         getView: () => this.getView(),
       })
     );
@@ -285,6 +283,10 @@ export class NyaEditor {
     crepe.editor.use(pasteTextLines);
     crepe.editor.use(pasteIntoCell);
     crepe.editor.use(mathInlineKeys);
+    crepe.editor.use(htmlImageSource);
+    crepe.editor.config((ctx) =>
+      ctx.set(htmlImageSource.key, (src) => this.imageSource(src))
+    );
     crepe.editor.use(htmlBlockView);
     crepe.editor.use(htmlBlockSelection);
     crepe.editor.use(blockSelection);
@@ -344,6 +346,12 @@ export class NyaEditor {
     return () => {
       this.docChangedListeners.delete(callback);
     };
+  }
+
+  /** The address the webview loads the image at `src` from. */
+  private imageSource(src: string) {
+    const resolver = this.options.proxyDomURL;
+    return resolver ? resolver(src) : src;
   }
 
   private docChangedPlugin() {

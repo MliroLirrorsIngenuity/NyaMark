@@ -8,7 +8,7 @@ import {
   TextSelection,
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { $prose, $view } from '@milkdown/kit/utils';
+import { $ctx, $prose, $view } from '@milkdown/kit/utils';
 import DOMPurify, { type Config } from 'dompurify';
 import { ensureStyle } from '../../style/register';
 
@@ -49,6 +49,34 @@ const SANITIZE_OPTIONS: Config = {
 
 function sanitizeHtmlBlock(value: string): string {
   return DOMPurify.sanitize(value, SANITIZE_OPTIONS);
+}
+
+/**
+ * Turns an image address into one the webview can load: the resolver the
+ * image blocks use, set in the editor's config.
+ */
+export const htmlImageSource = $ctx<
+  (src: string) => Promise<string> | string,
+  'nyamarkHtmlImageSource'
+>((src) => src, 'nyamarkHtmlImageSource');
+
+/** Addresses the webview loads as they are. */
+const LOADS_AS_IS = /^(?:https?:|data:|blob:|asset:)/i;
+
+/**
+ * The images in `root` with an address beside the document, their `src`
+ * taken off. Read against the app's own address, `<img src="img/logo.png">`
+ * of a README showed as a broken image.
+ */
+function holdLocalImages(root: ParentNode) {
+  const held: Array<[HTMLImageElement, string]> = [];
+  for (const image of root.querySelectorAll('img')) {
+    const src = image.getAttribute('src')?.trim();
+    if (!src || LOADS_AS_IS.test(src)) continue;
+    image.removeAttribute('src');
+    held.push([image, src]);
+  }
+  return held;
 }
 
 const css = `
@@ -211,7 +239,7 @@ function isBlockHtml(view: EditorView, getPos: () => number | undefined) {
   return isHtmlBlock(view.state.doc.resolve(pos).parent);
 }
 
-export const htmlBlockView = $view(htmlSchema.node, () => {
+export const htmlBlockView = $view(htmlSchema.node, (ctx) => {
   return (initialNode, view, getPos) => {
     let node = initialNode;
     const block = isBlockHtml(view, getPos);
@@ -227,12 +255,26 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
     editor.classList.add('ny-html-editor');
     editor.spellcheck = false;
 
+    let renders = 0;
     const render = (value: string) => {
+      const current = ++renders;
       if (!block) {
         preview.textContent = value;
         return;
       }
-      preview.innerHTML = sanitizeHtmlBlock(value);
+      // Parsed in a template, where nothing loads, so a local image never
+      // asks the app's own address for itself first.
+      const template = document.createElement('template');
+      template.innerHTML = sanitizeHtmlBlock(value);
+      const source = ctx.get(htmlImageSource.key);
+      for (const [image, src] of holdLocalImages(template.content)) {
+        void Promise.resolve(source(src))
+          .catch(() => src)
+          .then((url) => {
+            if (renders === current) image.src = url;
+          });
+      }
+      preview.replaceChildren(template.content);
       // A comment, or a closing tag on its own such as the `</details>` after
       // the folded content, shows nothing: the block stood as a blank gap that
       // no click could find. It shows its source instead, as a tag in running
