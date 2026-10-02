@@ -184,8 +184,11 @@ const exportPdfDialogStyles = `
   width: 300px;
 }
 
+/* The slider takes what its value leaves, to end the value where the
+   dropdowns and the switch above it end. */
 .ny-export-pdf-dialog__range {
-  width: 220px;
+  flex: 1;
+  min-width: 0;
   accent-color: var(--ny-accent);
 }
 
