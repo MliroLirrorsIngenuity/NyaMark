@@ -9,7 +9,7 @@ import {
   updateSettings,
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
-import { animationsSettled, openModal } from '../modal';
+import { animationsSettled, isModalOpen, openModal } from '../modal';
 import { requireElement } from '../require-element';
 import { renderAppearanceSection } from './sections/appearance';
 import { renderAttachmentsSection } from './sections/attachments';
@@ -540,7 +540,9 @@ export class SettingsPanel {
   }
 
   open() {
-    if (this.overlay) {
+    // Over another dialog, from the menu or the title bar's gear, it opened
+    // beneath that one and took its focus.
+    if (this.overlay || isModalOpen()) {
       return;
     }
 

@@ -5,6 +5,7 @@ import {
   ExportPdfDialog,
   type ExportPdfSettings,
 } from '../ui/export-pdf-dialog';
+import { isModalOpen } from '../ui/modal';
 import printStyles from '../ui/print.css?inline';
 
 const PAGE_MARGINS: Record<ExportPdfSettings['margin'], string> = {
@@ -25,10 +26,11 @@ export class PdfExporter {
   /**
    * Asked again while the dialog is open or printing runs, it stays with
    * the one under way: a second dialog over the first left the first one's
-   * keys bound once both closed, and Tab and Escape went to nothing.
+   * keys bound once both closed, and Tab and Escape went to nothing. Over
+   * another dialog it waits as well.
    */
   async open() {
-    if (this.busy) return;
+    if (this.busy || isModalOpen()) return;
     this.busy = true;
     try {
       const settings = await this.dialog.open({ fileName: printableTitle() });
