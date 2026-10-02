@@ -648,12 +648,15 @@ export class SettingsPanel {
     const close = async () => {
       if (closing) return;
       closing = true;
+      // Handing the focus back blurs a field still being typed in, and its
+      // change event previews that value: a font size typed and then
+      // cancelled with Escape stayed on the page.
+      modal.release();
       if (previewTimer !== null) {
         window.clearTimeout(previewTimer);
         previewTimer = null;
       }
       previewAppearance(getSettings().appearance);
-      modal.release();
       overlay.classList.add('is-closing');
       await animationsSettled(overlay);
       overlay.remove();
