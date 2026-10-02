@@ -86,6 +86,13 @@ describe('a fence typed in a list item', () => {
     ).toBe(true);
   });
 
+  test('starts a formula from `$$` as well', () => {
+    const out = enterAfter(doc(list(item(p('a')), item(p('$$')))), '$$');
+    const formula = schema.node('code_block', { language: 'LaTeX' });
+    expect(out?.doc.eq(doc(list(item(p('a'), formula))))).toBe(true);
+    expect(enterAfter(doc(p('$$ x')), '$$ x')).toBeNull();
+  });
+
   test('leaves an item with more under it to the list', () => {
     const start = doc(list(item(p('a')), item(p('```'), p('c'))));
     expect(enterAfter(start, '```')).toBeNull();

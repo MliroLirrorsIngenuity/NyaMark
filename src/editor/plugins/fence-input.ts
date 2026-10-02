@@ -7,7 +7,8 @@
  * item, in front of the list.
  *
  * Milkdown's rule for it took only a lowercase name, so "```C++" stayed text;
- * any name without a space goes.
+ * any name without a space goes. `$$` starts a formula the same way: in a list
+ * item it stayed as text too.
  *
  * A space after the fence starts the block too, as Milkdown's rule has it.
  * That rule never reached a list item, whose first line has to be text, so
@@ -33,10 +34,10 @@ export function fenceFromLine(state: EditorState): Transaction | null {
   const line = $head?.parent;
   if (!$head || line?.type.name !== 'paragraph') return null;
   if ($head.parentOffset !== line.content.size) return null;
-  const text = line.childCount === 1 && line.firstChild?.text;
-  const match = text ? FENCE.exec(text) : null;
-  if (!match) return null;
-  const block = code.create({ language: match[1] ?? '' });
+  const text = (line.childCount === 1 && line.firstChild?.text) || '';
+  const language = text === '$$' ? 'LaTeX' : FENCE.exec(text)?.[1];
+  if (language == null) return null;
+  const block = code.create({ language });
 
   const item = $head.node(-1);
   if (item.type.name === 'list_item' && $head.index(-1) === 0) {
