@@ -1094,6 +1094,11 @@
   svg {
   width: 12px !important;
   height: 12px !important;
+  /*
+   * In the colour of the name beside it. In Crepe's outline colour, the faint
+   * one of a hairline edge here, the arrow could hardly be seen on the pill.
+   */
+  color: inherit !important;
 }
 
 .ny-editor-root .milkdown .milkdown-code-block .tools .tools-button-group {
