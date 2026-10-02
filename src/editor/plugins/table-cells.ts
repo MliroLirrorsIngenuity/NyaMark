@@ -149,9 +149,13 @@ function enterTable(view: EditorView, dir: 1 | -1): boolean {
   const { $head } = selection;
   if (!$head.parent.isTextblock || cellAround($head)) return false;
   if (!view.endOfTextblock(dir > 0 ? 'down' : 'up')) return false;
-  const $edge = view.state.doc.resolve(
-    dir > 0 ? $head.after() : $head.before()
-  );
+  const { doc } = view.state;
+  let $edge = doc.resolve(dir > 0 ? $head.after() : $head.before());
+  // The line may be the edge of a list, a quote or an alert next to the
+  // table, which WebKit went past to the far end of the row.
+  while ($edge.depth > 0 && !(dir > 0 ? $edge.nodeAfter : $edge.nodeBefore)) {
+    $edge = doc.resolve(dir > 0 ? $edge.after() : $edge.before());
+  }
   const table = dir > 0 ? $edge.nodeAfter : $edge.nodeBefore;
   if (table?.type.name !== 'table') return false;
 
