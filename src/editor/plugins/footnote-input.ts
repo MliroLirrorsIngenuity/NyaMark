@@ -62,20 +62,37 @@ export function typedDefinition(
     state.schema.nodes;
   const $start = state.doc.resolve(start);
   const line = $start.parent;
-  if (!type || line.type.name !== 'paragraph' || $start.depth !== 1) {
-    return null;
-  }
+  if (!type || line.type.name !== 'paragraph') return null;
   if (start !== $start.start()) return null;
   const label = match[1] ?? line.firstChild?.attrs.label;
   if (!match[1] && line.firstChild?.type !== mark) return null;
   const rest = line.copy(line.content.cut(end - $start.start()));
-  const at = $start.before();
-  const tr = state.tr.replaceWith(
-    at,
-    $start.after(),
-    type.create({ label }, rest)
+  if ($start.depth === 1) {
+    const at = $start.before();
+    const tr = state.tr.replaceWith(
+      at,
+      $start.after(),
+      type.create({ label }, rest)
+    );
+    return tr.setSelection(TextSelection.create(tr.doc, at + 2));
+  }
+  // A line further down a footnote, where Enter after its text leaves the
+  // caret: the footnote ends above it and the line starts the next one, with
+  // the lines under it. It stayed a line of the footnote above, its number
+  // a mark in it.
+  const note = $start.node(1);
+  if ($start.depth !== 2 || note.type !== type || $start.index(1) === 0) {
+    return null;
+  }
+  const inside = $start.start(1);
+  const kept = note.copy(note.content.cut(0, $start.before() - inside));
+  const next = type.create(
+    { label },
+    Fragment.from(rest).append(note.content.cut($start.after() - inside))
   );
-  return tr.setSelection(TextSelection.create(tr.doc, at + 2));
+  const at = $start.before(1);
+  const tr = state.tr.replaceWith(at, $start.after(1), [kept, next]);
+  return tr.setSelection(TextSelection.create(tr.doc, at + kept.nodeSize + 2));
 }
 
 /** The footnote the caret starts the first line of, back to text. */

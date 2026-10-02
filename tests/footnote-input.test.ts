@@ -98,6 +98,36 @@ describe('`[^1]: ` typed at the start of a line', () => {
     expect(out?.doc.eq(doc(note('1', p())))).toBe(true);
   });
 
+  test('on a line under a footnote, starts the next one there', () => {
+    const out = type(
+      doc(note('1', p('a'), p('[^2]:b'), p('c'))),
+      10,
+      ' ',
+      DEFINITION,
+      typedDefinition
+    );
+    expect(out?.doc.eq(doc(note('1', p('a')), note('2', p('b'), p('c'))))).toBe(
+      true
+    );
+    expect(out?.head.pos).toBe(7);
+    const marked = type(
+      doc(note('1', p('a')), note('1', p('a'), p(ref('2'), ':'))),
+      12,
+      ' ',
+      DEFINITION,
+      typedDefinition
+    );
+    expect(
+      marked?.doc.eq(doc(note('1', p('a')), note('1', p('a')), note('2', p())))
+    ).toBe(true);
+  });
+
+  test('is left alone on the first line of a footnote', () => {
+    expect(
+      type(doc(note('1', p('[^2]:'))), 7, ' ', DEFINITION, typedDefinition)
+    ).toBe(null);
+  });
+
   test('is left alone in a quote', () => {
     expect(
       type(doc(quote(p('[^1]:'))), 7, ' ', DEFINITION, typedDefinition)
