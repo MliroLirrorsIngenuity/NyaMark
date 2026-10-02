@@ -37,6 +37,7 @@
     },
   },
   "patchedDependencies": {
+    "@milkdown/crepe@7.20.0": "patches/@milkdown%2Fcrepe@7.20.0.patch",
     "@milkdown/components@7.20.0": "patches/@milkdown%2Fcomponents@7.20.0.patch",
   },
   "packages": {

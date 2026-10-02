@@ -1,0 +1,76 @@
+diff --git a/lib/cjs/feature/block-edit/index.js b/lib/cjs/feature/block-edit/index.js
+index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..933fd7dadcfbc9a2effb8282623f8305fe97a6ff 100644
+--- a/lib/cjs/feature/block-edit/index.js
++++ b/lib/cjs/feature/block-edit/index.js
+@@ -800,6 +800,14 @@ const Menu = vue.defineComponent({
+       if (size === 0 && show.value) hide();
+       else if (hoverIndex.value >= size) hoverIndex.value = 0;
+     });
++    // NyaMark: what was typed picks the item whose name starts with it, so
++    // "/表" takes a table, not the first of the lists whose names hold 表.
++    vue.watch(filter, (value) => {
++      const query = value.toLowerCase();
++      const items = groupInfo.value.groups.flatMap((group) => group.items);
++      const best = query ? items.findIndex((item) => item.label.toLowerCase().startsWith(query)) : -1;
++      hoverIndex.value = Math.max(best, 0);
++    });
+     const onHover = (index, after) => {
+       const prevHoverIndex = hoverIndex.value;
+       const next = typeof index === "function" ? index(prevHoverIndex) : index;
+diff --git a/lib/cjs/index.js b/lib/cjs/index.js
+index 9726836fbea853e8be52f11df9b14b5589d457b3..79faacb8aece1b83c5dd4dab096aabdae1bde711 100644
+--- a/lib/cjs/index.js
++++ b/lib/cjs/index.js
+@@ -1183,6 +1183,14 @@ const Menu = vue.defineComponent({
+       if (size === 0 && show.value) hide();
+       else if (hoverIndex.value >= size) hoverIndex.value = 0;
+     });
++    // NyaMark: what was typed picks the item whose name starts with it, so
++    // "/表" takes a table, not the first of the lists whose names hold 表.
++    vue.watch(filter, (value) => {
++      const query = value.toLowerCase();
++      const items = groupInfo.value.groups.flatMap((group) => group.items);
++      const best = query ? items.findIndex((item) => item.label.toLowerCase().startsWith(query)) : -1;
++      hoverIndex.value = Math.max(best, 0);
++    });
+     const onHover = (index, after) => {
+       const prevHoverIndex = hoverIndex.value;
+       const next = typeof index === "function" ? index(prevHoverIndex) : index;
+diff --git a/lib/esm/feature/block-edit/index.js b/lib/esm/feature/block-edit/index.js
+index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..74b7d735ba794e0c0126facf0baec7823944b95c 100644
+--- a/lib/esm/feature/block-edit/index.js
++++ b/lib/esm/feature/block-edit/index.js
+@@ -798,6 +798,14 @@ const Menu = defineComponent({
+       if (size === 0 && show.value) hide();
+       else if (hoverIndex.value >= size) hoverIndex.value = 0;
+     });
++    // NyaMark: what was typed picks the item whose name starts with it, so
++    // "/表" takes a table, not the first of the lists whose names hold 表.
++    watch(filter, (value) => {
++      const query = value.toLowerCase();
++      const items = groupInfo.value.groups.flatMap((group) => group.items);
++      const best = query ? items.findIndex((item) => item.label.toLowerCase().startsWith(query)) : -1;
++      hoverIndex.value = Math.max(best, 0);
++    });
+     const onHover = (index, after) => {
+       const prevHoverIndex = hoverIndex.value;
+       const next = typeof index === "function" ? index(prevHoverIndex) : index;
+diff --git a/lib/esm/index.js b/lib/esm/index.js
+index ea68de6cfb124faa35d9f047d82788a1043d255c..c12661c71140f6093864cef88472976943529bd1 100644
+--- a/lib/esm/index.js
++++ b/lib/esm/index.js
+@@ -1181,6 +1181,14 @@ const Menu = defineComponent({
+       if (size === 0 && show.value) hide();
+       else if (hoverIndex.value >= size) hoverIndex.value = 0;
+     });
++    // NyaMark: what was typed picks the item whose name starts with it, so
++    // "/表" takes a table, not the first of the lists whose names hold 表.
++    watch(filter, (value) => {
++      const query = value.toLowerCase();
++      const items = groupInfo.value.groups.flatMap((group) => group.items);
++      const best = query ? items.findIndex((item) => item.label.toLowerCase().startsWith(query)) : -1;
++      hoverIndex.value = Math.max(best, 0);
++    });
+     const onHover = (index, after) => {
+       const prevHoverIndex = hoverIndex.value;
+       const next = typeof index === "function" ? index(prevHoverIndex) : index;
