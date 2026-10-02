@@ -76,6 +76,8 @@ pub enum DocumentError {
     },
     /// The path lies outside the filesystem scope granted to the webview.
     Forbidden,
+    /// The file is marked read-only; a save leaves it as it is.
+    ReadOnly,
     /// The file is larger than `MAX_DOCUMENT_BYTES`.
     TooLarge {
         limit_bytes: u64,
@@ -128,6 +130,10 @@ pub fn write<R: Runtime>(
     format: DocumentFormat,
 ) -> Result<(), DocumentError> {
     ensure_allowed(app, path)?;
+    // The rename below replaces a file whatever its own permissions say.
+    if fs::metadata(path).is_ok_and(|metadata| metadata.permissions().readonly()) {
+        return Err(DocumentError::ReadOnly);
+    }
     write_atomically(path, &encode(text, format))?;
     Ok(())
 }

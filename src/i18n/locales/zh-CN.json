@@ -161,6 +161,7 @@
       "notUtf8": "“{{fileName}}”不是 UTF-8 编码，NyaMark 没有改动它。请先转换为 UTF-8 再打开。",
       "notUtf8Known": "“{{fileName}}”是 {{encoding}} 编码。NyaMark 只编辑 UTF-8 文件，没有改动它。请先转换为 UTF-8 再打开。",
       "forbidden": "NyaMark 无权访问“{{fileName}}”。",
+      "readOnly": "“{{fileName}}”是只读文件，NyaMark 没有改动它。可以用“另存为”把改动存到别的文件。",
       "tooLarge": "“{{fileName}}”超过 {{limit}} MB，超出了 NyaMark 能编辑的大小。",
       "openFailed": "无法打开“{{fileName}}”：{{reason}}",
       "saveFailed": "无法保存“{{fileName}}”：{{reason}}"

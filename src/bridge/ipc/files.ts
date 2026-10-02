@@ -100,6 +100,7 @@ export interface MarkdownDocument {
 export type DocumentErrorKind =
   | 'not-utf8'
   | 'forbidden'
+  | 'read-only'
   | 'too-large'
   | 'missing'
   | 'io';
