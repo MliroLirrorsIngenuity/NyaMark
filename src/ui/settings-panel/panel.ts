@@ -77,9 +77,12 @@ const styles = `
   font-size: 13px;
 }
 
+/* The padding keeps focus rings clear of the scroll edge; the margin takes it
+   back, to start the fields where the title and the buttons start. */
 .ny-settings-dialog__body {
   overflow: auto;
-  padding: 0 8px 0 6px;
+  margin: 0 -8px;
+  padding: 0 8px;
 }
 
 .ny-settings__section {
