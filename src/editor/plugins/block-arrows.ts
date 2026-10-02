@@ -305,6 +305,32 @@ function wordOutOfCode(view: EditorView, dir: 1 | -1): boolean {
   return true;
 }
 
+/**
+ * Option and the left or right arrow over a formula, or another node in a
+ * line that holds no text of it, as over a word. The browser's word steps
+ * went past it and the word beyond it in one, as if it were a space.
+ */
+function wordOverInline(view: EditorView, dir: 1 | -1): boolean {
+  const { selection, doc } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  if (isCode(selection)) return false;
+  // Spaces before it are passed, as before a word.
+  for (let pos = selection.head; ; pos += dir) {
+    const $pos = doc.resolve(pos);
+    const node = dir > 0 ? $pos.nodeAfter : $pos.nodeBefore;
+    if (!node) return false;
+    if (node.isText) {
+      const text = node.text ?? '';
+      if (!/\s/.test(dir > 0 ? text[0] : text[text.length - 1])) return false;
+      continue;
+    }
+    if (!node.isAtom || node.type.name === 'hardbreak') return false;
+    const past = TextSelection.create(doc, pos + dir * node.nodeSize);
+    view.dispatch(view.state.tr.setSelection(past).scrollIntoView());
+    return true;
+  }
+}
+
 /** The caret beside an HTML block, in the paragraph that holds it. */
 const besideHtml = (selection: Selection) =>
   selection instanceof TextSelection && isHtmlBlock(selection.$head.parent);
@@ -772,7 +798,10 @@ export const blockArrows = $prose(() => {
           }
           return;
         }
-        if (event.altKey && wordOutOfCode(view, arrow[0])) {
+        if (
+          event.altKey &&
+          (wordOutOfCode(view, arrow[0]) || wordOverInline(view, arrow[0]))
+        ) {
           event.preventDefault();
           event.stopPropagation();
           return;
