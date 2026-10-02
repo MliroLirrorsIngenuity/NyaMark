@@ -270,6 +270,41 @@ function leavesCodeAtTop(view: EditorView, key: string): boolean {
   return key === 'ArrowUp' ? onEdgeRow(code.cm, -1) : main.head === 0;
 }
 
+/**
+ * Option and the left arrow at the start of a code block, or the right arrow
+ * at its end, on to the word past it, as from one line of text to the next.
+ * The block's own keys go by words in it and stopped at its edge for good.
+ */
+function wordOutOfCode(view: EditorView, dir: 1 | -1): boolean {
+  const { selection, doc } = view.state;
+  if (!(selection instanceof TextSelection) || !isCode(selection)) {
+    return false;
+  }
+  const { $head } = selection;
+  const code = codeMirrorAt(view, $head.before());
+  if (!code) return false;
+  const { main } = code.cm.state.selection;
+  const edge = dir > 0 ? code.cm.state.doc.length : 0;
+  if (!main.empty || main.head !== edge) return false;
+  const side = dir > 0 ? $head.after() : $head.before();
+  const past =
+    pastBlocks(doc, side, dir) ?? Selection.findFrom(doc.resolve(side), dir);
+  // Nothing but blocks past it to the end of the document: it stays.
+  if (!(past instanceof TextSelection)) return false;
+  if (dir > 0 ? past.head < side : past.head > side) return false;
+  const $past = past.$head;
+  const at = TextSelection.create(doc, dir > 0 ? $past.start() : $past.end());
+  view.dispatch(view.state.tr.setSelection(at).scrollIntoView());
+  view.focus();
+  // Another code block takes the caret at its edge, as the arrow alone does.
+  if (!isCode(at)) {
+    view.dom.ownerDocument
+      .getSelection()
+      ?.modify('move', dir > 0 ? 'forward' : 'backward', 'word');
+  }
+  return true;
+}
+
 /** The caret beside an HTML block, in the paragraph that holds it. */
 const besideHtml = (selection: Selection) =>
   selection instanceof TextSelection && isHtmlBlock(selection.$head.parent);
@@ -735,6 +770,11 @@ export const blockArrows = $prose(() => {
             event.preventDefault();
             event.stopImmediatePropagation();
           }
+          return;
+        }
+        if (event.altKey && wordOutOfCode(view, arrow[0])) {
+          event.preventDefault();
+          event.stopPropagation();
           return;
         }
         // Ahead of the code block's own keys, which keep the caret in it.
