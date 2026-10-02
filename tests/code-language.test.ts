@@ -52,6 +52,32 @@ describe('the word a chosen language is fenced with', () => {
   });
 });
 
+describe('a fence word', () => {
+  // As Crepe finds the block's language: the word among a language's names.
+  const fenced = (word: string) =>
+    codeLanguages.find((each) => each.alias.includes(word))?.name ?? null;
+
+  test('that is a file extension names its language', () => {
+    expect(fenced('py')).toBe('Python');
+    expect(fenced('rs')).toBe('Rust');
+    expect(fenced('md')).toBe('Markdown');
+    expect(fenced('kt')).toBe('Kotlin');
+    expect(fenced('h')).toBe('C');
+  });
+
+  test('keeps the language it named already', () => {
+    expect(fenced('js')).toBe('JavaScript');
+    expect(fenced('ts')).toBe('TypeScript');
+    expect(fenced('sh')).toBe('Shell');
+  });
+
+  test('names none for an extension two languages share or one a fence means otherwise', () => {
+    expect(fenced('m')).toBeNull();
+    expect(fenced('text')).toBeNull();
+    expect(fenced('1')).toBeNull();
+  });
+});
+
 describe('a language chosen from the list', () => {
   const start = () =>
     EditorState.create({

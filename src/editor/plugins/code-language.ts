@@ -32,13 +32,52 @@ export function fenceWord(language: Language) {
   );
 }
 
+/**
+ * Extensions a fence names its language by, as ```py, ```rs and ```md do.
+ * language-data had them only as file extensions, and such a block was left
+ * plain, its Python unindented after a colon. Taken: an extension one language
+ * has and no other has as a name. Left: Troff's numbers, and words a fence
+ * means something else by, as ```text is plain text and LaTeX's extension.
+ */
+const OTHER_MEANING = new Set(['text', 'in', 'cfg', 'map', 'build', 'spec']);
+
+const NAMES = new Set(
+  languages.flatMap((language) => [
+    language.name.toLowerCase(),
+    ...language.alias,
+  ])
+);
+
+const EXTENSION_COUNT = new Map<string, number>();
+for (const language of languages) {
+  for (const extension of new Set(
+    language.extensions.map((each) => each.toLowerCase())
+  )) {
+    EXTENSION_COUNT.set(extension, (EXTENSION_COUNT.get(extension) ?? 0) + 1);
+  }
+}
+
+function fenceExtensions(language: LanguageDescription) {
+  return Array.from(
+    new Set(language.extensions.map((each) => each.toLowerCase()))
+  ).filter(
+    (extension) =>
+      EXTENSION_COUNT.get(extension) === 1 &&
+      !NAMES.has(extension) &&
+      !OTHER_MEANING.has(extension) &&
+      !/^\d+$|\./.test(extension)
+  );
+}
+
 /** The languages code is highlighted in, each known by its fence word. */
 export const codeLanguages = languages.map((language) => {
-  const word = fenceWord(language);
-  if (language.alias.includes(word)) return language;
+  const known = [...language.alias, ...fenceExtensions(language)];
+  const word = fenceWord({ name: language.name, alias: known });
+  const alias = known.includes(word) ? known : [...known, word];
+  if (alias.length === language.alias.length) return language;
   return LanguageDescription.of({
     name: language.name,
-    alias: [...language.alias, word],
+    alias,
     extensions: language.extensions,
     filename: language.filename,
     load: () => language.load(),
