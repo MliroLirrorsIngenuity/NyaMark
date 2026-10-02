@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkFrontmatter from 'remark-frontmatter';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
@@ -9,7 +10,9 @@ import {
   forgetBullet,
   joinInTightItem,
   normalizeOutput,
+  writeEmphasis,
   writeRoot,
+  writeStrong,
   writeText,
   writeThematicBreak,
 } from '../src/editor/plugins/markdown-output';
@@ -448,5 +451,74 @@ describe('writeThematicBreak', () => {
   test('keeps front matter and the rules after it', () => {
     const markdown = '---\ntitle: a\n---\n\n---\n\n正文\n';
     expect(processor.stringify(processor.parse(markdown))).toBe(markdown);
+  });
+});
+
+describe('writeEmphasis and writeStrong', () => {
+  type Inline = {
+    type: string;
+    value?: string;
+    marker?: string;
+    children?: Inline[];
+  };
+  const text = (value: string): Inline => ({ type: 'text', value });
+  const mark = (type: string, marker: string, value: string): Inline => ({
+    type,
+    marker,
+    children: [text(value)],
+  });
+  const processor = unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkCjkFriendly)
+    .use(remarkStringify, {
+      handlers: {
+        text: writeText,
+        emphasis: writeEmphasis,
+        strong: writeStrong,
+      },
+    });
+  /** A line of `children` written, and what it reads as opened again. */
+  function save(...children: Inline[]) {
+    const markdown = processor.stringify({
+      type: 'root',
+      children: [{ type: 'paragraph', children }],
+    } as never);
+    const shape = (node: Inline): string =>
+      node.type === 'text'
+        ? (node.value ?? '')
+        : `<${node.type}>${(node.children ?? []).map(shape).join('')}</>`;
+    const read = processor.parse(markdown) as Inline;
+    const line = read.children?.[0]?.children ?? [];
+    expect(line.map(shape).join('')).toBe(children.map(shape).join(''));
+    return markdown;
+  }
+
+  test('holds between a letter and a stop', () => {
+    expect(save(mark('strong', '*', 'Note:'), text('text'))).toBe(
+      '**Note:**&#x74;ext\n'
+    );
+    expect(save(text('a'), mark('emphasis', '*', '(b)'), text('c'))).toBe(
+      '&#x61;*(b)*&#x63;\n'
+    );
+    expect(save(text('注'), mark('emphasis', '*', '('), text('1'))).toBe(
+      '注*(*&#x31;\n'
+    );
+  });
+
+  test('writes the stars as they are beside CJK text', () => {
+    expect(
+      save(text('这是'), mark('strong', '*', '「重点」'), text('内容'))
+    ).toBe('这是**「重点」**内容\n');
+  });
+
+  test('keeps an underscore beside a space and stars inside a word', () => {
+    expect(
+      save(text('see '), mark('emphasis', '_', 'word'), text(' now'))
+    ).toBe('see _word_ now\n');
+    expect(save(mark('emphasis', '_', 'word'), text('s'))).toBe('*word*s\n');
+    expect(save(text('中'), mark('strong', '_', '文'), text('字'))).toBe(
+      '中**文**字\n'
+    );
   });
 });

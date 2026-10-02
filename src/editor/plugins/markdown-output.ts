@@ -74,8 +74,10 @@ import {
   type ConstructName,
   type Handle,
   type Join,
+  type State,
   defaultHandlers,
 } from 'mdast-util-to-markdown';
+import { cjkFriendlyToMarkdown } from 'mdast-util-to-markdown-cjk-friendly';
 import type { Processor } from 'unified';
 import { frontMatterOnTop } from './front-matter';
 import { isDollarText } from './math-dollars';
@@ -447,6 +449,51 @@ export const writeThematicBreak: Handle = (node, parent, state) =>
   parent?.type === 'root' && parent.children[0] === node
     ? '***'
     : defaultHandlers.thematicBreak(node, parent, state);
+
+const cjkAttention = cjkFriendlyToMarkdown().handlers ?? {};
+
+/** A character `_` holds no emphasis beside: a letter or digit, CJK too. */
+const WORD_CHARACTER = /[^\s\p{P}\p{S}]/u;
+
+/**
+ * remark-cjk-friendly's handler for emphasis or bold, in the marker it was
+ * written or typed with. Milkdown's own put the stars down wherever the mark
+ * began and ended, and between a letter and a stop they open or close
+ * nothing: `**Note:**text` and `a*(b)*c` came back as text with the stars in
+ * it. There the letter outside goes out as a character reference, `&#x74;`,
+ * as remark writes it; beside CJK text the stars hold as they are. `_` holds
+ * only beside a space or a stop, and `*` stands in for it elsewhere.
+ */
+function writeAttention(type: 'emphasis' | 'strong') {
+  const handle = cjkAttention[type] as Handle;
+  const markerOf = (node: { marker?: string }, state: State) =>
+    node.marker === '_' || node.marker === '*'
+      ? node.marker
+      : (state.options[type] ?? '*');
+  return Object.assign(
+    ((node, parent, state, info) => {
+      const option = state.options[type];
+      const outside = [info.before.slice(-1), info.after.charAt(0)];
+      state.options[type] =
+        markerOf(node, state) === '_' &&
+        !outside.some((char) => WORD_CHARACTER.test(char))
+          ? '_'
+          : '*';
+      try {
+        return handle(node, parent, state, info);
+      } finally {
+        state.options[type] = option;
+      }
+    }) satisfies Handle,
+    {
+      // The marker, for the text before to escape.
+      peek: ((node, _parent, state) => markerOf(node, state)) satisfies Handle,
+    }
+  );
+}
+
+export const writeEmphasis = writeAttention('emphasis');
+export const writeStrong = writeAttention('strong');
 
 /** remark's handler for the whole document, `&` escaped only where needed. */
 export const writeRoot: Handle = (node, parent, state, info) => {

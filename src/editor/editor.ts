@@ -111,7 +111,9 @@ import {
   forgetBullet,
   joinInTightItem,
   markdownOutput,
+  writeEmphasis,
   writeRoot,
+  writeStrong,
   writeText,
   writeThematicBreak,
 } from './plugins/markdown-output';
@@ -201,7 +203,8 @@ export class NyaEditor {
     // `-` bullets and `---` rules, the markers most notes are written with;
     // remark's defaults rewrote every one of them to `*` on save. Text keeps
     // the underscores, hashes and ampersands it needs no escape for (see
-    // markdown-output), and a link written bare stays bare (see bare-links).
+    // markdown-output), a link written bare stays bare (see bare-links), and
+    // italics and bold come back beside the letters around them.
     crepe.editor.config((ctx) => {
       ctx.update(remarkStringifyOptionsCtx, (options) => ({
         ...options,
@@ -212,6 +215,8 @@ export class NyaEditor {
           root: writeRoot,
           text: writeText,
           link: writeLink,
+          emphasis: writeEmphasis,
+          strong: writeStrong,
           thematicBreak: writeThematicBreak,
         },
         // remark asks the last of these first, and stops at an answer.
