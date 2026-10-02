@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use tauri::utils::config::WindowConfig;
-use tauri::{AppHandle, Runtime, WebviewWindowBuilder, Window};
+use tauri::{AppHandle, Manager, Runtime, WebviewWindowBuilder, Window};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::sessions;
@@ -64,7 +64,9 @@ pub fn create_main_window<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     build_window(app, &config)
 }
 
-/// Open a new editor window bound to an existing markdown file on disk.
+/// Open a new editor window bound to an existing markdown file on disk. A file
+/// some window already edits brings that window forward: two windows on one
+/// file saved over each other's changes.
 ///
 /// Builds on the calling thread, so it may only run from an async command (see
 /// `build_window`). Synchronous callers use `spawn_editor_window`.
@@ -75,9 +77,16 @@ pub fn open_editor_window<R: Runtime>(app: &AppHandle<R>, path: String) -> Resul
     let label = sessions::next_window_label(app);
     config.label = label.clone();
 
-    // Remember the file binding before the window builds so the child's
+    // Bind the file before the window builds so the child's
     // `resolve_current_window_file` lookup cannot race ahead of it.
-    sessions::remember_window_file(app, &label, normalized_path);
+    if let Some(holder) = sessions::claim_window_file(app, &label, normalized_path) {
+        if let Some(window) = app.get_webview_window(&holder) {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+        return Ok(());
+    }
 
     build_window(app, &config).inspect_err(|_| sessions::forget_window_file(app, &label))
 }

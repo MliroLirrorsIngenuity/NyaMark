@@ -152,6 +152,29 @@ fn strip_verbatim_prefix(path: PathBuf) -> String {
     s
 }
 
+/// Bind `path` to the window `label`, or name the open window that already
+/// edits it and leave the map as it is. One lock covers the check and the
+/// binding.
+pub fn claim_window_file<R: Runtime>(
+    app: &AppHandle<R>,
+    label: &str,
+    path: String,
+) -> Option<String> {
+    let state = app.state::<WindowSessions>();
+    let mut sessions = state.0.lock_or_recover();
+    let holder = sessions
+        .iter()
+        .find(|(holder, held)| **held == path && app.get_webview_window(holder).is_some())
+        .map(|(holder, _)| holder.clone());
+    if holder.is_some() {
+        return holder;
+    }
+    sessions.insert(label.to_string(), path.clone());
+    drop(sessions);
+    allow_document_scope(app, &path);
+    None
+}
+
 pub fn forget_window_file<R: Runtime>(app: &AppHandle<R>, label: &str) {
     app.state::<WindowSessions>()
         .0
