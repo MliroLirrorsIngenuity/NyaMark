@@ -72,6 +72,7 @@ import { markCursor } from './plugins/mark-cursor';
 import { markInput } from './plugins/mark-input';
 import {
   displayWidth,
+  forgetBullet,
   joinInTightItem,
   markdownOutput,
   writeRoot,
@@ -173,7 +174,8 @@ export class NyaEditor {
           text: writeText,
           link: writeLink,
         },
-        join: [...(options.join ?? []), joinInTightItem],
+        // remark asks the last of these first, and stops at an answer.
+        join: [...(options.join ?? []), joinInTightItem, forgetBullet],
       }));
       // Table pipes line up by display width (see markdown-output), and a
       // strikethrough takes two tildes (see mark-input).

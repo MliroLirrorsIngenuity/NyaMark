@@ -5,6 +5,7 @@ import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
 import {
   displayWidth,
+  forgetBullet,
   joinInTightItem,
   normalizeOutput,
   writeRoot,
@@ -201,6 +202,24 @@ describe('joinInTightItem', () => {
     expect(written('```\n  c\n  ```').out).toBe(
       '- a\n  ```\n  c\n  ```\n  after\n- b\n'
     );
+  });
+});
+
+describe('forgetBullet', () => {
+  const write = (markdown: string) =>
+    unified()
+      .use(remarkParse)
+      .use(remarkStringify, { bullet: '-', join: [forgetBullet] })
+      .processSync(markdown)
+      .toString();
+
+  test('keeps the bullet of a list opening a quote after a list', () => {
+    const markdown = '- a\n\n> - b\n> - c\n';
+    expect(write(markdown)).toBe(markdown);
+  });
+
+  test('still tells two lists in a row apart', () => {
+    expect(write('- a\n\n* b\n')).toBe('- a\n\n* b\n');
   });
 });
 
