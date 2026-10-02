@@ -52,6 +52,12 @@ describe('findMatches', () => {
     ]);
   });
 
+  test('skips the hidden marker of an alert', () => {
+    const at = doc(quote(p('[!WARNING]\nwarning ahead')), p('no warning'));
+    expect(matchedText(at, 'warning')).toEqual(['warning', 'warning']);
+    expect(findMatches(at, 'warning')[0].from).toBeGreaterThan(12);
+  });
+
   test('never matches across blocks', () => {
     expect(findMatches(doc(p('foo'), p('bar')), 'foobar')).toEqual([]);
   });

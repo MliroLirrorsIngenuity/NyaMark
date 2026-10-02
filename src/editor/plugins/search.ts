@@ -15,6 +15,7 @@ import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 import { ensureStyle } from '../../style/register';
 import { showCodeMatches } from './code-search';
+import { alertMarkers } from './gfm-alerts';
 
 export type SearchMatch = { from: number; to: number };
 
@@ -49,10 +50,15 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Case-insensitive, literal matches of `query` in document order. */
+/**
+ * Case-insensitive, literal matches of `query` in document order. An alert's
+ * `[!NOTE]` is hidden behind its label: a match there showed nothing, and
+ * typing after Escape went into the marker and broke the alert.
+ */
 export function findMatches(doc: ProseNode, query: string): SearchMatch[] {
   if (!query) return [];
   const pattern = new RegExp(escapeRegExp(query), 'giu');
+  const hidden = alertMarkers(doc);
   const matches: SearchMatch[] = [];
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true;
@@ -68,10 +74,12 @@ export function findMatches(doc: ProseNode, query: string): SearchMatch[] {
     }
     const start = pos + 1;
     for (const hit of text.matchAll(pattern)) {
-      matches.push({
-        from: start + hit.index,
-        to: start + hit.index + hit[0].length,
-      });
+      const from = start + hit.index;
+      const to = from + hit[0].length;
+      if (hidden.some((marker) => from < marker.to && to > marker.from)) {
+        continue;
+      }
+      matches.push({ from, to });
     }
     return false;
   });
