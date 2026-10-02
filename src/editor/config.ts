@@ -14,6 +14,7 @@ import {
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
 import { codeArrowsByRow } from './plugins/block-arrows';
+import { intoKeys } from './plugins/block-keys';
 import { codeClearOfBar } from './plugins/caret-scroll';
 import { caretThroughColour } from './plugins/code-colour-caret';
 import { closeFenceOnEnter } from './plugins/code-fence-exit';
@@ -305,6 +306,7 @@ function localizedFeatureConfigs() {
       buildTopBar: (builder: Builder) => {
         intoInsertedBlocks(builder);
         intoToggles(builder);
+        intoKeys(builder);
       },
       headingOptions: [
         { label: blockLabel('paragraph'), level: null },

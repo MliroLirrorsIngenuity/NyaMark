@@ -34,6 +34,7 @@ import { blockArrows } from './plugins/block-arrows';
 import { blockEdges, freeHeadingEdges } from './plugins/block-edges';
 import { handleBlocksOnly } from './plugins/block-handle-blocks';
 import { restHiddenBlockHandle } from './plugins/block-handle-rest';
+import { blockKeys, dropWrapKeys } from './plugins/block-keys';
 import { blockSelection } from './plugins/block-selection';
 import { caretScroll } from './plugins/caret-scroll';
 import { codeKey } from './plugins/code-key';
@@ -193,6 +194,7 @@ export class NyaEditor {
     crepe.editor.config(keepBareLinks);
     crepe.editor.config(typeOutsideLinks);
     crepe.editor.config(restoreOnCancel);
+    crepe.editor.config(dropWrapKeys);
     crepe.editor.config(keepCellAlignment);
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.config(handleBlocksOnly);
@@ -228,6 +230,7 @@ export class NyaEditor {
     crepe.editor.use(linkBox);
     crepe.editor.use(linkKey);
     crepe.editor.use(codeKey);
+    crepe.editor.use(blockKeys);
     crepe.editor.use(slashMenuRoom);
     crepe.editor.use(plusLine);
     crepe.editor.use(fenceInput);
