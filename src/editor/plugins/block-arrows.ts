@@ -47,7 +47,9 @@
  * Cmd and the left or right arrow at the end of the line they point to keep
  * the caret there, as in any text on a Mac. ProseMirror went on to an image,
  * a rule or an HTML block next to the line and selected it, and Backspace or
- * the next letter typed took it away.
+ * the next letter typed took it away. Option and the arrow, a word at a time,
+ * stopped on the block the same way; from the end of a line it now goes on
+ * past the block as the arrow alone does.
  */
 
 import { EditorSelection, Prec, findClusterBreak } from '@codemirror/state';
@@ -599,7 +601,8 @@ export const blockArrows = $prose(() => {
         if (lineToType(view, event)) return;
         const arrow = ARROWS[event.key];
         if (!arrow || event.isComposing || view.composing) return;
-        if (event.altKey || event.metaKey || event.ctrlKey) return;
+        if (event.metaKey || event.ctrlKey) return;
+        if (event.altKey && (arrow[1] || event.shiftKey)) return;
         if (event.shiftKey) {
           if (extendPastBlock(view, arrow[0], arrow[1])) {
             // ProseMirror listens on the same element.
