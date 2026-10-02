@@ -17,9 +17,15 @@
  *
  * Dragging from either takes in the lines it passes, as a drag over the text
  * does.
+ *
+ * A block dragged by its handle and let go beside the text or under it goes
+ * to the nearest line, as it does over the text: the room there takes no
+ * drop, and the block went back where it was, with no line drawn where it
+ * would go.
  */
 
 import { EditorView as CodeMirror } from '@codemirror/view';
+import type { Slice } from '@milkdown/kit/prose/model';
 import {
   Plugin,
   PluginKey,
@@ -153,6 +159,17 @@ function betweenBlocks(view: EditorView, target: EventTarget | null) {
   return target.matches(BETWEEN_BLOCKS);
 }
 
+/** Whether `slice` is whole blocks, as a block's handle drags it. */
+function isBlocks(slice: Slice | undefined): boolean {
+  if (!slice || slice.openStart || slice.openEnd) return false;
+  const { content } = slice;
+  if (!content.childCount) return false;
+  for (let i = 0; i < content.childCount; i++) {
+    if (!content.child(i).isBlock) return false;
+  }
+  return true;
+}
+
 export const marginClick = $prose(() => {
   let anchor = -1;
   let held: EditorView | null = null;
@@ -221,11 +238,38 @@ export const marginClick = $prose(() => {
         event.preventDefault();
         view.focus();
       };
+      // The text's own drop line and drop are given the drag: they find the
+      // line nearest the pointer, wherever it is. WebKit sends no more of a
+      // drag to the room once it has entered it unless the room takes it.
+      const onDrag = (event: DragEvent) => {
+        if (!bareRoom(view, event.target) || !view.editable) return;
+        if (!isBlocks(view.dragging?.slice)) return;
+        event.preventDefault();
+        if (event.type === 'dragenter') return;
+        view.dom.dispatchEvent(
+          new DragEvent(event.type, {
+            cancelable: true,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            altKey: event.altKey,
+            ctrlKey: event.ctrlKey,
+            metaKey: event.metaKey,
+            shiftKey: event.shiftKey,
+            dataTransfer: event.dataTransfer,
+          })
+        );
+      };
       page.addEventListener('mousedown', onDown);
+      page.addEventListener('dragenter', onDrag);
+      page.addEventListener('dragover', onDrag);
+      page.addEventListener('drop', onDrag);
       return {
         destroy() {
           onUp();
           page.removeEventListener('mousedown', onDown);
+          page.removeEventListener('dragenter', onDrag);
+          page.removeEventListener('dragover', onDrag);
+          page.removeEventListener('drop', onDrag);
         },
       };
     },
