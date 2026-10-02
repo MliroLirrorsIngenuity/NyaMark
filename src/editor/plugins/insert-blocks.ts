@@ -6,7 +6,8 @@
  * empty bullet and the caret went on to the line under the list.
  *
  * The caret goes to a line under the images now, an empty one already there
- * or a new one, ready for the text that follows. An empty line gives its
+ * or a new one, ready for the text that follows; a new one goes again if the
+ * caret leaves it empty (see `plus-line`). An empty line gives its
  * place to them, in a list item going under the item above as a code block
  * typed there does. Pasted in the middle of a line, they split it and the
  * caret is left in front of its rest; at the start of one, they go above it.
@@ -20,6 +21,7 @@ import {
   type Transaction,
 } from '@milkdown/kit/prose/state';
 import { replaceLineWith } from './fence-input';
+import { markLineAdded } from './plus-line';
 
 /** The caret on an empty line at `pos`, the one there or a new one. */
 export function caretOnLineAt(tr: Transaction, pos: number): Transaction {
@@ -27,7 +29,7 @@ export function caretOnLineAt(tr: Transaction, pos: number): Transaction {
   if (!paragraph) return tr;
   const next = tr.doc.nodeAt(pos);
   if (next?.type !== paragraph || next.content.size > 0) {
-    tr.insert(pos, paragraph.create());
+    markLineAdded(tr.insert(pos, paragraph.create()));
   }
   return tr.setSelection(TextSelection.create(tr.doc, pos + 1));
 }

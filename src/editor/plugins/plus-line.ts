@@ -6,6 +6,10 @@
  *
  * Once anything is typed in it or a block is chosen for it, the line is
  * the document's like any other.
+ *
+ * The line put in under images pasted, dropped or picked, for the text that
+ * follows them (see `insert-blocks`), goes the same way: left empty, it was
+ * saved as a `<br />` between the image and the next block.
  */
 
 import {
@@ -18,6 +22,12 @@ import { $prose } from '@milkdown/kit/utils';
 
 const key = new PluginKey<number[]>('ny-plus-line');
 const ADD_BUTTON = '.milkdown-block-handle .operation-item:first-child';
+const ADDED = 'added';
+
+/** `tr` put in the empty line its selection ends on, to go if left empty. */
+export function markLineAdded(tr: Transaction): Transaction {
+  return tr.setMeta(key, ADDED);
+}
 
 function isEmptyLine(state: EditorState, pos: number): boolean {
   const node = state.doc.nodeAt(pos);
@@ -73,8 +83,9 @@ export const plusLine = $prose(() => {
     state: {
       init: () => [],
       apply(tr, lines, _old, state) {
-        const added = adding && tr.docChanged;
-        if (added) adding = false;
+        const pressed = adding && tr.docChanged;
+        if (pressed) adding = false;
+        const added = pressed || tr.getMeta(key) === ADDED;
         if (lines.length === 0 && !added) return lines;
         return plusLinesAfter(lines, tr, state, added);
       },
