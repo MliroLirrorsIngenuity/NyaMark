@@ -81,8 +81,27 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..62000c717b8cb4677fd7b5840be74bb3
      }));
      __privateGet$1(this, _slashProvider).onShow = () => {
        show.value = true;
+diff --git a/lib/cjs/feature/toolbar/index.js b/lib/cjs/feature/toolbar/index.js
+index c5069d95686d9c90e24a69366fdbe46402d91cea..d5cae1d2feffc19c3e7e0b8806a066e440c38308 100644
+--- a/lib/cjs/feature/toolbar/index.js
++++ b/lib/cjs/feature/toolbar/index.js
+@@ -443,7 +443,13 @@ class ToolbarView {
+     __privateAdd(this, _selection);
+     __privateAdd(this, _show, vue.ref(false));
+     this.update = (view, prevState) => {
+-      __privateGet(this, _tooltipProvider).update(view, prevState);
++      // NyaMark: text typed over the selection with an input method put the
++      // caret where the selection was, and the updates of the composition are
++      // passed over: the toolbar stood on under the line typed, over nothing
++      // selected. It goes as the composition takes the selection away.
++      const provider = __privateGet(this, _tooltipProvider);
++      if (view.composing && view.state.selection.empty) provider.hide();
++      else provider.update(view, prevState);
+       __privateGet(this, _selection).value = view.state.selection;
+     };
+     this.destroy = () => {
 diff --git a/lib/cjs/index.js b/lib/cjs/index.js
-index 9726836fbea853e8be52f11df9b14b5589d457b3..3903a64014c34e8fbe84b58df28bf3c8febe3c29 100644
+index 9726836fbea853e8be52f11df9b14b5589d457b3..08ba2ab2ca1f372d46f682ea850961f191bbc174 100644
 --- a/lib/cjs/index.js
 +++ b/lib/cjs/index.js
 @@ -1183,6 +1183,14 @@ const Menu = vue.defineComponent({
@@ -164,6 +183,21 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..3903a64014c34e8fbe84b58df28bf3c8
      }));
      __privateGet$5(this, _slashProvider).onShow = () => {
        show.value = true;
+@@ -2303,7 +2334,13 @@ class ToolbarView {
+     __privateAdd$2(this, _selection);
+     __privateAdd$2(this, _show, vue.ref(false));
+     this.update = (view, prevState) => {
+-      __privateGet$2(this, _tooltipProvider).update(view, prevState);
++      // NyaMark: text typed over the selection with an input method put the
++      // caret where the selection was, and the updates of the composition are
++      // passed over: the toolbar stood on under the line typed, over nothing
++      // selected. It goes as the composition takes the selection away.
++      const provider = __privateGet$2(this, _tooltipProvider);
++      if (view.composing && view.state.selection.empty) provider.hide();
++      else provider.update(view, prevState);
+       __privateGet$2(this, _selection).value = view.state.selection;
+     };
+     this.destroy = () => {
 diff --git a/lib/esm/feature/block-edit/index.js b/lib/esm/feature/block-edit/index.js
 index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..b364a4daf125684e73c27d4a65bc4c7317350bc3 100644
 --- a/lib/esm/feature/block-edit/index.js
@@ -247,8 +281,27 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..b364a4daf125684e73c27d4a65bc4c73
      }));
      __privateGet$1(this, _slashProvider).onShow = () => {
        show.value = true;
+diff --git a/lib/esm/feature/toolbar/index.js b/lib/esm/feature/toolbar/index.js
+index fb4d168a050811dc53bd55bcad0ce05c603233b4..08ac44738e60639bfcf294a9a32c601e6adb23e1 100644
+--- a/lib/esm/feature/toolbar/index.js
++++ b/lib/esm/feature/toolbar/index.js
+@@ -441,7 +441,13 @@ class ToolbarView {
+     __privateAdd(this, _selection);
+     __privateAdd(this, _show, ref(false));
+     this.update = (view, prevState) => {
+-      __privateGet(this, _tooltipProvider).update(view, prevState);
++      // NyaMark: text typed over the selection with an input method put the
++      // caret where the selection was, and the updates of the composition are
++      // passed over: the toolbar stood on under the line typed, over nothing
++      // selected. It goes as the composition takes the selection away.
++      const provider = __privateGet(this, _tooltipProvider);
++      if (view.composing && view.state.selection.empty) provider.hide();
++      else provider.update(view, prevState);
+       __privateGet(this, _selection).value = view.state.selection;
+     };
+     this.destroy = () => {
 diff --git a/lib/esm/index.js b/lib/esm/index.js
-index ea68de6cfb124faa35d9f047d82788a1043d255c..2196ce70b50b222856b158ede85173f96a9e80cf 100644
+index ea68de6cfb124faa35d9f047d82788a1043d255c..fd4ab92a6d6d789ca2faced8f4e29a90ba1a0320 100644
 --- a/lib/esm/index.js
 +++ b/lib/esm/index.js
 @@ -1181,6 +1181,14 @@ const Menu = defineComponent({
@@ -330,3 +383,18 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..2196ce70b50b222856b158ede85173f9
      }));
      __privateGet$5(this, _slashProvider).onShow = () => {
        show.value = true;
+@@ -2301,7 +2332,13 @@ class ToolbarView {
+     __privateAdd$2(this, _selection);
+     __privateAdd$2(this, _show, ref(false));
+     this.update = (view, prevState) => {
+-      __privateGet$2(this, _tooltipProvider).update(view, prevState);
++      // NyaMark: text typed over the selection with an input method put the
++      // caret where the selection was, and the updates of the composition are
++      // passed over: the toolbar stood on under the line typed, over nothing
++      // selected. It goes as the composition takes the selection away.
++      const provider = __privateGet$2(this, _tooltipProvider);
++      if (view.composing && view.state.selection.empty) provider.hide();
++      else provider.update(view, prevState);
+       __privateGet$2(this, _selection).value = view.state.selection;
+     };
+     this.destroy = () => {
