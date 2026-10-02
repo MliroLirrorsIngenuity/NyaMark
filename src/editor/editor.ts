@@ -77,6 +77,7 @@ import { pasteIntoCell } from './plugins/paste-cell';
 import { pasteCodeAsCode } from './plugins/paste-code';
 import { pasteOnEmptyLine } from './plugins/paste-line';
 import { pasteTextLines } from './plugins/paste-text-lines';
+import { quoteInput } from './plugins/quote-input';
 import {
   type SearchMeta,
   findMatches,
@@ -185,6 +186,7 @@ export class NyaEditor {
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(blockEdges);
     crepe.editor.use(hrInput);
+    crepe.editor.use(quoteInput);
     crepe.editor.use(headingInput);
     crepe.editor.use(dollarInput);
     // Removed before the editor is created, so at once (see mark-input).
