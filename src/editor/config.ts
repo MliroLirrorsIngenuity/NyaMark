@@ -24,6 +24,7 @@ import { renderMermaidPreview } from './plugins/mermaid';
 import { rememberCodeCopy } from './plugins/paste-code';
 import { intoInsertedBlocks } from './plugins/toolbar-insert';
 import { type Builder, intoToggles } from './plugins/toolbar-toggles';
+import { intoHeadingSelector } from './plugins/top-bar-heading-code';
 import { pasteApart } from './plugins/undo-lines';
 
 export type CrepeConfigOptions = {
@@ -325,6 +326,7 @@ function localizedFeatureConfigs() {
         intoInsertedBlocks(builder);
         intoToggles(builder);
         intoKeys(builder);
+        intoHeadingSelector(builder);
       },
       headingOptions: [
         { label: blockLabel('paragraph'), level: null },

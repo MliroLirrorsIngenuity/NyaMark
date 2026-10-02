@@ -788,6 +788,18 @@
 }
 
 /*
+ * In code the heading list names the block and stays shut: no heading goes
+ * on a line of code. `top-bar-heading-code.ts` marks the root.
+ */
+.ny-editor-root .milkdown.ny-caret-in-code .top-bar-heading-button {
+  pointer-events: none !important;
+}
+
+.ny-editor-root .milkdown.ny-caret-in-code .top-bar-chevron {
+  opacity: 0.4 !important;
+}
+
+/*
  * A narrow page (a small window with the outline open) packs the top bar
  * tighter; at its full spacing it needs about 750px and ran off both ends.
  * `top-bar-fit.ts` marks the page narrow.

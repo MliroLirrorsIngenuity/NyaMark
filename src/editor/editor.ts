@@ -113,6 +113,7 @@ import { keepCellAlignment } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
 import { fitTopBar } from './plugins/top-bar-fit';
 import { keepFocusOffBar } from './plugins/top-bar-focus';
+import { markCaretInCode } from './plugins/top-bar-heading-code';
 import { closeHeadingListOnKeys } from './plugins/top-bar-heading-list';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
 import { undoByLine } from './plugins/undo-lines';
@@ -258,6 +259,7 @@ export class NyaEditor {
     crepe.editor.use(pasteOnEmptyLine);
     crepe.editor.use(pasteCodeAsCode);
     crepe.editor.use(pasteCodeEdges);
+    crepe.editor.use(markCaretInCode);
     crepe.editor.use(pasteTextLines);
     crepe.editor.use(pasteIntoCell);
     crepe.editor.use(mathInlineKeys);
