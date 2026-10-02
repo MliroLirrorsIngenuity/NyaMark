@@ -20,11 +20,22 @@ const PAGE_MARGINS: Record<ExportPdfSettings['margin'], string> = {
  */
 export class PdfExporter {
   private readonly dialog = new ExportPdfDialog();
+  private busy = false;
 
+  /**
+   * Asked again while the dialog is open or printing runs, it stays with
+   * the one under way: a second dialog over the first left the first one's
+   * keys bound once both closed, and Tab and Escape went to nothing.
+   */
   async open() {
-    const settings = await this.dialog.open({ fileName: printableTitle() });
-    if (!settings) return;
-    await exportAsPdf(settings);
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      const settings = await this.dialog.open({ fileName: printableTitle() });
+      if (settings) await exportAsPdf(settings);
+    } finally {
+      this.busy = false;
+    }
   }
 }
 
