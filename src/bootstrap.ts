@@ -163,6 +163,12 @@ export class App {
 
     new Statusbar(store, theme);
     const searchPanel = new SearchPanel(() => this.editor);
+    // The preview's find bar has no place beside the source pane, which has
+    // one of its own: left open, it searched the preview and, closed, put
+    // the caret there, where typing was lost to the next source edit.
+    store.subscribe((state) => {
+      if (state.sourceMode) searchPanel.hide();
+    });
 
     const menuController = new MenuController({
       'new-file': () => fileController.newFile(),
@@ -180,7 +186,9 @@ export class App {
       saveFile: () => fileController.saveFile(),
       saveFileAs: () => fileController.saveFileAs(),
       print: () => this.pdfExporter.open(),
-      find: () => searchPanel.show(),
+      find: () => {
+        if (!this.sourceMode?.find()) searchPanel.show();
+      },
       toggleOutline: () => this.toggleOutline(),
       openSettings: () => this.settingsPanel.open(),
     });

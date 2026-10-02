@@ -566,14 +566,15 @@ export class NyaEditor {
 
   /**
    * Drops the highlights. The selection stays on the last match; editable
-   * views take focus so typing continues there.
+   * views take focus so typing continues there, the preview beside the
+   * source pane aside.
    */
   endSearch() {
     const view = this.getView();
     if (!view) return;
     const meta: SearchMeta = { query: '', matches: [], active: -1 };
     view.dispatch(view.state.tr.setMeta(searchKey, meta));
-    if (view.editable) view.focus();
+    if (view.editable && !view.dom.closest('.is-source-mode')) view.focus();
   }
 
   /** Puts the caret in the editor without moving it, ready for typing. */

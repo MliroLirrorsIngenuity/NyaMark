@@ -22,6 +22,7 @@ import {
   syntaxHighlighting,
   syntaxTree,
 } from '@codemirror/language';
+import { openSearchPanel } from '@codemirror/search';
 import { Compartment, EditorSelection, EditorState } from '@codemirror/state';
 import { oneDarkTheme } from '@codemirror/theme-one-dark';
 import { tags } from '@lezer/highlight';
@@ -297,6 +298,13 @@ export class SourceModeController {
         effects: this.cmThemeCompartment.reconfigure(this.themeExtension()),
       });
     });
+  }
+
+  /** Opens the source pane's own find bar; false outside source mode. */
+  find() {
+    if (!this.cmView) return false;
+    openSearchPanel(this.cmView);
+    return true;
   }
 
   /**
