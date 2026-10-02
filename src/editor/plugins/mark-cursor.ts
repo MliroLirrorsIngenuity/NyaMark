@@ -14,8 +14,9 @@
  *
  * Code and links show where they end, and the caret goes by that. A click
  * past the end of one puts the caret outside it, as ⌘→ or End to the end of
- * the line does, and a click on its text puts it inside. Outside code, the
- * caret is drawn past its box.
+ * the line does, and a click on its text puts it inside. A paste that ends in
+ * one leaves the caret outside it too: the space typed after a pasted address
+ * went into its link. Outside code, the caret is drawn past its box.
  */
 
 import { Mark, type ResolvedPos } from '@milkdown/kit/prose/model';
@@ -134,6 +135,18 @@ export function outsideAtEdge(
   return state.tr.setStoredMarks(Mark.none);
 }
 
+/** The caret right after code or a link just pasted, outside it. */
+export function outsideAfterPaste(state: EditorState): Transaction | null {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+  const [before, after] = marksAround(selection.$head);
+  const ending = before.filter((mark) => drawn(mark) && !mark.isInSet(after));
+  if (!ending.length) return null;
+  return state.tr.setStoredMarks(
+    before.filter((mark) => !ending.includes(mark))
+  );
+}
+
 function cursorRect(view: EditorView, toStart: boolean) {
   const range = getSelection()?.getRangeAt(0)?.cloneRange();
   if (range) {
@@ -212,9 +225,14 @@ export const markCursor = $prose(() => {
   const cursor = document.createElement('div');
   // The line edge the last key went to, until the selection gets there.
   let jump: -1 | 0 | 1 = 0;
+  // While the paste event is handled, by whichever plugin takes it.
+  let pasting = false;
   return new Plugin({
     key,
     appendTransaction(trs, _old, state) {
+      if (pasting && trs.some((tr) => tr.docChanged)) {
+        return outsideAfterPaste(state);
+      }
       if (!jump || !trs.some((tr) => tr.selectionSet)) return null;
       const dir = jump;
       jump = 0;
@@ -246,6 +264,13 @@ export const markCursor = $prose(() => {
         },
         mousedown() {
           jump = 0;
+          return false;
+        },
+        paste() {
+          pasting = true;
+          setTimeout(() => {
+            pasting = false;
+          });
           return false;
         },
       },

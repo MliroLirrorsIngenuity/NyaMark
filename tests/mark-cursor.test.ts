@@ -3,6 +3,7 @@ import { type Mark, Schema } from '@milkdown/kit/prose/model';
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
 import {
   clickedSide,
+  outsideAfterPaste,
   outsideAtEdge,
   stepOver,
 } from '../src/editor/plugins/mark-cursor';
@@ -157,5 +158,25 @@ describe('clickedSide', () => {
   test('leaves edges of other marks to the browser', () => {
     const state = line([['粗', [strong]]], 2);
     expect(clickedSide(state.selection.$head, on(null))).toBeNull();
+  });
+});
+
+describe('outsideAfterPaste', () => {
+  test('leaves the caret after a pasted link, in the bold around it', () => {
+    const state = line(
+      [
+        ['见 ', [strong]],
+        ['https://e.com', [strong, link]],
+        ['后', [strong]],
+      ],
+      16
+    );
+    expect(names(outsideAfterPaste(state)?.storedMarks)).toEqual(['strong']);
+  });
+
+  test('leaves it where nothing pasted ends', () => {
+    expect(outsideAfterPaste(line([['文', []]], 2))).toBeNull();
+    expect(outsideAfterPaste(codeAtEnd.apply(codeAtEnd.tr))).not.toBeNull();
+    expect(outsideAfterPaste(line([['粗', [strong]]], 2))).toBeNull();
   });
 });
