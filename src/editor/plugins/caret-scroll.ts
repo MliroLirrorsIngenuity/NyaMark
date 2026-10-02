@@ -21,7 +21,12 @@
  */
 
 import { EditorView as CodeMirror } from '@codemirror/view';
-import { NodeSelection, Plugin, PluginKey } from '@milkdown/kit/prose/state';
+import {
+  NodeSelection,
+  Plugin,
+  PluginKey,
+  Selection as ProseSelection,
+} from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 
@@ -112,7 +117,15 @@ function follow(view: EditorView, page: HTMLElement, before: number) {
   let by = 0;
   if (caret.top + back < top) by = caret.top + back - top;
   else if (caret.bottom + back > bottom) by = caret.bottom + back - bottom;
-  const target = before + by;
+  // On the first line, the page goes all the way up: walking up to it, the
+  // page stopped short of its top with the line pressed against the bar.
+  // A code block measures whole there, its foot far below its first line.
+  const start = ProseSelection.atStart(view.state.doc);
+  const first =
+    start.$head.parent.isTextblock && !start.$head.parent.type.spec.code
+      ? view.coordsAtPos(start.head)
+      : null;
+  const target = first && caret.top < first.bottom ? 0 : before + by;
   if (Math.abs(page.scrollTop - target) >= 1) page.scrollTop = target;
 }
 
