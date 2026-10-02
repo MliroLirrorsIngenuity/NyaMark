@@ -148,6 +148,20 @@ const css = `
   flex-grow: 1;
 }
 
+/*
+ * The arrows of the lines that fold show while the pointer is over the
+ * gutter: one beside every heading, list, quote and fence crowded the line
+ * numbers. A folded line keeps its arrow, to be opened again.
+ */
+.ny-source-pane .cm-foldGutter span[title="Fold line"] {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.ny-source-pane .cm-gutters:hover .cm-foldGutter span[title="Fold line"] {
+  opacity: 1;
+}
+
 /* One band across both: CodeMirror's own pair are two different blues. */
 .ny-source-pane :is(.cm-activeLine, .cm-activeLineGutter) {
   background-color: var(--ny-editor-active-line) !important;
