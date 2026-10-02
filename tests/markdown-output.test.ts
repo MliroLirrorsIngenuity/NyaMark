@@ -116,28 +116,30 @@ describe('normalizeOutput', () => {
     );
   });
 
+  // Lists as Milkdown hands them over, an emptied line as its `<br />`.
+  const br = () => ({
+    type: 'paragraph',
+    children: [{ type: 'html', value: '<br />' }],
+  });
+  const item = (checked: boolean | null, ...children: object[]) => ({
+    type: 'listItem',
+    checked,
+    spread: false,
+    children,
+  });
+  const text = (value: string) => ({
+    type: 'paragraph',
+    children: [{ type: 'text', value }],
+  });
+  const list = (ordered: boolean, ...children: object[]) => ({
+    type: 'list',
+    ordered,
+    start: 1,
+    spread: false,
+    children,
+  });
+
   test('writes an emptied list item as its bare marker', () => {
-    const br = () => ({
-      type: 'paragraph',
-      children: [{ type: 'html', value: '<br />' }],
-    });
-    const item = (checked: boolean | null, ...children: object[]) => ({
-      type: 'listItem',
-      checked,
-      spread: false,
-      children,
-    });
-    const text = (value: string) => ({
-      type: 'paragraph',
-      children: [{ type: 'text', value }],
-    });
-    const list = (ordered: boolean, ...children: object[]) => ({
-      type: 'list',
-      ordered,
-      start: 1,
-      spread: false,
-      children,
-    });
     const tree = {
       type: 'root',
       children: [
@@ -157,6 +159,37 @@ describe('normalizeOutput', () => {
       .use(normalizeOutput);
     expect(processor.stringify(tree as never)).toBe(
       '- a\n-\n- c\n\n1. x\n2.\n\n- [ ] <br />\n'
+    );
+  });
+
+  test('keeps the line break of an emptied first item under text', () => {
+    // A bare `-` there underlined the text as a heading; a bare `1.` went
+    // on as more of it.
+    const tree = {
+      type: 'root',
+      children: [
+        list(
+          false,
+          item(
+            null,
+            text('父项'),
+            list(false, item(null, br()), item(null, br()))
+          ),
+          item(null, text('乙'))
+        ),
+        list(true, item(null, text('父项'), list(true, item(null, br())))),
+        list(
+          false,
+          item(null, text('父项'), list(false, item(null, text(''))))
+        ),
+      ],
+    };
+    const processor = unified()
+      .use(remarkGfm)
+      .use(remarkStringify, { bullet: '-', join: [forgetBullet] })
+      .use(normalizeOutput);
+    expect(processor.stringify(tree as never)).toBe(
+      '- 父项\n  - <br />\n  -\n- 乙\n\n1. 父项\n   1. <br />\n\n- 父项\n  - <br />\n'
     );
   });
 

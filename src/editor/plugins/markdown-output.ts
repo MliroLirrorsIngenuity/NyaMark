@@ -181,6 +181,36 @@ function clearEmptyItem(item: MdNode) {
   }
 }
 
+/**
+ * Lists on the line under an item's text. A bare marker there starts no
+ * item: `-` underlined the text above it as a heading, and `1.` went on as
+ * more of it. Their first item keeps its `<br />` when empty.
+ */
+const underText = new WeakSet<MdNode>();
+
+function markListsUnderText(item: MdNode) {
+  if (item.spread) return;
+  const children = item.children ?? [];
+  for (const [index, child] of children.entries()) {
+    if (child.type === 'list' && children[index - 1]?.type === 'paragraph') {
+      underText.add(child);
+    }
+  }
+}
+
+function clearEmptyItems(list: MdNode) {
+  for (const [index, item] of (list.children ?? []).entries()) {
+    if (index > 0 || !underText.has(list)) {
+      clearEmptyItem(item);
+      continue;
+    }
+    const line = item.children?.length === 1 ? item.children[0] : null;
+    if (line && isEmptyParagraph(line) && !line.children?.some(isLineBreak)) {
+      line.children = [{ type: 'html', value: '<br />' }];
+    }
+  }
+}
+
 function clearEmptyCell(cell: MdNode) {
   const children = cell.children ?? [];
   if (
@@ -405,10 +435,13 @@ export function displayWidth(value: string): number {
 export function normalizeForOutput<T extends MdNode>(tree: T): T {
   const visit = (node: MdNode) => {
     dropEmptyAttention(node);
-    if (node.type === 'list') normalizeList(node);
+    if (node.type === 'list') {
+      normalizeList(node);
+      clearEmptyItems(node);
+    }
     if (node.type === 'blockquote') unescapeAlertMarker(node);
     if (node.type === 'tableCell') clearEmptyCell(node);
-    if (node.type === 'listItem') clearEmptyItem(node);
+    if (node.type === 'listItem') markListsUnderText(node);
     if (node.type === 'paragraph' || node.type === 'heading') {
       trimLeadingSpace(node);
     }
