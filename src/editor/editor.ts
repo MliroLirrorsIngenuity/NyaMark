@@ -112,6 +112,7 @@ import { tabFocus } from './plugins/tab-focus';
 import { keepCellAlignment } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
 import { fitTopBar } from './plugins/top-bar-fit';
+import { keepFocusOffBar } from './plugins/top-bar-focus';
 import { closeHeadingListOnKeys } from './plugins/top-bar-heading-list';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
 import { undoByLine } from './plugins/undo-lines';
@@ -292,6 +293,7 @@ export class NyaEditor {
     keepFloatingOffEdge(this.root);
     restHiddenBlockHandle(this.root);
     fitTopBar(this.root);
+    keepFocusOffBar(this.root);
     closeHeadingListOnKeys(this.root);
     languagePickerKeys(this.root);
     languagePickerRoom(this.root);
