@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..590200410c900f7ae0b23256385bfeca45b96775 100644
+index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..e00e6f861bf1cf0893f8d721706e80d6f42c7f86 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -52,12 +52,25 @@ function buildGetTarget(view, onDrag) {
@@ -135,7 +135,7 @@ index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..590200410c900f7ae0b23256385bfeca
  function selectionBetween(view, $anchor, $head, bias) {
  	return view.someProp("createSelectionBetween", (f) => f(view, $anchor, $head)) || TextSelection.between($anchor, $head, bias);
  }
-@@ -195,11 +241,34 @@ function createDropIndicatorView(view, getTarget, options) {
+@@ -195,11 +241,49 @@ function createDropIndicatorView(view, getTarget, options) {
  			});
  		}
  	};
@@ -160,12 +160,27 @@ index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..590200410c900f7ae0b23256385bfeca
 +			view.dragging = null;
 +		}
 +	};
++	// NyaMark: a block's handle stands outside the text, and ProseMirror
++	// never heard that its drag ended. A block let go away from the text was
++	// still dragged after: a row of a table dragged next, or text dragged in
++	// from another app, dropped that block in its place, and the text
++	// selected went with it.
++	const handleDragEnd = () => {
++		const dragging = view.dragging;
++		if (!dragging) return;
++		setTimeout(() => {
++			if (view.dragging === dragging) view.dragging = null;
++		}, 50);
++	};
++	const doc = dom.ownerDocument;
++	doc.addEventListener("dragend", handleDragEnd, true);
 +	dom.addEventListener("drop", handleBlockDrop, true);
  	dom.addEventListener("dragover", handleDragOver);
  	dom.addEventListener("dragend", scheduleHide);
  	dom.addEventListener("drop", scheduleHide);
  	dom.addEventListener("dragleave", scheduleHide);
  	const destroy = () => {
++		doc.removeEventListener("dragend", handleDragEnd, true);
 +		dom.removeEventListener("drop", handleBlockDrop, true);
  		dom.removeEventListener("dragover", handleDragOver);
  		dom.removeEventListener("dragend", scheduleHide);
