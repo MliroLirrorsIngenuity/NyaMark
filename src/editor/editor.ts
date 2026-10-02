@@ -94,6 +94,7 @@ import { mathInlineKeys } from './plugins/math-inline-keys';
 import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
 import { pasteIntoCell } from './plugins/paste-cell';
 import { pasteCodeAsCode } from './plugins/paste-code';
+import { pasteCodeEdges } from './plugins/paste-code-edges';
 import { pasteOnEmptyLine } from './plugins/paste-line';
 import { pasteLinkOverText } from './plugins/paste-link';
 import { pasteTextLines } from './plugins/paste-text-lines';
@@ -255,6 +256,7 @@ export class NyaEditor {
     crepe.editor.use(pasteLinkOverText);
     crepe.editor.use(pasteOnEmptyLine);
     crepe.editor.use(pasteCodeAsCode);
+    crepe.editor.use(pasteCodeEdges);
     crepe.editor.use(pasteTextLines);
     crepe.editor.use(pasteIntoCell);
     crepe.editor.use(mathInlineKeys);
