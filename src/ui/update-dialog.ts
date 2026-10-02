@@ -216,6 +216,7 @@ const updateDialogStyles = `
 }
 
 .ny-update-dialog__button--primary {
+  font-variant-numeric: tabular-nums;
   border-color: color-mix(in srgb, var(--ny-accent), transparent 44%);
   background: color-mix(in srgb, var(--ny-accent), var(--ny-surface-elevated) 14%);
   color: var(--ny-on-accent);
@@ -411,16 +412,26 @@ export class UpdateDialog {
       canDismiss: () => phase !== 'downloading',
       onDismiss: () => void close(),
     });
+    // A button lets go of focus as it is disabled, and focus went to the page
+    // behind, where Enter did nothing once the buttons came back. The dialog
+    // holds it while they are off, and the button takes it back after.
+    const holdFocus = () => dialog.focus();
+    const returnFocus = () => {
+      const active = document.activeElement;
+      if (active === dialog || active === document.body) updateNow.focus();
+    };
     later.addEventListener('click', () => void close());
     updateNow.addEventListener('click', () => {
       if (phase === 'downloading') return;
 
       if (phase === 'installed') {
         updateNow.disabled = true;
+        holdFocus();
         void requestAppRestart()
           .catch(console.error)
           .finally(() => {
             updateNow.disabled = false;
+            returnFocus();
           });
         return;
       }
@@ -436,6 +447,7 @@ export class UpdateDialog {
       phase = 'downloading';
       updateNow.disabled = true;
       later.disabled = true;
+      holdFocus();
       updateNow.textContent = i18next.t('updates.downloading');
 
       let downloaded = 0;
@@ -468,6 +480,7 @@ export class UpdateDialog {
           updateNow.disabled = false;
           later.textContent = i18next.t('updates.restartLater');
           later.disabled = false;
+          returnFocus();
         })
         .catch((error) => {
           console.error(error);
@@ -476,6 +489,7 @@ export class UpdateDialog {
           later.disabled = false;
           updateNow.textContent = i18next.t('updates.openDownloadPage');
           updateNow.disabled = false;
+          returnFocus();
         });
     });
   }

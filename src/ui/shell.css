@@ -642,6 +642,12 @@ body {
   outline-offset: 2px;
 }
 
+/* The panel holds focus while it has no control to give it to (modal.ts),
+   and took the webview's ring all round itself for it. */
+[aria-modal="true"]:focus {
+  outline: none;
+}
+
 /* A choice made on a card rings the card. The ring went square round the
    round button, and off it at the first arrow key (see modal.ts). */
 [aria-modal="true"] label:has(> input[type="radio"]:focus-visible),
