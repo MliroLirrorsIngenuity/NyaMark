@@ -73,3 +73,25 @@ export function showCodeMatches(
     return false;
   });
 }
+
+/**
+ * Where the line of code holding `pos` is laid out, or null outside code.
+ * ProseMirror puts every place in a code block at the block's top, and
+ * CodeMirror draws only the lines in sight: a match far down a long block
+ * was taken to be on screen with the block's top.
+ */
+export function codeLineBox(view: EditorView, pos: number) {
+  const $pos = view.state.doc.resolve(pos);
+  if (!$pos.parent.type.spec.code) return null;
+  const dom = view.nodeDOM($pos.before());
+  const editor =
+    dom instanceof HTMLElement ? dom.querySelector('.cm-editor') : null;
+  const cm =
+    editor instanceof HTMLElement ? CodeMirror.findFromDOM(editor) : null;
+  if (!cm) return null;
+  const line = cm.lineBlockAt(pos - $pos.start());
+  return {
+    top: cm.documentTop + line.top,
+    bottom: cm.documentTop + line.bottom,
+  };
+}

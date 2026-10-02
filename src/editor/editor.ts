@@ -52,6 +52,7 @@ import { cjkBreaks } from './plugins/cjk-breaks';
 import { codeKey } from './plugins/code-key';
 import { fenceLanguageWord } from './plugins/code-language';
 import { codePreview } from './plugins/code-preview';
+import { codeLineBox } from './plugins/code-search';
 import { compositionSettle } from './plugins/composition-settle';
 import { ctrlArrows } from './plugins/ctrl-arrows';
 import { installDragSelectGuard } from './plugins/drag-guard';
@@ -555,7 +556,7 @@ export class NyaEditor {
     const top =
       box.top +
       (Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop) || 0);
-    const match = view.coordsAtPos(pos);
+    const match = codeLineBox(view, pos) ?? view.coordsAtPos(pos);
     if (match.top >= top && match.bottom <= box.bottom) return;
     scroller.scrollTop +=
       (match.top + match.bottom) / 2 - (top + box.bottom) / 2;
