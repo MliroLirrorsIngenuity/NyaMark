@@ -1596,6 +1596,24 @@
 }
 
 /*
+ * The tick that saves a link's address or a formula has the brown of another
+ * of Crepe's themes written into its icon, and stood out of the page's greys
+ * in either theme. It takes the colours of the buttons beside it.
+ */
+.ny-editor-root .milkdown .milkdown-latex-inline-edit button svg {
+  fill: var(--crepe-color-on-surface-variant) !important;
+}
+
+.ny-editor-root .milkdown .milkdown-latex-inline-edit button:hover svg {
+  fill: var(--crepe-color-on-surface) !important;
+}
+
+.ny-editor-root .milkdown .milkdown-link-edit > .link-edit > .button path,
+.ny-editor-root .milkdown .milkdown-latex-inline-edit button path {
+  fill: inherit !important;
+}
+
+/*
  * The slash menu is no taller than the room under its line or over it --
  * see `plugins/slash-menu-room.ts`. At its full height it was taller than
  * either, on a line halfway down a window of the default size, and hung under
