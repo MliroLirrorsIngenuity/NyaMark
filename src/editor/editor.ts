@@ -21,13 +21,18 @@ import {
   remarkGFMPlugin,
   strikethroughInputRule,
 } from '@milkdown/kit/preset/gfm';
-import { Fragment, Slice } from '@milkdown/kit/prose/model';
+import {
+  Fragment,
+  type Node as ProseNode,
+  Slice,
+} from '@milkdown/kit/prose/model';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import { $prose, outline } from '@milkdown/kit/utils';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange } from './doc-diff';
+import { anchorIndex } from './heading-anchor';
 import { bareLinkInput } from './plugins/bare-link-input';
 import { bareLinkParse, keepBareLinks, writeLink } from './plugins/bare-links';
 import { blockArrows } from './plugins/block-arrows';
@@ -443,6 +448,28 @@ export class NyaEditor {
       behavior: smooth ? 'smooth' : 'auto',
       block: 'start',
     });
+  }
+
+  /**
+   * Goes to the heading a link to `#fragment` names. False when none has
+   * that anchor.
+   */
+  scrollToAnchor(fragment: string): boolean {
+    const view = this.getView();
+    if (!view) return false;
+    const headings: ProseNode[] = [];
+    view.state.doc.descendants((node) => {
+      if (node.type.name === 'heading') headings.push(node);
+      return !node.isTextblock;
+    });
+    const index = anchorIndex(
+      headings.map((node) => node.textContent),
+      fragment
+    );
+    const id = headings[index]?.attrs.id;
+    if (!id) return false;
+    this.scrollToHeading(String(id));
+    return true;
   }
 
   /**

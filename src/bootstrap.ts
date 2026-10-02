@@ -144,6 +144,12 @@ export class App {
       const href = target?.closest('a[href]')?.getAttribute('href');
       if (!href) return;
       e.preventDefault();
+      // A link into the document goes to its heading: opened as a file, it
+      // named one in the document's folder, called after the anchor.
+      if (href.startsWith('#')) {
+        this.editor?.scrollToAnchor(href.slice(1));
+        return;
+      }
       void this.attachments?.openLinkedResource(href);
     });
 
