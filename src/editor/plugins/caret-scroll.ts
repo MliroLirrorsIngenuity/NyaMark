@@ -21,7 +21,9 @@
  *
  * Home and End move the caret along its line without scrolling: with the
  * line scrolled under the format bar, the caret went to its end there and
- * stayed out of sight. They bring it into sight as the arrows do.
+ * stayed out of sight. They bring it into sight as the arrows do, and so do
+ * Cmd and the arrows: with the caret at the end already, Cmd+Down moved
+ * nothing and the page stayed scrolled up, away from it.
  *
  * An edit made from the keyboard brings the caret back into sight. ProseMirror
  * deletes a line break or another inline node beside the caret itself, and
@@ -210,7 +212,6 @@ export const caretScroll = $prose(() => {
         if (
           pending ||
           !MOVES.has(event.key) ||
-          event.metaKey ||
           event.ctrlKey ||
           event.isComposing
         ) {
