@@ -32,6 +32,12 @@ export function isDollarText(between: string): boolean {
 /** Crepe's rule for inline math, as the closing dollar is typed. */
 export const TYPED_MATH = /\$([^$]+)\$$/;
 
+/**
+ * What ProseMirror's input rules read a line break, image or formula in the
+ * text before the caret as.
+ */
+const INLINE_NODE = '\ufffc';
+
 /** The closing dollar typed as text when what it closes is no math, or code. */
 export function keepDollar(
   state: EditorState,
@@ -43,7 +49,10 @@ export function keepDollar(
   // Typed into inline code, Crepe made math of it there too.
   const marks = state.storedMarks ?? state.doc.resolve(end).marks();
   const inCode = marks.some((mark) => mark.type.spec.code);
-  if (!inCode && !isDollarText(between)) return null;
+  // Across a line break or an image, the math took it in as a stray
+  // character and the break or image was gone.
+  const across = between.includes(INLINE_NODE);
+  if (!inCode && !across && !isDollarText(between)) return null;
   return state.tr.insertText('$', start + typed.length - 1, end);
 }
 

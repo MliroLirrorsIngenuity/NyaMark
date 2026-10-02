@@ -98,6 +98,34 @@ describe('keepDollar', () => {
   test('types it as text when the math would open on a space', () => {
     expect(typeDollar('$ x')?.doc.textContent).toBe('$ x$');
   });
+
+  test('types it as text across a line break', () => {
+    const breakSchema = new Schema({
+      nodes: schema.spec.nodes.addToEnd('hard_break', {
+        group: 'inline',
+        inline: true,
+      }),
+    });
+    const doc = breakSchema.node('doc', null, [
+      breakSchema.node('paragraph', null, [
+        breakSchema.text('设 $a'),
+        breakSchema.node('hard_break'),
+        breakSchema.text('b'),
+      ]),
+    ]);
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, 7),
+    });
+    const typed = `${doc.textBetween(1, 7, null, '￼')}$`;
+    const match = typed.match(TYPED_MATH);
+    if (!match) throw new Error('no match');
+    const tr = keepDollar(state, match, 7 - (match[0].length - 1), 7);
+    const line = tr?.doc.firstChild;
+    expect(line?.childCount).toBe(3);
+    expect(line?.child(1).type.name).toBe('hard_break');
+    expect(line?.textContent).toBe('设 $ab$');
+  });
 });
 
 describe('dollarText', () => {
