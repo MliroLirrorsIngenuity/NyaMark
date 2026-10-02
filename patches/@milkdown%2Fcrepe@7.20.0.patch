@@ -1,5 +1,5 @@
 diff --git a/lib/cjs/feature/block-edit/index.js b/lib/cjs/feature/block-edit/index.js
-index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..6cb3174e5804936966bf9696d98fbbf0252a809e 100644
+index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..55634f8974995d61f2ea2e240d914de389d75a6f 100644
 --- a/lib/cjs/feature/block-edit/index.js
 +++ b/lib/cjs/feature/block-edit/index.js
 @@ -800,6 +800,14 @@ const Menu = vue.defineComponent({
@@ -17,7 +17,7 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..6cb3174e5804936966bf9696d98fbbf0
      const onHover = (index, after) => {
        const prevHoverIndex = hoverIndex.value;
        const next = typeof index === "function" ? index(prevHoverIndex) : index;
-@@ -951,8 +959,13 @@ class MenuView {
+@@ -951,8 +959,19 @@ class MenuView {
      __privateAdd$1(this, _filter);
      __privateAdd$1(this, _slashProvider);
      __privateAdd$1(this, _programmaticallyPos, null);
@@ -28,12 +28,18 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..6cb3174e5804936966bf9696d98fbbf0
 +    // update showed it again over a "/" left in the line, one Escape had
 +    // closed: the find bar closing, for one. Out of the editor, every update
 +    // still asks again, and the menu goes as the focus leaves.
++    // NyaMark: an update made while the input method composes is passed
++    // over, and the one that ends the composition changes nothing: the menu
++    // kept the filter from before it, "/标题" listing every item.
++    let composed = false;
 +    this.update = (view, prevState) => {
-+      __privateGet$1(this, _slashProvider).update(view, view.hasFocus() ? prevState : void 0);
++      const ended = composed && !view.composing;
++      composed = view.composing;
++      __privateGet$1(this, _slashProvider).update(view, view.hasFocus() && !ended ? prevState : void 0);
      };
      this.show = (pos) => {
        __privateSet$1(this, _programmaticallyPos, pos);
-@@ -985,6 +998,9 @@ class MenuView {
+@@ -985,6 +1004,9 @@ class MenuView {
      app.mount(content);
      __privateSet$1(this, _content$1, content);
      const self = this;
@@ -43,7 +49,7 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..6cb3174e5804936966bf9696d98fbbf0
      __privateSet$1(this, _slashProvider, new slash.SlashProvider({
        content: __privateGet$1(this, _content$1),
        debounce: 20,
-@@ -999,8 +1015,13 @@ class MenuView {
+@@ -999,8 +1021,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
@@ -58,7 +64,7 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..6cb3174e5804936966bf9696d98fbbf0
          if (typeof pos === "number") {
            const maxSize = view2.state.doc.nodeSize - 2;
            const validPos = Math.min(pos, maxSize);
-@@ -1010,10 +1031,11 @@ class MenuView {
+@@ -1010,10 +1037,11 @@ class MenuView {
            }
            return true;
          }
@@ -73,7 +79,7 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..6cb3174e5804936966bf9696d98fbbf0
      __privateGet$1(this, _slashProvider).onShow = () => {
        show.value = true;
 diff --git a/lib/cjs/index.js b/lib/cjs/index.js
-index 9726836fbea853e8be52f11df9b14b5589d457b3..34a14a6f335f597d4352f8cf4727e597c39246bd 100644
+index 9726836fbea853e8be52f11df9b14b5589d457b3..576580d7a20190f2da967479a9c3e7867aa9505b 100644
 --- a/lib/cjs/index.js
 +++ b/lib/cjs/index.js
 @@ -1183,6 +1183,14 @@ const Menu = vue.defineComponent({
@@ -91,7 +97,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..34a14a6f335f597d4352f8cf4727e597
      const onHover = (index, after) => {
        const prevHoverIndex = hoverIndex.value;
        const next = typeof index === "function" ? index(prevHoverIndex) : index;
-@@ -1334,8 +1342,13 @@ class MenuView {
+@@ -1334,8 +1342,19 @@ class MenuView {
      __privateAdd$5(this, _filter);
      __privateAdd$5(this, _slashProvider);
      __privateAdd$5(this, _programmaticallyPos, null);
@@ -102,12 +108,18 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..34a14a6f335f597d4352f8cf4727e597
 +    // update showed it again over a "/" left in the line, one Escape had
 +    // closed: the find bar closing, for one. Out of the editor, every update
 +    // still asks again, and the menu goes as the focus leaves.
++    // NyaMark: an update made while the input method composes is passed
++    // over, and the one that ends the composition changes nothing: the menu
++    // kept the filter from before it, "/标题" listing every item.
++    let composed = false;
 +    this.update = (view, prevState) => {
-+      __privateGet$5(this, _slashProvider).update(view, view.hasFocus() ? prevState : void 0);
++      const ended = composed && !view.composing;
++      composed = view.composing;
++      __privateGet$5(this, _slashProvider).update(view, view.hasFocus() && !ended ? prevState : void 0);
      };
      this.show = (pos) => {
        __privateSet$5(this, _programmaticallyPos, pos);
-@@ -1368,6 +1381,9 @@ class MenuView {
+@@ -1368,6 +1387,9 @@ class MenuView {
      app.mount(content);
      __privateSet$5(this, _content$3, content);
      const self = this;
@@ -117,7 +129,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..34a14a6f335f597d4352f8cf4727e597
      __privateSet$5(this, _slashProvider, new slash.SlashProvider({
        content: __privateGet$5(this, _content$3),
        debounce: 20,
-@@ -1382,8 +1398,13 @@ class MenuView {
+@@ -1382,8 +1404,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
@@ -132,7 +144,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..34a14a6f335f597d4352f8cf4727e597
          if (typeof pos === "number") {
            const maxSize = view2.state.doc.nodeSize - 2;
            const validPos = Math.min(pos, maxSize);
-@@ -1393,10 +1414,11 @@ class MenuView {
+@@ -1393,10 +1420,11 @@ class MenuView {
            }
            return true;
          }
@@ -147,7 +159,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..34a14a6f335f597d4352f8cf4727e597
      __privateGet$5(this, _slashProvider).onShow = () => {
        show.value = true;
 diff --git a/lib/esm/feature/block-edit/index.js b/lib/esm/feature/block-edit/index.js
-index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..fcf8b4dafaf2f0c51d6a90f749ab819a5cd95688 100644
+index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..d08be9de0f910d1a53ae1bbbd649c0bf72cc4f26 100644
 --- a/lib/esm/feature/block-edit/index.js
 +++ b/lib/esm/feature/block-edit/index.js
 @@ -798,6 +798,14 @@ const Menu = defineComponent({
@@ -165,7 +177,7 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..fcf8b4dafaf2f0c51d6a90f749ab819a
      const onHover = (index, after) => {
        const prevHoverIndex = hoverIndex.value;
        const next = typeof index === "function" ? index(prevHoverIndex) : index;
-@@ -949,8 +957,13 @@ class MenuView {
+@@ -949,8 +957,19 @@ class MenuView {
      __privateAdd$1(this, _filter);
      __privateAdd$1(this, _slashProvider);
      __privateAdd$1(this, _programmaticallyPos, null);
@@ -176,12 +188,18 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..fcf8b4dafaf2f0c51d6a90f749ab819a
 +    // update showed it again over a "/" left in the line, one Escape had
 +    // closed: the find bar closing, for one. Out of the editor, every update
 +    // still asks again, and the menu goes as the focus leaves.
++    // NyaMark: an update made while the input method composes is passed
++    // over, and the one that ends the composition changes nothing: the menu
++    // kept the filter from before it, "/标题" listing every item.
++    let composed = false;
 +    this.update = (view, prevState) => {
-+      __privateGet$1(this, _slashProvider).update(view, view.hasFocus() ? prevState : void 0);
++      const ended = composed && !view.composing;
++      composed = view.composing;
++      __privateGet$1(this, _slashProvider).update(view, view.hasFocus() && !ended ? prevState : void 0);
      };
      this.show = (pos) => {
        __privateSet$1(this, _programmaticallyPos, pos);
-@@ -983,6 +996,9 @@ class MenuView {
+@@ -983,6 +1002,9 @@ class MenuView {
      app.mount(content);
      __privateSet$1(this, _content$1, content);
      const self = this;
@@ -191,7 +209,7 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..fcf8b4dafaf2f0c51d6a90f749ab819a
      __privateSet$1(this, _slashProvider, new SlashProvider({
        content: __privateGet$1(this, _content$1),
        debounce: 20,
-@@ -997,8 +1013,13 @@ class MenuView {
+@@ -997,8 +1019,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
@@ -206,7 +224,7 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..fcf8b4dafaf2f0c51d6a90f749ab819a
          if (typeof pos === "number") {
            const maxSize = view2.state.doc.nodeSize - 2;
            const validPos = Math.min(pos, maxSize);
-@@ -1008,10 +1029,11 @@ class MenuView {
+@@ -1008,10 +1035,11 @@ class MenuView {
            }
            return true;
          }
@@ -221,7 +239,7 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..fcf8b4dafaf2f0c51d6a90f749ab819a
      __privateGet$1(this, _slashProvider).onShow = () => {
        show.value = true;
 diff --git a/lib/esm/index.js b/lib/esm/index.js
-index ea68de6cfb124faa35d9f047d82788a1043d255c..0482e3961f11470d7fb675f12ce8234d1af11a4f 100644
+index ea68de6cfb124faa35d9f047d82788a1043d255c..2b54bf7478e3ba5ac82d96d20d78928ee3c7b67e 100644
 --- a/lib/esm/index.js
 +++ b/lib/esm/index.js
 @@ -1181,6 +1181,14 @@ const Menu = defineComponent({
@@ -239,7 +257,7 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..0482e3961f11470d7fb675f12ce8234d
      const onHover = (index, after) => {
        const prevHoverIndex = hoverIndex.value;
        const next = typeof index === "function" ? index(prevHoverIndex) : index;
-@@ -1332,8 +1340,13 @@ class MenuView {
+@@ -1332,8 +1340,19 @@ class MenuView {
      __privateAdd$5(this, _filter);
      __privateAdd$5(this, _slashProvider);
      __privateAdd$5(this, _programmaticallyPos, null);
@@ -250,12 +268,18 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..0482e3961f11470d7fb675f12ce8234d
 +    // update showed it again over a "/" left in the line, one Escape had
 +    // closed: the find bar closing, for one. Out of the editor, every update
 +    // still asks again, and the menu goes as the focus leaves.
++    // NyaMark: an update made while the input method composes is passed
++    // over, and the one that ends the composition changes nothing: the menu
++    // kept the filter from before it, "/标题" listing every item.
++    let composed = false;
 +    this.update = (view, prevState) => {
-+      __privateGet$5(this, _slashProvider).update(view, view.hasFocus() ? prevState : void 0);
++      const ended = composed && !view.composing;
++      composed = view.composing;
++      __privateGet$5(this, _slashProvider).update(view, view.hasFocus() && !ended ? prevState : void 0);
      };
      this.show = (pos) => {
        __privateSet$5(this, _programmaticallyPos, pos);
-@@ -1366,6 +1379,9 @@ class MenuView {
+@@ -1366,6 +1385,9 @@ class MenuView {
      app.mount(content);
      __privateSet$5(this, _content$3, content);
      const self = this;
@@ -265,7 +289,7 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..0482e3961f11470d7fb675f12ce8234d
      __privateSet$5(this, _slashProvider, new SlashProvider({
        content: __privateGet$5(this, _content$3),
        debounce: 20,
-@@ -1380,8 +1396,13 @@ class MenuView {
+@@ -1380,8 +1402,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
@@ -280,7 +304,7 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..0482e3961f11470d7fb675f12ce8234d
          if (typeof pos === "number") {
            const maxSize = view2.state.doc.nodeSize - 2;
            const validPos = Math.min(pos, maxSize);
-@@ -1391,10 +1412,11 @@ class MenuView {
+@@ -1391,10 +1418,11 @@ class MenuView {
            }
            return true;
          }
