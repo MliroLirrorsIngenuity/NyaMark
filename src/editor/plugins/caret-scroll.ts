@@ -102,6 +102,22 @@ function caretBox(view: EditorView, selection: Selection, focus: Node) {
   }
 }
 
+/**
+ * Is `caret` on the last line of the document? The page goes all the way down
+ * there, the room under the text in sight: typing at the end of a document,
+ * the line stood pressed against the status bar. A code block is left to
+ * CodeMirror.
+ */
+function onLastLine(view: EditorView, caret: { top: number; bottom: number }) {
+  const end = ProseSelection.atEnd(view.state.doc);
+  const { parent } = end.$head;
+  if (!parent.isTextblock || parent.type.spec.code) return false;
+  return (caret.top + caret.bottom) / 2 > view.coordsAtPos(end.head).top;
+}
+
+/** As far down as the page goes. */
+const foot = (page: HTMLElement) => page.scrollHeight - page.clientHeight;
+
 /** Takes the page from `before` only as far as brings the caret into sight. */
 function follow(view: EditorView, page: HTMLElement, before: number) {
   const selection = view.dom.ownerDocument.getSelection();
@@ -125,7 +141,9 @@ function follow(view: EditorView, page: HTMLElement, before: number) {
     start.$head.parent.isTextblock && !start.$head.parent.type.spec.code
       ? view.coordsAtPos(start.head)
       : null;
-  const target = first && caret.top < first.bottom ? 0 : before + by;
+  let target = before + by;
+  if (first && caret.top < first.bottom) target = 0;
+  else if (onLastLine(view, caret)) target = foot(page);
   if (Math.abs(page.scrollTop - target) >= 1) page.scrollTop = target;
 }
 
@@ -140,7 +158,13 @@ export const caretScroll = $prose(() => {
         const top = barCover(view.dom) + MARGIN_PX;
         threshold.top = top;
         margin.top = top;
-        return scrollToCode(view);
+        if (scrollToCode(view)) return true;
+        const page = view.dom.closest<HTMLElement>('.ny-shell__body');
+        const { selection } = view.state;
+        if (!page || !selection.empty) return false;
+        if (!onLastLine(view, view.coordsAtPos(selection.head))) return false;
+        page.scrollTop = foot(page);
+        return true;
       },
       handleKeyDown(view, event) {
         if (
