@@ -1406,7 +1406,7 @@
 
 .ny-editor-root .milkdown .milkdown-code-block .list-wrapper {
   width: 188px !important;
-  padding-top: 8px !important;
+  padding: 8px 0 6px !important;
   border: 1px solid var(--ny-editor-button-border) !important;
   border-radius: 14px !important;
   background: color-mix(in srgb, var(--ny-editor-floating-bg), transparent 4%) !important;
@@ -1424,7 +1424,18 @@
   bottom: calc(100% + 4px) !important;
 }
 
+/* Under the button the list is as short as what a search finds; over it,
+   the full height, which keeps the search box where it is as it shrinks. */
 .ny-editor-root .milkdown .milkdown-code-block .language-list {
+  height: auto !important;
+  max-height: var(--ny-language-list-height, 196px) !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .language-picker[data-ny-above]
+  .language-list {
   height: var(--ny-language-list-height, 196px) !important;
 }
 
@@ -1535,14 +1546,27 @@
   background: color-mix(in srgb, var(--nyamark-accent), transparent 90%) !important;
 }
 
-/* While a search is typed, the language Enter chooses -- see
-   `plugins/language-picker-keys.ts`. */
+/* The language Enter chooses: the one the arrows reached, or while a search
+   is typed its first -- see `plugins/language-picker-keys.ts`. */
 .ny-editor-root
   .milkdown
   .milkdown-code-block
-  .list-wrapper:has(.search-input:focus:not(:placeholder-shown))
-  .language-list-item[data-language]:first-child {
+  .list-wrapper:has(.search-input:focus:not(:placeholder-shown)):not(
+    :has([data-ny-reached])
+  )
+  .language-list-item[data-language]:first-child,
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .language-list-item[data-ny-reached] {
   background: var(--crepe-color-hover);
+}
+
+.ny-editor-root
+  .milkdown
+  .milkdown-code-block
+  .language-list-item[data-ny-reached][aria-selected="true"] {
+  background: color-mix(in srgb, var(--nyamark-accent), transparent 80%) !important;
 }
 
 .ny-editor-root .milkdown .milkdown-code-block .language-list-item .leading,
