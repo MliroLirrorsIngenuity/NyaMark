@@ -2057,6 +2057,17 @@
   background: color-mix(in srgb, var(--ny-accent), transparent 72%);
 }
 
+/*
+ * Picked out alone, by an arrow or a click, it is rounded as a piece of code
+ * is. Square, its ring read as a box ruled round it.
+ */
+.ny-editor-root
+  .milkdown
+  .ProseMirror
+  span[data-type="math_inline"].ProseMirror-selectednode {
+  border-radius: 4px;
+}
+
 .ny-editor-root
   .milkdown
   .ProseMirror
