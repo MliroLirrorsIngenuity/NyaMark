@@ -6,11 +6,13 @@
  * its code last, pasted in front of a line made the line code.
  *
  * Code of one line alone, as a word picked out of a block on a page, still
- * goes into the line as text.
+ * goes into the line as text. Pasted over all of a line, an empty one most
+ * often, or at the end of one, the code goes in as it did, the caret at its
+ * end, there being no text for it to run into.
  */
 
 import { type Fragment, type Node, Slice } from '@milkdown/kit/prose/model';
-import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
+import { Plugin, PluginKey, type Selection } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
 
 const isCode = (node: Node) => node.isTextblock && !!node.type.spec.code;
@@ -29,12 +31,19 @@ function openTo(
   return open;
 }
 
-/** `slice` with the code blocks at its sides closed. */
-export function closeCodeEdges(slice: Slice): Slice {
+/** `slice`, pasted at `selection`, with the code blocks at its sides closed. */
+export function closeCodeEdges(
+  slice: Slice,
+  { $from, $to }: Pick<Selection, '$from' | '$to'>
+): Slice {
+  const rest = $to.parentOffset < $to.parent.content.size;
+  if (!rest && $from.sameParent($to) && $from.parentOffset === 0) return slice;
   const lone = slice.content.childCount === 1 ? slice.content.firstChild : null;
   if (lone && isCode(lone) && !lone.textContent.includes('\n')) return slice;
   const openStart = openTo(slice.content, slice.openStart, 'firstChild');
-  const openEnd = openTo(slice.content, slice.openEnd, 'lastChild');
+  const openEnd = rest
+    ? openTo(slice.content, slice.openEnd, 'lastChild')
+    : slice.openEnd;
   if (openStart === slice.openStart && openEnd === slice.openEnd) return slice;
   return new Slice(slice.content, openStart, openEnd);
 }
@@ -44,7 +53,8 @@ export const pasteCodeEdges = $prose(
     new Plugin({
       key: new PluginKey('nyamark/paste-code-edges'),
       props: {
-        transformPasted: (slice) => closeCodeEdges(slice),
+        transformPasted: (slice, view) =>
+          closeCodeEdges(slice, view.state.selection),
       },
     })
 );

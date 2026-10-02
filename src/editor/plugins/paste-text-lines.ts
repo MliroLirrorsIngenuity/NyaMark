@@ -95,7 +95,7 @@ export function pasteText(state: EditorState, doc: Node): Transaction | null {
     keepFirst ? 0 : open.openStart,
     open.openEnd
   );
-  const slice = closeCodeEdges(whole);
+  const slice = closeCodeEdges(whole, selection);
   if (!lines && !keepFirst && slice === whole) return null;
   const tr = state.tr;
   if (keepFirst && selection.empty && $from.parentOffset === 0) {
