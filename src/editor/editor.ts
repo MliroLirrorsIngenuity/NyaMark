@@ -12,9 +12,11 @@ import {
   remarkStringifyOptionsCtx,
   serializerCtx,
 } from '@milkdown/kit/core';
+import { trailingConfig } from '@milkdown/kit/plugin/trailing';
 import {
   emphasisStarInputRule,
   emphasisUnderscoreInputRule,
+  headingIdGenerator,
   insertImageInputRule,
   strongInputRule,
 } from '@milkdown/kit/preset/commonmark';
@@ -31,13 +33,14 @@ import {
   type EditorState,
   Plugin,
   PluginKey,
+  Selection,
   TextSelection,
 } from '@milkdown/kit/prose/state';
 import { $prose, outline } from '@milkdown/kit/utils';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
-import { replaceChangedRange } from './doc-diff';
+import { replaceChangedRange, settleParsed } from './doc-diff';
 import { anchorIndex } from './heading-anchor';
 import { bareLinkInput } from './plugins/bare-link-input';
 import { bareLinkParse, keepBareLinks, writeLink } from './plugins/bare-links';
@@ -411,11 +414,32 @@ export class NyaEditor {
     if (!this.crepe) return;
     this.crepe.editor.action((ctx) => {
       const view = ctx.get(editorViewCtx);
-      const doc = ctx.get(parserCtx)(markdown);
-      if (!doc) return;
+      const parsed = ctx.get(parserCtx)(markdown);
+      if (!parsed) return;
+      const { shouldAppend, getNode } = ctx.get(trailingConfig.key);
+      const doc = settleParsed(
+        parsed,
+        ctx.get(headingIdGenerator.key),
+        (last) =>
+          shouldAppend(last, view.state) ? getNode(view.state) : undefined
+      );
+      const addToHistory = options.addToHistory ?? true;
+      const start = view.state.doc.content.findDiffStart(doc.content);
+      if (start == null) return;
+      // Undone, a change puts the caret back where it was before it. The
+      // source pane's edits left that wherever the preview last had it, the
+      // top of the document most often, and Cmd+Z back in the editor jumped
+      // there: the caret goes to the change first.
+      if (addToHistory) {
+        view.dispatch(
+          view.state.tr.setSelection(
+            Selection.near(view.state.doc.resolve(start))
+          )
+        );
+      }
       const tr = replaceChangedRange(view.state.tr, doc);
       if (!tr.docChanged) return;
-      if (!(options.addToHistory ?? true)) tr.setMeta('addToHistory', false);
+      if (!addToHistory) tr.setMeta('addToHistory', false);
       view.dispatch(tr);
     });
   }
