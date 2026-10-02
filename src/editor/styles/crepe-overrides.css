@@ -1947,6 +1947,42 @@
 }
 
 /*
+ * The icon of a handle sits in the middle of its button. It stood on a line
+ * of the page's text: with a larger type or a looser line, that line grew
+ * past the button, and the icon sank to the button's lower edge and out of
+ * it, below the line of text the handle was for. A table's handles, a pixel
+ * of border narrower inside than their icons, had them a pixel off as well.
+ */
+.ny-editor-root
+  .milkdown
+  .milkdown-block-handle
+  .operation-item
+  > .milkdown-icon,
+.ny-editor-root
+  .milkdown
+  .milkdown-table-block
+  :is(.cell-handle, .add-button)
+  > .milkdown-icon {
+  display: flex;
+  height: 100%;
+}
+
+.ny-editor-root
+  .milkdown
+  .milkdown-block-handle
+  .operation-item
+  > .milkdown-icon
+  > svg,
+.ny-editor-root
+  .milkdown
+  .milkdown-table-block
+  :is(.cell-handle, .add-button)
+  > .milkdown-icon
+  > svg {
+  flex: none;
+}
+
+/*
  * Drag-selection guard -- see `plugins/drag-guard.ts`.
  *
  * While `data-ny-drag-select` is up on <html>, every hover-triggered overlay
