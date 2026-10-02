@@ -600,13 +600,25 @@ function writeAttention(type: 'emphasis' | 'strong') {
 export const writeEmphasis = writeAttention('emphasis');
 export const writeStrong = writeAttention('strong');
 
-/** remark's handler for the whole document, `&` escaped only where needed. */
+/**
+ * remark's handler for the whole document, `&` escaped only where needed.
+ *
+ * remark-math gives its dollar an `after` of undefined, and remark took the
+ * key for a condition on the character after it: a dollar before a bracket,
+ * star or other escaped character went out unescaped, and `$[a$` came back
+ * as math when the file was opened again.
+ */
 export const writeRoot: Handle = (node, parent, state, info) => {
-  state.unsafe = state.unsafe.map((pattern) =>
-    pattern.character === '&' && pattern.after === '[#A-Za-z]'
-      ? REFERENCE_AMPERSAND
-      : pattern
-  );
+  state.unsafe = state.unsafe.map((pattern) => {
+    if (pattern.character === '&' && pattern.after === '[#A-Za-z]') {
+      return REFERENCE_AMPERSAND;
+    }
+    if ('after' in pattern && pattern.after === undefined) {
+      const { after: _after, ...always } = pattern;
+      return always;
+    }
+    return pattern;
+  });
   return defaultHandlers.root(node, parent, state, info);
 };
 

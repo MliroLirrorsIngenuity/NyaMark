@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkFrontmatter from 'remark-frontmatter';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
@@ -436,6 +437,19 @@ describe('writeText', () => {
       })
       .processSync(markdown)
       .toString();
+
+  test('escapes a dollar before another escaped character', () => {
+    const processor = unified()
+      .use(remarkParse)
+      .use(remarkMath)
+      .use(remarkStringify, {
+        handlers: { root: writeRoot, text: writeText },
+      });
+    const markdown = '\\$\\[a\\$ 与 \\$\\$\\*b\\$\n';
+    const written = processor.processSync(markdown).toString();
+    expect(written).toBe(markdown);
+    expect(JSON.stringify(processor.parse(written))).not.toContain('Math');
+  });
 
   test('keeps a bracket that starts nothing', () => {
     const markdown = '见 [1] 注释，数组 a[0] 和 [a]**b**\n\n[注] 开头\n';
