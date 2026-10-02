@@ -322,33 +322,34 @@ export class FileController {
 
     if (!path) return null;
 
-    if (state.filePath !== path) {
-      this.relocateAttachmentReferences(editor, state.filePath, path);
+    if (state.filePath === path) {
+      await this.saveToExistingPath(path, editor.getMarkdown());
+      return path;
     }
-    await this.saveToExistingPath(path, editor.getMarkdown());
-    if (state.filePath !== path) {
-      const registeredPath = await this.registerDocumentPath(path);
-      store.update({ filePath: registeredPath });
-      return registeredPath;
-    }
-    return path;
+    // References move with the file only once it is written there: moved
+    // first, a failed write left them pointing from a folder the document
+    // never reached, and the next save wrote them into the original.
+    const relocate = this.referenceRelocation(state.filePath, path);
+    await this.saveToExistingPath(
+      path,
+      editor.getMarkdownWithReferences(relocate),
+      () => editor.rewriteLocalReferences(relocate)
+    );
+    const registeredPath = await this.registerDocumentPath(path);
+    store.update({ filePath: registeredPath });
+    return registeredPath;
   }
 
   /**
-   * The document is about to be written at `nextPath`. Relative references
-   * were resolved against the old directory and would all break; absolute
-   * ones left by inserts into a never-saved document become relative when
-   * the settings prefer that.
+   * How references read once the document moves to `nextPath`. Relative
+   * ones were resolved against the old directory and would all break;
+   * absolute ones left by inserts into a never-saved document become
+   * relative when the settings prefer that.
    */
-  private relocateAttachmentReferences(
-    editor: NyaEditor,
-    previousPath: string | null,
-    nextPath: string
-  ) {
+  private referenceRelocation(previousPath: string | null, nextPath: string) {
     const options = getSettings().attachments;
-    editor.rewriteLocalReferences((reference) =>
-      relocateLocalReference(reference, previousPath, nextPath, options)
-    );
+    return (reference: string) =>
+      relocateLocalReference(reference, previousPath, nextPath, options);
   }
 
   /**
@@ -367,7 +368,12 @@ export class FileController {
     }
   }
 
-  private async saveToExistingPath(path: string, snapshot: string) {
+  /** `written` runs once `snapshot` is on disk, before the dirty check. */
+  private async saveToExistingPath(
+    path: string,
+    snapshot: string,
+    written?: () => void
+  ) {
     // Update before the write so the file-watcher callback that fires during
     // the async IPC round-trip (very fast on Windows NTFS) sees the expected
     // content and does not trigger a spurious "file changed externally" dialog.
@@ -380,6 +386,7 @@ export class FileController {
       throw error;
     }
     this.autoSaveFailureShown = false;
+    written?.();
     // What was typed in the source pane while the file was written counts.
     this.flushPendingEdits();
     const currentMarkdown = this.getEditor()?.getMarkdown() ?? snapshot;

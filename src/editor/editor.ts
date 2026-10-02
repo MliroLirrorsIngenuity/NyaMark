@@ -10,6 +10,7 @@ import {
   parserCtx,
   remarkCtx,
   remarkStringifyOptionsCtx,
+  serializerCtx,
 } from '@milkdown/kit/core';
 import {
   emphasisStarInputRule,
@@ -26,7 +27,12 @@ import {
   type Node as ProseNode,
   Slice,
 } from '@milkdown/kit/prose/model';
-import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
+import {
+  type EditorState,
+  Plugin,
+  PluginKey,
+  TextSelection,
+} from '@milkdown/kit/prose/state';
 import { $prose, outline } from '@milkdown/kit/utils';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
@@ -633,41 +639,60 @@ export class NyaEditor {
   rewriteLocalReferences(mapper: (reference: string) => string | null) {
     if (!this.crepe) return 0;
     const view = this.crepe.editor.ctx.get(editorViewCtx);
-    const { state } = view;
-    const { tr } = state;
-    const linkMarkType = state.schema.marks.link;
-    let rewritten = 0;
-
-    // Attribute and mark changes never move positions, so the positions of
-    // the untouched document stay valid for the whole walk.
-    state.doc.descendants((node, pos) => {
-      if (node.type.name === 'image-block' || node.type.name === 'image') {
-        const src = typeof node.attrs.src === 'string' ? node.attrs.src : '';
-        const next = src ? mapper(src) : null;
-        if (next !== null && next !== src) {
-          tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: next });
-          rewritten += 1;
-        }
-      }
-
-      if (!linkMarkType || !node.isInline) return true;
-      for (const mark of node.marks) {
-        if (mark.type !== linkMarkType) continue;
-        const href = typeof mark.attrs.href === 'string' ? mark.attrs.href : '';
-        const next = href ? mapper(href) : null;
-        if (next === null || next === href) continue;
-        const end = pos + node.nodeSize;
-        tr.removeMark(pos, end, mark).addMark(
-          pos,
-          end,
-          linkMarkType.create({ ...mark.attrs, href: next })
-        );
-        rewritten += 1;
-      }
-      return true;
-    });
-
+    const { tr, rewritten } = referencesRewritten(view.state, mapper);
     if (rewritten > 0) view.dispatch(tr.setMeta('addToHistory', false));
     return rewritten;
   }
+
+  /**
+   * The Markdown the document reads with its references run through
+   * `mapper` (see `rewriteLocalReferences`), the document left as it is.
+   */
+  getMarkdownWithReferences(mapper: (reference: string) => string | null) {
+    if (!this.crepe) return '';
+    const { ctx } = this.crepe.editor;
+    const { tr } = referencesRewritten(ctx.get(editorViewCtx).state, mapper);
+    return ctx.get(serializerCtx)(tr.doc);
+  }
+}
+
+/** `state` with every image `src` and link `href` run through `mapper`. */
+function referencesRewritten(
+  state: EditorState,
+  mapper: (reference: string) => string | null
+) {
+  const { tr } = state;
+  const linkMarkType = state.schema.marks.link;
+  let rewritten = 0;
+
+  // Attribute and mark changes never move positions, so the positions of
+  // the untouched document stay valid for the whole walk.
+  state.doc.descendants((node, pos) => {
+    if (node.type.name === 'image-block' || node.type.name === 'image') {
+      const src = typeof node.attrs.src === 'string' ? node.attrs.src : '';
+      const next = src ? mapper(src) : null;
+      if (next !== null && next !== src) {
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: next });
+        rewritten += 1;
+      }
+    }
+
+    if (!linkMarkType || !node.isInline) return true;
+    for (const mark of node.marks) {
+      if (mark.type !== linkMarkType) continue;
+      const href = typeof mark.attrs.href === 'string' ? mark.attrs.href : '';
+      const next = href ? mapper(href) : null;
+      if (next === null || next === href) continue;
+      const end = pos + node.nodeSize;
+      tr.removeMark(pos, end, mark).addMark(
+        pos,
+        end,
+        linkMarkType.create({ ...mark.attrs, href: next })
+      );
+      rewritten += 1;
+    }
+    return true;
+  });
+
+  return { tr, rewritten };
 }

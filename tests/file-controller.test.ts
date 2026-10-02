@@ -80,9 +80,18 @@ function setup(content = '') {
   // `pending` stands for keys the source pane has yet to hand the editor.
   const editor = { markdown: content, pending: null as string | null };
   const synced: string[] = [];
+  // References are the targets of `(…)`, enough for these documents.
+  const relocated = (mapper: (reference: string) => string | null) =>
+    editor.markdown.replace(
+      /\(([^)]+)\)/g,
+      (_, reference: string) => `(${mapper(reference) ?? reference})`
+    );
   const fakeEditor = {
     getMarkdown: () => editor.markdown,
-    rewriteLocalReferences: () => {},
+    getMarkdownWithReferences: relocated,
+    rewriteLocalReferences: (mapper: (reference: string) => string | null) => {
+      editor.markdown = relocated(mapper);
+    },
   } as unknown as NyaEditor;
   const controller = new FileController(() => fakeEditor, {
     syncEditorAfterSave: (saved) => {
@@ -196,6 +205,29 @@ describe('saving', () => {
     expect(editor.markdown).toBe('typed while saving');
     expect(store.getState().isDirty).toBe(true);
     expect(synced).toEqual([]);
+  });
+
+  test('moves references with the file once Save As has written it', async () => {
+    const { path, controller, edit, editor } = setup();
+    store.update({ filePath: path });
+    edit('![](img/a.png)\n');
+    bridge.saveDialogPath = '/elsewhere/doc.md';
+
+    bridge.save = async () => {
+      throw new Error('read-only folder');
+    };
+    await controller.saveFileAs().catch(() => {});
+    expect(bridge.writes[0]?.text).toBe('![](../notes/img/a.png)\n');
+    expect(editor.markdown).toBe('![](img/a.png)\n');
+    expect(store.getState().filePath).toBe(path);
+
+    bridge.save = async () => {};
+    await controller.saveFileAs();
+    expect(editor.markdown).toBe('![](../notes/img/a.png)\n');
+    expect(store.getState()).toMatchObject({
+      filePath: '/elsewhere/doc.md',
+      isDirty: false,
+    });
   });
 
   test('a failed save reports and does not block the next one', async () => {
