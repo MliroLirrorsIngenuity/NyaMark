@@ -10,7 +10,11 @@
  * A fence typed or read from a file keeps the word it has.
  */
 
-import { LanguageDescription } from '@codemirror/language';
+import {
+  LanguageDescription,
+  indentUnit,
+  language as languageOf,
+} from '@codemirror/language';
 import { languages } from '@codemirror/language-data';
 import {
   type EditorState,
@@ -82,6 +86,31 @@ export const codeLanguages = languages.map((language) => {
     filename: language.filename,
     load: () => language.load(),
   });
+});
+
+/**
+ * Languages written with an indent of four spaces. CodeMirror indents by two
+ * whatever the language, so Python's indent after a colon went in at two,
+ * against how Python is written. Go takes a tab, the rest two spaces.
+ */
+const FOUR_SPACES = new Set([
+  'python',
+  'rust',
+  'java',
+  'cpp',
+  'csharp',
+  'php',
+  'kotlin',
+  'swift',
+  'objectivec',
+  'perl',
+]);
+
+/** The indent a code block's language is written with, Tab's and Enter's. */
+export const codeIndentUnit = indentUnit.compute([languageOf], (state) => {
+  const name = state.facet(languageOf)?.name ?? '';
+  if (name === 'go') return '\t';
+  return FOUR_SPACES.has(name) ? '    ' : '  ';
 });
 
 const WORDS = new Map(

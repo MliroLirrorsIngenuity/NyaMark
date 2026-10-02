@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
+import { indentUnit } from '@codemirror/language';
+import { EditorState as CodeState } from '@codemirror/state';
 import { Schema } from '@milkdown/kit/prose/model';
 import { EditorState, type Transaction } from '@milkdown/kit/prose/state';
 import {
+  codeIndentUnit,
   codeLanguages,
   fenceLanguageWords,
   fenceWord,
@@ -75,6 +78,26 @@ describe('a fence word', () => {
     expect(fenced('m')).toBeNull();
     expect(fenced('text')).toBeNull();
     expect(fenced('1')).toBeNull();
+  });
+});
+
+describe("a code block's indent", () => {
+  const indentIn = async (name: string) =>
+    CodeState.create({
+      extensions: [await language(name).load(), codeIndentUnit],
+    }).facet(indentUnit);
+
+  test('is four spaces in Python and Rust, a tab in Go, two in the rest', async () => {
+    expect(await indentIn('Python')).toBe('    ');
+    expect(await indentIn('Rust')).toBe('    ');
+    expect(await indentIn('Go')).toBe('\t');
+    expect(await indentIn('JavaScript')).toBe('  ');
+  });
+
+  test('is two spaces in a block with no language', () => {
+    expect(
+      CodeState.create({ extensions: [codeIndentUnit] }).facet(indentUnit)
+    ).toBe('  ');
   });
 });
 

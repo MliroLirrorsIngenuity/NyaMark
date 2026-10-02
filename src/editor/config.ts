@@ -17,7 +17,7 @@ import { codeArrowsByRow } from './plugins/block-arrows';
 import { codeClearOfBar } from './plugins/caret-scroll';
 import { caretThroughColour } from './plugins/code-colour-caret';
 import { closeFenceOnEnter } from './plugins/code-fence-exit';
-import { codeLanguages } from './plugins/code-language';
+import { codeIndentUnit, codeLanguages } from './plugins/code-language';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
 import { rememberCodeCopy } from './plugins/paste-code';
@@ -65,6 +65,7 @@ function codeBlockExtensions(getView: () => EditorView | null) {
     rememberCodeCopy(getView),
     codeClearOfBar,
     caretThroughColour,
+    codeIndentUnit,
   ];
 }
 
