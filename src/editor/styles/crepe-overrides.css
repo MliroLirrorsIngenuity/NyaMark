@@ -1324,6 +1324,28 @@
   box-shadow: var(--ny-editor-floating-shadow) !important;
 }
 
+/*
+ * The slash menu is no taller than the room under its line or over it --
+ * see `plugins/slash-menu-room.ts`. At its full height it was taller than
+ * either, on a line halfway down a window of the default size, and hung under
+ * the status bar, its last items out of sight.
+ */
+.ny-editor-root .milkdown .milkdown-slash-menu:not([data-show="false"]),
+.ny-editor-root .milkdown .milkdown-slash-menu > div {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.ny-editor-root .milkdown .milkdown-slash-menu {
+  max-height: var(--ny-slash-menu-room, none) !important;
+}
+
+.ny-editor-root .milkdown .milkdown-slash-menu > div,
+.ny-editor-root .milkdown .milkdown-slash-menu .menu-groups {
+  flex: 0 1 auto !important;
+  min-height: 0 !important;
+}
+
 .ny-editor-root .milkdown .milkdown-code-block .language-list-item {
   display: flex !important;
   align-items: center !important;

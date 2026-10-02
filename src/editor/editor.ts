@@ -78,6 +78,7 @@ import {
   searchKey,
   searchPlugin,
 } from './plugins/search';
+import { slashMenuRoom } from './plugins/slash-menu-room';
 import { tabFocus } from './plugins/tab-focus';
 import { keepCellAlignment } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
@@ -193,6 +194,7 @@ export class NyaEditor {
     crepe.editor.use(undoByLine);
     crepe.editor.use(linkInput);
     crepe.editor.use(linkBox);
+    crepe.editor.use(slashMenuRoom);
     crepe.editor.use(fenceInput);
     crepe.editor.use(listItemView);
     crepe.editor.use(keepListItemSelected);
