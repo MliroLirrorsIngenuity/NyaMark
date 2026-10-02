@@ -22,7 +22,7 @@ import { codeIndentUnit, codeLanguages } from './plugins/code-language';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
 import { rememberCodeCopy } from './plugins/paste-code';
-import { intoInsertedBlocks } from './plugins/toolbar-insert';
+import { intoInsertedBlocks, intoSlashBlocks } from './plugins/toolbar-insert';
 import { type Builder, intoToggles } from './plugins/toolbar-toggles';
 import { intoHeadingSelector } from './plugins/top-bar-heading-code';
 import { pasteApart } from './plugins/undo-lines';
@@ -337,6 +337,7 @@ function localizedFeatureConfigs() {
       ],
     },
     [CrepeFeature.BlockEdit]: {
+      buildMenu: intoSlashBlocks,
       textGroup: {
         label: blockLabel('groupText'),
         text: { label: blockLabel('text') },

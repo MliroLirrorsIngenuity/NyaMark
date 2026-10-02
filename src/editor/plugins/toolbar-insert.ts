@@ -21,10 +21,16 @@
  * empty bullet, saved as `<br />`. The code block and quote buttons did
  * nothing on the first line of a list item, which has to stay text; the line
  * goes there as code or a quote too.
+ *
+ * The slash menu's image and rule go in as the toolbar's do. They left the
+ * caret in the block after them, at the start of a code block under them
+ * as often as not, and at the end of the document left the block selected,
+ * where what was typed next went nowhere.
  */
 
-import { editorViewCtx } from '@milkdown/kit/core';
+import { commandsCtx, editorViewCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
+import { clearTextInCurrentBlockCommand } from '@milkdown/kit/preset/commonmark';
 import { createTable } from '@milkdown/kit/preset/gfm';
 import type { Node, ResolvedPos } from '@milkdown/kit/prose/model';
 import { TextSelection, type Transaction } from '@milkdown/kit/prose/state';
@@ -109,16 +115,25 @@ type Builder = { build: () => { key: string; items: Item[] }[] };
 
 const nodes = (ctx: Ctx) => ctx.get(editorViewCtx).state.schema.nodes;
 
+const image = (ctx: Ctx) => nodes(ctx)['image-block'].create();
+const rule = (ctx: Ctx) => nodes(ctx).hr.create();
+
 /** The block each of these buttons adds, by its group and key. */
 const BLOCKS: [group: string, key: string, make: (ctx: Ctx) => Node][] = [
-  ['insert', 'image', (ctx) => nodes(ctx)['image-block'].create()],
+  ['insert', 'image', image],
   ['insert', 'table', (ctx) => createTable(ctx, 3, 3)],
   [
     'block',
     'math',
     (ctx) => nodes(ctx).code_block.create({ language: 'LaTeX' }),
   ],
-  ['more', 'hr', (ctx) => nodes(ctx).hr.create()],
+  ['more', 'hr', rule],
+];
+
+/** The slash menu's items that add an image or a rule, the same way. */
+const SLASH_BLOCKS: [group: string, key: string, make: (ctx: Ctx) => Node][] = [
+  ['advanced', 'image', image],
+  ['text', 'divider', rule],
 ];
 
 /** Has the toolbar's block buttons put in their blocks as above. */
@@ -161,6 +176,22 @@ export function intoInsertedBlocks(builder: Builder) {
       }
       if (liftFromQuote(view.state, view.dispatch)) return;
       if (!itemLineInto(view, 'quote')) toQuote(ctx);
+    };
+  }
+}
+
+/** Has the slash menu's image and rule put in as the toolbar's are. */
+export function intoSlashBlocks(builder: Builder) {
+  const groups = builder.build();
+  for (const [group, key, make] of SLASH_BLOCKS) {
+    const item = groups
+      .find((g) => g.key === group)
+      ?.items.find((i) => i.key === key);
+    if (!item) continue;
+    item.onRun = (ctx) => {
+      // The slash and what was typed after it go first, as Crepe's own do.
+      ctx.get(commandsCtx).call(clearTextInCurrentBlockCommand.key);
+      insertBlock(ctx.get(editorViewCtx), make(ctx));
     };
   }
 }
