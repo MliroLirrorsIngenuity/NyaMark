@@ -9,6 +9,7 @@ import {
   updateSettings,
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
+import { forInputMethod } from '../ime';
 import { animationsSettled, isModalOpen, openModal } from '../modal';
 import { requireElement } from '../require-element';
 import { renderAppearanceSection } from './sections/appearance';
@@ -672,6 +673,19 @@ export class SettingsPanel {
       onDismiss: () => void close(),
     });
 
+    // Return in a number field presses OK, as Return does in a native
+    // dialog; it did nothing. Leaving the field first lets its change event
+    // take the value in, or put back one out of range.
+    dialog.addEventListener('keydown', (event) => {
+      const field = event.target;
+      if (event.key !== 'Enter' || forInputMethod(event)) return;
+      if (!(field instanceof HTMLInputElement) || field.type !== 'number') {
+        return;
+      }
+      event.preventDefault();
+      field.blur();
+      ok.click();
+    });
     cancel.addEventListener('click', () => void close());
     ok.addEventListener('click', async () => {
       // `working` is always a sanitized, valid snapshot (each section clamps on
