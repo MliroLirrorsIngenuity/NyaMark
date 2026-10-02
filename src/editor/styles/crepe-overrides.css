@@ -1302,8 +1302,15 @@
   pointer-events: auto !important;
 }
 
+/* Over the pill, and shorter, where the room is -- see
+   `plugins/language-picker-room.ts`. */
+.ny-editor-root .milkdown .milkdown-code-block .language-picker[data-ny-above] {
+  top: auto !important;
+  bottom: calc(100% + 4px) !important;
+}
+
 .ny-editor-root .milkdown .milkdown-code-block .language-list {
-  height: 196px !important;
+  height: var(--ny-language-list-height, 196px) !important;
 }
 
 /*

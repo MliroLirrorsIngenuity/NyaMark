@@ -56,6 +56,7 @@ import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
 import { languagePickerKeys } from './plugins/language-picker-keys';
+import { languagePickerRoom } from './plugins/language-picker-room';
 import { linkBox } from './plugins/link-box';
 import { linkInput } from './plugins/link-input';
 import { keepListItemSelected, listItemView } from './plugins/list-item-view';
@@ -239,6 +240,7 @@ export class NyaEditor {
     fitTopBar(this.root);
     closeHeadingListOnKeys(this.root);
     languagePickerKeys(this.root);
+    languagePickerRoom(this.root);
   }
 
   /**
