@@ -52,6 +52,7 @@ import {
   registerGfmAlertStyles,
 } from './plugins/gfm-alerts';
 import { headingInput } from './plugins/heading-input';
+import { headingDigitKeys } from './plugins/heading-keys';
 import { homeEnd } from './plugins/home-end';
 import { hrInput } from './plugins/hr-input';
 import {
@@ -195,6 +196,7 @@ export class NyaEditor {
     crepe.editor.config(typeOutsideLinks);
     crepe.editor.config(restoreOnCancel);
     crepe.editor.config(dropWrapKeys);
+    crepe.editor.config(headingDigitKeys);
     crepe.editor.config(keepCellAlignment);
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.config(handleBlocksOnly);
