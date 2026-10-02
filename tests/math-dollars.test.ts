@@ -117,7 +117,7 @@ describe('keepDollar', () => {
       doc,
       selection: TextSelection.create(doc, 7),
     });
-    const typed = `${doc.textBetween(1, 7, null, '￼')}$`;
+    const typed = `${doc.textBetween(1, 7, null, '\ufffc')}$`;
     const match = typed.match(TYPED_MATH);
     if (!match) throw new Error('no match');
     const tr = keepDollar(state, match, 7 - (match[0].length - 1), 7);

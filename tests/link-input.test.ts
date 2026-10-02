@@ -58,6 +58,33 @@ describe('a link typed as Markdown', () => {
     expect(state?.storedMarks).toEqual([]);
   });
 
+  test('keeps the bold and image in its text', () => {
+    const strong = schema.mark('strong');
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, [
+        schema.text('看 ['),
+        schema.text('粗', [strong]),
+        schema.node('image', { src: 'a.png', alt: '', title: '' }),
+        schema.text('](u'),
+      ]),
+    ]);
+    const end = doc.content.size - 1;
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, end),
+    });
+    const match = LINK.exec(`${doc.textBetween(1, end, null, '\ufffc')})`);
+    if (!match) throw new Error('no match');
+    const start = end - (match[0].length - 1);
+    const para = state.apply(typedLink(state, match, start, end) ?? state.tr)
+      .doc.firstChild;
+    expect(para?.childCount).toBe(3);
+    const link = schema.mark('link', { href: 'u' });
+    expect(para?.child(1).marks).toEqual([link, strong]);
+    expect(para?.child(2).type.name).toBe('image');
+    expect(para?.child(2).marks).toEqual([link]);
+  });
+
   test('stays text after a backslash, an unclosed backtick or a bang', () => {
     expect(type('\\[a](b)', LINK, typedLink)).toBeNull();
     expect(type('`[a](b)', LINK, typedLink)).toBeNull();

@@ -20,6 +20,8 @@ const TARGET = String.raw`\]\(([^()\s]+)(?:\s+"([^"]*)")?\)$`;
 export const IMAGE = new RegExp(String.raw`!\[([^[\]]*)${TARGET}`);
 // Not after `!`, an image's, or `\`, which keeps the bracket text.
 export const LINK = new RegExp(String.raw`(^|[^!\\])\[([^[\]]+)${TARGET}`);
+/** What the text before the caret holds for a line break, image or formula. */
+const INLINE_NODE = '\ufffc';
 
 /** After an opening backtick still unclosed: the text of a code span. */
 function inCodeSpan(match: RegExpMatchArray, lead = 0): boolean {
@@ -36,13 +38,16 @@ export function typedLink(
   const [, before = '', label = '', href = '', title] = match;
   const type = state.schema.marks.link;
   if (!type || inCodeSpan(match, before.length)) return null;
+  // The brackets go and the text between them takes the link as it stands:
+  // made plain text, it lost its bold, and a line break in it was gone with
+  // a stray character in its place.
   const from = start + before.length;
-  const marks = type
-    .create({ href, title: title ?? null })
-    .addToSet(state.doc.resolve(from).marks());
+  const to = from + 1 + label.length;
   return (
     state.tr
-      .replaceWith(from, end, state.schema.text(label, marks))
+      .delete(to, end)
+      .delete(from, from + 1)
+      .addMark(from, to - 1, type.create({ href, title: title ?? null }))
       // What is typed next goes after the link, outside it.
       .removeStoredMark(type)
   );
@@ -55,7 +60,8 @@ export function typedImage(
   end: number
 ) {
   const [, alt = '', src = '', title = ''] = match;
-  if (inCodeSpan(match)) return null;
+  // A description is text alone.
+  if (inCodeSpan(match) || alt.includes(INLINE_NODE)) return null;
   const { nodes } = state.schema;
   const $start = state.doc.resolve(start);
   const line = $start.parent;
