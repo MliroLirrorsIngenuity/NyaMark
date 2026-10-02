@@ -1241,6 +1241,18 @@
 }
 
 /*
+ * Text selected in the document takes the accent wash of the app-wide
+ * `::selection`, as code, tables and pictures under a selection do. In
+ * Crepe's paler colour of its own, a selection running from a line over a
+ * code block or a table deepened at the block and paled again after it.
+ * Kept as light as Crepe's rule, so Crepe's clear selection inside a node
+ * picked up whole still wins.
+ */
+:where(.ny-editor-root) .milkdown .ProseMirror *::selection {
+  background: color-mix(in srgb, var(--ny-accent), transparent 72%);
+}
+
+/*
  * Selection, caret and the rest of CodeMirror's IDE furniture.
  *
  * `drawSelection()` (bundled in basicSetup, which Crepe hard-codes) does two
