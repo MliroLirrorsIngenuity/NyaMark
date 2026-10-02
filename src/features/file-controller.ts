@@ -35,6 +35,12 @@ export class FileController {
   private documentFormat: DocumentFormat = { ...DEFAULT_DOCUMENT_FORMAT };
   private watchVersion = 0;
   private conflictPrompting = false;
+  /**
+   * Set while the file is gone from disk, deleted or moved by another
+   * program: the text the document held when it went, and whether that was
+   * saved. Nothing on disk holds the document then, so it counts as unsaved.
+   */
+  private missing: { text: string; dirty: boolean } | null = null;
   /** Tail of the save queue; see `saveCurrentDocument`. */
   private saveQueue: Promise<unknown> = Promise.resolve();
   /** Set once an auto-save failure was shown; cleared by the next good save. */
@@ -96,6 +102,7 @@ export class FileController {
     this.watchVersion += 1;
     const watchVersion = this.watchVersion;
     this.watchedPath = path;
+    this.missing = null;
     if (!path) return;
 
     try {
@@ -131,16 +138,31 @@ export class FileController {
       // endings; the next save follows the file as it is now.
       this.documentFormat = document.format;
     } catch (error) {
+      if (error instanceof DocumentError && error.kind === 'missing') {
+        this.markMissing();
+        return;
+      }
       console.error('Failed to reload changed file:', error);
       return;
     }
 
+    // The file is back, rewritten by a program that deletes it first or put
+    // back from the trash. A document unedited since it went is as saved as
+    // it was then.
+    let dirty = store.getState().isDirty;
+    if (this.missing) {
+      const { text, dirty: before } = this.missing;
+      if (this.getEditor()?.getMarkdown() === text) dirty = before;
+      this.missing = null;
+    }
+
     // Ignore events that report no real change (most commonly our own save).
     if (newContent === this.lastKnownContent) {
+      if (dirty !== store.getState().isDirty) store.update({ isDirty: dirty });
       return;
     }
 
-    if (!state.isDirty) {
+    if (!dirty) {
       this.applyExternalContent(newContent);
       return;
     }
@@ -168,6 +190,19 @@ export class FileController {
       // save intentionally overwrites disk.
       this.lastKnownContent = newContent;
     }
+  }
+
+  /**
+   * The open file was deleted or moved. The document stays open and unsaved,
+   * so closing it asks first; saved, it is written where the file was.
+   */
+  private markMissing() {
+    if (this.missing) return;
+    this.missing = {
+      text: this.getEditor()?.getMarkdown() ?? '',
+      dirty: store.getState().isDirty,
+    };
+    store.update({ isDirty: true });
   }
 
   private applyExternalContent(content: string) {
@@ -272,6 +307,9 @@ export class FileController {
     // version; a tick wrote over it, and "Reload" then loaded a version no
     // longer on disk.
     if (this.conflictPrompting) return;
+    // A file moved or deleted on purpose came back at its old name on the
+    // next tick; only a save asked for writes it there again.
+    if (this.missing) return;
     try {
       await this.saveCurrentDocument({
         forceDialog: false,
@@ -390,6 +428,7 @@ export class FileController {
       throw error;
     }
     this.autoSaveFailureShown = false;
+    this.missing = null;
     written?.();
     // What was typed in the source pane while the file was written counts.
     this.flushPendingEdits();

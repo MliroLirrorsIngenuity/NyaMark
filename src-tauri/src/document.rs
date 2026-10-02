@@ -80,6 +80,10 @@ pub enum DocumentError {
     TooLarge {
         limit_bytes: u64,
     },
+    /// Nothing is at the path: the file was deleted, or moved away.
+    Missing {
+        message: String,
+    },
     Io {
         message: String,
     },
@@ -87,8 +91,11 @@ pub enum DocumentError {
 
 impl From<io::Error> for DocumentError {
     fn from(error: io::Error) -> Self {
-        Self::Io {
-            message: error.to_string(),
+        let message = error.to_string();
+        if error.kind() == io::ErrorKind::NotFound {
+            Self::Missing { message }
+        } else {
+            Self::Io { message }
         }
     }
 }

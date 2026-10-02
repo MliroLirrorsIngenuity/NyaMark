@@ -298,7 +298,19 @@ describe('changes made by other programs', () => {
       bridge.watchers.get(context.path)?.();
       await settle();
     };
-    return { ...context, fire };
+    const vanish = async () => {
+      bridge.read = async (path) => {
+        throw new realFiles.DocumentError(
+          'missing',
+          path,
+          null,
+          'No such file or directory'
+        );
+      };
+      bridge.watchers.get(context.path)?.();
+      await settle();
+    };
+    return { ...context, fire, vanish };
   }
 
   test('load straight into a clean document', async () => {
@@ -351,6 +363,32 @@ describe('changes made by other programs', () => {
     expect(bridge.writes).toEqual([]);
     expect(synced).toEqual(['changed elsewhere']);
     expect(store.getState().isDirty).toBe(false);
+  });
+
+  test('count a deleted file as unsaved, written again only when saved', async () => {
+    const { vanish, controller, path } = await watched('old');
+    await vanish();
+    expect(store.getState().isDirty).toBe(true);
+
+    await controller.autoSaveFile();
+    expect(bridge.writes).toEqual([]);
+
+    await controller.saveFile();
+    expect(bridge.writes.map((write) => write.path)).toEqual([path]);
+    expect(store.getState().isDirty).toBe(false);
+  });
+
+  test('take a file that comes back as it was before it went', async () => {
+    const { vanish, fire, edit } = await watched('old');
+    await vanish();
+    await fire('old');
+    expect(store.getState().isDirty).toBe(false);
+
+    edit('local edit');
+    await vanish();
+    await fire('old');
+    expect(store.getState().isDirty).toBe(true);
+    expect(bridge.conflictPrompts).toBe(0);
   });
 
   test('ignore the echo of our own save', async () => {

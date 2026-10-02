@@ -97,7 +97,12 @@ export interface MarkdownDocument {
   format: DocumentFormat;
 }
 
-export type DocumentErrorKind = 'not-utf8' | 'forbidden' | 'too-large' | 'io';
+export type DocumentErrorKind =
+  | 'not-utf8'
+  | 'forbidden'
+  | 'too-large'
+  | 'missing'
+  | 'io';
 
 /** Structured failure from the document commands (see `document.rs`). */
 export class DocumentError extends Error {
