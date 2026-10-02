@@ -312,6 +312,38 @@ function appendMetaCard(host: HTMLElement, label: string, value: string) {
   host.appendChild(card);
 }
 
+/** How long a download may go without a byte before it is given up. */
+const DOWNLOAD_STALL_MS = 30_000;
+
+/**
+ * `update.download`, given up once `DOWNLOAD_STALL_MS` pass with no byte
+ * arriving: a dropped connection left the dialog on "Downloading" for good,
+ * with every way out of it switched off.
+ */
+function downloadUpdate(
+  update: Update,
+  onEvent: (event: DownloadEvent) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const wait = () => {
+      clearTimeout(timer);
+      timer = setTimeout(
+        () => reject(new Error('The update download stalled')),
+        DOWNLOAD_STALL_MS
+      );
+    };
+    wait();
+    update
+      .download((event) => {
+        wait();
+        onEvent(event);
+      })
+      .then(resolve, reject)
+      .finally(() => clearTimeout(timer));
+  });
+}
+
 export class UpdateDialog {
   private overlay: HTMLDivElement | null = null;
 
@@ -503,21 +535,20 @@ export class UpdateDialog {
       let downloaded = 0;
       let contentLength: number | null = null;
 
-      update
-        .download((event: DownloadEvent) => {
-          switch (event.event) {
-            case 'Started':
-              contentLength = event.data.contentLength ?? null;
-              break;
-            case 'Progress':
-              downloaded += event.data.chunkLength;
-              if (contentLength && contentLength > 0) {
-                const pct = Math.round((downloaded / contentLength) * 100);
-                updateNow.textContent = `${i18next.t('updates.downloading')} ${pct}%`;
-              }
-              break;
-          }
-        })
+      downloadUpdate(update, (event: DownloadEvent) => {
+        switch (event.event) {
+          case 'Started':
+            contentLength = event.data.contentLength ?? null;
+            break;
+          case 'Progress':
+            downloaded += event.data.chunkLength;
+            if (contentLength && contentLength > 0) {
+              const pct = Math.round((downloaded / contentLength) * 100);
+              updateNow.textContent = `${i18next.t('updates.downloading')} ${pct}%`;
+            }
+            break;
+        }
+      })
         .then(install)
         .catch(fail);
     });
