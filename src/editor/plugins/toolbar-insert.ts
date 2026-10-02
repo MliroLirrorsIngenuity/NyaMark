@@ -12,7 +12,9 @@
  * In a code block or a table, a block put in goes in after it. It went in at
  * the caret, cutting the code block in two or the table, a row of it above
  * and the rest below. The code block button in a code block leaves it as it
- * is; it made it a plain code block, losing its language.
+ * is; it made it a plain code block, losing its language. The link button
+ * there does nothing, as Cmd+K does: it opened the box for an address over
+ * the code, and what was typed in it went nowhere, code holding no link.
  *
  * On an empty line of a list item the block takes the line's place, under the
  * item above, as one typed there does. The line stayed above the block as an
@@ -128,6 +130,14 @@ export function intoInsertedBlocks(builder: Builder) {
     const item = find(group, key);
     if (!item) continue;
     item.onRun = (ctx) => insertBlock(ctx.get(editorViewCtx), make(ctx));
+  }
+  const link = find('insert', 'link');
+  const toLink = link?.onRun;
+  if (link && toLink) {
+    link.onRun = (ctx) => {
+      const { $from } = ctx.get(editorViewCtx).state.selection;
+      if (!$from.parent.type.spec.code) toLink(ctx);
+    };
   }
   const code = find('block', 'code-block');
   const toCode = code?.onRun;
