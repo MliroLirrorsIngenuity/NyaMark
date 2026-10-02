@@ -7,10 +7,16 @@
  * the end of the block, and was saved with it.
  *
  * A block copied here is taken as it is, an empty last line and all.
+ *
+ * A formula is saved between `$$` lines. Crepe writes it so in its own take on
+ * the code block, and this one, built on the plain code block, took its place:
+ * once a file was edited, each of its formulas was saved as a ```` ```LaTeX ````
+ * code block.
  */
 
 import { codeBlockSchema } from '@milkdown/kit/preset/commonmark';
 import { Fragment } from '@milkdown/kit/prose/model';
+import type { NodeSchema } from '@milkdown/kit/transformer';
 
 /** `language-js`, `lang-js`, GitHub's `highlight-source-js`, MDN's `brush: js`. */
 const LANGUAGE_CLASS =
@@ -63,6 +69,17 @@ function fromEditor(dom: Node) {
   return !!(root as ParentNode).querySelector?.('[data-pm-slice]');
 }
 
+type Runner = NodeSchema['toMarkdown']['runner'];
+
+/** `write` for a code block, with a formula written between `$$` lines. */
+export function formulaAsMath(write: Runner): Runner {
+  return (state, node) => {
+    const language = String(node.attrs.language ?? '').toLowerCase();
+    if (language !== 'latex') return write(state, node);
+    state.addNode('math', undefined, node.textContent);
+  };
+}
+
 export const codeBlockFromHtml = codeBlockSchema.extendSchema(
   (prev) => (ctx) => {
     const schema = prev(ctx);
@@ -89,6 +106,10 @@ export const codeBlockFromHtml = codeBlockSchema.extendSchema(
           return text ? Fragment.from(schema.text(text)) : Fragment.empty;
         },
       })),
+      toMarkdown: {
+        ...schema.toMarkdown,
+        runner: formulaAsMath(schema.toMarkdown.runner),
+      },
     };
   }
 );

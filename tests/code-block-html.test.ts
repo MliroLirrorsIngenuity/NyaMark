@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import { Schema } from '@milkdown/kit/prose/model';
 import {
   codeText,
+  formulaAsMath,
   languageFromClasses,
 } from '../src/editor/plugins/code-block-html';
 
@@ -70,5 +72,38 @@ describe('codeText', () => {
 
   test('reads Windows line breaks as line breaks', () => {
     expect(codeText(el('PRE', text('a\r\nb\rc')))).toBe('a\nb\nc');
+  });
+});
+
+describe('formulaAsMath', () => {
+  const schema = new Schema({
+    nodes: {
+      doc: { content: 'code_block+' },
+      code_block: {
+        content: 'text*',
+        code: true,
+        attrs: { language: { default: '' } },
+      },
+      text: {},
+    },
+  });
+  const block = (language: string, value: string) =>
+    schema.node('code_block', { language }, value ? schema.text(value) : []);
+  const write = (node: ReturnType<typeof block>) => {
+    const out: unknown[][] = [];
+    const state = { addNode: (...args: unknown[]) => out.push(args) };
+    const runner = formulaAsMath(() => out.push(['code']));
+    runner(state as never, node);
+    return out;
+  };
+
+  test('writes a formula as math, between $$ lines', () => {
+    expect(write(block('LaTeX', 'x^2'))).toEqual([['math', undefined, 'x^2']]);
+    expect(write(block('latex', ''))).toEqual([['math', undefined, '']]);
+  });
+
+  test('leaves other code to the code block', () => {
+    expect(write(block('js', 'let a'))).toEqual([['code']]);
+    expect(write(block('', 'x^2'))).toEqual([['code']]);
   });
 });
