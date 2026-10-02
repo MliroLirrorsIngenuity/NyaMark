@@ -13,6 +13,9 @@
  * TextSelection *fully covers* a given block. Only fully covered blocks get
  * washed -- a block the selection merely reaches into is already painting its
  * own partial range, and washing it whole would claim more than is selected.
+ * Blocks in a list item or a quote are washed too: only the top level was
+ * looked at, and Cmd+A over a list left its code, formulas and tables as
+ * holes in the band.
  *
  * Implemented as a plugin view that toggles a class straight on the node
  * view's DOM rather than as a ProseMirror node decoration: decoration changes
@@ -28,7 +31,7 @@ import { $prose } from '@milkdown/kit/utils';
 
 const pluginKey = new PluginKey('nyamark/block-selection');
 
-/** Toggled on the node view DOM of every fully-selected top-level block. */
+/** Toggled on the node view DOM of every fully-selected block. */
 const COVERED_CLASS = 'ny-block-selected';
 
 /**
@@ -46,23 +49,16 @@ function coveredBlocks(view: EditorView): HTMLElement[] {
 
   const { from, to } = selection;
   const covered: HTMLElement[] = [];
-  let offset = 0;
-
-  for (let i = 0; i < doc.childCount; i += 1) {
-    const start = offset;
-    const end = start + doc.child(i).nodeSize;
-    offset = end;
-
-    if (end <= from) continue;
-    if (start >= to) break;
-    if (from > start || end > to) continue;
-
-    const dom = view.nodeDOM(start);
+  doc.nodesBetween(from, to, (node, pos) => {
+    // Reached into, not covered: what it holds may be.
+    if (pos < from || pos + node.nodeSize > to) return !node.isTextblock;
+    const dom = view.nodeDOM(pos);
     if (dom instanceof HTMLElement && dom.matches(WASHABLE_SELECTOR)) {
       covered.push(dom);
+      return false;
     }
-  }
-
+    return !node.isTextblock;
+  });
   return covered;
 }
 
