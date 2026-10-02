@@ -49,6 +49,7 @@ import {
   registerGfmAlertStyles,
 } from './plugins/gfm-alerts';
 import { headingInput } from './plugins/heading-input';
+import { homeEnd } from './plugins/home-end';
 import { hrInput } from './plugins/hr-input';
 import {
   htmlBlockSelection,
@@ -205,6 +206,7 @@ export class NyaEditor {
     ]);
     crepe.editor.use(markInput);
     crepe.editor.use(markCursor);
+    crepe.editor.use(homeEnd);
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(undoByLine);
     crepe.editor.use(linkInput);
