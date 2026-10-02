@@ -5,13 +5,18 @@
  * the quote button takes the blocks out of it. The list buttons did nothing in
  * a list, a second click on the quote button put a quote in the quote, and no
  * button lit up for the list or the quote the caret was in.
+ *
+ * A list a button makes joins a list of its kind right before or after it:
+ * an item taken out of a list and put back made a list of its own, set apart
+ * from the items either side and saved with other bullets to keep it apart.
  */
 
 import { editorViewCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
+import type { Node } from '@milkdown/kit/prose/model';
 import { liftListItem } from '@milkdown/kit/prose/schema-list';
 import type { EditorState, Transaction } from '@milkdown/kit/prose/state';
-import { liftTarget } from '@milkdown/kit/prose/transform';
+import { canJoin, liftTarget } from '@milkdown/kit/prose/transform';
 
 export type ListKind = 'bullet' | 'ordered' | 'task';
 
@@ -73,6 +78,33 @@ export function toggleList(
   return true;
 }
 
+/** The kind of list `node` is, if it is one. */
+function kindOf(node: Node | null | undefined): ListKind | null {
+  if (node?.type.name === 'ordered_list') return 'ordered';
+  if (node?.type.name !== 'bullet_list') return null;
+  return node.firstChild?.attrs.checked != null ? 'task' : 'bullet';
+}
+
+/** The list the selection is in joined to lists of its kind either side. */
+export function joinNeighbours(
+  state: EditorState,
+  dispatch?: Dispatch
+): boolean {
+  const at = listAt(state);
+  if (!at) return false;
+  const { $from } = state.selection;
+  const start = $from.before(at.depth);
+  const end = $from.after(at.depth);
+  const { tr } = state;
+  const after = tr.doc.resolve(end).nodeAfter;
+  if (kindOf(after) === at.kind && canJoin(tr.doc, end)) tr.join(end);
+  const before = tr.doc.resolve(start).nodeBefore;
+  if (kindOf(before) === at.kind && canJoin(tr.doc, start)) tr.join(start);
+  if (!tr.docChanged) return false;
+  dispatch?.(tr.scrollIntoView());
+  return true;
+}
+
 const isQuote = (node: { type: { name: string } }) =>
   node.type.name === 'blockquote';
 
@@ -121,7 +153,9 @@ export function intoToggles(builder: Builder) {
     item.active = (ctx) => listAt(state(ctx))?.kind === kind;
     item.onRun = (ctx) => {
       const view = ctx.get(editorViewCtx);
+      const lifts = listAt(view.state)?.kind === kind;
       if (!toggleList(view.state, kind, view.dispatch)) wrap(ctx);
+      if (!lifts) joinNeighbours(view.state, view.dispatch);
       view.focus();
     };
   }
