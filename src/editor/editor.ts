@@ -63,7 +63,7 @@ import { imageRatio } from './plugins/image-ratio';
 import { caretPastSelectedBlock, insertBlocks } from './plugins/insert-blocks';
 import { languagePickerKeys } from './plugins/language-picker-keys';
 import { languagePickerRoom } from './plugins/language-picker-room';
-import { linkBox } from './plugins/link-box';
+import { linkBox, restoreOnCancel } from './plugins/link-box';
 import { linkInput } from './plugins/link-input';
 import { linkKey } from './plugins/link-key';
 import { typeOutsideLinks } from './plugins/link-mark';
@@ -191,6 +191,7 @@ export class NyaEditor {
     crepe.editor.config(keepImageAlt);
     crepe.editor.config(keepBareLinks);
     crepe.editor.config(typeOutsideLinks);
+    crepe.editor.config(restoreOnCancel);
     crepe.editor.config(keepCellAlignment);
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.config(handleBlocksOnly);

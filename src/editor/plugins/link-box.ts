@@ -15,9 +15,14 @@
  * that name beside the document, which was not there.
  */
 
+import { linkTooltipAPI } from '@milkdown/kit/component/link-tooltip';
+import { editorViewCtx } from '@milkdown/kit/core';
+import type { Ctx } from '@milkdown/kit/ctx';
+import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import {
   type EditorState,
   Plugin,
+  type SelectionBookmark,
   TextSelection,
   type Transaction,
 } from '@milkdown/kit/prose/state';
@@ -121,13 +126,60 @@ function linkTyped(view: EditorView, event: Event) {
   view.dispatch(tr.scrollIntoView());
 }
 
+/** The selection the box was last opened from, and the text it was in. */
+const openedFrom = new WeakMap<
+  Ctx,
+  { doc: ProseNode; bookmark: SelectionBookmark }
+>();
+
+/**
+ * Escape in the box puts back the selection it was opened from. To change a
+ * link the box selects all of it, and it stayed selected once the box closed:
+ * the first key typed took the place of the link.
+ */
+export function restoreOnCancel(ctx: Ctx) {
+  ctx.update(linkTooltipAPI.key, (api) => {
+    const remember = () => {
+      const { state } = ctx.get(editorViewCtx);
+      const bookmark = state.selection.getBookmark();
+      openedFrom.set(ctx, { doc: state.doc, bookmark });
+    };
+    return {
+      ...api,
+      addLink: (from, to) => {
+        remember();
+        api.addLink(from, to);
+      },
+      editLink: (mark, from, to) => {
+        remember();
+        api.editLink(mark, from, to);
+      },
+    };
+  });
+}
+
+function cancelled(ctx: Ctx, view: EditorView, event: Event) {
+  if (!(event instanceof KeyboardEvent) || event.key !== 'Escape') return;
+  const target = event.target as Element | null;
+  if (event.isComposing || !target?.closest?.('.milkdown-link-edit')) return;
+  const opened = openedFrom.get(ctx);
+  openedFrom.delete(ctx);
+  if (!opened || opened.doc !== view.state.doc) return;
+  const selection = opened.bookmark.resolve(view.state.doc);
+  view.dispatch(view.state.tr.setSelection(selection));
+  view.focus();
+}
+
 export const linkBox = $prose(
-  () =>
+  (ctx) =>
     new Plugin({
       appendTransaction: (trs, _old, state) => caretAfterLink(trs, state),
       view(view) {
         const doc = view.dom.ownerDocument;
-        const listen = (event: Event) => linkTyped(view, event);
+        const listen = (event: Event) => {
+          linkTyped(view, event);
+          cancelled(ctx, view, event);
+        };
         doc.addEventListener('keydown', listen, true);
         doc.addEventListener('pointerdown', listen, true);
         return {
