@@ -64,6 +64,7 @@ import {
   htmlBlockView,
   registerHtmlBlockStyles,
 } from './plugins/html-block';
+import { imageAddressCaret } from './plugins/image-address-caret';
 import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
@@ -272,6 +273,7 @@ export class NyaEditor {
     crepe.editor.use(fenceLanguageWord);
     crepe.editor.use(blockArrows);
     crepe.editor.use(imageRatio);
+    crepe.editor.use(imageAddressCaret);
     crepe.editor.use(tableCells);
     crepe.editor.use(tabFocus);
     crepe.editor.use(searchPlugin);
