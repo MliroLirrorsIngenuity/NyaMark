@@ -1,26 +1,27 @@
 /**
- * The caret at the edge of a mark, drawn on the side typing goes to. Adapted
- * from prosemirror-virtual-cursor (MIT, ocavue), which Crepe uses and which
- * knows an edge only between two runs of text.
+ * The caret at the edge of inline code, drawn on the side typing goes to.
+ * Adapted from prosemirror-virtual-cursor (MIT, ocavue), which Crepe uses and
+ * which knows an edge only between two runs of text.
  *
  * At the end of a line ending in inline code nothing comes after the code, so
  * → went on to the next line and all that was typed at the end went into the
- * code: `npm install` took the X typed after it as `npm installX`. A link at
- * the end of a line took in what came after it the same way, and so did a
- * mark opening a line for what was typed in front of it. Here the start and
- * the end of a block count as text with no marks: → at the end of a line
- * steps out of its marks before it moves on, ← at the start of one does the
- * same, and the format bar's buttons light for the marks typing goes on in.
+ * code: `npm install` took the X typed after it as `npm installX`. Here the
+ * start and the end of a block count as text with no marks: → at the end of
+ * a line steps out of the code before it moves on, ← at the start of one does
+ * the same, and the format bar's buttons light for the marks typing goes on
+ * in.
  *
- * The caret is a plain bar on either side of an edge. Drawn as a bracket
- * turned to the side typing went to, as the plugin drew it, it stood over
- * the last letter like a stray character after the text.
+ * Only code's edges hold the arrow keys for a press, as the caret is drawn
+ * against the code's text inside and past its box outside. At the edges of
+ * bold, italic, a strike or a link the caret stood still for the press, so
+ * an arrow seemed to do nothing; there the arrows go by letters, typing takes
+ * the marks of the letter before as on a Mac, and a link is left at its ends
+ * (see link-mark).
  *
- * Code and links show where they end, and the caret goes by that. A click
- * past the end of one puts the caret outside it, as ⌘→ or End to the end of
- * the line does, and a click on its text puts it inside. A paste that ends in
- * one leaves the caret outside it too: the space typed after a pasted address
- * went into its link. Outside code, the caret is drawn past its box.
+ * A click past the end of code puts the caret outside it, as ⌘→ or End to
+ * the end of the line does, and a click on its text puts it inside. A paste
+ * that ends in code or a link leaves the caret outside it too: the space
+ * typed after a pasted address went into its link.
  */
 
 import { Mark, type ResolvedPos } from '@milkdown/kit/prose/model';
@@ -57,8 +58,8 @@ const typedMarks = (state: EditorState, $pos: ResolvedPos) =>
   state.storedMarks ?? $pos.marks();
 
 /**
- * ← or → at an edge goes over to the other side of it first. Moving onto an
- * edge over a character keeps the marks of that character, so the caret
+ * ← or → at an edge of code goes over to the other side of it first. Moving
+ * onto one over a character keeps the marks of that character, so the caret
  * lands on the side it came from.
  */
 export function stepOver(state: EditorState, key: string): Transaction | null {
@@ -66,32 +67,32 @@ export function stepOver(state: EditorState, key: string): Transaction | null {
   if (!(selection instanceof TextSelection) || !selection.empty) return null;
   const left = key === 'ArrowLeft';
   const $pos = selection.$head;
-  const [before, after] = marksAround($pos);
-  if (!Mark.sameSet(before, after)) {
-    const side = left ? before : after;
+  const around = marksAround($pos);
+  if (codeEdge(...around)) {
+    const side = around[left ? 0 : 1];
     if (!Mark.sameSet(side, typedMarks(state, $pos))) {
       return state.tr.setStoredMarks(side);
     }
   }
   const node = $pos.parent.maybeChild($pos.index());
-  if (left && $pos.textOffset === 1) {
-    const to = TextSelection.create(state.doc, $pos.pos - 1);
-    return state.tr.setSelection(to).setStoredMarks($pos.marks());
+  const onto =
+    left && $pos.textOffset === 1
+      ? $pos.pos - 1
+      : !left && node && $pos.textOffset + 1 === node.nodeSize
+        ? $pos.pos + 1
+        : null;
+  if (onto === null || !codeEdge(...marksAround(state.doc.resolve(onto)))) {
+    return null;
   }
-  if (!left && node && $pos.textOffset + 1 === node.nodeSize) {
-    const to = TextSelection.create(state.doc, $pos.pos + 1);
-    return state.tr.setSelection(to).setStoredMarks($pos.marks());
-  }
-  return null;
+  const to = TextSelection.create(state.doc, onto);
+  return state.tr.setSelection(to).setStoredMarks($pos.marks());
 }
 
-/** Marks whose box or underline shows where they end. */
-const drawn = (mark: Mark) =>
-  mark.type.spec.code ? 'code' : mark.type.name === 'link' ? 'a' : null;
+const isCode = (mark: Mark) => !!mark.type.spec.code;
 
 /**
- * The marks for a click at `pos`, when it is at the edge of code or a link:
- * those of the side clicked on.
+ * The marks for a click at `pos`, when it is at the edge of code: those of
+ * the side clicked on.
  */
 export function clickedSide(
   $pos: ResolvedPos,
@@ -100,11 +101,10 @@ export function clickedSide(
   const [before, after] = marksAround($pos);
   if (Mark.sameSet(before, after)) return null;
   const edge = [...before, ...after].find(
-    (mark) => drawn(mark) && !!mark.isInSet(before) !== !!mark.isInSet(after)
+    (mark) => isCode(mark) && !!mark.isInSet(before) !== !!mark.isInSet(after)
   );
-  const tag = edge && drawn(edge);
-  if (!edge || !tag) return null;
-  const inside = !!target?.closest(tag);
+  if (!edge) return null;
+  const inside = !!target?.closest('code');
   return !!edge.isInSet(before) === inside ? before : after;
 }
 
@@ -122,7 +122,7 @@ function jumpOf(event: KeyboardEvent): -1 | 0 | 1 {
 
 /**
  * The caret taken to the end of a line (`dir` 1) or its start (-1) goes
- * outside the code or the link there, as a click past it does.
+ * outside the code there, as a click past it does.
  */
 export function outsideAtEdge(
   state: EditorState,
@@ -135,7 +135,7 @@ export function outsideAtEdge(
   if ($pos.parentOffset !== edge) return null;
   const [before, after] = marksAround($pos);
   const inner = dir > 0 ? before : after;
-  if (!inner.some(drawn)) return null;
+  if (!inner.some(isCode)) return null;
   return state.tr.setStoredMarks(Mark.none);
 }
 
@@ -144,7 +144,10 @@ export function outsideAfterPaste(state: EditorState): Transaction | null {
   const { selection } = state;
   if (!(selection instanceof TextSelection) || !selection.empty) return null;
   const [before, after] = marksAround(selection.$head);
-  const ending = before.filter((mark) => drawn(mark) && !mark.isInSet(after));
+  const ending = before.filter(
+    (mark) =>
+      (isCode(mark) || mark.type.name === 'link') && !mark.isInSet(after)
+  );
   if (!ending.length) return null;
   return state.tr.setStoredMarks(
     before.filter((mark) => !ending.includes(mark))

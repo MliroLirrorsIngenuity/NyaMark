@@ -91,14 +91,34 @@ describe('stepOver', () => {
     const state = line(
       [
         ['a', []],
-        ['b', [strong]],
+        ['b', [code]],
         ['cd', []],
       ],
       4
     );
-    // Typed at 3 with no key pressed, the text would go bold.
-    expect(names(state.doc.resolve(3).marks())).toEqual(['strong']);
+    // Typed at 3 with no key pressed, the text would go into the code.
+    expect(names(state.doc.resolve(3).marks())).toEqual(['code']);
     expect(press(state, 'ArrowLeft')).toEqual([3, []]);
+  });
+
+  test('leaves the edges of bold and links to the arrows', () => {
+    const state = (mark: Mark, at: number) =>
+      line(
+        [
+          ['a', []],
+          ['b', [mark]],
+          ['cd', []],
+        ],
+        at
+      );
+    for (const mark of [strong, link]) {
+      for (const at of [2, 3]) {
+        expect(press(state(mark, at), 'ArrowLeft')).toBeNull();
+        expect(press(state(mark, at), 'ArrowRight')).toBeNull();
+      }
+      expect(press(state(mark, 4), 'ArrowLeft')).toBeNull();
+      expect(press(state(mark, 1), 'ArrowRight')).toBeNull();
+    }
   });
 });
 
@@ -108,19 +128,20 @@ describe('outsideAtEdge', () => {
     expect(names(tr?.storedMarks)).toEqual([]);
   });
 
-  test('puts it before a link opening a line', () => {
+  test('puts it before code opening a line', () => {
     const state = line(
       [
-        ['官网', [link]],
-        [' 见', []],
+        ['npm', [code]],
+        [' 是', []],
       ],
       1
     );
     expect(names(outsideAtEdge(state, -1)?.storedMarks)).toEqual([]);
   });
 
-  test('leaves bold and lines that end in text alone', () => {
+  test('leaves bold, links and lines that end in text alone', () => {
     expect(outsideAtEdge(line([['粗', [strong]]], 2), 1)).toBeNull();
+    expect(outsideAtEdge(line([['官网', [link]]], 3), 1)).toBeNull();
     expect(outsideAtEdge(line([['文', []]], 2), 1)).toBeNull();
   });
 
@@ -141,7 +162,7 @@ describe('clickedSide', () => {
     expect(names(clickedSide($pos, on(null)))).toEqual([]);
   });
 
-  test('takes the link clicked on', () => {
+  test('leaves a link to its mark, which takes nothing typed at its ends', () => {
     const state = line(
       [
         ['看', []],
@@ -151,8 +172,8 @@ describe('clickedSide', () => {
       4
     );
     const $pos = state.selection.$head;
-    expect(names(clickedSide($pos, on('a')))).toEqual(['link']);
-    expect(names(clickedSide($pos, on(null)))).toEqual([]);
+    expect(clickedSide($pos, on('a'))).toBeNull();
+    expect(clickedSide($pos, on(null))).toBeNull();
   });
 
   test('leaves edges of other marks to the browser', () => {
