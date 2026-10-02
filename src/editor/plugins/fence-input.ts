@@ -8,6 +8,10 @@
  *
  * Milkdown's rule for it took only a lowercase name, so "```C++" stayed text;
  * any name without a space goes.
+ *
+ * A space after the fence starts the block too, as Milkdown's rule has it.
+ * That rule never reached a list item, whose first line has to be text, so
+ * "```py " there stayed text and the code typed after it ran on in the line.
  */
 
 import {
@@ -70,6 +74,14 @@ export const fenceInput = $prose(
     new Plugin({
       key: new PluginKey('nyamark/fence-input'),
       props: {
+        handleTextInput(view, from, to, text) {
+          if (text !== ' ' || from !== to || view.composing) return false;
+          if (view.state.selection.head !== from) return false;
+          const tr = fenceFromLine(view.state);
+          if (!tr) return false;
+          view.dispatch(tr.scrollIntoView());
+          return true;
+        },
         // Ahead of every plugin's handleKeyDown, the list's Enter among them.
         handleDOMEvents: {
           keydown(view, event) {
