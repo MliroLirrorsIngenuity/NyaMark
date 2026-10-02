@@ -55,7 +55,9 @@ export function keepImageAlt(ctx: Ctx) {
         runner: (state, node, type) => {
           state.addNode(type, {
             src: node.url as string,
-            caption: node.title as string,
+            // An image with no title has `null` for one, which the
+            // caption's attr does not take.
+            caption: (node.title as string | null) ?? '',
             ...imageAttrsFromAlt(node.alt),
           });
         },
