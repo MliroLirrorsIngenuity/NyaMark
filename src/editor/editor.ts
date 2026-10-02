@@ -126,6 +126,7 @@ import { pasteCodeEdges } from './plugins/paste-code-edges';
 import { pasteOnEmptyLine } from './plugins/paste-line';
 import { pasteLinkOverText } from './plugins/paste-link';
 import { pasteTextLines } from './plugins/paste-text-lines';
+import { pasteWordLists } from './plugins/paste-word-lists';
 import { plusLine } from './plugins/plus-line';
 import { quoteEnter } from './plugins/quote-enter';
 import { quoteInput } from './plugins/quote-input';
@@ -302,6 +303,7 @@ export class NyaEditor {
     crepe.editor.use(markCaretInCode);
     crepe.editor.use(pasteTextLines);
     crepe.editor.use(pasteIntoCell);
+    crepe.editor.use(pasteWordLists);
     crepe.editor.use(mathInlineKeys);
     crepe.editor.use(htmlImageSource);
     crepe.editor.config((ctx) =>
