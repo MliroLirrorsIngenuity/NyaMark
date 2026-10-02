@@ -40,6 +40,11 @@ describe('bare links', () => {
     expect(roundTrip(markdown)).toBe(markdown);
   });
 
+  test('keeps an email address bare before Chinese punctuation', () => {
+    const markdown = '写信到 me@example.com。也可以 you@example.org，谢谢\n';
+    expect(roundTrip(markdown)).toBe(markdown);
+  });
+
   test('keeps a bare link in a table cell bare', () => {
     const markdown = '| 链接 |\n| - |\n| https://e.com/f |\n';
     expect(roundTrip(markdown)).toContain('| https://e.com/f |');

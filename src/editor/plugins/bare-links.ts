@@ -46,6 +46,13 @@ function beginsAfter(kind: string, before: string) {
   return !/[/+\-._A-Za-z0-9]/.test(before);
 }
 
+/** Whether a reader ends a link of `kind` right before `after`. */
+function endsBefore(kind: string, after: string) {
+  // An email address ends at anything its domain cannot hold, `。` too.
+  if (kind === 'email') return !/[-_A-Za-z0-9]/.test(after);
+  return ENDS.test(after) || TRAIL.test(after);
+}
+
 /** The text `node` is written as, bare, or null when it must be spelt out. */
 export function bareLinkText(
   node: MdNode,
@@ -59,7 +66,7 @@ export function bareLinkText(
   const text = child.value ?? '';
   const kind = bareKind(text, node.url ?? '');
   if (!kind || !beginsAfter(kind, before)) return null;
-  return ENDS.test(after) || TRAIL.test(after) ? text : null;
+  return endsBefore(kind, after) ? text : null;
 }
 
 /** remark's handler for links, a bare one written as its text. */
