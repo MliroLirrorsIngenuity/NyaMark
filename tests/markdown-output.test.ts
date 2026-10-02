@@ -196,6 +196,44 @@ describe('normalizeOutput', () => {
     );
   });
 
+  test('writes what is under an emptied item on its marker line', () => {
+    // Under a `<br />` alone on its line, the rest of the item was read as
+    // the HTML block it began.
+    const tree = {
+      type: 'root',
+      children: [
+        list(
+          false,
+          item(null, br(), list(false, item(null, text('子项')))),
+          item(null, br(), { type: 'blockquote', children: [text('引')] })
+        ),
+        list(
+          true,
+          item(
+            null,
+            text('父项'),
+            list(true, item(null, br(), list(true, item(null, text('孙')))))
+          )
+        ),
+        list(
+          false,
+          item(
+            null,
+            br(),
+            list(false, item(null, br(), list(false, item(null, br()))))
+          )
+        ),
+      ],
+    };
+    const processor = unified()
+      .use(remarkGfm)
+      .use(remarkStringify, { bullet: '-', join: [forgetBullet] })
+      .use(normalizeOutput);
+    expect(processor.stringify(tree as never)).toBe(
+      '- - 子项\n- > 引\n\n1. 父项\n   1. 1. 孙\n\n- - *\n'
+    );
+  });
+
   test('leaves an emptied cell blank', () => {
     // A cell holds a paragraph; an emptied one comes as Milkdown's `<br />`.
     const cell = (...children: object[]) => ({ type: 'tableCell', children });

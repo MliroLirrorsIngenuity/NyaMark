@@ -226,11 +226,16 @@ function isEmptyParagraph(node: MdNode) {
  * Milkdown's `<br />` for its empty line showed up in an untouched `2.` as
  * soon as anything else changed. A task item keeps it; with no text after
  * `[ ]` the box would read back as plain text.
+ *
+ * An empty line with more of the item under it goes too, and what follows
+ * starts on the marker's line, `- - b`; the editor puts the empty line back
+ * when the file is opened. Its `<br />` began an HTML block, which took the
+ * list under it in as text.
  */
 function clearEmptyItem(item: MdNode) {
-  const children = item.children ?? [];
-  if (item.checked == null && children.length === 1) {
-    if (isEmptyParagraph(children[0])) item.children = [];
+  const [line, ...rest] = item.children ?? [];
+  if (item.checked == null && line && isEmptyParagraph(line)) {
+    item.children = rest;
   }
 }
 
@@ -253,12 +258,12 @@ function markListsUnderText(item: MdNode) {
 
 function clearEmptyItems(list: MdNode) {
   for (const [index, item] of (list.children ?? []).entries()) {
-    if (index > 0 || !underText.has(list)) {
+    const line = item.children?.length === 1 ? item.children[0] : null;
+    if (index > 0 || !underText.has(list) || !line) {
       clearEmptyItem(item);
       continue;
     }
-    const line = item.children?.length === 1 ? item.children[0] : null;
-    if (line && isEmptyParagraph(line) && !line.children?.some(isLineBreak)) {
+    if (isEmptyParagraph(line) && !line.children?.some(isLineBreak)) {
       line.children = [{ type: 'html', value: '<br />' }];
     }
   }
