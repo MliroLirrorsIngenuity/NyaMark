@@ -158,6 +158,9 @@ const INTRAWORD_UNDERSCORE = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
 // one that starts a line would begin a list item.
 const SPACED_MARKER = /(?<=\S[ \t]+)\\([*_])(?=[ \t\n])/g;
 const ESCAPED_HASHES = /(^|\n)([ \t]*)\\(#+)(.?)/g;
+// Equals signs underline the line above as a heading only when the line
+// holds nothing else: `==高亮==` at the start of one needs no escape.
+const ESCAPED_EQUALS = /(^|\n)([ \t]*)\\(=[^\n]*)/g;
 
 /** `markdown`, written by remark, without the escapes it needs none of. */
 export function relaxEscapes(markdown: string): string {
@@ -168,6 +171,9 @@ export function relaxEscapes(markdown: string): string {
       hashes.length > 6 || (next !== '' && !/[ \t]/.test(next))
         ? `${line}${indent}${hashes}${next}`
         : escaped
+    )
+    .replace(ESCAPED_EQUALS, (escaped, line, indent, rest: string) =>
+      /[^=\s]/.test(rest) ? `${line}${indent}${rest}` : escaped
     );
 }
 

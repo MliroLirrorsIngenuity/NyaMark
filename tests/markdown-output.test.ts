@@ -256,6 +256,15 @@ describe('writeText', () => {
     }
   });
 
+  test('keeps equals signs that start a line with more on it', () => {
+    const markdown = '==高亮== 开头\n第二行\n== 也是\n';
+    expect(write(markdown)).toBe(markdown);
+  });
+
+  test('escapes equals signs that would underline a heading', () => {
+    expect(write('标题\n\\===\n')).toBe('标题\n\\===\n');
+  });
+
   test('keeps underscores inside a word', () => {
     const markdown = 'a_b_c 和 snake_case_name 与 1_000 和 中_文\n';
     expect(write(markdown)).toBe(markdown);
