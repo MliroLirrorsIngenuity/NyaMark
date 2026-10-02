@@ -476,10 +476,22 @@ export class NyaEditor {
     }
     const smooth =
       !sourceMode && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-    document.getElementById(id)?.scrollIntoView({
+    this.headingElement(id)?.scrollIntoView({
       behavior: smooth ? 'smooth' : 'auto',
       block: 'start',
     });
+  }
+
+  /**
+   * The heading `id` names, on the page. Looked up in the document alone:
+   * in the window, an element of the app's own with that id came first, the
+   * app's root for a heading "App" and the title bar for "Titlebar".
+   */
+  headingElement(id: string): HTMLElement | null {
+    return (
+      this.getView()?.dom.querySelector<HTMLElement>(`#${CSS.escape(id)}`) ??
+      null
+    );
   }
 
   /**

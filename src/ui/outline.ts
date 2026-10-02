@@ -359,7 +359,7 @@ export class OutlinePanel {
    */
   private headingBeingRead(): string | null {
     const els = this.headings
-      .map((heading) => document.getElementById(heading.id))
+      .map((heading) => this.editor.headingElement(heading.id))
       .filter((el): el is HTMLElement => el != null);
     const host = els[0] && scrollHostOf(els[0]);
     if (!host) return null;
