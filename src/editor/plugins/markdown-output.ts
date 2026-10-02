@@ -133,6 +133,28 @@ function trimLeadingSpace(block: MdNode) {
   );
 }
 
+const ATTENTION = new Set(['emphasis', 'strong', 'delete']);
+
+/**
+ * Emphasis around nothing. Milkdown moves the spaces a mark holds out of it,
+ * so a space typed in italics between plain words left `**` behind, read as
+ * text when the file was opened again.
+ */
+function isEmptyAttention(node: MdNode): boolean {
+  return (
+    ATTENTION.has(node.type) &&
+    (node.children ?? []).every(
+      (child) =>
+        (child.type === 'text' && !child.value) || isEmptyAttention(child)
+    )
+  );
+}
+
+function dropEmptyAttention(node: MdNode) {
+  if (!node.children?.some(isEmptyAttention)) return;
+  node.children = node.children.filter((child) => !isEmptyAttention(child));
+}
+
 const isLineBreak = (node: MdNode) =>
   node.type === 'html' && LINE_BREAK.test(node.value?.trim() ?? '');
 
@@ -382,6 +404,7 @@ export function displayWidth(value: string): number {
 
 export function normalizeForOutput<T extends MdNode>(tree: T): T {
   const visit = (node: MdNode) => {
+    dropEmptyAttention(node);
     if (node.type === 'list') normalizeList(node);
     if (node.type === 'blockquote') unescapeAlertMarker(node);
     if (node.type === 'tableCell') clearEmptyCell(node);

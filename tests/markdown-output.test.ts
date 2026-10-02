@@ -194,6 +194,33 @@ describe('normalizeOutput', () => {
     );
   });
 
+  test('leaves out emphasis its spaces were moved out of', () => {
+    const processor = unified()
+      .use(remarkGfm)
+      .use(remarkStringify)
+      .use(normalizeOutput);
+    const empty = (type: string, children: Tree[] = []) => ({
+      type,
+      children: [{ type: 'text', value: '' }, ...children],
+    });
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            { type: 'text', value: 'a' },
+            empty('emphasis'),
+            { type: 'text', value: ' ' },
+            empty('strong', [empty('delete')]),
+            { type: 'text', value: 'b' },
+          ],
+        },
+      ],
+    };
+    expect(processor.stringify(tree as never)).toBe('a b\n');
+  });
+
   test('lines up a CJK table by display width', () => {
     const processor = unified()
       .use(remarkParse)
