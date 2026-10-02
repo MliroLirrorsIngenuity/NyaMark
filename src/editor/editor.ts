@@ -74,7 +74,7 @@ import {
   gfmAlerts,
   registerGfmAlertStyles,
 } from './plugins/gfm-alerts';
-import { headingShiftEnter } from './plugins/heading-break';
+import { headingOneLine, headingShiftEnter } from './plugins/heading-break';
 import { headingInput } from './plugins/heading-input';
 import { headingDigitKeys } from './plugins/heading-keys';
 import { homeEnd } from './plugins/home-end';
@@ -276,6 +276,7 @@ export class NyaEditor {
     crepe.editor.use(ctrlArrows);
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(headingShiftEnter);
+    crepe.editor.use(headingOneLine);
     crepe.editor.use(undoByLine);
     crepe.editor.use(linkInput);
     crepe.editor.use(bareLinkInput);
