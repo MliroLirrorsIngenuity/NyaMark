@@ -16,6 +16,7 @@
  */
 
 import { autocompletion } from '@codemirror/autocomplete';
+import { indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import {
   HighlightStyle,
@@ -25,6 +26,7 @@ import {
 import { openSearchPanel } from '@codemirror/search';
 import { Compartment, EditorSelection, EditorState } from '@codemirror/state';
 import { oneDarkTheme } from '@codemirror/theme-one-dark';
+import { keymap } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { EditorView, basicSetup } from 'codemirror';
@@ -456,6 +458,10 @@ export class SourceModeController {
           // turns on autocompletion, and in Markdown prose a popup on every word
           // is pure interruption. Still available on demand.
           autocompletion({ activateOnTyping: false }),
+          // Tab indents. Unbound, it moved focus to the preview behind the
+          // pane, and what was typed next went there and was lost at the
+          // next sync.
+          keymap.of([indentWithTab]),
           markdown(),
           sourceSearch(),
           syntaxHighlighting(markdownHighlight),
