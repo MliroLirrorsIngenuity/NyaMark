@@ -56,7 +56,7 @@ export function renderAttachmentsSection(
         <div class="ny-settings__options" data-group="insertPolicy"></div>
       </fieldset>
     </div>
-    <div class="ny-settings__row">
+    <div class="ny-settings__row" data-row="customCopyDirectory">
       <div class="ny-settings__field">
         <span data-i18n="settings.attachments.customDirectory">Custom folder</span>
         <div class="ny-settings__directory">
@@ -82,6 +82,16 @@ export function renderAttachmentsSection(
     </div>
   `;
 
+  // The folder is asked for only by the policy that copies into it.
+  const directoryRow = requireElement(
+    section,
+    '[data-row="customCopyDirectory"]'
+  );
+  const showDirectoryRow = () => {
+    directoryRow.hidden = current.insertPolicy !== 'copy-custom-folder';
+  };
+  showDirectoryRow();
+
   const policyGroup = section.querySelector<HTMLElement>(
     '[data-group="insertPolicy"]'
   );
@@ -100,6 +110,7 @@ export function renderAttachmentsSection(
         const next = { ...current, insertPolicy: value };
         onChange(next);
         Object.assign(current, next);
+        showDirectoryRow();
       });
       policyGroup.appendChild(option);
     }

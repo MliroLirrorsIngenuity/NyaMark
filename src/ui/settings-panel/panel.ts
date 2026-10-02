@@ -109,6 +109,10 @@ const styles = `
   margin-bottom: 8px;
 }
 
+.ny-settings__row[hidden] {
+  display: none;
+}
+
 .ny-settings__field {
   position: relative;
   display: flex;
