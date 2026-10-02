@@ -109,6 +109,19 @@ const css = `
   padding-bottom: 16px !important;
 }
 
+/*
+ * A code block in the preview shows no tool pill, so its first line runs on
+ * as the others do. It wrapped short of the room kept for a pill that never
+ * came, in a pane half as wide.
+ */
+#ny-editor-container.is-source-mode
+  > .milkdown
+  .milkdown-code-block
+  .cm-content
+  > .cm-line:first-child {
+  padding-right: 2px !important;
+}
+
 .ny-source-pane {
   display: flex;
   flex-direction: column;
