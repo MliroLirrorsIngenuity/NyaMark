@@ -58,7 +58,7 @@ import { headingShiftEnter } from './plugins/heading-break';
 import { headingInput } from './plugins/heading-input';
 import { headingDigitKeys } from './plugins/heading-keys';
 import { homeEnd } from './plugins/home-end';
-import { hrInput } from './plugins/hr-input';
+import { hrInput, ruleOnEnter } from './plugins/hr-input';
 import {
   htmlBlockSelection,
   htmlBlockView,
@@ -218,6 +218,7 @@ export class NyaEditor {
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(blockEdges);
     crepe.editor.use(hrInput);
+    crepe.editor.use(ruleOnEnter);
     crepe.editor.use(quoteInput);
     crepe.editor.use(headingInput);
     crepe.editor.use(dollarInput);
