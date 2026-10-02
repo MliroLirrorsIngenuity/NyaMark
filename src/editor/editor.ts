@@ -41,6 +41,7 @@ import { cjkBreaks } from './plugins/cjk-breaks';
 import { codeKey } from './plugins/code-key';
 import { fenceLanguageWord } from './plugins/code-language';
 import { codePreview } from './plugins/code-preview';
+import { compositionSettle } from './plugins/composition-settle';
 import { ctrlArrows } from './plugins/ctrl-arrows';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { fenceInput } from './plugins/fence-input';
@@ -224,6 +225,7 @@ export class NyaEditor {
     crepe.editor.use(markInput);
     crepe.editor.use(markCursor);
     crepe.editor.use(cjkBreaks);
+    crepe.editor.use(compositionSettle);
     crepe.editor.use(marginClick);
     crepe.editor.use(homeEnd);
     crepe.editor.use(ctrlArrows);
