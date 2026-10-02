@@ -24,6 +24,12 @@ export class PdfExporter {
   private busy = false;
 
   /**
+   * `flushPendingEdits` puts what the source pane holds into the preview,
+   * which is what prints.
+   */
+  constructor(private readonly flushPendingEdits: () => void = () => {}) {}
+
+  /**
    * Asked again while the dialog is open or printing runs, it stays with
    * the one under way: a second dialog over the first left the first one's
    * keys bound once both closed, and Tab and Escape went to nothing. Over
@@ -34,7 +40,10 @@ export class PdfExporter {
     this.busy = true;
     try {
       const settings = await this.dialog.open({ fileName: printableTitle() });
-      if (settings) await exportAsPdf(settings);
+      if (settings) {
+        this.flushPendingEdits();
+        await exportAsPdf(settings);
+      }
     } finally {
       this.busy = false;
     }
@@ -56,12 +65,9 @@ function nextFrame() {
 }
 
 async function exportAsPdf(settings: ExportPdfSettings) {
-  const previousSourceMode = store.getState().sourceMode;
-  if (previousSourceMode) {
-    store.update({ sourceMode: false });
-    await nextFrame();
-  }
-
+  // Source mode stays on and print.css hides the source pane: leaving it
+  // rebuilt the pane from the serialised preview, which put the text in the
+  // serialiser's spelling and dropped its undo history.
   const root = document.documentElement;
   root.classList.add('ny-exporting-pdf');
   // The page prints in the light theme: white paper keeps the colours as
@@ -107,9 +113,6 @@ async function exportAsPdf(settings: ExportPdfSettings) {
     else root.dataset.theme = theme.name;
     root.classList.toggle('dark', theme.dark);
     root.style.colorScheme = theme.scheme;
-    if (previousSourceMode) {
-      store.update({ sourceMode: true });
-    }
   };
 
   // WebKit (the native print sheet included) and Chromium fire afterprint

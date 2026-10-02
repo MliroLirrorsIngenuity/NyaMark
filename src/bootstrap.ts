@@ -44,7 +44,9 @@ export class App {
   private sourceMode: SourceModeController | null = null;
   private suppressDirtyTracking = false;
   private readonly settingsPanel = new SettingsPanel();
-  private readonly pdfExporter = new PdfExporter();
+  private readonly pdfExporter = new PdfExporter(() =>
+    this.sourceMode?.flush()
+  );
   private readonly updateDialog = new UpdateDialog();
 
   async init() {

@@ -66,6 +66,16 @@
     min-height: 0 !important;
   }
 
+  /* Source mode lays the panes side by side at the window's height; printed
+     from there, the preview's box collapsed to no height at all. */
+  :root.ny-exporting-pdf .ny-shell__body.is-source-mode-host {
+    display: block !important;
+  }
+
+  :root.ny-exporting-pdf #ny-editor-container > .milkdown {
+    height: auto !important;
+  }
+
   :root.ny-exporting-pdf .ny-source-pane,
   :root.ny-exporting-pdf .nyamark-image-meta,
   :root.ny-exporting-pdf .nyamark-image-meta-toggle,
@@ -85,7 +95,9 @@
     padding: 0 !important;
   }
 
-  :root.ny-exporting-pdf .milkdown .ProseMirror {
+  /* The id outranks source mode's own padding: printed from there, the page
+     opened 16px lower. */
+  :root.ny-exporting-pdf #ny-editor-container .milkdown .ProseMirror {
     user-select: text !important;
     cursor: default !important;
     pointer-events: none !important;
