@@ -16,13 +16,25 @@ const exportPdfDialogStyles = `
   inset: 0;
   z-index: var(--ny-layer-export-dialog);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
+  padding: 0 24px;
   background: color-mix(in srgb, var(--ny-app-bg-end), transparent 22%);
   backdrop-filter: blur(14px) saturate(1.08);
   -webkit-backdrop-filter: blur(14px) saturate(1.08);
   overflow-y: auto;
+}
+
+/*
+ * Centres the dialog, as in the settings. Centred by the overlay instead, a
+ * dialog taller than a short window stood out over its top, where the title
+ * bar covered its heading and close button and no scroll could reach them.
+ */
+.ny-export-pdf-overlay::before,
+.ny-export-pdf-overlay::after {
+  content: "";
+  flex: 1;
+  min-height: 48px;
 }
 
 .ny-export-pdf-overlay[hidden] {
@@ -31,6 +43,7 @@ const exportPdfDialogStyles = `
 
 .ny-export-pdf-dialog {
   position: relative;
+  flex-shrink: 0;
   width: min(560px, calc(100vw - 32px));
   padding: 28px 30px 24px;
   border: 1px solid var(--ny-border-strong);
