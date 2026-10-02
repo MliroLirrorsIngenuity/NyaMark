@@ -1226,11 +1226,20 @@
 }
 
 .ny-editor-root .milkdown .milkdown-code-block .preview-panel .preview {
-  padding: 10px 12px 12px !important;
+  padding: 12px !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
+}
+
+/*
+ * KaTeX sets a display formula an em off the text above and below it. In the
+ * block's own box that was room on room: a one-line formula stood in a box
+ * twice the height of a one-line code block.
+ */
+.ny-editor-root .milkdown .milkdown-code-block .preview .katex-display {
+  margin: 0 !important;
 }
 
 /* Anchored to the pill, which now sits at the block's right edge. */
