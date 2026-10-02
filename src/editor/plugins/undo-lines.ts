@@ -7,10 +7,24 @@
  *
  * A paste is a step of its own too. Cmd+Z after one took back what was typed
  * before it as well, and what was typed after it went back with the paste.
+ *
+ * Cmd+Z straight after Markdown typed was made into what it stands for, a
+ * heading of `## `, a list of `- `, bold of `**…**`, gives back the characters
+ * as they were typed, the way a Mac takes back an autocorrection. It took them
+ * away with the rest of the line, and the heading or list could not be had as
+ * text. The rule's own record of what it did is lost at once for a list or a
+ * quote, to the empty line put in after them and the list's own setting of
+ * the caret, so the record is kept here through those.
  */
 
 import { closeHistory } from '@milkdown/kit/prose/history';
-import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
+import {
+  type EditorState,
+  Plugin,
+  PluginKey,
+  type Transaction,
+} from '@milkdown/kit/prose/state';
+import type { Transform } from '@milkdown/kit/prose/transform';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 
@@ -21,15 +35,92 @@ export function pasteApart(view: EditorView) {
   queueMicrotask(() => view.dispatch(closeHistory(view.state.tr)));
 }
 
+/** What an input rule did, as the rule records it. */
+type RuleMade = {
+  transform: Transform;
+  from: number;
+  to: number;
+  text: string;
+};
+/** The last rule's work and the changes put in after it at once. */
+export type Typed = { rule: RuleMade; after: Transform[] };
+
+/**
+ * The rule work Cmd+Z can still give back after `tr`: kept through changes
+ * appended to it and through the caret set again where it is, gone with
+ * anything typed or the caret moved.
+ */
+export function typedAfter(
+  typed: Typed | null,
+  tr: Transaction,
+  old: EditorState,
+  state: EditorState
+): Typed | null {
+  for (const plugin of state.plugins) {
+    if (!plugin.spec.isInputRules) continue;
+    const rule = tr.getMeta(plugin) as RuleMade | undefined;
+    if (rule) return { rule, after: [] };
+  }
+  if (!typed) return null;
+  if (tr.docChanged) {
+    if (!tr.getMeta('appendedTransaction')) return null;
+    return { rule: typed.rule, after: [...typed.after, tr] };
+  }
+  if (tr.selectionSet && !state.selection.eq(old.selection)) return null;
+  return typed;
+}
+
+function takeBack(tr: Transaction, done: Transform) {
+  for (let i = done.steps.length - 1; i >= 0; i--) {
+    tr.step(done.steps[i].invert(done.docs[i]));
+  }
+}
+
+/** Undoes the rule and what came with it, and puts back what was typed. */
+export function giveBackTyped(state: EditorState, typed: Typed): Transaction {
+  const tr = state.tr;
+  for (const done of [...typed.after].reverse()) takeBack(tr, done);
+  takeBack(tr, typed.rule.transform);
+  const { from, to, text } = typed.rule;
+  if (!text) return tr.delete(from, to);
+  const marks = tr.doc.resolve(from).marks();
+  return tr.replaceWith(from, to, state.schema.text(text, marks));
+}
+
+function isUndo(event: KeyboardEvent): boolean {
+  if (event.shiftKey || event.altKey || event.isComposing) return false;
+  return (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z';
+}
+
+const key = new PluginKey<Typed | null>('nyamark/undo-by-line');
+
 export const undoByLine = $prose(
   () =>
-    new Plugin({
-      key: new PluginKey('nyamark/undo-by-line'),
+    new Plugin<Typed | null>({
+      key,
+      state: {
+        init: () => null,
+        apply: (tr, typed, old, state) => typedAfter(typed, tr, old, state),
+      },
       props: {
         handleDOMEvents: {
           paste(view) {
             pasteApart(view);
             return false;
+          },
+          // Ahead of the history's own Cmd+Z.
+          keydown(view, event) {
+            const typed = key.getState(view.state);
+            if (!typed || !isUndo(event)) return false;
+            let tr: Transaction;
+            try {
+              tr = giveBackTyped(view.state, typed);
+            } catch {
+              return false;
+            }
+            view.dispatch(tr);
+            event.preventDefault();
+            return true;
           },
         },
       },
