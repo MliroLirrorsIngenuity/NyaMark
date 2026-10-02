@@ -45,7 +45,7 @@ import { installDragSelectGuard } from './plugins/drag-guard';
 import { fenceInput } from './plugins/fence-input';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
 import { footnoteInput } from './plugins/footnote-input';
-import { footnoteMark } from './plugins/footnote-mark';
+import { footnoteMark, footnoteNumber } from './plugins/footnote-mark';
 import {
   alertMarkers,
   gfmAlerts,
@@ -230,6 +230,7 @@ export class NyaEditor {
     crepe.editor.use(bareLinkInput);
     crepe.editor.use(footnoteInput);
     crepe.editor.use(footnoteMark);
+    crepe.editor.use(footnoteNumber);
     crepe.editor.use(linkBox);
     crepe.editor.use(linkKey);
     crepe.editor.use(codeKey);
