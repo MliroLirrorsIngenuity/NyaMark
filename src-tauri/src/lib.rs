@@ -151,6 +151,13 @@ fn request_app_restart(app: AppHandle) -> Result<(), String> {
     app.restart()
 }
 
+/// Whether any window holds unsaved changes, asked before the Windows
+/// installer starts: it ends the app with no prompt.
+#[tauri::command]
+fn any_window_dirty(app: AppHandle) -> bool {
+    sessions::any_window_dirty(&app)
+}
+
 /// The user cancelled an unsaved-changes prompt, so a pending restart is off.
 #[tauri::command]
 fn cancel_pending_quit(app: AppHandle) {
@@ -232,6 +239,7 @@ pub fn run() {
             open_new_window,
             open_markdown_in_new_window,
             set_window_dirty,
+            any_window_dirty,
             request_app_restart,
             cancel_pending_quit,
             set_windows_backdrop,

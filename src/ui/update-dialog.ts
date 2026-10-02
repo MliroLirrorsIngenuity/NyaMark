@@ -1,7 +1,8 @@
 import { openExternalUrl } from '../bridge/ipc/attachments';
 import type { DownloadEvent, Update } from '../bridge/ipc/updates';
-import { requestAppRestart } from '../bridge/ipc/windows';
+import { anyWindowDirty, requestAppRestart } from '../bridge/ipc/windows';
 import { i18next } from '../i18n';
+import { getPlatform } from '../platform/detect';
 import { ensureStyle } from '../style/register';
 import { animationsSettled, openModal } from './modal';
 import { renderReleaseNotes } from './release-notes';
@@ -405,7 +406,8 @@ export class UpdateDialog {
 
     // One click handler driven by a phase, so a failed or finished install
     // never leaves the original "download" handler attached underneath.
-    let phase: 'idle' | 'downloading' | 'installed' | 'failed' = 'idle';
+    let phase: 'idle' | 'downloading' | 'downloaded' | 'installed' | 'failed' =
+      'idle';
 
     // Dismissing mid-download would let the install finish unseen and the
     // app relaunch out of nowhere.
@@ -424,6 +426,48 @@ export class UpdateDialog {
     const returnFocus = () => {
       const active = document.activeElement;
       if (active === dialog || active === document.body) updateNow.focus();
+    };
+    const busy = (label: string) => {
+      phase = 'downloading';
+      updateNow.disabled = true;
+      later.disabled = true;
+      holdFocus();
+      updateNow.textContent = label;
+    };
+    const fail = (error: unknown) => {
+      console.error(error);
+      phase = 'failed';
+      say('updates.failed');
+      later.textContent = i18next.t('updates.closeDialog');
+      later.disabled = false;
+      updateNow.textContent = i18next.t('updates.openDownloadPage');
+      updateNow.disabled = false;
+      returnFocus();
+    };
+    const install = async () => {
+      // The Windows installer ends NyaMark the moment it starts, past every
+      // unsaved-changes prompt, so the documents are saved before it runs.
+      if (getPlatform() === 'windows' && (await anyWindowDirty())) {
+        phase = 'downloaded';
+        say('updates.saveFirst');
+        updateNow.textContent = i18next.t('updates.installNow');
+        updateNow.disabled = false;
+        later.disabled = false;
+        returnFocus();
+        return;
+      }
+      updateNow.textContent = i18next.t('updates.installing');
+      await update.install();
+      phase = 'installed';
+      say('updates.installed');
+      // Only returns when a window with unsaved changes declined to close;
+      // the update is installed either way, so offer to restart again or later.
+      await requestAppRestart();
+      updateNow.textContent = i18next.t('updates.restartNow');
+      updateNow.disabled = false;
+      later.textContent = i18next.t('updates.restartLater');
+      later.disabled = false;
+      returnFocus();
     };
     later.addEventListener('click', () => void close());
     updateNow.addEventListener('click', () => {
@@ -449,17 +493,18 @@ export class UpdateDialog {
         return;
       }
 
-      phase = 'downloading';
-      updateNow.disabled = true;
-      later.disabled = true;
-      holdFocus();
-      updateNow.textContent = i18next.t('updates.downloading');
+      if (phase === 'downloaded') {
+        busy(i18next.t('updates.installing'));
+        install().catch(fail);
+        return;
+      }
 
+      busy(i18next.t('updates.downloading'));
       let downloaded = 0;
       let contentLength: number | null = null;
 
       update
-        .downloadAndInstall((event: DownloadEvent) => {
+        .download((event: DownloadEvent) => {
           switch (event.event) {
             case 'Started':
               contentLength = event.data.contentLength ?? null;
@@ -471,33 +516,10 @@ export class UpdateDialog {
                 updateNow.textContent = `${i18next.t('updates.downloading')} ${pct}%`;
               }
               break;
-            case 'Finished':
-              updateNow.textContent = i18next.t('updates.installing');
-              break;
           }
         })
-        .then(async () => {
-          phase = 'installed';
-          say('updates.installed');
-          // Only returns when a window with unsaved changes declined to close;
-          // the update is installed either way, so offer to restart again or later.
-          await requestAppRestart();
-          updateNow.textContent = i18next.t('updates.restartNow');
-          updateNow.disabled = false;
-          later.textContent = i18next.t('updates.restartLater');
-          later.disabled = false;
-          returnFocus();
-        })
-        .catch((error) => {
-          console.error(error);
-          phase = 'failed';
-          say('updates.failed');
-          later.textContent = i18next.t('updates.closeDialog');
-          later.disabled = false;
-          updateNow.textContent = i18next.t('updates.openDownloadPage');
-          updateNow.disabled = false;
-          returnFocus();
-        });
+        .then(install)
+        .catch(fail);
     });
   }
 

@@ -114,6 +114,11 @@ export async function setWindowDirty(dirty: boolean): Promise<void> {
   await invoke('set_window_dirty', { dirty });
 }
 
+/** Whether any window holds unsaved changes. */
+export async function anyWindowDirty(): Promise<boolean> {
+  return await invoke('any_window_dirty');
+}
+
 /** Restart after an update; dirty windows prompt first (see `quit.rs`). */
 export async function requestAppRestart(): Promise<void> {
   await invoke('request_app_restart');
