@@ -1,18 +1,23 @@
 diff --git a/dist/index.js b/dist/index.js
-index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..2b950fcde8bc88281195099d4d54731c7b07a547 100644
+index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..356eb99713acd142e6a59d2241c3da3f0754a187 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -52,12 +52,20 @@ function buildGetTarget(view, onDrag) {
+@@ -52,12 +52,25 @@ function buildGetTarget(view, onDrag) {
  	};
  	const getTargetImpl = (point, event) => {
  		if (!view.editable || view.isDestroyed) return;
-+		// NyaMark: a block dragged goes only where it can stand. A list item
-+		// dropped on the line under a table was put between the table's rows,
-+		// and the table was cut in two around it. At the same distance the
-+		// place nearer the top of the document wins: under the last line of a
-+		// list item, the item's own end and its paragraph's end are one line.
++		// NyaMark: only whole blocks, as a block's handle drags them, go in
++		// between blocks: a word dragged into the middle of a line was made a
++		// paragraph of its own under the line. Text goes where the pointer is,
++		// by ProseMirror's own drop. A block goes only where it can stand: a
++		// list item dropped on the line under a table was put between the
++		// table's rows, and the table was cut in two around it. At the same
++		// distance the place nearer the top of the document wins: under the
++		// last line of a list item, the item's own end and its paragraph's end
++		// are one line.
 +		const doc = view.state.doc;
 +		const slice = view.dragging?.slice;
++		if (!isBlocks(slice)) return;
 +		const depth = (pos) => doc.resolve(pos).depth;
  		const compare = (p1, p2) => {
  			const [pos1, line1] = p1;
@@ -25,7 +30,7 @@ index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..2b950fcde8bc88281195099d4d54731c
  		targets.sort(compare);
  		targets = targets.slice(0, 8);
  		const target = targets.find((target$1) => onDrag?.({
-@@ -84,8 +92,30 @@ function pointEqual(a, b) {
+@@ -84,8 +97,38 @@ function pointEqual(a, b) {
  function pointPointDistance(a, b) {
  	return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
  }
@@ -43,10 +48,9 @@ index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..2b950fcde8bc88281195099d4d54731c
 +* NyaMark: whether `slice` can go in at `pos` as it is or wrapped, the way
 +* ProseMirror's own drop places it. Nothing is wrapped to go into a table:
 +* a paragraph went in between its cells as a cell of its own, the table cut
-+* in two around it. Anything from outside the editor goes anywhere.
++* in two around it.
 +*/
 +function fits(doc, pos, slice) {
-+	if (!slice || slice.openStart || !slice.content.childCount) return true;
 +	const $pos = doc.resolve(pos);
 +	const parent = $pos.parent;
 +	const index = $pos.index();
@@ -54,6 +58,15 @@ index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..2b950fcde8bc88281195099d4d54731c
 +	for (let d = $pos.depth; d > 0; d--) if ($pos.node(d).type.spec.isolating) return false;
 +	const wrapping = parent.contentMatchAt(index).findWrapping(slice.content.firstChild.type);
 +	return !!wrapping?.length && parent.canReplaceWith(index, index, wrapping[0]);
++}
++/** NyaMark: whether `slice` is whole blocks, as a block's handle drags it. */
++function isBlocks(slice) {
++	if (!slice || slice.openStart || slice.openEnd || !slice.content.childCount) return false;
++	let blocks = true;
++	slice.content.forEach((node) => {
++		if (!node.isBlock) blocks = false;
++	});
++	return blocks;
  }
  /**
  * Whether the dragging node is being dragged to the same position. For example,
