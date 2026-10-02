@@ -99,6 +99,29 @@ describe('normalizeOutput', () => {
     expect(processor.stringify(tree as never)).toBe('<br />\n\nend\n');
   });
 
+  test('ends a paragraph without its line breaks', () => {
+    // Milkdown has already left out the last line break of each.
+    const text = (value: string) => ({ type: 'text', value });
+    const tree = {
+      type: 'root',
+      children: [
+        { type: 'paragraph', children: [text('甲'), { type: 'break' }] },
+        { type: 'paragraph', children: [] },
+        {
+          type: 'paragraph',
+          children: [
+            { type: 'strong', children: [text('乙'), { type: 'break' }] },
+          ],
+        },
+        { type: 'paragraph', children: [text('丙')] },
+      ],
+    };
+    const processor = unified().use(remarkStringify).use(normalizeOutput);
+    expect(processor.stringify(tree as never)).toBe(
+      '甲\n\n<br />\n\n**乙**\n\n丙\n'
+    );
+  });
+
   test('leaves out the space a split leaves at the start of a block', () => {
     const tree = {
       type: 'root',

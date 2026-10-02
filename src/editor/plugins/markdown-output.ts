@@ -158,6 +158,37 @@ function dropEmptyAttention(node: MdNode) {
   node.children = node.children.filter((child) => !isEmptyAttention(child));
 }
 
+/** Takes the line breaks off the end of `node`; whether nothing is left. */
+function trimEndBreaks(node: MdNode): boolean {
+  const children = node.children ?? [];
+  while (children.length > 0) {
+    const last = children[children.length - 1];
+    if (
+      last.type !== 'break' &&
+      !(ATTENTION.has(last.type) && trimEndBreaks(last))
+    ) {
+      return false;
+    }
+    children.pop();
+  }
+  return true;
+}
+
+/**
+ * Line breaks that end a paragraph carry nothing in markdown. Milkdown
+ * leaves out the last one, and one before it was saved as a `\` that came
+ * back as text when the file was opened: `甲\`. A paragraph of nothing but
+ * line breaks is an empty line, written as Milkdown writes one; it was saved
+ * as nothing, and the line was gone.
+ */
+function endParagraphsPlainly(node: MdNode) {
+  if (node.type !== 'paragraph') {
+    for (const child of node.children ?? []) endParagraphsPlainly(child);
+    return;
+  }
+  if (trimEndBreaks(node)) node.children = [{ type: 'html', value: '<br />' }];
+}
+
 /** Marks whose spaces at either end are written beside them. */
 const SPACED = new Set([...ATTENTION, 'link']);
 
@@ -583,6 +614,7 @@ export function normalizeForOutput<T extends MdNode>(tree: T): T {
     }
     for (const child of node.children ?? []) visit(child);
   };
+  endParagraphsPlainly(tree);
   moveEdgeSpaces(tree);
   visit(tree);
   frontMatterOnTop(tree);
