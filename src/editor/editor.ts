@@ -54,7 +54,7 @@ import {
 import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
-import { caretAfterLinkEdit } from './plugins/link-edit-caret';
+import { linkBox } from './plugins/link-box';
 import { linkInput } from './plugins/link-input';
 import { keepListItemSelected, listItemView } from './plugins/list-item-view';
 import { markCursor } from './plugins/mark-cursor';
@@ -192,7 +192,7 @@ export class NyaEditor {
     crepe.editor.use(enterAfterTypedBlock);
     crepe.editor.use(undoByLine);
     crepe.editor.use(linkInput);
-    crepe.editor.use(caretAfterLinkEdit);
+    crepe.editor.use(linkBox);
     crepe.editor.use(fenceInput);
     crepe.editor.use(listItemView);
     crepe.editor.use(keepListItemSelected);
