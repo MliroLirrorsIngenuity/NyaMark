@@ -271,9 +271,11 @@ export class SearchPanel {
       return;
     }
     const { current, total } = editor.searchStatus();
+    // Matches typed into the document after the search have none of them
+    // current till Enter steps to one; the count read "0/1".
     this.elCount.textContent =
       total === 0
         ? i18next.t('search.noResults')
-        : i18next.t('search.count', { current, total });
+        : i18next.t('search.count', { current: current || '?', total });
   }
 }

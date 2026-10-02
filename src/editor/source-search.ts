@@ -203,7 +203,7 @@ function createPanel(view: EditorView): Panel {
     count.textContent =
       total === 0
         ? i18next.t('search.noResults')
-        : i18next.t('search.count', { current, total: shown });
+        : i18next.t('search.count', { current: current || '?', total: shown });
   };
 
   /** Selects the first match at or after the caret, wrapping to the top. */
