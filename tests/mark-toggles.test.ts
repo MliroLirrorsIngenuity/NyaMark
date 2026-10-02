@@ -55,10 +55,10 @@ function run(at: EditorState, command: Command) {
     next = at.apply(tr);
   });
   const runs: string[] = [];
-  next.doc.firstChild?.forEach((node) => {
+  for (const node of next.doc.firstChild?.children ?? []) {
     const marks = node.marks.map((mark) => mark.type.name).join('+');
     runs.push(marks ? `${node.text}:${marks}` : `${node.text}`);
-  });
+  }
   return runs;
 }
 
