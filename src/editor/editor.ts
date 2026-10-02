@@ -107,6 +107,7 @@ import {
   markdownOutput,
   writeRoot,
   writeText,
+  writeThematicBreak,
 } from './plugins/markdown-output';
 import { dollarInput, dollarTextParse } from './plugins/math-dollars';
 import { mathInlineKeys } from './plugins/math-inline-keys';
@@ -205,6 +206,7 @@ export class NyaEditor {
           root: writeRoot,
           text: writeText,
           link: writeLink,
+          thematicBreak: writeThematicBreak,
         },
         // remark asks the last of these first, and stops at an answer.
         join: [...(options.join ?? []), joinInTightItem, forgetBullet],

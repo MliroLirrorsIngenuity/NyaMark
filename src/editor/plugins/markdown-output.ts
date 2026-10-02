@@ -332,6 +332,16 @@ const REFERENCE_AMPERSAND = {
   inConstruct: 'phrasing' as ConstructName,
 };
 
+/**
+ * remark's handler for rules, `***` for one that opens the file: `---` on the
+ * first line starts front matter, and the next `---` closed it over every
+ * block in between when the file was opened again.
+ */
+export const writeThematicBreak: Handle = (node, parent, state) =>
+  parent?.type === 'root' && parent.children[0] === node
+    ? '***'
+    : defaultHandlers.thematicBreak(node, parent, state);
+
 /** remark's handler for the whole document, `&` escaped only where needed. */
 export const writeRoot: Handle = (node, parent, state, info) => {
   state.unsafe = state.unsafe.map((pattern) =>

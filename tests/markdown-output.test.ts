@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import remarkFrontmatter from 'remark-frontmatter';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
@@ -10,6 +11,7 @@ import {
   normalizeOutput,
   writeRoot,
   writeText,
+  writeThematicBreak,
 } from '../src/editor/plugins/markdown-output';
 
 type Tree = { type: string; spread?: unknown; children?: Tree[] };
@@ -346,5 +348,32 @@ describe('writeText', () => {
   test('escapes hashes that would start a heading', () => {
     const markdown = '\\# 不是标题\n\n\\###### 也不是\n\n\\#\n';
     expect(write(markdown)).toBe(markdown);
+  });
+});
+
+describe('writeThematicBreak', () => {
+  const processor = unified()
+    .use(remarkParse)
+    .use(remarkFrontmatter)
+    .use(remarkStringify, {
+      rule: '-',
+      handlers: { thematicBreak: writeThematicBreak },
+    });
+
+  test('writes a rule that opens the file so it opens no front matter', () => {
+    const markdown = '***\n\n第一段\n\n---\n\n第二段\n';
+    const tree = processor.parse(markdown) as Tree;
+    expect(tree.children?.map((node) => node.type)).toEqual([
+      'thematicBreak',
+      'paragraph',
+      'thematicBreak',
+      'paragraph',
+    ]);
+    expect(processor.stringify(tree as never)).toBe(markdown);
+  });
+
+  test('keeps front matter and the rules after it', () => {
+    const markdown = '---\ntitle: a\n---\n\n---\n\n正文\n';
+    expect(processor.stringify(processor.parse(markdown))).toBe(markdown);
   });
 });
