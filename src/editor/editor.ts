@@ -65,6 +65,7 @@ import {
 import { keepImageAlt } from './plugins/image-alt';
 import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
+import { imageOwnTitle } from './plugins/image-title';
 import { caretPastSelectedBlock, insertBlocks } from './plugins/insert-blocks';
 import { languagePickerKeys } from './plugins/language-picker-keys';
 import { languagePickerRoom } from './plugins/language-picker-room';
@@ -236,6 +237,7 @@ export class NyaEditor {
     crepe.editor.use(footnoteInput);
     crepe.editor.use(footnoteMark);
     crepe.editor.use(footnoteNumber);
+    crepe.editor.use(imageOwnTitle);
     crepe.editor.use(linkBox);
     crepe.editor.use(linkKey);
     crepe.editor.use(codeKey);
