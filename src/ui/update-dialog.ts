@@ -339,16 +339,21 @@ export class UpdateDialog {
     header.innerHTML = `
       <div class="ny-update-dialog__eyebrow"></div>
       <h3 id="ny-update-title"></h3>
-      <p class="ny-update-dialog__subtitle"></p>
+      <p class="ny-update-dialog__subtitle" aria-live="polite"></p>
     `;
     requireElement(header, '.ny-update-dialog__eyebrow').textContent =
       i18next.t('updates.newVersionAvailable');
     requireElement(header, 'h3').textContent = i18next.t('updates.title');
-    requireElement(header, '.ny-update-dialog__subtitle').textContent =
-      i18next.t('updates.subtitle', {
+    // The line under the title says how the update went; with no word of it a
+    // failed download only changed the buttons.
+    const subtitle = requireElement(header, '.ny-update-dialog__subtitle');
+    const say = (key: string) => {
+      subtitle.textContent = i18next.t(key, {
         current: currentVersion,
         latest: update.version,
       });
+    };
+    say('updates.subtitle');
 
     const body = document.createElement('div');
     body.className = 'ny-update-dialog__body';
@@ -473,6 +478,7 @@ export class UpdateDialog {
         })
         .then(async () => {
           phase = 'installed';
+          say('updates.installed');
           // Only returns when a window with unsaved changes declined to close;
           // the update is installed either way, so offer to restart again or later.
           await requestAppRestart();
@@ -485,6 +491,7 @@ export class UpdateDialog {
         .catch((error) => {
           console.error(error);
           phase = 'failed';
+          say('updates.failed');
           later.textContent = i18next.t('updates.closeDialog');
           later.disabled = false;
           updateNow.textContent = i18next.t('updates.openDownloadPage');

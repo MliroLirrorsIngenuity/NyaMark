@@ -194,6 +194,8 @@
   "updates": {
     "title": "NyaMark 有新版本可用",
     "subtitle": "目前執行的是 {{current}}。{{latest}} 已就緒。",
+    "failed": "{{latest}} 沒能裝上，可以到下載頁手動下載。",
+    "installed": "{{latest}} 已裝好，重新啟動 NyaMark 後生效。",
     "newVersionAvailable": "新版本",
     "currentVersion": "目前版本",
     "latestVersion": "最新版本",

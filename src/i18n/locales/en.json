@@ -196,6 +196,8 @@
   "updates": {
     "title": "A new NyaMark update is available",
     "subtitle": "You are running {{current}}. {{latest}} is ready.",
+    "failed": "{{latest}} could not be installed. Get it from the download page instead.",
+    "installed": "{{latest}} is installed and takes effect once NyaMark restarts.",
     "newVersionAvailable": "New version",
     "currentVersion": "Current",
     "latestVersion": "Latest",
