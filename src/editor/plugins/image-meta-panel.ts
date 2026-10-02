@@ -66,12 +66,14 @@ export class ImageMetaPanel {
       release();
       this.openPanels.delete(host);
     }
-    const panel = host.querySelector('.nyamark-image-meta');
+    const panel = host.querySelector<HTMLElement>('.nyamark-image-meta');
+    const focused = panel?.contains(document.activeElement);
+    if (panel) panel.inert = !open;
     if (open) {
       panel
         ?.querySelector<HTMLInputElement>('.nyamark-image-meta__input--caption')
         ?.focus();
-    } else if (host.isConnected && panel?.contains(document.activeElement)) {
+    } else if (host.isConnected && focused) {
       this.getCrepe()?.editor.ctx.get(editorViewCtx).focus();
     }
   }
@@ -224,6 +226,9 @@ export class ImageMetaPanel {
       panel = document.createElement('div');
       panel.className = 'nyamark-image-meta';
       panel.draggable = false;
+      // Closed, the panel is only see-through: Tab out of a code block went
+      // on into its description, and what was typed next became the title.
+      panel.inert = !host.classList.contains('nyamark-image-meta-open');
       panel.setAttribute('contenteditable', 'false');
       panel.innerHTML = `
         <label class="nyamark-image-meta__field nyamark-image-meta__field--caption">
