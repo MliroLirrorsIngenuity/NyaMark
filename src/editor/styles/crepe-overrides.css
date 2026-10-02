@@ -448,6 +448,60 @@
   padding-top: 0.45em !important;
 }
 
+/*
+ * A block in an item keeps its room above, and the line after it took none
+ * below: the text sat on the code, the table or the rule. It gets the gap the
+ * block has above it, as it would outside the list.
+ */
+.ny-editor-root
+  .milkdown
+  .editor
+  .content-dom
+  > :is(
+    .milkdown-code-block,
+    .milkdown-table-block,
+    .milkdown-image-block,
+    blockquote
+  )
+  + p {
+  padding-top: 0.72em !important;
+}
+
+.ny-editor-root .milkdown .editor .content-dom > hr + p {
+  padding-top: 1.15em !important;
+}
+
+.ny-editor-root .milkdown .editor .content-dom > :is(ul, ol) + p {
+  padding-top: 0.45em !important;
+}
+
+/* An item that ends in one of them leaves the same gap to the next item. */
+.ny-editor-root
+  .milkdown
+  .editor
+  .milkdown-list-item-block:has(
+    > li
+      > .children
+      > .content-dom
+      > :is(
+        .milkdown-code-block,
+        .milkdown-table-block,
+        .milkdown-image-block,
+        blockquote
+      ):last-child
+  )
+  + .milkdown-list-item-block {
+  margin-top: 0.72em !important;
+}
+
+.ny-editor-root
+  .milkdown
+  .editor
+  .milkdown-list-item-block:has(> li > .children > .content-dom > hr:last-child)
+  + .milkdown-list-item-block {
+  margin-top: 1.15em !important;
+}
+
 .ny-editor-root .milkdown .editor .content-dom > ul,
 .ny-editor-root .milkdown .editor .content-dom > ol {
   margin: 0.3em 0 0 !important;
