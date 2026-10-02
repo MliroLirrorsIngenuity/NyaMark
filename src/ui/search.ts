@@ -104,10 +104,10 @@ export class SearchPanel {
 
     this.elInput = document.createElement('input');
     this.elInput.type = 'text';
-    this.elInput.placeholder = 'Find...';
+    this.elInput.placeholder = 'Find…';
     this.elInput.className = 'ny-search__input';
     this.elInput.setAttribute('data-i18n-placeholder', 'search.placeholder');
-    this.elInput.setAttribute('aria-label', 'Find...');
+    this.elInput.setAttribute('aria-label', 'Find…');
     this.elInput.setAttribute('data-i18n-aria-label', 'search.placeholder');
 
     this.elCount = document.createElement('span');
