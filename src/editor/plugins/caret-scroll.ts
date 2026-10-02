@@ -19,6 +19,10 @@
  * block instead, and the caret going down into a block at the foot of the page
  * stood on its first line out of sight. CodeMirror scrolls to its own caret.
  *
+ * Home and End move the caret along its line without scrolling: with the
+ * line scrolled under the format bar, the caret went to its end there and
+ * stayed out of sight. They bring it into sight as the arrows do.
+ *
  * An edit made from the keyboard brings the caret back into sight. ProseMirror
  * deletes a line break or another inline node beside the caret itself, and
  * did it without scrolling: after Page Up, Backspace took the break out of
@@ -35,7 +39,14 @@ import {
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 
-const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+const MOVES = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+]);
 
 /** ProseMirror's own room around the caret when it scrolls to it. */
 const MARGIN_PX = 5;
@@ -198,7 +209,7 @@ export const caretScroll = $prose(() => {
       handleKeyDown(view, event) {
         if (
           pending ||
-          !ARROWS.has(event.key) ||
+          !MOVES.has(event.key) ||
           event.metaKey ||
           event.ctrlKey ||
           event.isComposing
