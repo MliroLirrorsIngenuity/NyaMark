@@ -3,6 +3,7 @@
  * modules — no logic of its own beyond glue.
  */
 
+import type { Node } from '@milkdown/kit/prose/model';
 import { errorDialog, warningDialog } from './bridge/ipc/files';
 import { checkForUpdate } from './bridge/ipc/updates';
 import { isPrimaryWindow } from './bridge/ipc/windows';
@@ -43,6 +44,14 @@ export class App {
   private attachments: AttachmentController | null = null;
   private sourceMode: SourceModeController | null = null;
   private suppressDirtyTracking = false;
+  /**
+   * The document as it stood when last saved, or null once nothing in the
+   * editor matches the file. Undone back to it, the document is saved again:
+   * the mark stayed, and closing asked to save what was already on disk.
+   */
+  private savedDoc: Node | null = null;
+  private wasDirty = false;
+  private markingDirty = false;
   private readonly settingsPanel = new SettingsPanel();
   private readonly pdfExporter = new PdfExporter(() =>
     this.sourceMode?.flush()
@@ -91,6 +100,9 @@ export class App {
     const fileController = new FileController(() => this.editor, {
       syncEditorAfterSave: (saved) => this.syncEditorAfterSave(saved),
       flushPendingEdits: () => this.sourceMode?.flush(),
+      fileDiverged: () => {
+        this.savedDoc = null;
+      },
     });
     bindAutoSave(() => fileController.autoSaveFile());
 
@@ -123,7 +135,16 @@ export class App {
     // Dirty state comes from onDocChanged alone. The debounced onChange can
     // land after a save that already captured the latest keystroke.
     this.editor.onChange((markdown) => this.updateStats(markdown));
-    this.editor.onDocChanged(() => this.markDirty());
+    this.editor.onDocChanged(() => this.docChanged());
+    this.savedDoc = this.currentDoc();
+    store.subscribe((state) => {
+      if (state.isDirty === this.wasDirty) return;
+      this.wasDirty = state.isDirty;
+      // Unsaved by anything but an edit here, a change in the source pane
+      // or the file gone, the document has no saved state to go back to.
+      if (!state.isDirty) this.savedDoc = this.currentDoc();
+      else if (!this.markingDirty) this.savedDoc = null;
+    });
 
     this.sourceMode = new SourceModeController(
       editorContainer,
@@ -247,12 +268,28 @@ export class App {
       // keys pressed while the file was written, and its caret.
       this.sourceMode?.refreshFromEditor();
     }
+    this.savedDoc = this.currentDoc();
     this.refreshStatsSoon();
   }
 
-  private markDirty() {
-    if (this.suppressDirtyTracking || store.getState().isDirty) return;
-    store.update({ isDirty: true });
+  private currentDoc(): Node | null {
+    return this.editor?.getView()?.state.doc ?? null;
+  }
+
+  private docChanged() {
+    if (this.suppressDirtyTracking) return;
+    const doc = this.currentDoc();
+    if (this.savedDoc && doc?.eq(this.savedDoc)) {
+      store.update({ isDirty: false });
+      return;
+    }
+    if (store.getState().isDirty) return;
+    this.markingDirty = true;
+    try {
+      store.update({ isDirty: true });
+    } finally {
+      this.markingDirty = false;
+    }
   }
 
   private updateStats(markdown?: string) {

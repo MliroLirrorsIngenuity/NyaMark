@@ -25,6 +25,12 @@ type Hooks = {
   syncEditorAfterSave: (savedContent: string) => void;
   /** Push edits buffered outside the editor (the source pane) into it. */
   flushPendingEdits: () => void;
+  /**
+   * The file no longer holds the document as last saved: it went, or another
+   * program rewrote it and the edits were kept. Undone back to that, the
+   * document is still unsaved.
+   */
+  fileDiverged?: () => void;
 };
 
 export class FileController {
@@ -189,6 +195,7 @@ export class FileController {
       // same change does not prompt again; the doc stays dirty and the next
       // save intentionally overwrites disk.
       this.lastKnownContent = newContent;
+      this.hooks.fileDiverged?.();
     }
   }
 
@@ -202,6 +209,7 @@ export class FileController {
       text: this.getEditor()?.getMarkdown() ?? '',
       dirty: store.getState().isDirty,
     };
+    this.hooks.fileDiverged?.();
     store.update({ isDirty: true });
   }
 
