@@ -60,6 +60,11 @@ export class ThemeManager {
     return this.mode ?? this.resolveMode();
   }
 
+  /** Whether the mode is the system's, as against one chosen. */
+  followsSystem() {
+    return this.preference === 'auto';
+  }
+
   onChange(listener: (mode: ThemeMode) => void) {
     this.listeners.add(listener);
     listener(this.getMode());

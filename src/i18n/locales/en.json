@@ -52,7 +52,8 @@
     "themeDark": "Dark",
     "themeLight": "Light",
     "themeAriaLabel": "Switch theme mode, current {{label}}",
-    "themeTitle": "Current {{mode}}. Updates automatically when the system theme changes."
+    "themeTitle": "{{label}}. Click to switch to {{next}}, or choose Follow system in Settings.",
+    "themeTitleAuto": "Following the system: {{label}}. Click to switch to {{next}}."
   },
   "search": {
     "placeholder": "Find...",

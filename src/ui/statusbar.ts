@@ -48,11 +48,15 @@ export class Statusbar {
     this.elMode.setAttribute('aria-pressed', String(state.sourceMode));
   }
 
+  /**
+   * The title names the mode in the interface's language and says whether it
+   * follows the system. It gave the mode's code, "dark" in a Chinese
+   * sentence, and said it followed the system after a click had chosen one.
+   */
   private updateTheme(mode: ThemeMode) {
-    const label =
-      mode === 'dark'
-        ? i18next.t('statusbar.themeDark')
-        : i18next.t('statusbar.themeLight');
+    const dark = i18next.t('statusbar.themeDark');
+    const light = i18next.t('statusbar.themeLight');
+    const label = mode === 'dark' ? dark : light;
     this.elTheme.textContent = label;
     this.elTheme.setAttribute(
       'aria-label',
@@ -60,7 +64,12 @@ export class Statusbar {
     );
     this.elTheme.setAttribute(
       'title',
-      i18next.t('statusbar.themeTitle', { mode })
+      i18next.t(
+        this.theme.followsSystem()
+          ? 'statusbar.themeTitleAuto'
+          : 'statusbar.themeTitle',
+        { label, next: mode === 'dark' ? light : dark }
+      )
     );
   }
 }

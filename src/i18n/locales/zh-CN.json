@@ -50,7 +50,8 @@
     "themeDark": "深色",
     "themeLight": "浅色",
     "themeAriaLabel": "切换主题模式，当前为{{label}}",
-    "themeTitle": "当前为{{mode}}。将随系统主题自动更新。"
+    "themeTitle": "当前为{{label}}。点按换成{{next}}，在设置里可改回跟随系统。",
+    "themeTitleAuto": "跟随系统，当前为{{label}}。点按换成{{next}}。"
   },
   "search": {
     "placeholder": "查找...",
