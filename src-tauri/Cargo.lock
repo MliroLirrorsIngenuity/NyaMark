@@ -23,6 +23,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tempfile",
  "windows",
+ "xattr",
 ]
 
 [[package]]

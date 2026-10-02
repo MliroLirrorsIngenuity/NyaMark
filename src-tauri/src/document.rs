@@ -265,6 +265,8 @@ pub fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     temp.write_all(bytes)?;
     temp.as_file().sync_all()?;
     temp.as_file().set_permissions(permissions)?;
+    #[cfg(unix)]
+    copy_extended_attributes(&target, temp.path());
     temp.persist(&target).map_err(|error| error.error)?;
 
     // The rename itself is durable only once the directory entry is flushed.
@@ -274,6 +276,21 @@ pub fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     }
 
     Ok(())
+}
+
+/// Finder tags, the quarantine flag and the other extended attributes belong
+/// to the file the rename replaces; its successor takes them over. One the
+/// system keeps to itself is left behind.
+#[cfg(unix)]
+fn copy_extended_attributes(from: &Path, to: &Path) {
+    let Ok(names) = xattr::list(from) else {
+        return;
+    };
+    for name in names {
+        if let Ok(Some(value)) = xattr::get(from, &name) {
+            let _ = xattr::set(to, &name, &value);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -395,5 +412,24 @@ mod tests {
 
         let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o640);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_write_keeps_extended_attributes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, b"old").unwrap();
+        // Some file systems take no user attributes at all.
+        if xattr::set(&path, "user.nyamark.test", b"red").is_err() {
+            return;
+        }
+
+        write_atomically(&path, b"new").unwrap();
+
+        assert_eq!(
+            xattr::get(&path, "user.nyamark.test").unwrap().as_deref(),
+            Some(&b"red"[..])
+        );
     }
 }

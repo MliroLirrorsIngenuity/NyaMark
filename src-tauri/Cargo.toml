@@ -34,6 +34,10 @@ tempfile = "3"
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2"
 
+[target.'cfg(unix)'.dependencies]
+# Finder tags and other extended attributes outlive an atomic save.
+xattr = "1"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 # Used to hook `applicationShouldTerminate:` so dock Quit / logout prompt for unsaved changes,
 # and to mark windows with unsaved changes as edited.
