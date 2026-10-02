@@ -165,7 +165,13 @@ function endOfTextblockBefore(state: EditorState) {
 }
 
 function stopAtCode(state: EditorState): Transaction | null {
-  if (state.selection.$from.parent.content.size === 0) return null;
+  const { $from } = state.selection;
+  if ($from.parent.content.size === 0) return null;
+  // At the start of an item the join is of the two items, and the line goes
+  // under the code as a line of the item before, as under any other line.
+  if ($from.depth >= 2 && $from.index(-1) === 0) {
+    if ($from.node(-1).type.name === 'list_item') return null;
+  }
   const before = endOfTextblockBefore(state);
   if (!before?.node.type.spec.code) return null;
   return state.tr.setSelection(TextSelection.create(state.doc, before.end));

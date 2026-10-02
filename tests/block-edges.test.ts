@@ -121,6 +121,11 @@ describe('backspaceAtBlockStart', () => {
     expect(tr?.selection.from).toBe(1 + 'let x'.length);
   });
 
+  test('leaves an item after one that ends in code to the join', () => {
+    const start = doc(bullets(item(p('a'), code('x')), item(p('b'))));
+    expect(backspaceBefore(start, 'b')).toBeNull();
+  });
+
   test('leaves an empty paragraph after code to the join', () => {
     expect(backspaceBefore(doc(code('x'), p('')), '')).toBeNull();
   });
