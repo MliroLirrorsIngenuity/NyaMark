@@ -31,7 +31,7 @@ const exportPdfDialogStyles = `
 
 .ny-export-pdf-dialog {
   position: relative;
-  width: min(760px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 32px));
   padding: 28px 30px 24px;
   border: 1px solid var(--ny-border-strong);
   border-radius: 28px;
