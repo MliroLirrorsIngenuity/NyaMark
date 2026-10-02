@@ -149,6 +149,18 @@ export function openModal(options: ModalOptions): ModalHandle {
     if (options.canDismiss?.() ?? true) options.onDismiss();
   };
   overlay.addEventListener('click', onBackdropClick);
+  // A dialog that comes up over another, the update offer over Export,
+  // is drawn over it: on its own lower layer it opened beneath it with the
+  // focus in it.
+  overlay.style.zIndex = '';
+  const below = stack[stack.length - 1]?.options.overlay;
+  if (below) {
+    const layer = (element: HTMLElement) =>
+      Number.parseInt(getComputedStyle(element).zIndex, 10) || 0;
+    if (layer(overlay) <= layer(below)) {
+      overlay.style.zIndex = String(layer(below) + 1);
+    }
+  }
   if (stack.length === 0) {
     document.addEventListener('keydown', onKeyDown, true);
     document.addEventListener('pointerdown', onPointerDown, true);
