@@ -1,5 +1,5 @@
 diff --git a/lib/cjs/feature/block-edit/index.js b/lib/cjs/feature/block-edit/index.js
-index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..69bef6d4ea8c91435045bdc71aaaa5e1cd651422 100644
+index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..8cfcbdf775fd5aa456ba4412fae9b03445115f7f 100644
 --- a/lib/cjs/feature/block-edit/index.js
 +++ b/lib/cjs/feature/block-edit/index.js
 @@ -800,6 +800,14 @@ const Menu = vue.defineComponent({
@@ -27,17 +27,27 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..69bef6d4ea8c91435045bdc71aaaa5e1
      __privateSet$1(this, _slashProvider, new slash.SlashProvider({
        content: __privateGet$1(this, _content$1),
        debounce: 20,
-@@ -999,6 +1010,8 @@ class MenuView {
+@@ -999,8 +1010,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
 +        const { $from } = view2.state.selection;
 +        anchorShift = view2.coordsAtPos($from.start()).left - view2.coordsAtPos($from.pos).left;
          const pos = __privateGet$1(self, _programmaticallyPos);
-         filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
+-        filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
++        // NyaMark: "、" opens the menu as "/" does: the Chinese input method
++        // types it for that key.
++        const triggered = currentText.startsWith("/") || currentText.startsWith("、");
++        filter.value = triggered ? currentText.slice(1) : currentText;
          if (typeof pos === "number") {
-@@ -1013,7 +1026,8 @@ class MenuView {
-         if (!currentText.startsWith("/")) return false;
+           const maxSize = view2.state.doc.nodeSize - 2;
+           const validPos = Math.min(pos, maxSize);
+@@ -1010,10 +1026,11 @@ class MenuView {
+           }
+           return true;
+         }
+-        if (!currentText.startsWith("/")) return false;
++        if (!triggered) return false;
          return true;
        },
 -      offset: 10
@@ -47,7 +57,7 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..69bef6d4ea8c91435045bdc71aaaa5e1
      __privateGet$1(this, _slashProvider).onShow = () => {
        show.value = true;
 diff --git a/lib/cjs/index.js b/lib/cjs/index.js
-index 9726836fbea853e8be52f11df9b14b5589d457b3..b0953f76f203b2b78e5307e76b3db41ce8ab10f1 100644
+index 9726836fbea853e8be52f11df9b14b5589d457b3..f77eaa04348ecdbf477cdaef2d151c3be7869b2e 100644
 --- a/lib/cjs/index.js
 +++ b/lib/cjs/index.js
 @@ -1183,6 +1183,14 @@ const Menu = vue.defineComponent({
@@ -75,17 +85,27 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..b0953f76f203b2b78e5307e76b3db41c
      __privateSet$5(this, _slashProvider, new slash.SlashProvider({
        content: __privateGet$5(this, _content$3),
        debounce: 20,
-@@ -1382,6 +1393,8 @@ class MenuView {
+@@ -1382,8 +1393,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
 +        const { $from } = view2.state.selection;
 +        anchorShift = view2.coordsAtPos($from.start()).left - view2.coordsAtPos($from.pos).left;
          const pos = __privateGet$5(self, _programmaticallyPos);
-         filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
+-        filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
++        // NyaMark: "、" opens the menu as "/" does: the Chinese input method
++        // types it for that key.
++        const triggered = currentText.startsWith("/") || currentText.startsWith("、");
++        filter.value = triggered ? currentText.slice(1) : currentText;
          if (typeof pos === "number") {
-@@ -1396,7 +1409,8 @@ class MenuView {
-         if (!currentText.startsWith("/")) return false;
+           const maxSize = view2.state.doc.nodeSize - 2;
+           const validPos = Math.min(pos, maxSize);
+@@ -1393,10 +1409,11 @@ class MenuView {
+           }
+           return true;
+         }
+-        if (!currentText.startsWith("/")) return false;
++        if (!triggered) return false;
          return true;
        },
 -      offset: 10
@@ -95,7 +115,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..b0953f76f203b2b78e5307e76b3db41c
      __privateGet$5(this, _slashProvider).onShow = () => {
        show.value = true;
 diff --git a/lib/esm/feature/block-edit/index.js b/lib/esm/feature/block-edit/index.js
-index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..c457ebf128907e9fbf7b856b6c35f58dc2e1a9ff 100644
+index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..2580bbb337419588c8e4ec046eca0e65634e6c20 100644
 --- a/lib/esm/feature/block-edit/index.js
 +++ b/lib/esm/feature/block-edit/index.js
 @@ -798,6 +798,14 @@ const Menu = defineComponent({
@@ -123,17 +143,27 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..c457ebf128907e9fbf7b856b6c35f58d
      __privateSet$1(this, _slashProvider, new SlashProvider({
        content: __privateGet$1(this, _content$1),
        debounce: 20,
-@@ -997,6 +1008,8 @@ class MenuView {
+@@ -997,8 +1008,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
 +        const { $from } = view2.state.selection;
 +        anchorShift = view2.coordsAtPos($from.start()).left - view2.coordsAtPos($from.pos).left;
          const pos = __privateGet$1(self, _programmaticallyPos);
-         filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
+-        filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
++        // NyaMark: "、" opens the menu as "/" does: the Chinese input method
++        // types it for that key.
++        const triggered = currentText.startsWith("/") || currentText.startsWith("、");
++        filter.value = triggered ? currentText.slice(1) : currentText;
          if (typeof pos === "number") {
-@@ -1011,7 +1024,8 @@ class MenuView {
-         if (!currentText.startsWith("/")) return false;
+           const maxSize = view2.state.doc.nodeSize - 2;
+           const validPos = Math.min(pos, maxSize);
+@@ -1008,10 +1024,11 @@ class MenuView {
+           }
+           return true;
+         }
+-        if (!currentText.startsWith("/")) return false;
++        if (!triggered) return false;
          return true;
        },
 -      offset: 10
@@ -143,7 +173,7 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..c457ebf128907e9fbf7b856b6c35f58d
      __privateGet$1(this, _slashProvider).onShow = () => {
        show.value = true;
 diff --git a/lib/esm/index.js b/lib/esm/index.js
-index ea68de6cfb124faa35d9f047d82788a1043d255c..156e4a8fbc4bc2d1df896f742f1f5a70a57ba141 100644
+index ea68de6cfb124faa35d9f047d82788a1043d255c..6cd1d387f8f65be6748aefb7bd1809350cde70a3 100644
 --- a/lib/esm/index.js
 +++ b/lib/esm/index.js
 @@ -1181,6 +1181,14 @@ const Menu = defineComponent({
@@ -171,17 +201,27 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..156e4a8fbc4bc2d1df896f742f1f5a70
      __privateSet$5(this, _slashProvider, new SlashProvider({
        content: __privateGet$5(this, _content$3),
        debounce: 20,
-@@ -1380,6 +1391,8 @@ class MenuView {
+@@ -1380,8 +1391,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
 +        const { $from } = view2.state.selection;
 +        anchorShift = view2.coordsAtPos($from.start()).left - view2.coordsAtPos($from.pos).left;
          const pos = __privateGet$5(self, _programmaticallyPos);
-         filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
+-        filter.value = currentText.startsWith("/") ? currentText.slice(1) : currentText;
++        // NyaMark: "、" opens the menu as "/" does: the Chinese input method
++        // types it for that key.
++        const triggered = currentText.startsWith("/") || currentText.startsWith("、");
++        filter.value = triggered ? currentText.slice(1) : currentText;
          if (typeof pos === "number") {
-@@ -1394,7 +1407,8 @@ class MenuView {
-         if (!currentText.startsWith("/")) return false;
+           const maxSize = view2.state.doc.nodeSize - 2;
+           const validPos = Math.min(pos, maxSize);
+@@ -1391,10 +1407,11 @@ class MenuView {
+           }
+           return true;
+         }
+-        if (!currentText.startsWith("/")) return false;
++        if (!triggered) return false;
          return true;
        },
 -      offset: 10

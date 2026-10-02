@@ -29,14 +29,17 @@ export function menuRoom(line: Span, page: Span): number {
   return Math.max(MIN_PX, Math.max(below, above) - OFFSET_PX - MARGIN_PX);
 }
 
-/** Whether the slash menu may open at the selection: an empty line or `/…`. */
+/**
+ * Whether the slash menu may open at the selection: an empty line, `/…` or
+ * `、…`, which the Chinese input method types for the same key.
+ */
 function mayOpen(view: EditorView): boolean {
   const { selection } = view.state;
   const { parent } = selection.$from;
   if (!selection.empty || !parent.isTextblock) return false;
   if (parent.type.spec.code) return false;
   const text = parent.textContent;
-  return text === '' || text.startsWith('/');
+  return text === '' || text.startsWith('/') || text.startsWith('、');
 }
 
 /** Sets the menu's room for the caret where it stands. */
