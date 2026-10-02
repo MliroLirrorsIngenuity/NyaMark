@@ -55,26 +55,48 @@ function focusableIn(dialog: HTMLElement) {
   );
 }
 
+/** The controls Tab stops at, in order: a radio group once, at its choice. */
+function tabStops(dialog: HTMLElement) {
+  return focusableIn(dialog).filter((element) => {
+    if (element.getAttribute('tabindex') === '-1') return false;
+    if (!(element instanceof HTMLInputElement) || element.type !== 'radio') {
+      return true;
+    }
+    const group = Array.from(
+      dialog.querySelectorAll<HTMLInputElement>('input[type="radio"]')
+    ).filter((radio) => radio.name === element.name);
+    return element === (group.find((radio) => radio.checked) ?? group[0]);
+  });
+}
+
+/**
+ * Tab moves through the dialog's controls itself. Left to the webview, which
+ * on macOS passes over buttons and checkboxes, it went from the last field to
+ * nothing, and Shift+Tab from the first went to the page behind, where the
+ * next key typed went into the document.
+ */
 function trapTab(event: KeyboardEvent, dialog: HTMLElement) {
-  const items = focusableIn(dialog);
-  if (!items.length) {
-    event.preventDefault();
+  event.preventDefault();
+  const stops = tabStops(dialog);
+  if (!stops.length) {
     dialog.focus();
     return;
   }
-  const first = items[0];
-  const last = items[items.length - 1];
   const active = document.activeElement;
   const inside = active instanceof HTMLElement && dialog.contains(active);
-  if (event.shiftKey) {
-    if (!inside || active === first) {
-      event.preventDefault();
-      last.focus();
-    }
-  } else if (!inside || active === last) {
-    event.preventDefault();
-    first.focus();
-  }
+  // From a control that is no stop, such as an option of an open list, the
+  // stops before and after it in the dialog.
+  const before = (stop: HTMLElement) =>
+    inside &&
+    (stop === active ||
+      Boolean(
+        stop.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING
+      ));
+  const last = stops[stops.length - 1];
+  const next = event.shiftKey
+    ? stops.filter((stop) => before(stop) && stop !== active).pop()
+    : stops.find((stop) => !before(stop));
+  (next ?? (event.shiftKey ? last : stops[0])).focus();
 }
 
 function onKeyDown(event: KeyboardEvent) {
