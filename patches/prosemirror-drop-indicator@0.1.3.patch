@@ -1,0 +1,59 @@
+diff --git a/dist/index.js b/dist/index.js
+index b54be9554a1f70fd5b38718c9afe39dd3df2f2b8..2b950fcde8bc88281195099d4d54731c7b07a547 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -52,12 +52,20 @@ function buildGetTarget(view, onDrag) {
+ 	};
+ 	const getTargetImpl = (point, event) => {
+ 		if (!view.editable || view.isDestroyed) return;
++		// NyaMark: a block dragged goes only where it can stand. A list item
++		// dropped on the line under a table was put between the table's rows,
++		// and the table was cut in two around it. At the same distance the
++		// place nearer the top of the document wins: under the last line of a
++		// list item, the item's own end and its paragraph's end are one line.
++		const doc = view.state.doc;
++		const slice = view.dragging?.slice;
++		const depth = (pos) => doc.resolve(pos).depth;
+ 		const compare = (p1, p2) => {
+ 			const [pos1, line1] = p1;
+ 			const [pos2, line2] = p2;
+-			return pointLineDistance(point, line1) - pointLineDistance(point, line2) || pos1 - pos2;
++			return pointLineDistance(point, line1) - pointLineDistance(point, line2) || depth(pos1) - depth(pos2) || pos1 - pos2;
+ 		};
+-		let targets = getTargets();
++		let targets = getTargets().filter(([pos]) => fits(doc, pos, slice));
+ 		targets.sort(compare);
+ 		targets = targets.slice(0, 8);
+ 		const target = targets.find((target$1) => onDrag?.({
+@@ -84,8 +92,30 @@ function pointEqual(a, b) {
+ function pointPointDistance(a, b) {
+ 	return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+ }
++// NyaMark: the distance to the nearest point of the line. To its nearer end
++// only, the middle of a line as wide as the page was further from the pointer
++// than the corner of a table cell beside it, and the block dropped on the line
++// under the pointer went into the table.
+ function pointLineDistance(point, line) {
+-	return Math.min(pointPointDistance(point, [line[0], line[1]]), pointPointDistance(point, [line[2], line[3]]));
++	const x = Math.min(Math.max(point[0], Math.min(line[0], line[2])), Math.max(line[0], line[2]));
++	const y = Math.min(Math.max(point[1], Math.min(line[1], line[3])), Math.max(line[1], line[3]));
++	return pointPointDistance(point, [x, y]);
++}
++/**
++* NyaMark: whether `slice` can go in at `pos` as it is or wrapped, the way
++* ProseMirror's own drop places it. Nothing is wrapped to go into a table:
++* a paragraph went in between its cells as a cell of its own, the table cut
++* in two around it. Anything from outside the editor goes anywhere.
++*/
++function fits(doc, pos, slice) {
++	if (!slice || slice.openStart || !slice.content.childCount) return true;
++	const $pos = doc.resolve(pos);
++	const parent = $pos.parent;
++	const index = $pos.index();
++	if (parent.canReplace(index, index, slice.content)) return true;
++	for (let d = $pos.depth; d > 0; d--) if ($pos.node(d).type.spec.isolating) return false;
++	const wrapping = parent.contentMatchAt(index).findWrapping(slice.content.firstChild.type);
++	return !!wrapping?.length && parent.canReplaceWith(index, index, wrapping[0]);
+ }
+ /**
+ * Whether the dragging node is being dragged to the same position. For example,
