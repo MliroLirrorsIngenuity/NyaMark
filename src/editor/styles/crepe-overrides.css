@@ -2154,6 +2154,10 @@
 .ny-editor-root
   .milkdown
   .ProseMirror
+  .ny-html-block.ProseMirror-selectednode.ny-block-selected::after,
+.ny-editor-root
+  .milkdown
+  .ProseMirror
   .milkdown-image-block.selected
   > .image-wrapper::before {
   background: transparent !important;
