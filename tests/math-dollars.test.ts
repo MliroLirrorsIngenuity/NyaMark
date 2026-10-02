@@ -170,6 +170,16 @@ describe('dollars on save', () => {
     }
   });
 
+  test('keeps the escapes of dollars on either side of a mark edge', () => {
+    for (const markdown of [
+      '**粗 \\$5** 和 \\$6\n',
+      '先 \\$1 *斜 \\$2* 了\n',
+      '[价 \\$1](https://a.com) 与 \\$2\n',
+    ]) {
+      expect(roundTrip(markdown)).toBe(markdown);
+    }
+  });
+
   test('escapes a dollar in text before a mark when the line has math', () => {
     expect(roundTrip('\\$a **b** $c$\n')).toBe('\\$a **b** $c$\n');
   });

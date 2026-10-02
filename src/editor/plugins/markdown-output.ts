@@ -49,8 +49,8 @@
  * Dollars: remark-math escapes every `$` in text, so `$5` was saved as `\$5`.
  * A paragraph whose dollars all come back as text when the file is opened
  * (see `math-dollars`) has them written as typed. One that has math in it,
- * or two dollars around something that would be read as math, keeps them
- * escaped.
+ * two dollars around something that would be read as math, or two either
+ * side of the edge of bold or a link, keeps them escaped.
  *
  * Tildes: every `~` was escaped, so a range was saved as `3\~5 天`. One tilde
  * starts no strikethrough, and is written as typed unless another is next to
@@ -483,6 +483,10 @@ export const writeText: Handle = (node, parent, state, info) => {
   return followsLineMark(node, parent) ? `\\${written}` : written;
 };
 
+/** Stand-ins for where emphasis, a link and the like open and close. */
+const OPENS = '\u0002';
+const CLOSES = '\u0003';
+
 /**
  * `node`'s inline content as a parser sees its dollars: text as it is, and a
  * stand-in for the rest, or null when a dollar outside text is in the way.
@@ -503,7 +507,21 @@ function dollarSource(node: MdNode): string | null {
     source += part;
   }
   // Emphasis, links and the like: their markers are no spaces.
-  return `*${source}*`;
+  return `${OPENS}${source}${CLOSES}`;
+}
+
+/**
+ * Whether what lies between two dollars holds whole marks only. Math takes
+ * in the stars or brackets of a mark it holds one end of, and the mark was
+ * gone when the file was opened again: `**粗 $5** 和 $6`.
+ */
+function holdsWholeMarks(between: string) {
+  let depth = 0;
+  for (const char of between) {
+    if (char === OPENS) depth += 1;
+    else if (char === CLOSES && --depth < 0) return false;
+  }
+  return depth === 0;
 }
 
 /** What a parser keeps of the text between two dollars as math. */
@@ -519,7 +537,10 @@ export function dollarsStayText(source: string): boolean {
   while (open !== -1) {
     const close = source.indexOf('$', open + 1);
     if (close === -1) return true;
-    if (!isDollarText(mathValue(source.slice(open + 1, close)))) return false;
+    const between = source.slice(open + 1, close);
+    if (!holdsWholeMarks(between) || !isDollarText(mathValue(between))) {
+      return false;
+    }
     open = source.indexOf('$', close + 1);
   }
   return true;
