@@ -349,6 +349,19 @@ describe('writeText', () => {
     const markdown = '\\# 不是标题\n\n\\###### 也不是\n\n\\#\n';
     expect(write(markdown)).toBe(markdown);
   });
+
+  test('escapes text that ends in a space before code', () => {
+    for (const markdown of [
+      'a\\` 与 *b* `code`\n',
+      '\\# 不是标题 `x`\n',
+      '\\- 不是列表 `x`\n',
+      '1\\. 不是列表 `x`\n',
+      '\\> 不是引用 `x`\n',
+      'a \\[b]\\(c) `x`\n',
+    ]) {
+      expect(write(markdown)).toBe(markdown);
+    }
+  });
 });
 
 describe('writeThematicBreak', () => {

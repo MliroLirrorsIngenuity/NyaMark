@@ -256,12 +256,16 @@ export function relaxTildes(text: string, before = '', after = ''): string {
 
 /** Milkdown's handler for text, its escapes relaxed. */
 export const writeText: Handle = (node, _parent, state, info) => {
-  const value: string = node.value;
-  // Milkdown writes text that ends in a space as it is, but for the dollars
-  // and tildes that could start math or a strikethrough.
-  const text = /^[^*_\\]*\s+$/.test(value)
-    ? value.replace(/[$~]/g, '\\$&')
-    : relaxEscapes(state.safe(value, { ...info, encode: [] }));
+  // The spaces a text ends in are written as they are: remark encodes one
+  // at the end of a line as `&#x20;`. Milkdown wrote all of such a text as
+  // it was, and a backtick, hash or bracket in it went out unescaped.
+  const [, value, spaces] = /^([\s\S]*?)(\s*)$/.exec(
+    node.value
+  ) as RegExpExecArray;
+  const after = spaces[0] ?? info.after;
+  const text = relaxEscapes(
+    state.safe(value, { ...info, after, encode: [] }) + spaces
+  );
   // Brackets in a link's own text stay as remark wrote them.
   const bracketed =
     state.stack.includes('label') || state.stack.includes('reference')
