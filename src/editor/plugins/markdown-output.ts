@@ -54,13 +54,19 @@
  *
  * Tildes: every `~` was escaped, so a range was saved as `3\~5 天`. One tilde
  * starts no strikethrough, and is written as typed unless another is next to
- * it.
+ * it. *
+ * Blocks in an item of a tight list: remark writes them line after line, and
+ * opened again some ran into the next. Text under a table read as another
+ * row, text under a quote, a nested list or an HTML block went on in it, and
+ * a rule under a line of text made that line a heading. `joinInTightItem`
+ * puts a blank line between those two.
  */
 
 import { $remark } from '@milkdown/kit/utils';
 import {
   type ConstructName,
   type Handle,
+  type Join,
   defaultHandlers,
 } from 'mdast-util-to-markdown';
 import type { Processor } from 'unified';
@@ -255,6 +261,17 @@ export const writeRoot: Handle = (node, parent, state, info) => {
       : pattern
   );
   return defaultHandlers.root(node, parent, state, info);
+};
+
+/** A block in a list item that takes in the line written right under it. */
+const RUNS_ON = new Set(['table', 'blockquote', 'list', 'html']);
+
+/** A blank line between two blocks of a list item that would merge without. */
+export const joinInTightItem: Join = (left, right, parent) => {
+  if (parent.type !== 'listItem') return undefined;
+  if (RUNS_ON.has(left.type)) return 1;
+  if (left.type === 'paragraph' && right.type === 'thematicBreak') return 1;
+  return undefined;
 };
 
 /** Columns `value` takes in a monospace font. */

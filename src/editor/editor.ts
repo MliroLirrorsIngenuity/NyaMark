@@ -64,6 +64,7 @@ import { markCursor } from './plugins/mark-cursor';
 import { markInput } from './plugins/mark-input';
 import {
   displayWidth,
+  joinInTightItem,
   markdownOutput,
   writeRoot,
   writeText,
@@ -161,6 +162,7 @@ export class NyaEditor {
           text: writeText,
           link: writeLink,
         },
+        join: [...(options.join ?? []), joinInTightItem],
       }));
       // Table pipes line up by display width (see markdown-output), and a
       // strikethrough takes two tildes (see mark-input).

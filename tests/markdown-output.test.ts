@@ -5,6 +5,7 @@ import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
 import {
   displayWidth,
+  joinInTightItem,
   normalizeOutput,
   writeRoot,
   writeText,
@@ -156,6 +157,50 @@ describe('normalizeOutput', () => {
       '| 名称 | 数量 |\n| ---- | ---- |\n| 梨   | 7    |\n'
     );
     expect(displayWidth('a，b😀')).toBe(6);
+  });
+});
+
+describe('joinInTightItem', () => {
+  type Shape = { type: string; spread?: unknown; children?: Shape[] };
+  const processor = unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkStringify, { bullet: '-', rule: '-', join: [joinInTightItem] });
+  const shape = (node: Shape): string =>
+    node.type +
+    (node.children ? `(${node.children.map(shape).join(',')})` : '');
+
+  /** An item holding `a`, `block` and `after`, written in a tight list. */
+  function written(block: string) {
+    const tree = processor.parse(`- a\n\n  ${block}\n\n  after\n- b\n`);
+    const tighten = (node: Shape) => {
+      if ('spread' in node) node.spread = false;
+      for (const child of node.children ?? []) tighten(child);
+    };
+    tighten(tree as Shape);
+    const out = processor.stringify(tree as never);
+    return { out, same: shape(processor.parse(out)) === shape(tree as Shape) };
+  }
+
+  test('keeps what follows a table, a quote, a nested list or HTML out of it', () => {
+    for (const block of [
+      '| x | y |\n  | - | - |\n  | 1 | 2 |',
+      '> q',
+      '- sub',
+      '<div>x</div>',
+    ]) {
+      expect(written(block).same).toBe(true);
+    }
+  });
+
+  test('keeps a rule from making the line above it a heading', () => {
+    expect(written('---').same).toBe(true);
+  });
+
+  test('leaves code and text line after line', () => {
+    expect(written('```\n  c\n  ```').out).toBe(
+      '- a\n  ```\n  c\n  ```\n  after\n- b\n'
+    );
   });
 });
 
