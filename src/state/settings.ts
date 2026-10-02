@@ -229,7 +229,11 @@ function sanitizeAttachmentSettings(
   };
 }
 
+/** The transparency last shown, saved or previewed in the settings. */
+let shownTransparency: boolean | null = null;
+
 function applyAppearance(appearance: AppearanceSettings) {
+  shownTransparency = appearance.windowTransparency;
   const root = document.documentElement.style;
   root.setProperty('--ny-editor-font-size', `${appearance.fontSize}px`);
   root.setProperty('--ny-editor-line-height', String(appearance.lineHeight));
@@ -243,6 +247,17 @@ function applyAppearance(appearance: AppearanceSettings) {
 
 export function previewAppearance(appearance: AppearanceSettings) {
   applyAppearance(sanitizeAppearanceSettings(appearance));
+}
+
+/**
+ * Lays the window's transparency over a theme that just changed. The rest
+ * of the appearance stays as shown: applied whole from the saved settings,
+ * it undid a theme or font size being tried in the settings.
+ */
+export function reapplyWindowEffects() {
+  void applyWindowEffects(
+    shownTransparency ?? getSettings().appearance.windowTransparency
+  );
 }
 
 export function normalizeSettings(

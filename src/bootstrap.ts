@@ -24,7 +24,7 @@ import { translateDOM } from './i18n/dom';
 import {
   getSettings,
   hydrateSettings,
-  previewAppearance,
+  reapplyWindowEffects,
   takeUnreadableSettingsBackup,
 } from './state/settings';
 import { store } from './state/store';
@@ -78,9 +78,7 @@ export class App {
     }
 
     const theme = new ThemeManager();
-    window.addEventListener('nyamark:themechange', () => {
-      previewAppearance(getSettings().appearance);
-    });
+    window.addEventListener('nyamark:themechange', reapplyWindowEffects);
 
     const editorContainer = document.getElementById('editor-container');
     if (!editorContainer) {
