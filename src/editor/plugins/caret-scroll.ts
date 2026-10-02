@@ -29,6 +29,14 @@
  * deletes a line break or another inline node beside the caret itself, and
  * did it without scrolling: after Page Up, Backspace took the break out of
  * sight and the page stayed where it was.
+ *
+ * WebKit brings its own caret into sight after it types, and ProseMirror has
+ * drawn the line again by then and put the caret where the browser finds no
+ * place for it: closing a slant with `*` after a footnote mark set it after
+ * the mark, at the end of the slanted text, and the page leapt to the top of
+ * the document, the line typed on out of sight below. After an edit made
+ * from the keyboard the page goes back to where it stood too, and moves only
+ * as far as keeps the caret's line in sight.
  */
 
 import { EditorView as CodeMirror } from '@codemirror/view';
@@ -192,19 +200,38 @@ export const caretScroll = $prose(() => {
   return new Plugin({
     key: new PluginKey('nyamark/caret-scroll'),
     view(view) {
+      // Where the page stood before the keys edited since it was last drawn.
+      let before = 0;
+      let frame = 0;
       // Ahead of every plugin's keys and ProseMirror's own, and until the
       // event is done: microtasks run between its listeners. A key in a code
       // block or a field is CodeMirror's or the field's.
       const onKey = (event: KeyboardEvent) => {
         if (keyed || event.isComposing || event.target !== view.dom) return;
         keyed = true;
+        if (!frame) {
+          before =
+            view.dom.closest<HTMLElement>('.ny-shell__body')?.scrollTop ?? 0;
+        }
         setTimeout(() => {
           keyed = false;
         });
       };
       view.dom.addEventListener('keydown', onKey, true);
       return {
-        destroy: () => view.dom.removeEventListener('keydown', onKey, true),
+        update(view, prev) {
+          if (!keyed || frame || prev.doc.eq(view.state.doc)) return;
+          const page = view.dom.closest<HTMLElement>('.ny-shell__body');
+          if (!page) return;
+          frame = requestAnimationFrame(() => {
+            frame = 0;
+            follow(view, page, before);
+          });
+        },
+        destroy() {
+          cancelAnimationFrame(frame);
+          view.dom.removeEventListener('keydown', onKey, true);
+        },
       };
     },
     appendTransaction(trs, _old, state) {
