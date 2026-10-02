@@ -31,6 +31,7 @@ export class ThemeManager {
   private preference: ThemePreference = 'auto';
   private systemMode: ThemeMode;
   private mode: ThemeMode | null = null;
+  private appliedPreference: ThemePreference | null = null;
   private listeners = new Set<(mode: ThemeMode) => void>();
   private readonly mediaQuery =
     window.matchMedia?.('(prefers-color-scheme: dark)') ?? null;
@@ -109,20 +110,29 @@ export class ThemeManager {
     }
   }
 
+  /**
+   * A new preference is applied even where it shows the same mode: the window
+   * is pinned to it or let go. Choosing "Follow system" while the system was
+   * in the mode already shown left the window pinned, and the page with it,
+   * till the app was opened again.
+   */
   private apply() {
     const mode = this.resolveMode();
-    if (this.mode === mode && document.documentElement.dataset.theme === mode) {
-      return;
-    }
+    const modeChanged =
+      this.mode !== mode || document.documentElement.dataset.theme !== mode;
+    if (!modeChanged && this.appliedPreference === this.preference) return;
     this.mode = mode;
+    this.appliedPreference = this.preference;
 
     document.documentElement.classList.toggle('dark', mode === 'dark');
     document.documentElement.dataset.theme = mode;
     document.documentElement.style.colorScheme = mode;
     void this.syncWindowTheme(mode);
-    window.dispatchEvent(
-      new CustomEvent('nyamark:themechange', { detail: { mode } })
-    );
+    if (modeChanged) {
+      window.dispatchEvent(
+        new CustomEvent('nyamark:themechange', { detail: { mode } })
+      );
+    }
     for (const listener of this.listeners) listener(mode);
   }
 
