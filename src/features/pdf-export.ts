@@ -74,6 +74,11 @@ async function exportAsPdf(settings: ExportPdfSettings) {
   root.classList.remove('dark');
   root.style.colorScheme = 'light';
 
+  // The print job takes the page's title, and with it the name the PDF is
+  // saved under: every export was offered as "NyaMark.pdf".
+  const previousTitle = document.title;
+  document.title = printableTitle();
+
   const previousZoom = document.body.style.zoom;
   const printStyle = document.createElement('style');
   printStyle.id = 'ny-print-export-style';
@@ -93,6 +98,7 @@ async function exportAsPdf(settings: ExportPdfSettings) {
       window.removeEventListener(type, restore, true);
     }
     printStyle.remove();
+    document.title = previousTitle;
     document.body.style.zoom = previousZoom;
     root.classList.remove('ny-exporting-pdf');
     if (theme.name === undefined) delete root.dataset.theme;
