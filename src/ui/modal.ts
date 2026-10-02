@@ -99,9 +99,23 @@ function trapTab(event: KeyboardEvent, dialog: HTMLElement) {
   (next ?? (event.shiftKey ? last : stops[0])).focus();
 }
 
+/**
+ * The top dialog carries `data-ny-keys` while it is worked from the keys, till
+ * the pointer is pressed. WebKit stops matching :focus-visible on a radio the
+ * arrow keys move to, so the ring left a choice as soon as it was changed;
+ * the stylesheet rings a focused choice in a marked dialog.
+ */
 function onKeyDown(event: KeyboardEvent) {
   const top = stack[stack.length - 1];
-  if (top && event.key === 'Tab') trapTab(event, top.options.dialog);
+  if (!top) return;
+  top.options.dialog.setAttribute('data-ny-keys', '');
+  if (event.key === 'Tab') trapTab(event, top.options.dialog);
+}
+
+function onPointerDown() {
+  for (const { options } of stack) {
+    options.dialog.removeAttribute('data-ny-keys');
+  }
 }
 
 /** Call once the dialog is attached to the document. */
@@ -132,6 +146,7 @@ export function openModal(options: ModalOptions): ModalHandle {
   overlay.addEventListener('click', onBackdropClick);
   if (stack.length === 0) {
     document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('pointerdown', onPointerDown, true);
   }
   const entry: Entry = { options };
   stack.push(entry);
@@ -153,6 +168,7 @@ export function openModal(options: ModalOptions): ModalHandle {
       if (index >= 0) stack.splice(index, 1);
       if (stack.length === 0) {
         document.removeEventListener('keydown', onKeyDown, true);
+        document.removeEventListener('pointerdown', onPointerDown, true);
       }
       // Focus goes back only while it is still in the closed dialog (or was
       // lost to the body), so a click elsewhere in the meantime keeps its

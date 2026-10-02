@@ -642,6 +642,18 @@ body {
   outline-offset: 2px;
 }
 
+/* A choice made on a card rings the card. The ring went square round the
+   round button, and off it at the first arrow key (see modal.ts). */
+[aria-modal="true"] label:has(> input[type="radio"]:focus-visible),
+[aria-modal="true"][data-ny-keys] label:has(> input[type="radio"]:focus) {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline-offset: 2px;
+}
+
+[aria-modal="true"] label > input[type="radio"]:focus-visible {
+  outline: none;
+}
+
 @media print {
   body > *:not(#app) {
     display: none !important;

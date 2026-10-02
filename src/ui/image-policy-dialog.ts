@@ -123,9 +123,21 @@ const imagePolicyDialogStyles = `
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  margin-top: 14px;
+  margin: 12px 0 0 -6px;
+  padding: 2px 6px;
+  border-radius: 8px;
   color: var(--ny-text-secondary);
   font-size: 12.5px;
+}
+
+/* The ring goes round the line; round the box alone it stayed square. */
+.ny-image-policy-dialog__checkbox:has(input:focus-visible) {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline-offset: 1px;
+}
+
+.ny-image-policy-dialog .ny-image-policy-dialog__checkbox input:focus-visible {
+  outline: none;
 }
 
 .ny-image-policy-dialog__actions {
