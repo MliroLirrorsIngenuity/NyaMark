@@ -403,6 +403,13 @@ describe('writeText', () => {
     }
   });
 
+  test('escapes the colon after a footnote mark that starts a line', () => {
+    // `[^1]: ` there took the rest of the paragraph as that footnote.
+    const markdown =
+      '[^1]\\: 见下\n\n- [^1]\\: 列表里\n\n上一行\\\n[^1]\\: 换行后\n\n上一行\n[^1]\\: 软换行，正文 [^1]: 中间\n\n[^1]: 脚注\n';
+    expect(write(markdown)).toBe(markdown);
+  });
+
   test('keeps equals signs that start a line with more on it', () => {
     const markdown = '==高亮== 开头\n第二行\n== 也是\n';
     expect(write(markdown)).toBe(markdown);

@@ -364,8 +364,26 @@ export function relaxTildes(text: string, before = '', after = ''): string {
   });
 }
 
+/**
+ * Whether `node` begins with the `:` that makes the footnote mark before it,
+ * at the start of a line, read as the footnote's own text: `[^1]: …` took
+ * the rest of the paragraph out of it as that footnote.
+ */
+function followsLineMark(node: MdNode, parent: MdNode | undefined) {
+  const children = parent?.type === 'paragraph' ? (parent.children ?? []) : [];
+  const index = children.indexOf(node);
+  if (index < 1 || !node.value?.startsWith(':')) return false;
+  if (children[index - 1].type !== 'footnoteReference') return false;
+  const before = children[index - 2];
+  return (
+    !before ||
+    before.type === 'break' ||
+    (before.type === 'text' && /\n[ \t]*$/.test(before.value ?? ''))
+  );
+}
+
 /** Milkdown's handler for text, its escapes relaxed. */
-export const writeText: Handle = (node, _parent, state, info) => {
+export const writeText: Handle = (node, parent, state, info) => {
   // The spaces a text ends in are written as they are: remark encodes one
   // at the end of a line as `&#x20;`. Milkdown wrote all of such a text as
   // it was, and a backtick, hash or bracket in it went out unescaped.
@@ -382,7 +400,10 @@ export const writeText: Handle = (node, _parent, state, info) => {
       ? text
       : relaxBrackets(text, info.after);
   const relaxed = relaxTildes(bracketed, info.before, info.after);
-  return dollarText.has(node) ? relaxed.replace(/\\\$/g, '$') : relaxed;
+  const written = dollarText.has(node)
+    ? relaxed.replace(/\\\$/g, '$')
+    : relaxed;
+  return followsLineMark(node, parent) ? `\\${written}` : written;
 };
 
 /**
