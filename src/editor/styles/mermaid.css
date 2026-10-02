@@ -22,6 +22,12 @@
   margin-right: auto;
 }
 
+/* Mermaid backs an edge's label at half strength, and the line the label
+   sits on ran through its text. */
+.ny-editor-root .milkdown .nyamark-mermaid-preview .edgeLabel rect {
+  opacity: 1 !important;
+}
+
 :root[data-theme="light"]
   .ny-editor-root
   .milkdown
