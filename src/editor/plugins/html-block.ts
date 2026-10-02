@@ -52,9 +52,10 @@ function sanitizeHtmlBlock(value: string): string {
 }
 
 const css = `
+/* The paragraph it sits in spaces it from the blocks around it, as every
+   other block is spaced. */
 .ny-html-block {
   position: relative;
-  margin: 0.5rem 0;
   transition: background-color 0.2s;
 }
 
