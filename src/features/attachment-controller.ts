@@ -28,6 +28,7 @@ import {
   updateSettings,
 } from '../state/settings';
 import { ImagePolicyDialog } from '../ui/image-policy-dialog';
+import { isModalOpen } from '../ui/modal';
 import {
   basenamePath,
   dirnamePath,
@@ -160,7 +161,9 @@ export class AttachmentController {
 
   async bindWindowFileDrop() {
     await listenWindowFileDrop((event) => {
-      if (event.payload.type !== 'drop') return;
+      // Dropped on a dialog, it went into the document behind it, and the
+      // focus left the dialog for the editor.
+      if (event.payload.type !== 'drop' || isModalOpen()) return;
       void this.handleDroppedPaths(event.payload.paths);
     });
   }
