@@ -17,7 +17,7 @@
 
 import { autocompletion } from '@codemirror/autocomplete';
 import { indentWithTab } from '@codemirror/commands';
-import { markdown } from '@codemirror/lang-markdown';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import {
   HighlightStyle,
   syntaxHighlighting,
@@ -486,7 +486,14 @@ export class SourceModeController {
           // pane, and what was typed next went there and was lost at the
           // next sync.
           keymap.of([indentWithTab]),
-          markdown(),
+          // GitHub's Markdown, as the file is read and written: struck text,
+          // tables and task boxes were plain text here, the tildes and boxes
+          // drawn like the words. Its sub- and superscripts are no part of
+          // it, and took the `^` of a formula for one.
+          markdown({
+            base: markdownLanguage,
+            extensions: { remove: ['Superscript', 'Subscript', 'Emoji'] },
+          }),
           sourceSearch(),
           syntaxHighlighting(markdownHighlight),
           EditorView.lineWrapping,
