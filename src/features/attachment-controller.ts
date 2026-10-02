@@ -52,6 +52,13 @@ import {
  */
 const MAX_BASE64_IMAGE_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Most a document may hold once its images are embedded: the 20 MiB open
+ * limit, less room for the line endings and byte order mark the file may
+ * be written with.
+ */
+const MAX_EMBEDDED_DOCUMENT_BYTES = 19 * 1024 * 1024;
+
 /** One file to insert: a name for the error message and how to load it. */
 type AttachmentSource = {
   name: string;
@@ -73,6 +80,8 @@ export class AttachmentController {
   private unsubscribeSettings: (() => void) | null = null;
   /** Answers to `allowCopyTarget`, keyed by document and folder. */
   private readonly copyTargetAnswers = new Map<string, boolean>();
+  /** Base64 read by the insertion under way, not yet in the document. */
+  private pendingEmbeddedBytes = 0;
 
   constructor(options: AttachmentControllerOptions) {
     this.options = options;
@@ -163,6 +172,7 @@ export class AttachmentController {
    * here; an empty URL keeps its placeholder open.
    */
   async upload(file: File) {
+    this.pendingEmbeddedBytes = 0;
     try {
       const attachment = await this.materializeAttachment(file);
       return attachment?.href ?? '';
@@ -263,6 +273,7 @@ export class AttachmentController {
   private async insertFromSources(sources: AttachmentSource[]) {
     const attachments: EditorAttachment[] = [];
     let failure: { name: string; error: unknown } | null = null;
+    this.pendingEmbeddedBytes = 0;
 
     for (const source of sources) {
       try {
@@ -538,11 +549,26 @@ export class AttachmentController {
         })
       );
     }
-    return await new Promise<string>((resolve, reject) => {
+    // Images under the limit each can still add up past what NyaMark opens;
+    // saved like that, the document would be shut out of the editor.
+    const encodedBytes = Math.ceil(file.size / 3) * 4 + file.type.length + 16;
+    const documentBytes =
+      new TextEncoder().encode(this.options.getMarkdown()).length +
+      this.pendingEmbeddedBytes;
+    if (documentBytes + encodedBytes > MAX_EMBEDDED_DOCUMENT_BYTES) {
+      throw new Error(
+        i18next.t('dialog.attachmentError.documentTooLarge', {
+          limit: 20,
+        })
+      );
+    }
+    const url = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result ?? ''));
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     });
+    this.pendingEmbeddedBytes += url.length;
+    return url;
   }
 }

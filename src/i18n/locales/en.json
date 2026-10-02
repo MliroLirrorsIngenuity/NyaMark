@@ -157,7 +157,8 @@
     "attachmentError": {
       "insertFailed": "\"{{name}}\" could not be inserted: {{reason}}",
       "openFailed": "\"{{name}}\" could not be opened: {{reason}}",
-      "base64TooLarge": "{{size}} MB is too large to embed as Base64 (limit {{limit}} MB). Save the document and copy the image into a folder instead."
+      "base64TooLarge": "{{size}} MB is too large to embed as Base64 (limit {{limit}} MB). Save the document and copy the image into a folder instead.",
+      "documentTooLarge": "With this image embedded the document would pass {{limit}} MB, the most NyaMark can open. Save the document and copy the image into a folder instead."
     },
     "documentError": {
       "notUtf8": "\"{{fileName}}\" is not UTF-8 encoded, so NyaMark left it untouched. Convert it to UTF-8 and open it again.",

@@ -21,6 +21,25 @@ import type { PastedImagePolicyChoice } from '../src/ui/image-policy-dialog';
 const hadWindow = 'window' in globalThis;
 if (!hadWindow) Object.assign(globalThis, { window: globalThis });
 
+// Bun has no FileReader; Base64 embedding reads through this one.
+const hadFileReader = 'FileReader' in globalThis;
+if (!hadFileReader) {
+  Object.assign(globalThis, {
+    FileReader: class {
+      result: string | null = null;
+      error: unknown = null;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      readAsDataURL(file: File) {
+        void file.arrayBuffer().then((bytes) => {
+          this.result = `data:${file.type};base64,${Buffer.from(bytes).toString('base64')}`;
+          this.onload?.();
+        });
+      }
+    },
+  });
+}
+
 type DropHandler = (event: {
   payload: { type: string; paths: string[] };
 }) => void;
@@ -176,6 +195,7 @@ afterEach(() => {
 
 afterAll(() => {
   if (!hadWindow) Reflect.deleteProperty(globalThis, 'window');
+  if (!hadFileReader) Reflect.deleteProperty(globalThis, 'FileReader');
 });
 
 describe('inserting files', () => {
@@ -228,6 +248,48 @@ describe('inserting files', () => {
     expect(bridge.errors).toHaveLength(1);
     expect(bridge.errors[0]).toContain('"scan.png" could not be inserted');
     expect(bridge.errors[0]).toContain('too large to embed as Base64');
+  });
+
+  test('an image that would grow the document past the open limit is refused', async () => {
+    const { controller } = await setup({
+      markdown: 'x'.repeat(18 * 1024 * 1024),
+    });
+    bridge.pastedImageChoice = {
+      policy: 'base64',
+      customDirectory: null,
+      remember: false,
+    };
+    const image = new File([new Uint8Array(1024 * 1024)], 'scan.png', {
+      type: 'image/png',
+    });
+
+    expect(await controller.upload(image)).toBe('');
+    expect(bridge.errors).toHaveLength(1);
+    expect(bridge.errors[0]).toContain('the most NyaMark can open');
+  });
+
+  test('images pasted together count toward the open limit together', async () => {
+    const { paste, inserted } = await setup();
+    bridge.pastedImageChoice = {
+      policy: 'base64',
+      customDirectory: null,
+      remember: false,
+    };
+    const images = ['a', 'b', 'c', 'd'].map(
+      (name) =>
+        new File([new Uint8Array(4.5 * 1024 * 1024)], `${name}.png`, {
+          type: 'image/png',
+        })
+    );
+
+    await paste([], images);
+    await settle();
+
+    expect(inserted.map((batch) => batch.map((image) => image.label))).toEqual([
+      ['a.png', 'b.png', 'c.png'],
+    ]);
+    expect(bridge.errors).toHaveLength(1);
+    expect(bridge.errors[0]).toContain('"d.png" could not be inserted');
   });
 });
 
