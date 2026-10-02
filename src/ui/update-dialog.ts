@@ -4,6 +4,7 @@ import { requestAppRestart } from '../bridge/ipc/windows';
 import { i18next } from '../i18n';
 import { ensureStyle } from '../style/register';
 import { animationsSettled, openModal } from './modal';
+import { renderReleaseNotes } from './release-notes';
 import { requireElement } from './require-element';
 
 const updateDialogStyles = `
@@ -156,10 +157,42 @@ const updateDialogStyles = `
   background: color-mix(in srgb, var(--ny-surface-ghost), transparent 24%);
   color: var(--ny-text-secondary);
   font: 12.5px/1.55 var(--ny-font-sans);
-  white-space: pre-wrap;
   overflow: auto;
   user-select: text;
   -webkit-user-select: text;
+}
+
+.ny-update-dialog__notes h5 {
+  margin: 12px 0 4px;
+  color: var(--ny-text-primary);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.ny-update-dialog__notes p {
+  margin: 6px 0;
+}
+
+.ny-update-dialog__notes ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.ny-update-dialog__notes li {
+  margin: 3px 0;
+}
+
+.ny-update-dialog__notes > :first-child {
+  margin-top: 0;
+}
+
+.ny-update-dialog__notes > :last-child {
+  margin-bottom: 0;
+}
+
+.ny-release-notes__scope {
+  color: var(--ny-text-muted);
+  font-weight: 600;
 }
 
 .ny-update-dialog__actions {
@@ -335,9 +368,11 @@ export class UpdateDialog {
     const notesTitle = document.createElement('h4');
     notesTitle.className = 'ny-update-dialog__section-title';
     notesTitle.textContent = i18next.t('updates.releaseNotes');
-    const notes = document.createElement('pre');
+    const notes = document.createElement('div');
     notes.className = 'ny-update-dialog__notes';
-    notes.textContent = update.body || i18next.t('updates.noReleaseNotes');
+    if (!renderReleaseNotes(notes, update.body ?? '')) {
+      notes.textContent = i18next.t('updates.noReleaseNotes');
+    }
     notesSection.append(notesTitle, notes);
     body.appendChild(notesSection);
 
