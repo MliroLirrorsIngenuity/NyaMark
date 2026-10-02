@@ -126,11 +126,11 @@ p:has(> .ny-html-block) > :is(.ProseMirror-separator, .ProseMirror-trailingBreak
   background: rgba(128, 128, 128, 0.05);
 }
 
+/* Sized as a code block is, a line of source as high as a line of code. */
 .ny-html-editor {
   display: block;
   width: 100%;
-  min-height: 50px;
-  padding: 0.5rem 0.75rem;
+  padding: 6px 12px;
   /* The surface of a code block, as the source it is. */
   border: 1px solid var(--ny-editor-codeblock-border);
   border-radius: 12px;
@@ -138,7 +138,7 @@ p:has(> .ny-html-block) > :is(.ProseMirror-separator, .ProseMirror-trailingBreak
   color: var(--ny-text-primary);
   font-family: var(--ny-font-mono);
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.4;
   resize: none;
   outline: none;
   overflow: hidden;
@@ -259,8 +259,12 @@ export const htmlBlockView = $view(htmlSchema.node, () => {
         editor.size = Math.max(editor.value.length, 1);
         return;
       }
+      // From one row, the textarea's two by default stood a blank line under
+      // a line of source. The height takes in the border.
+      editor.rows = 1;
       editor.style.height = 'auto';
-      editor.style.height = `${editor.scrollHeight}px`;
+      const border = editor.offsetHeight - editor.clientHeight;
+      editor.style.height = `${editor.scrollHeight + border}px`;
     };
 
     editor.addEventListener('input', autoResize);
