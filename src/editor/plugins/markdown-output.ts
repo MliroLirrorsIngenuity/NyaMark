@@ -79,6 +79,7 @@ import {
 } from 'mdast-util-to-markdown';
 import { cjkFriendlyToMarkdown } from 'mdast-util-to-markdown-cjk-friendly';
 import type { Processor } from 'unified';
+import { noteFollowing } from './bare-links';
 import { frontMatterOnTop } from './front-matter';
 import { isDollarText } from './math-dollars';
 
@@ -472,6 +473,7 @@ function writeAttention(type: 'emphasis' | 'strong') {
       : (state.options[type] ?? '*');
   return Object.assign(
     ((node, parent, state, info) => {
+      noteFollowing(node, parent, info.after);
       const option = state.options[type];
       const outside = [info.before.slice(-1), info.after.charAt(0)];
       state.options[type] =

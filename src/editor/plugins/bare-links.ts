@@ -26,10 +26,10 @@ type MdNode = {
   children?: MdNode[];
 };
 
-// What GFM leaves out of the end of a bare link when nothing but space
-// follows (`micromark-extension-gfm-autolink-literal`).
-const TRAIL = /^[!"&')*,.:;?\]_~]$/;
-const ENDS = /^[\s<]?$/;
+// What a bare link ends before: GFM leaves stops and stars out of its end
+// when nothing but space follows them
+// (`micromark-extension-gfm-autolink-literal`).
+const ENDS = /^[!"&')*,.:;?\]_~]*(?:[\s<]|$)/;
 
 /** How the text of a bare link reads as `url`, or null when it does not. */
 function bareKind(text: string, url: string) {
@@ -49,8 +49,39 @@ function beginsAfter(kind: string, before: string) {
 /** Whether a reader ends a link of `kind` right before `after`. */
 function endsBefore(kind: string, after: string) {
   // An email address ends at anything its domain cannot hold, `。` too.
-  if (kind === 'email') return !/[-_A-Za-z0-9]/.test(after);
-  return ENDS.test(after) || TRAIL.test(after);
+  if (kind === 'email') return !/[-_A-Za-z0-9]/.test(after.charAt(0));
+  return ENDS.test(after);
+}
+
+/** What follows each bold or italics being written, and what holds it. */
+const following = new WeakMap<object, { parent?: object; after: string }>();
+
+/**
+ * Notes what follows `node`, bold or italics. A link at the end of it is
+ * followed by its stars and then by that: GFM read on through the stars in
+ * `**https://…**。`, and the link took them and the `。` into it.
+ */
+export function noteFollowing(
+  node: object,
+  parent: object | undefined,
+  after: string
+) {
+  following.set(node, { parent, after });
+}
+
+/** What follows `node`, through the ends of the marks it ends. */
+function readOnFrom(node: object, parent: MdNode | undefined, after: string) {
+  let text = after;
+  let child = node;
+  let around = parent;
+  while (around?.children?.[around.children.length - 1] === child) {
+    const outside = following.get(around);
+    if (!outside) break;
+    text += outside.after;
+    child = around;
+    around = outside.parent as MdNode | undefined;
+  }
+  return text;
 }
 
 /** The text `node` is written as, bare, or null when it must be spelt out. */
@@ -75,9 +106,13 @@ export const writeLink = Object.assign(
     // A table cell is written between pipes, which end its text.
     const cell = state.stack.includes('tableCell');
     const edge = (char: string) => (cell && char === '|' ? '' : char);
+    const after = readOnFrom(node, parent, info.after);
     return (
-      bareLinkText(node, edge(info.before), edge(info.after)) ??
-      defaultHandlers.link(node, parent, state, info)
+      bareLinkText(
+        node,
+        edge(info.before),
+        cell ? after.split('|')[0] : after
+      ) ?? defaultHandlers.link(node, parent, state, info)
     );
   }) satisfies Handle,
   {

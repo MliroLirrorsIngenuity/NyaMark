@@ -4,13 +4,14 @@ import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
 import { markBareLinks, writeLink } from '../src/editor/plugins/bare-links';
+import { writeStrong } from '../src/editor/plugins/markdown-output';
 
 type Tree = { type: string; value?: string; children?: Tree[] };
 
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
-  .use(remarkStringify, { handlers: { link: writeLink } });
+  .use(remarkStringify, { handlers: { link: writeLink, strong: writeStrong } });
 
 /** Parses `markdown` the way the editor does, edits it, and writes it. */
 function roundTrip(markdown: string, edit?: (tree: Tree) => void) {
@@ -75,5 +76,20 @@ describe('bare links', () => {
       after.value = '这里';
     });
     expect(typed).toBe('见 <https://a.com>这里\n');
+  });
+
+  test('spells out a bold bare link that text follows past its stars', () => {
+    const typed = roundTrip(
+      '**https://a.com** 和 **me@b.com** 见\n',
+      (tree) => {
+        const paragraph = find(tree, 'paragraph') as Tree;
+        for (const child of paragraph.children ?? []) {
+          if (child.type === 'text') child.value = child.value?.trim();
+        }
+      }
+    );
+    expect(typed).toBe('**<https://a.com>**和**me@b.com**见\n');
+    const markdown = '句末 **https://d.com/e**.\n';
+    expect(roundTrip(markdown)).toBe(markdown);
   });
 });
