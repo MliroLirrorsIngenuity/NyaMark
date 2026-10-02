@@ -1,6 +1,5 @@
 import { autocompletion } from '@codemirror/autocomplete';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { languages as codeLanguages } from '@codemirror/language-data';
 import { Prec } from '@codemirror/state';
 import { oneDarkTheme } from '@codemirror/theme-one-dark';
 import { EditorView as CodeMirror, keymap, tooltips } from '@codemirror/view';
@@ -18,6 +17,7 @@ import { codeArrowsByRow } from './plugins/block-arrows';
 import { codeClearOfBar } from './plugins/caret-scroll';
 import { caretThroughColour } from './plugins/code-colour-caret';
 import { closeFenceOnEnter } from './plugins/code-fence-exit';
+import { codeLanguages } from './plugins/code-language';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
 import { rememberCodeCopy } from './plugins/paste-code';
@@ -363,10 +363,11 @@ function localizedFeatureConfigs() {
  * Single source of truth for the Crepe builder config used by NyaEditor.
  * Anything that wants to tweak features goes here, not in `editor.ts`.
  *
- * `languages` from @codemirror/language-data wires up the dynamic loader so
- * Crepe's CodeBlock feature can ask CodeMirror to highlight whatever fenced
- * language the user typed (lazy-loaded). Without this list Crepe falls back
- * to plain text rendering with no token colours at all.
+ * `languages` from @codemirror/language-data, by way of `code-language.ts`,
+ * wires up the dynamic loader so Crepe's CodeBlock feature can ask CodeMirror
+ * to highlight whatever fenced language the user typed (lazy-loaded). Without
+ * this list Crepe falls back to plain text rendering with no token colours at
+ * all.
  */
 export function buildCrepeConfig(
   opts: CrepeConfigOptions

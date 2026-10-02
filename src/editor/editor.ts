@@ -35,6 +35,7 @@ import { handleBlocksOnly } from './plugins/block-handle-blocks';
 import { restHiddenBlockHandle } from './plugins/block-handle-rest';
 import { blockSelection } from './plugins/block-selection';
 import { caretScroll } from './plugins/caret-scroll';
+import { fenceLanguageWord } from './plugins/code-language';
 import { codePreview } from './plugins/code-preview';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { fenceInput } from './plugins/fence-input';
@@ -209,6 +210,7 @@ export class NyaEditor {
     crepe.editor.use(htmlBlockSelection);
     crepe.editor.use(blockSelection);
     crepe.editor.use(codePreview);
+    crepe.editor.use(fenceLanguageWord);
     crepe.editor.use(blockArrows);
     crepe.editor.use(imageRatio);
     crepe.editor.use(tableCells);
