@@ -110,6 +110,7 @@ const styles = `
 }
 
 .ny-settings__field {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -312,8 +313,12 @@ const styles = `
   box-shadow: 0 0 0 3px color-mix(in srgb, #d46a6a, transparent 82%);
 }
 
+/* The range shows under its field in the space before the next row, so the
+   rows keep their spacing while it is empty. */
 .ny-settings__field-hint {
-  min-height: 16px;
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
   font-size: 11.5px;
   line-height: 1.35;
   color: #c55f5f;
