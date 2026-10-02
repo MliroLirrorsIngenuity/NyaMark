@@ -28,6 +28,7 @@ import type { Node, ResolvedPos } from '@milkdown/kit/prose/model';
 import { TextSelection, type Transaction } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { replaceLineWith } from './fence-input';
+import { liftFromQuote } from './toolbar-toggles';
 
 /** The depth of the table or the code block `$pos` is in, or 0. */
 function holder($pos: ResolvedPos): number {
@@ -148,6 +149,7 @@ export function intoInsertedBlocks(builder: Builder) {
       if (view.state.selection.$from.parent.type.spec.code) {
         view.dom.focus({ preventScroll: true });
       }
+      if (liftFromQuote(view.state, view.dispatch)) return;
       if (!itemLineInto(view, 'quote')) toQuote(ctx);
     };
   }
