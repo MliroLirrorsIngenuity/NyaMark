@@ -13,14 +13,19 @@
  * the caret, cutting the code block in two or the table, a row of it above
  * and the rest below. The code block button in a code block leaves it as it
  * is; it made it a plain code block, losing its language.
+ *
+ * On an empty line of a list item the block takes the line's place, under the
+ * item above, as one typed there does. The line stayed above the block as an
+ * empty bullet, saved as `<br />`.
  */
 
 import { editorViewCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
 import { createTable } from '@milkdown/kit/preset/gfm';
 import type { Node, ResolvedPos } from '@milkdown/kit/prose/model';
-import { TextSelection } from '@milkdown/kit/prose/state';
+import { TextSelection, type Transaction } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
+import { replaceLineWith } from './fence-input';
 
 /** The depth of the table or the code block `$pos` is in, or 0. */
 function holder($pos: ResolvedPos): number {
@@ -33,11 +38,16 @@ function holder($pos: ResolvedPos): number {
 
 /** Puts `node` in at the selection, as the toolbar does, and the caret in it. */
 export function insertBlock(view: EditorView, node: Node) {
-  const { $from } = view.state.selection;
-  const tr = view.state.tr;
+  const { state } = view;
+  const { $from, empty } = state.selection;
   const depth = holder($from);
-  if (depth > 0) tr.insert($from.after(depth), node);
-  else tr.replaceSelectionWith(node);
+  const line = $from.parent;
+  const emptyLine =
+    empty && line.type.name === 'paragraph' && !line.content.size;
+  let tr: Transaction | undefined;
+  if (depth > 0) tr = state.tr.insert($from.after(depth), node);
+  else if (emptyLine) tr = replaceLineWith(state, node)?.tr;
+  tr ??= state.tr.replaceSelectionWith(node);
   let at = -1;
   tr.doc.descendants((child, pos) => {
     if (child === node) at = pos;
