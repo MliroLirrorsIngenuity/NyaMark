@@ -38,6 +38,7 @@ import { blockKeys, dropWrapKeys } from './plugins/block-keys';
 import { blockSelection } from './plugins/block-selection';
 import { caretScroll } from './plugins/caret-scroll';
 import { cjkBreaks } from './plugins/cjk-breaks';
+import { codeBlockFromHtml } from './plugins/code-block-html';
 import { codeKey } from './plugins/code-key';
 import { fenceLanguageWord } from './plugins/code-language';
 import { codePreview } from './plugins/code-preview';
@@ -238,6 +239,7 @@ export class NyaEditor {
     crepe.editor.use(footnoteMark);
     crepe.editor.use(footnoteNumber);
     crepe.editor.use(imageOwnTitle);
+    crepe.editor.use(codeBlockFromHtml);
     crepe.editor.use(linkBox);
     crepe.editor.use(linkKey);
     crepe.editor.use(codeKey);
