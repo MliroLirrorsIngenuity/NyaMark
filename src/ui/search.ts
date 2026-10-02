@@ -4,6 +4,13 @@ import { translateDOM } from '../i18n/dom';
 import { ensureStyle } from '../style/register';
 import { pushEscapeLayer } from './escape-layers';
 
+/**
+ * Boxes in the page that close on Escape themselves: one pressed in them
+ * closes them, and the find bar stays. It closed the find bar instead.
+ */
+const OWN_ESCAPE =
+  '.milkdown-latex-inline-edit, .ny-html-editor, .milkdown-link-edit';
+
 const searchStyles = `
 .ny-search {
   position: fixed;
@@ -189,7 +196,10 @@ export class SearchPanel {
         : (this.getEditor()?.selectedLine() ?? '');
     if (selected) this.elInput.value = selected;
     if (this.elPanel.hidden) {
-      this.releaseEscape = pushEscapeLayer({ dismiss: () => this.hide() });
+      this.releaseEscape = pushEscapeLayer({
+        dismiss: () => this.hide(),
+        takes: (event) => !(event.target as Element).closest?.(OWN_ESCAPE),
+      });
       this.placeUnderFormatBar();
       this.elPanel.hidden = false;
       // Edits (or another file) change the matches under an open panel.

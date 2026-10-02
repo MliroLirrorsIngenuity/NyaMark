@@ -9,6 +9,8 @@ export type EscapeLayer = {
   dismiss: () => void;
   /** Whether Escape may dismiss right now; the key is taken either way. */
   canDismiss?: () => boolean;
+  /** Whether the layer takes this Escape; one it passes goes on to the page. */
+  takes?: (event: KeyboardEvent) => boolean;
 };
 
 const layers: EscapeLayer[] = [];
@@ -16,8 +18,10 @@ const layers: EscapeLayer[] = [];
 function onKeyDown(event: KeyboardEvent) {
   // Escape during an IME composition cancels the composition.
   if (event.key !== 'Escape' || event.isComposing) return;
+  // Taken already, by a menu listening on the window (the slash menu).
+  if (event.defaultPrevented) return;
   const top = layers[layers.length - 1];
-  if (!top) return;
+  if (!top || !(top.takes?.(event) ?? true)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
   if (top.canDismiss?.() ?? true) top.dismiss();
