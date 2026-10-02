@@ -22,10 +22,11 @@
  * nothing on the first line of a list item, which has to stay text; the line
  * goes there as code or a quote too.
  *
- * The slash menu's image and rule go in as the toolbar's do. They left the
- * caret in the block after them, at the start of a code block under them
- * as often as not, and at the end of the document left the block selected,
- * where what was typed next went nowhere.
+ * The slash menu's image, rule, table and formula go in as the toolbar's do.
+ * The image and the rule left the caret in the block after them, at the end
+ * of the document the block itself selected, where what was typed next went
+ * nowhere. The table and the formula, put in above a code block, gave the
+ * caret to the code.
  */
 
 import { commandsCtx, editorViewCtx } from '@milkdown/kit/core';
@@ -116,23 +117,23 @@ type Builder = { build: () => { key: string; items: Item[] }[] };
 const nodes = (ctx: Ctx) => ctx.get(editorViewCtx).state.schema.nodes;
 
 const image = (ctx: Ctx) => nodes(ctx)['image-block'].create();
+const table = (ctx: Ctx) => createTable(ctx, 3, 3);
+const math = (ctx: Ctx) => nodes(ctx).code_block.create({ language: 'LaTeX' });
 const rule = (ctx: Ctx) => nodes(ctx).hr.create();
 
 /** The block each of these buttons adds, by its group and key. */
 const BLOCKS: [group: string, key: string, make: (ctx: Ctx) => Node][] = [
   ['insert', 'image', image],
-  ['insert', 'table', (ctx) => createTable(ctx, 3, 3)],
-  [
-    'block',
-    'math',
-    (ctx) => nodes(ctx).code_block.create({ language: 'LaTeX' }),
-  ],
+  ['insert', 'table', table],
+  ['block', 'math', math],
   ['more', 'hr', rule],
 ];
 
-/** The slash menu's items that add an image or a rule, the same way. */
+/** The slash menu's items for the same blocks. */
 const SLASH_BLOCKS: [group: string, key: string, make: (ctx: Ctx) => Node][] = [
   ['advanced', 'image', image],
+  ['advanced', 'table', table],
+  ['advanced', 'math', math],
   ['text', 'divider', rule],
 ];
 
@@ -180,7 +181,7 @@ export function intoInsertedBlocks(builder: Builder) {
   }
 }
 
-/** Has the slash menu's image and rule put in as the toolbar's are. */
+/** Has the slash menu's blocks above put in as the toolbar's are. */
 export function intoSlashBlocks(builder: Builder) {
   const groups = builder.build();
   for (const [group, key, make] of SLASH_BLOCKS) {
