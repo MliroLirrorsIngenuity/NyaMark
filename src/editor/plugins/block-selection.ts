@@ -16,7 +16,10 @@
  * Blocks in a list item or a quote are washed too: only the top level was
  * looked at, and Cmd+A over a list left its code, formulas and tables as
  * holes in the band. A formula in a line is washed whole too: the selection
- * painted the bits of its letters alone, with holes between them.
+ * painted the bits of its letters alone, with holes between them. So is a
+ * piece of code in a line, whose padding stood out of the band as two slits;
+ * that one by a decoration on its text, as a class put straight on a mark's
+ * element is read back by ProseMirror as an edit, which cut Shift+Down short.
  *
  * Implemented as a plugin view that toggles a class straight on the node
  * view's DOM rather than as a ProseMirror node decoration: decoration changes
@@ -27,7 +30,11 @@
 
 import type { EditorState } from '@milkdown/kit/prose/state';
 import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
-import type { EditorView } from '@milkdown/kit/prose/view';
+import {
+  Decoration,
+  DecorationSet,
+  type EditorView,
+} from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 
 const pluginKey = new PluginKey('nyamark/block-selection');
@@ -43,6 +50,37 @@ const COVERED_CLASS = 'ny-block-selected';
  */
 const WASHABLE_SELECTOR =
   '.milkdown-code-block,.milkdown-table-block,.milkdown-image-block,.ny-html-block,hr,span[data-type="math_inline"]';
+
+/** Toggled on the text of every fully-selected piece of code in a line. */
+const CHIP_CLASS = 'ny-chip-selected';
+
+/** The pieces of code in a line that the selection takes whole. */
+export function coveredChips(state: EditorState): [number, number][] {
+  const { selection, doc } = state;
+  if (selection.empty) return [];
+
+  const { from, to } = selection;
+  const chips: [number, number][] = [];
+  const take = (start: number, end: number) => {
+    if (start >= from && end <= to) chips.push([start, end]);
+  };
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (!node.inlineContent) return true;
+    let start = -1;
+    node.forEach((child, offset) => {
+      const at = pos + 1 + offset;
+      const code = child.marks.some((mark) => mark.type.spec.code);
+      if (code && start < 0) start = at;
+      if (!code && start >= 0) {
+        take(start, at);
+        start = -1;
+      }
+    });
+    if (start >= 0) take(start, pos + node.nodeSize - 1);
+    return false;
+  });
+  return chips;
+}
 
 function coveredBlocks(view: EditorView): HTMLElement[] {
   const { selection, doc } = view.state;
@@ -68,6 +106,18 @@ export const blockSelection = $prose(
   () =>
     new Plugin({
       key: pluginKey,
+      props: {
+        decorations: (state) => {
+          const chips = coveredChips(state);
+          if (chips.length === 0) return null;
+          return DecorationSet.create(
+            state.doc,
+            chips.map(([from, to]) =>
+              Decoration.inline(from, to, { class: CHIP_CLASS })
+            )
+          );
+        },
+      },
       view: (editorView) => {
         let marked: HTMLElement[] = [];
 

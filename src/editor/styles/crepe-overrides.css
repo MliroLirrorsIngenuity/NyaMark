@@ -2000,6 +2000,27 @@
 }
 
 /*
+ * A piece of code in a line inside the selection is washed whole and square,
+ * its margin given to its padding, so the band runs on through it. The
+ * selection painted its letters alone, and its padding stood out as a slit
+ * on each side.
+ */
+.ny-editor-root .milkdown .ProseMirror code:has(.ny-chip-selected) {
+  background: linear-gradient(
+      color-mix(in srgb, var(--ny-accent), transparent 72%),
+      color-mix(in srgb, var(--ny-accent), transparent 72%)
+    ), var(--ny-editor-inline-code-bg) !important;
+  border-radius: 0 !important;
+  padding: 0.14em 0.4em !important;
+  margin: 0 !important;
+}
+
+.ny-editor-root .milkdown .ProseMirror .ny-chip-selected::selection,
+.ny-editor-root .milkdown .ProseMirror .ny-chip-selected *::selection {
+  background: transparent;
+}
+
+/*
  * A formula in a line inside the selection is washed whole, in the band of
  * the text around it. The selection painted the bits of its letters alone,
  * with holes between them.
