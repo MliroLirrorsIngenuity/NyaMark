@@ -8,6 +8,7 @@ import type { Crepe } from '@milkdown/crepe';
 import { editorViewCtx } from '@milkdown/kit/core';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { translateDOM } from '../../i18n/dom';
+import { i18next } from '../../i18n/index';
 import { pushEscapeLayer } from '../../ui/escape-layers';
 
 const IMAGE_BLOCK = 'image-block';
@@ -83,6 +84,12 @@ export class ImageMetaPanel {
       '.milkdown-image-block'
     )) {
       this.syncPanel(host);
+    }
+    for (const host of this.root.querySelectorAll<HTMLElement>(
+      '.milkdown-image-inline'
+    )) {
+      const image = host.querySelector('img');
+      if (image instanceof HTMLImageElement) this.syncInlineBroken(host, image);
     }
   }
 
@@ -351,6 +358,50 @@ export class ImageMetaPanel {
       image.addEventListener('error', update);
     }
     update();
+  }
+
+  /**
+   * A picture in a line that fails to load showed the same glyph in the middle
+   * of the sentence. It gives way to its description, or the name of its
+   * file, marked as a picture that did not load, with the path tried on hover.
+   */
+  private syncInlineBroken(host: HTMLElement, image: HTMLImageElement) {
+    const update = () => {
+      const broken = image.complete && image.naturalWidth === 0 && !!image.src;
+      host.classList.toggle('nyamark-image-broken', broken);
+      if (!broken) {
+        delete host.dataset.nyamarkLabel;
+        host.removeAttribute('title');
+        return;
+      }
+      const src = this.inlineImageSrc(host) ?? image.getAttribute('src') ?? '';
+      const file = src.split(/[?#]/)[0].split(/[\\/]/).pop() ?? '';
+      let name = file;
+      try {
+        name = decodeURIComponent(file);
+      } catch {}
+      host.dataset.nyamarkLabel = image.alt || name || src;
+      host.title = `${i18next.t('editor.image.broken')}\n${src}`;
+    };
+    if (!image.dataset.nyamarkWatched) {
+      image.dataset.nyamarkWatched = 'true';
+      image.addEventListener('load', update);
+      image.addEventListener('error', update);
+    }
+    update();
+  }
+
+  /** The path written for the picture in a line `host` shows. */
+  private inlineImageSrc(host: HTMLElement): string | null {
+    const crepe = this.getCrepe();
+    if (!crepe) return null;
+    const view = crepe.editor.ctx.get(editorViewCtx);
+    try {
+      const node = view.state.doc.nodeAt(view.posAtDOM(host, 0));
+      return node?.type.name === 'image' ? String(node.attrs.src) : null;
+    } catch {
+      return null;
+    }
   }
 
   private updateImageNodeAttrs(
