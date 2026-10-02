@@ -186,6 +186,26 @@ describe('backspaceAtBlockStart', () => {
     expect((tr?.selection as NodeSelection).node.type.name).toBe('hr');
   });
 
+  test('joins a line after a nested list to its last line', () => {
+    const start = doc(
+      bullets(
+        item(p('a'), bullets(item(p('a1'))), p(''), bullets(item(p('a2'))))
+      )
+    );
+    const tr = backspaceBefore(start, '');
+    expect(tr?.doc.toJSON()).toEqual(
+      doc(bullets(item(p('a'), bullets(item(p('a1')), item(p('a2')))))).toJSON()
+    );
+    expect(tr?.selection.$from.parent.textContent).toBe('a1');
+    expect(tr?.selection.$from.parentOffset).toBe(2);
+    expect(
+      backspaceBefore(
+        doc(bullets(item(p('a'), bullets(item(p('a1'))), p('more')))),
+        'more'
+      )?.doc.toJSON()
+    ).toEqual(doc(bullets(item(p('a'), bullets(item(p('a1more')))))).toJSON());
+  });
+
   test('ignores a caret inside the text', () => {
     const start = doc(p('above'), quote(p('q1')));
     const state = EditorState.create({

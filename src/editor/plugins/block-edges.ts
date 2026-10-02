@@ -43,11 +43,13 @@
  * one before it: Delete at the start of an item moved the item into the one
  * above it, and never took the letter after the caret. It deletes. Backspace
  * under an image in an item deleted the image at once, where outside a list
- * it selects it first; it selects it there too.
+ * it selects it first; it selects it there too. A line of an item after a
+ * list in it joins the line above, as one after a list outside an item does.
  */
 
 import type { Ctx } from '@milkdown/kit/ctx';
 import { headingKeymap, listItemKeymap } from '@milkdown/kit/preset/commonmark';
+import { joinTextblockBackward } from '@milkdown/kit/prose/commands';
 import { liftListItem } from '@milkdown/kit/prose/schema-list';
 import {
   type EditorState,
@@ -58,7 +60,7 @@ import {
   TextSelection,
   type Transaction,
 } from '@milkdown/kit/prose/state';
-import { liftTarget } from '@milkdown/kit/prose/transform';
+import { canJoin, liftTarget } from '@milkdown/kit/prose/transform';
 import { $prose } from '@milkdown/kit/utils';
 import { footnoteToText } from './footnote-input';
 import {
@@ -91,6 +93,41 @@ function liftFirstItem(state: EditorState): Transaction | null {
     lifted = tr;
   });
   return lifted;
+}
+
+/**
+ * A line of an item that comes after a list in it, joined to the last line of
+ * that list, as a line after a list outside an item is. Milkdown's join made
+ * it an item of that list: an empty line just taken off its bullet got one
+ * back, a level further in.
+ */
+function joinPastNestedList(state: EditorState): Transaction | null {
+  const { $from } = state.selection;
+  if ($from.depth < 2 || $from.node(-1).type.name !== 'list_item') return null;
+  const index = $from.index(-1);
+  if (index === 0) return null;
+  const before = $from.node(-1).child(index - 1).type.name;
+  if (before !== 'bullet_list' && before !== 'ordered_list') return null;
+  let joined: Transaction | null = null;
+  joinTextblockBackward(state, (tr) => {
+    joined = tr;
+  });
+  if (!joined) return null;
+  const tr: Transaction = joined;
+  // The list it stood under and one after it close up into one list.
+  const item = tr.doc.nodeAt($from.before(-1));
+  if (item && index < item.childCount) {
+    let cut = $from.start(-1);
+    for (let i = 0; i < index; i += 1) cut += item.child(i).nodeSize;
+    const $cut = tr.doc.resolve(cut);
+    if (
+      $cut.nodeBefore?.type === $cut.nodeAfter?.type &&
+      canJoin(tr.doc, cut)
+    ) {
+      tr.join(cut);
+    }
+  }
+  return tr;
 }
 
 function liftOutOfQuote(state: EditorState): Transaction | null {
@@ -189,6 +226,7 @@ export function backspaceAtBlockStart(state: EditorState): Transaction | null {
   return (
     headingToParagraph(state) ??
     liftFirstItem(state) ??
+    joinPastNestedList(state) ??
     liftOutOfQuote(state) ??
     footnoteToText(state) ??
     stopAtCode(state) ??
