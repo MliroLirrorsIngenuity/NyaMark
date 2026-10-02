@@ -4,6 +4,9 @@ index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2
 diff --git a/node_modules/@milkdown/components/.bun-tag-5a9ca029d36dc0f3 b/.bun-tag-5a9ca029d36dc0f3
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@milkdown/components/.bun-tag-a0b30a26eef2256 b/.bun-tag-a0b30a26eef2256
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/node_modules/@milkdown/components/.bun-tag-b5230b2e48bb2337 b/.bun-tag-b5230b2e48bb2337
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
@@ -75,3 +78,17 @@ index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..e168ef97e6296c6612bb5312106d1040
            )
          ))
        )) : null));
+diff --git a/lib/link-tooltip/index.js b/lib/link-tooltip/index.js
+index 05e8d8e1fe3075df57f48b4bcbe8107e90530e12..165b92e0a4cf5628a7d156ae84f43b7c70927c7e 100644
+--- a/lib/link-tooltip/index.js
++++ b/lib/link-tooltip/index.js
+@@ -295,6 +295,9 @@ class LinkEditTooltip {
+       requestAnimationFrame(() => {
+         var _a;
+         (_a = __privateGet$1(this, _content$1).querySelector("input")) == null ? void 0 : _a.focus();
++        // NyaMark: a link's address opens selected, for one typed to take its
++        // place; it was added to the end of the old one.
++        _a == null ? void 0 : _a.select();
+       });
+     });
+     this.update = (view) => {
