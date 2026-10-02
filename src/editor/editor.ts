@@ -43,7 +43,6 @@ import { blockKeys, dropWrapKeys } from './plugins/block-keys';
 import { blockSelection } from './plugins/block-selection';
 import { caretScroll } from './plugins/caret-scroll';
 import { cjkBreaks } from './plugins/cjk-breaks';
-import { codeBlockFromHtml } from './plugins/code-block-html';
 import { codeKey } from './plugins/code-key';
 import { fenceLanguageWord } from './plugins/code-language';
 import { codePreview } from './plugins/code-preview';
@@ -54,6 +53,11 @@ import { fenceInput } from './plugins/fence-input';
 import { keepFloatingOffEdge } from './plugins/floating-gutter';
 import { footnoteInput } from './plugins/footnote-input';
 import { footnoteMark, footnoteNumber } from './plugins/footnote-mark';
+import {
+  frontMatterBlock,
+  frontMatterSyntax,
+  pastFrontMatter,
+} from './plugins/front-matter';
 import {
   alertMarkers,
   gfmAlerts,
@@ -220,6 +224,7 @@ export class NyaEditor {
     crepe.editor.use(caretScroll);
     crepe.editor.use(typeOverBlocks);
     crepe.editor.use(markdownOutput);
+    crepe.editor.use(frontMatterSyntax);
     crepe.editor.use(dollarTextParse);
     crepe.editor.use(bareLinkParse);
     crepe.editor.use(gfmAlerts);
@@ -253,7 +258,7 @@ export class NyaEditor {
     crepe.editor.use(footnoteMark);
     crepe.editor.use(footnoteNumber);
     crepe.editor.use(imageOwnTitle);
-    crepe.editor.use(codeBlockFromHtml);
+    crepe.editor.use(frontMatterBlock);
     crepe.editor.use(linkBox);
     crepe.editor.use(linkKey);
     crepe.editor.use(codeKey);
@@ -300,9 +305,10 @@ export class NyaEditor {
     crepe.editor.action(markTogglesThroughout);
     // The format bar reads the block at the caret only once the editor counts
     // as created, which comes after its first render: until the next update
-    // it called the opening heading "Body".
+    // it called the opening heading "Body". The caret starts past any front
+    // matter, on the first line of the text.
     const view = this.getView();
-    view?.dispatch(view.state.tr);
+    view?.dispatch(pastFrontMatter(view.state.tr));
     this.imageMetaPanel.attach();
     keepFloatingOffEdge(this.root);
     restHiddenBlockHandle(this.root);

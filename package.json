@@ -32,7 +32,8 @@
     "codemirror": "^6.0.2",
     "dompurify": "^3.4.8",
     "i18next": "^26.0.10",
-    "mermaid": "^11.14.0"
+    "mermaid": "^11.14.0",
+    "remark-frontmatter": "^5.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",

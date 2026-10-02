@@ -77,6 +77,7 @@ import {
   defaultHandlers,
 } from 'mdast-util-to-markdown';
 import type { Processor } from 'unified';
+import { frontMatterOnTop } from './front-matter';
 import { isDollarText } from './math-dollars';
 
 type MdNode = {
@@ -312,6 +313,7 @@ export function normalizeForOutput<T extends MdNode>(tree: T): T {
     for (const child of node.children ?? []) visit(child);
   };
   visit(tree);
+  frontMatterOnTop(tree);
   // After the trim: a last line of nothing but spaces is empty too.
   const blocks = tree.children;
   while (blocks?.length && isEmptyParagraph(blocks[blocks.length - 1])) {
