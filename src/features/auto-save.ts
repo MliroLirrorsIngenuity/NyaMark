@@ -26,9 +26,19 @@ export function bindAutoSave(save: () => Promise<void>) {
     }, intervalMs);
   };
 
+  // A change to any other setting leaves the countdown running: restarted
+  // on each, a document could go long past its interval unsaved.
   subscribeSettings((settings) => {
-    enabled = settings.save.autoSave;
-    intervalMs = settings.save.autoSaveIntervalMs;
+    const { autoSave, autoSaveIntervalMs } = settings.save;
+    if (
+      timer !== null &&
+      autoSave === enabled &&
+      autoSaveIntervalMs === intervalMs
+    ) {
+      return;
+    }
+    enabled = autoSave;
+    intervalMs = autoSaveIntervalMs;
     schedule();
   });
 }
