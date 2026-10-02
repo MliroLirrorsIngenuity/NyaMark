@@ -77,6 +77,7 @@ import { listTab } from './plugins/list-tab';
 import { marginClick } from './plugins/margin-click';
 import { markCursor } from './plugins/mark-cursor';
 import { markInput } from './plugins/mark-input';
+import { markTogglesThroughout } from './plugins/mark-toggles';
 import {
   displayWidth,
   forgetBullet,
@@ -273,6 +274,7 @@ export class NyaEditor {
 
     this.crepe = crepe;
     await crepe.create();
+    crepe.editor.action(markTogglesThroughout);
     // The format bar reads the block at the caret only once the editor counts
     // as created, which comes after its first render: until the next update
     // it called the opening heading "Body".
