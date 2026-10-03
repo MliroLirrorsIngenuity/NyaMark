@@ -9,7 +9,6 @@ import {
   editorViewCtx,
   parserCtx,
   remarkCtx,
-  remarkStringifyOptionsCtx,
   serializerCtx,
 } from '@milkdown/kit/core';
 import { trailingConfig } from '@milkdown/kit/plugin/trailing';
@@ -43,7 +42,7 @@ import { buildCrepeConfig } from './config';
 import { replaceChangedRange, settleParsed } from './doc-diff';
 import { anchorIndex, headingId, headingLabel, pageId } from './heading-anchor';
 import { bareLinkInput } from './plugins/bare-link-input';
-import { bareLinkParse, keepBareLinks, writeLink } from './plugins/bare-links';
+import { bareLinkParse, keepBareLinks } from './plugins/bare-links';
 import { blockArrows } from './plugins/block-arrows';
 import { blockEdges, freeHeadingEdges } from './plugins/block-edges';
 import { handleBlocksOnly } from './plugins/block-handle-blocks';
@@ -110,14 +109,8 @@ import { markInput } from './plugins/mark-input';
 import { markTogglesThroughout } from './plugins/mark-toggles';
 import {
   displayWidth,
-  forgetBullet,
-  joinInTightItem,
   markdownOutput,
-  writeEmphasis,
-  writeRoot,
-  writeStrong,
-  writeText,
-  writeThematicBreak,
+  writeAsNotes,
 } from './plugins/markdown-output';
 import { dollarInput, dollarTextParse } from './plugins/math-dollars';
 import { mathInlineKeys } from './plugins/math-inline-keys';
@@ -204,28 +197,8 @@ export class NyaEditor {
       })
     );
 
-    // `-` bullets and `---` rules, the markers most notes are written with;
-    // remark's defaults rewrote every one of them to `*` on save. Text keeps
-    // the underscores, hashes and ampersands it needs no escape for (see
-    // markdown-output), a link written bare stays bare (see bare-links), and
-    // italics and bold come back beside the letters around them.
+    crepe.editor.config(writeAsNotes);
     crepe.editor.config((ctx) => {
-      ctx.update(remarkStringifyOptionsCtx, (options) => ({
-        ...options,
-        bullet: '-' as const,
-        rule: '-' as const,
-        handlers: {
-          ...options.handlers,
-          root: writeRoot,
-          text: writeText,
-          link: writeLink,
-          emphasis: writeEmphasis,
-          strong: writeStrong,
-          thematicBreak: writeThematicBreak,
-        },
-        // remark asks the last of these first, and stops at an answer.
-        join: [...(options.join ?? []), joinInTightItem, forgetBullet],
-      }));
       // Table pipes line up by display width (see markdown-output), and a
       // strikethrough takes two tildes (see mark-input).
       ctx.update(remarkGFMPlugin.options.key, (options) => ({

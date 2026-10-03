@@ -69,6 +69,8 @@
  * list.
  */
 
+import { remarkStringifyOptionsCtx } from '@milkdown/kit/core';
+import type { Ctx } from '@milkdown/kit/ctx';
 import { $remark } from '@milkdown/kit/utils';
 import {
   type ConstructName,
@@ -79,7 +81,7 @@ import {
 } from 'mdast-util-to-markdown';
 import { cjkFriendlyToMarkdown } from 'mdast-util-to-markdown-cjk-friendly';
 import type { Processor } from 'unified';
-import { noteFollowing } from './bare-links';
+import { noteFollowing, writeLink } from './bare-links';
 import { frontMatterOnTop } from './front-matter';
 import { isDollarText } from './math-dollars';
 
@@ -717,3 +719,29 @@ export const markdownOutput = $remark(
   'nyamark-markdown-output',
   () => normalizeOutput
 );
+
+/**
+ * `-` bullets and `---` rules, the markers most notes are written with;
+ * remark's defaults rewrote every one of them to `*` on save. Text keeps the
+ * underscores, hashes and ampersands it needs no escape for, a link written
+ * bare stays bare (see bare-links), and italics and bold come back beside the
+ * letters around them.
+ */
+export function writeAsNotes(ctx: Ctx) {
+  ctx.update(remarkStringifyOptionsCtx, (options) => ({
+    ...options,
+    bullet: '-' as const,
+    rule: '-' as const,
+    handlers: {
+      ...options.handlers,
+      root: writeRoot,
+      text: writeText,
+      link: writeLink,
+      emphasis: writeEmphasis,
+      strong: writeStrong,
+      thematicBreak: writeThematicBreak,
+    },
+    // remark asks the last of these first, and stops at an answer.
+    join: [...(options.join ?? []), joinInTightItem, forgetBullet],
+  }));
+}
