@@ -96,6 +96,7 @@ import { caretPastSelectedBlock, insertBlocks } from './plugins/insert-blocks';
 import { languagePickerKeys } from './plugins/language-picker-keys';
 import { languagePickerRoom } from './plugins/language-picker-room';
 import { linkBox, restoreOnCancel } from './plugins/link-box';
+import { linkDefinitions } from './plugins/link-definitions';
 import { linkInput } from './plugins/link-input';
 import { linkKey } from './plugins/link-key';
 import { typeOutsideLinks, writeLinksAround } from './plugins/link-mark';
@@ -250,6 +251,7 @@ export class NyaEditor {
     crepe.editor.use(typeOverBlocks);
     crepe.editor.use(markdownOutput);
     crepe.editor.use(frontMatterSyntax);
+    crepe.editor.use(linkDefinitions);
     crepe.editor.use(cjkEmphasis);
     crepe.editor.use(cjkStrikethrough);
     crepe.editor.use(dollarTextParse);
