@@ -16,7 +16,6 @@ import type { RemarkPlugin } from '@milkdown/kit/transformer';
 type MdNode = {
   type: string;
   identifier?: string;
-  label?: string | null;
   url?: string;
   title?: string | null;
   value?: string;
@@ -29,8 +28,32 @@ function walk(node: MdNode, visit: (node: MdNode) => void) {
   for (const child of node.children ?? []) walk(child, visit);
 }
 
+/** A label as references match it: case and spacing aside. */
+function identify(label: string): string {
+  return label
+    .replace(/[\t\n\r ]+/g, ' ')
+    .replace(/^ | $/g, '')
+    .toLowerCase()
+    .toUpperCase()
+    .toLowerCase();
+}
+
+/**
+ * The label as written, its lines joined. The one remark reads has its
+ * escapes undone, and `[x\*y]` written back as `[x*y]` took the links of
+ * another label. The identifier stands in where the source shows none.
+ */
+function writtenLabel(node: MdNode, written: string): string {
+  const label = /^\[((?:[^\\\]]|\\[\s\S])*)\]/
+    .exec(written)?.[1]
+    ?.replace(/[ \t]*\n[ \t>]*/g, ' ');
+  return label !== undefined && identify(label) === node.identifier
+    ? label
+    : (node.identifier ?? '');
+}
+
 /** The definition on one line, for one written over several. */
-function writeDefinition(node: MdNode): string {
+function writeDefinition(node: MdNode, written: string): string {
   const url = node.url ?? '';
   const address =
     url === '' || /[\s<>]/.test(url)
@@ -38,7 +61,7 @@ function writeDefinition(node: MdNode): string {
       : url;
   const title =
     node.title == null ? '' : ` "${node.title.replace(/["\\]/g, '\\$&')}"`;
-  return `[${node.label ?? node.identifier ?? ''}]: ${address}${title}`;
+  return `[${writtenLabel(node, written)}]: ${address}${title}`;
 }
 
 /** Remark transformer: each definition no reference takes made raw HTML. */
@@ -76,7 +99,7 @@ export function keepUnusedDefinitions() {
         const value =
           written.startsWith('[') && !written.includes('\n')
             ? written
-            : writeDefinition(child);
+            : writeDefinition(child, written);
         // In a paragraph of its own, where Milkdown takes raw HTML in any
         // block that holds it.
         node.children?.splice(index, 1, {

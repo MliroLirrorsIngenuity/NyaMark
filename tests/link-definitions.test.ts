@@ -89,4 +89,8 @@ describe('link definitions', () => {
       '> [q]: /a "say \\"hi\\""\n'
     );
   });
+
+  test('keep the label of one rewritten as written, escapes and all', () => {
+    expect(save('- [X\\*Y]:\n  /a\n')).toBe('- [X\\*Y]: /a\n');
+  });
 });
