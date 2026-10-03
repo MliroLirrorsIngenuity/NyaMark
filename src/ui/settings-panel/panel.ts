@@ -582,7 +582,7 @@ export class SettingsPanel {
     dialog.innerHTML = `
       <header>
         <h3 data-i18n="settings.title">Settings</h3>
-        <p class="ny-settings-dialog__subtitle" data-i18n="settings.subtitle">Personalise the editor without leaving the document.</p>
+        <p class="ny-settings-dialog__subtitle" data-i18n="settings.subtitle">Adjust how the editor looks and behaves.</p>
       </header>
     `;
 

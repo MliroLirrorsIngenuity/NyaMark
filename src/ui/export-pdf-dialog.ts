@@ -371,7 +371,7 @@ export class ExportPdfDialog {
         <div class="ny-export-pdf-dialog__section">
           <div class="ny-export-pdf-dialog__row">
             <div>
-              <div class="ny-export-pdf-dialog__row-label" data-i18n="dialog.exportPdf.downscale">Downscale percent</div>
+              <div class="ny-export-pdf-dialog__row-label" data-i18n="dialog.exportPdf.downscale">Scale (%)</div>
             </div>
             <div class="ny-export-pdf-dialog__range-wrap">
               <input class="ny-export-pdf-dialog__range" type="range" min="70" max="130" step="5" value="100" />

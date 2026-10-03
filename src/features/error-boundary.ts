@@ -54,7 +54,7 @@ export function installErrorBoundary() {
     errorDialog(
       i18next.isInitialized
         ? i18next.t('dialog.unexpectedError', { message: text })
-        : `NyaMark ran into an unexpected error: ${text}`
+        : `NyaMark encountered an unexpected error: ${text}`
     )
   );
   // The WebView already logs both to the console.

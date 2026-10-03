@@ -52,9 +52,9 @@
     "modeToggle": "Toggle source mode",
     "themeDark": "Dark",
     "themeLight": "Light",
-    "themeAriaLabel": "Switch theme mode, current {{label}}",
-    "themeTitle": "{{label}}. Click to switch to {{next}}, or choose Follow system in Settings.",
-    "themeTitleAuto": "Following the system: {{label}}. Click to switch to {{next}}."
+    "themeAriaLabel": "Switch theme. Current: {{label}}",
+    "themeTitle": "{{label}}. Click to switch to {{next}}. To follow the system, change it in Settings.",
+    "themeTitleAuto": "Following the system ({{label}}). Click to switch to {{next}}."
   },
   "search": {
     "placeholder": "Find…",
@@ -77,10 +77,10 @@
       "info": "Info",
       "toggleInfo": "Toggle image details",
       "description": "Description",
-      "descriptionPlaceholder": "Write image description",
+      "descriptionPlaceholder": "Enter an image description",
       "path": "Path",
       "pathPlaceholder": "Image path",
-      "broken": "Can't load this image"
+      "broken": "Unable to load this image"
     },
     "alert": {
       "note": "Note",
@@ -106,7 +106,7 @@
       "groupList": "List",
       "groupAdvanced": "Advanced",
       "searchLanguage": "Search language",
-      "noLanguage": "No result",
+      "noLanguage": "No matching languages",
       "copy": "Copy",
       "editCode": "Edit",
       "hideCode": "Hide",
@@ -115,7 +115,7 @@
       "upload": "Upload",
       "uploadFile": "Upload file",
       "confirm": "Confirm",
-      "imageCaption": "Write Image Caption",
+      "imageCaption": "Image caption",
       "pasteImageLink": "or paste link",
       "pasteLink": "Paste link…"
     }
@@ -123,34 +123,34 @@
   "dialog": {
     "close": "Close",
     "imageFilter": "Images",
-    "unexpectedError": "NyaMark ran into an unexpected error: {{message}}\n\nIf something stops working, save your document and restart NyaMark.",
+    "unexpectedError": "NyaMark encountered an unexpected error: {{message}}\n\nIf something stops working, save your documents and restart NyaMark.",
     "imagePolicy": {
-      "title": "Pasted images need a save location",
-      "subtitle": "Pick a rule once. Later screenshot paste will follow it silently.",
+      "title": "Choose where to save pasted images",
+      "subtitle": "Choose a rule. Screenshots you paste later are saved by this rule automatically.",
       "noFolder": "No custom folder selected",
       "choose": "Choose…",
       "remember": "Remember this choice"
     },
     "unsavedImage": {
       "title": "Save this document before inserting pasted images",
-      "subtitle": "Screenshot images have no original file path. Save the document first, or embed this image as Base64.",
+      "subtitle": "Screenshots have no original file path. Save the document first, or embed the image as Base64.",
       "saveDocument": "Save Document"
     },
     "fileConflict": {
       "title": "File changed on disk",
-      "body": "\"{{fileName}}\" was modified by another program. Reload and discard your unsaved changes?",
+      "body": "\"{{fileName}}\" was modified by another app. Do you want to reload it and discard your unsaved changes?",
       "reload": "Reload",
-      "keep": "Keep my version"
+      "keep": "Keep current version"
     },
     "copyTarget": {
       "title": "Copy images outside the document folder?",
-      "body": "This document’s front matter asks for images to be copied into \"{{directory}}\", which is outside its folder. Allow it, or follow your attachment settings instead?",
+      "body": "This document’s front matter asks for images to be copied to \"{{directory}}\", which is outside the document’s folder. Allow this, or use your attachment settings instead?",
       "allow": "Allow",
-      "useSettings": "Use my settings"
+      "useSettings": "Use attachment settings"
     },
     "unsavedChanges": {
       "title": "Unsaved changes",
-      "body": "\"{{fileName}}\" has unsaved changes. Save them before closing?",
+      "body": "Do you want to save the changes you made to \"{{fileName}}\"? Your changes will be lost if you don’t save them.",
       "save": "Save",
       "discard": "Don't Save",
       "cancel": "Cancel"
@@ -158,15 +158,15 @@
     "attachmentError": {
       "insertFailed": "\"{{name}}\" could not be inserted: {{reason}}",
       "openFailed": "\"{{name}}\" could not be opened: {{reason}}",
-      "base64TooLarge": "{{size}} MB is too large to embed as Base64 (limit {{limit}} MB). Save the document and copy the image into a folder instead.",
-      "documentTooLarge": "With this image embedded the document would pass {{limit}} MB, the most NyaMark can open. Save the document and copy the image into a folder instead."
+      "base64TooLarge": "The image is {{size}} MB, which exceeds the {{limit}} MB limit for Base64 embedding. Save the document first, then copy the image into a folder.",
+      "documentTooLarge": "Embedding this image would make the document larger than {{limit}} MB, and NyaMark could no longer open it. Save the document first, then copy the image into a folder."
     },
     "documentError": {
-      "notUtf8": "\"{{fileName}}\" is not UTF-8 encoded, so NyaMark left it untouched. Convert it to UTF-8 and open it again.",
-      "notUtf8Known": "\"{{fileName}}\" is encoded as {{encoding}}. NyaMark only edits UTF-8 files, so it was left untouched. Convert it to UTF-8 and open it again.",
-      "forbidden": "NyaMark is not allowed to access \"{{fileName}}\".",
-      "readOnly": "\"{{fileName}}\" is read-only, so NyaMark left it untouched. Save As keeps your changes in another file.",
-      "tooLarge": "\"{{fileName}}\" is larger than {{limit}} MB, which is more than NyaMark can edit.",
+      "notUtf8": "\"{{fileName}}\" is not UTF-8 encoded and was not modified. Convert it to UTF-8, then open it again.",
+      "notUtf8Known": "\"{{fileName}}\" uses the {{encoding}} encoding and was not modified. NyaMark edits UTF-8 files only. Convert it to UTF-8, then open it again.",
+      "forbidden": "NyaMark doesn’t have permission to access \"{{fileName}}\".",
+      "readOnly": "\"{{fileName}}\" is read-only and was not modified. Use Save As to save your changes to another file.",
+      "tooLarge": "\"{{fileName}}\" is larger than {{limit}} MB, the largest file NyaMark can edit.",
       "openFailed": "\"{{fileName}}\" could not be opened: {{reason}}",
       "saveFailed": "\"{{fileName}}\" could not be saved: {{reason}}"
     },
@@ -176,7 +176,7 @@
       "pageSize": "Page size",
       "landscape": "Landscape",
       "margin": "Margin",
-      "downscale": "Downscale percent",
+      "downscale": "Scale (%)",
       "cancel": "Cancel",
       "export": "Export to PDF",
       "pageSizes": {
@@ -193,20 +193,20 @@
     },
     "settingsReset": {
       "title": "Settings were reset",
-      "body": "NyaMark could not read its settings file and started with the defaults. The unreadable file was kept at \"{{path}}\"."
+      "body": "NyaMark couldn’t read its settings file and is using the default settings. The original file was kept at \"{{path}}\"."
     }
   },
   "updates": {
-    "title": "A new NyaMark update is available",
-    "subtitle": "You are running {{current}}. {{latest}} is ready.",
-    "failed": "{{latest}} could not be installed. Get it from the download page instead.",
-    "installed": "{{latest}} is installed and takes effect once NyaMark restarts.",
+    "title": "A new version of NyaMark is available",
+    "subtitle": "You have {{current}}. {{latest}} is now available.",
+    "failed": "Unable to install {{latest}}. Download it manually from the download page.",
+    "installed": "{{latest}} is installed and will take effect after NyaMark restarts.",
     "upToDateTitle": "NyaMark Is Up to Date",
     "upToDate": "You are running the latest version, {{version}}.",
     "checkFailedTitle": "Unable to Check for Updates",
     "checkFailed": "Check your network connection and try again.",
     "feedMissing": "The update server has not provided version information yet. Try again later.",
-    "saveFirst": "{{latest}} is downloaded. Its installer closes NyaMark at once: save your documents, then choose Install now.",
+    "saveFirst": "{{latest}} has been downloaded. NyaMark quits during installation, so save your documents before you click Install now.",
     "newVersionAvailable": "New version",
     "currentVersion": "Current",
     "latestVersion": "Latest",
@@ -226,7 +226,7 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Personalise the editor without leaving the document.",
+    "subtitle": "Adjust how the editor looks and behaves.",
     "cancel": "Cancel",
     "ok": "OK",
     "reset": "Reset to defaults",
@@ -253,7 +253,7 @@
       "themeDark": "Dark"
     },
     "save": {
-      "title": "Save Policy",
+      "title": "Saving",
       "autoSave": "Auto-save while editing",
       "autoSaveInterval": "Auto-save interval (min)"
     },
@@ -270,23 +270,23 @@
       "policies": {
         "use-path": {
           "label": "Keep original path",
-          "description": "Reference the original file location, no copy."
+          "description": "Link to the image where it is, without copying it."
         },
         "copy-same-folder": {
-          "label": "Same folder",
-          "description": "Copy next to the current document."
+          "label": "Document folder",
+          "description": "Copy the image into the document’s folder."
         },
         "copy-assets": {
           "label": "./assets",
-          "description": "Copy into a sibling assets folder."
+          "description": "Copy the image into an assets folder next to the document."
         },
         "copy-custom-folder": {
           "label": "Custom folder",
-          "description": "Copy into the folder chosen below."
+          "description": "Copy the image into the folder chosen below."
         },
         "base64": {
           "label": "Embed as Base64",
-          "description": "Inline images directly inside the document."
+          "description": "Embed the image in the document as Base64."
         }
       }
     }

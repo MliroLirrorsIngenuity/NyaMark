@@ -210,10 +210,10 @@ export class ImagePolicyDialog {
       const panel = document.createElement('div');
       panel.className = 'ny-image-policy-dialog';
       panel.innerHTML = `
-        <h3 id="ny-image-policy-title" data-i18n="dialog.imagePolicy.title">Pasted images need a save location</h3>
-        <p data-i18n="dialog.imagePolicy.subtitle">Pick a rule once. Later screenshot paste will follow it silently.</p>
+        <h3 id="ny-image-policy-title" data-i18n="dialog.imagePolicy.title">Choose where to save pasted images</h3>
+        <p data-i18n="dialog.imagePolicy.subtitle">Choose a rule. Screenshots you paste later are saved by this rule automatically.</p>
         <div class="ny-image-policy-dialog__section ny-image-policy-dialog__options">
-          ${this.optionMarkup('copy-same-folder', 'settings.attachments.policies.copy-same-folder.label', 'Same folder as current Markdown file', 'settings.attachments.policies.copy-same-folder.description', 'Save pasted images next to the current document.')}
+          ${this.optionMarkup('copy-same-folder', 'settings.attachments.policies.copy-same-folder.label', 'Document folder', 'settings.attachments.policies.copy-same-folder.description', 'Save pasted images next to the current document.')}
           ${this.optionMarkup('copy-assets', 'settings.attachments.policies.copy-assets.label', './assets', 'settings.attachments.policies.copy-assets.description', 'Store pasted images in an assets folder beside the current document.')}
           ${this.optionMarkup('copy-custom-folder', 'settings.attachments.policies.copy-custom-folder.label', 'Custom folder…', 'settings.attachments.policies.copy-custom-folder.description', 'Use one folder you choose and keep using it later.')}
           ${this.optionMarkup('base64', 'settings.attachments.policies.base64.label', 'Embed as Base64', 'settings.attachments.policies.base64.description', 'Keep the image inside the Markdown file itself.')}
@@ -340,7 +340,7 @@ export class ImagePolicyDialog {
       panel.className = 'ny-image-policy-dialog';
       panel.innerHTML = `
         <h3 id="ny-unsaved-image-title" data-i18n="dialog.unsavedImage.title">Save this document before inserting pasted images</h3>
-        <p data-i18n="dialog.unsavedImage.subtitle">Screenshot images have no original file path. Save the document first, or embed this image as Base64.</p>
+        <p data-i18n="dialog.unsavedImage.subtitle">Screenshots have no original file path. Save the document first, or embed the image as Base64.</p>
       `;
 
       const actions = document.createElement('div');

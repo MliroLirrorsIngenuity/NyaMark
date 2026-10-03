@@ -233,7 +233,7 @@ export class ImageMetaPanel {
       panel.innerHTML = `
         <label class="nyamark-image-meta__field nyamark-image-meta__field--caption">
           <span class="nyamark-image-meta__label" data-i18n="editor.image.description">Description</span>
-          <input type="text" class="nyamark-image-meta__input nyamark-image-meta__input--caption" placeholder="Write image description" data-i18n-placeholder="editor.image.descriptionPlaceholder" />
+          <input type="text" class="nyamark-image-meta__input nyamark-image-meta__input--caption" placeholder="Enter an image description" data-i18n-placeholder="editor.image.descriptionPlaceholder" />
         </label>
         <label class="nyamark-image-meta__field nyamark-image-meta__field--path">
           <span class="nyamark-image-meta__label" data-i18n="editor.image.path">Path</span>
@@ -343,7 +343,7 @@ export class ImageMetaPanel {
           <path d="M20 19.5a1 1 0 0 1-1 .5H5a1 1 0 0 1-1-1V5a1 1 0 0 1 .5-.9" />
           <path d="M4 16l4.5-4.5L12 15" />
         </svg>
-        <span class="nyamark-image-broken__title" data-i18n="editor.image.broken">Can't load this image</span>
+        <span class="nyamark-image-broken__title" data-i18n="editor.image.broken">Unable to load this image</span>
         <span class="nyamark-image-broken__path"></span>
       `;
       translateDOM(card);

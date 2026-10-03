@@ -247,7 +247,9 @@ describe('inserting files', () => {
     expect(inserted).toEqual([]);
     expect(bridge.errors).toHaveLength(1);
     expect(bridge.errors[0]).toContain('"scan.png" could not be inserted');
-    expect(bridge.errors[0]).toContain('too large to embed as Base64');
+    expect(bridge.errors[0]).toContain(
+      'exceeds the 5 MB limit for Base64 embedding'
+    );
   });
 
   test('an image that would grow the document past the open limit is refused', async () => {
@@ -265,7 +267,7 @@ describe('inserting files', () => {
 
     expect(await controller.upload(image)).toBe('');
     expect(bridge.errors).toHaveLength(1);
-    expect(bridge.errors[0]).toContain('the most NyaMark can open');
+    expect(bridge.errors[0]).toContain('NyaMark could no longer open it');
   });
 
   test('images pasted together count toward the open limit together', async () => {

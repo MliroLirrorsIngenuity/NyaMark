@@ -12,27 +12,27 @@ const POLICIES: Array<{
   {
     value: 'use-path',
     label: 'Keep original path',
-    description: 'Reference the original file location, no copy.',
+    description: 'Link to the image where it is, without copying it.',
   },
   {
     value: 'copy-same-folder',
-    label: 'Same folder',
-    description: 'Copy next to the current document.',
+    label: 'Document folder',
+    description: 'Copy the image into the document’s folder.',
   },
   {
     value: 'copy-assets',
     label: './assets',
-    description: 'Copy into a sibling assets folder.',
+    description: 'Copy the image into an assets folder next to the document.',
   },
   {
     value: 'copy-custom-folder',
     label: 'Custom folder',
-    description: 'Copy into the folder chosen below.',
+    description: 'Copy the image into the folder chosen below.',
   },
   {
     value: 'base64',
     label: 'Embed as Base64',
-    description: 'Inline images directly inside the document.',
+    description: 'Embed the image in the document as Base64.',
   },
 ];
 

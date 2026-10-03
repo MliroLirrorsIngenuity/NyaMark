@@ -51,13 +51,13 @@
     "themeDark": "深色",
     "themeLight": "浅色",
     "themeAriaLabel": "切换主题模式，当前为{{label}}",
-    "themeTitle": "当前为{{label}}。点按换成{{next}}，在设置里可改回跟随系统。",
-    "themeTitleAuto": "跟随系统，当前为{{label}}。点按换成{{next}}。"
+    "themeTitle": "当前为{{label}}。点按可切换为{{next}}；如需跟随系统，请在设置中更改。",
+    "themeTitleAuto": "当前跟随系统（{{label}}）。点按可切换为{{next}}。"
   },
   "search": {
     "placeholder": "查找…",
-    "next": "下一个匹配",
-    "prev": "上一个匹配",
+    "next": "下一个匹配项",
+    "prev": "上一个匹配项",
     "close": "关闭搜索",
     "replacePlaceholder": "替换为…",
     "replace": "替换",
@@ -75,17 +75,17 @@
       "info": "信息",
       "toggleInfo": "切换图片详情",
       "description": "描述",
-      "descriptionPlaceholder": "填写图片描述",
+      "descriptionPlaceholder": "输入图片描述",
       "path": "路径",
       "pathPlaceholder": "图片路径",
       "broken": "图片无法加载"
     },
     "alert": {
-      "note": "注意",
+      "note": "备注",
       "tip": "提示",
       "important": "重要",
       "warning": "警告",
-      "caution": "谨慎"
+      "caution": "注意"
     },
     "blocks": {
       "paragraph": "正文",
@@ -104,7 +104,7 @@
       "groupList": "列表",
       "groupAdvanced": "插入",
       "searchLanguage": "搜索语言",
-      "noLanguage": "没有匹配的语言",
+      "noLanguage": "无匹配的语言",
       "copy": "复制",
       "editCode": "编辑",
       "hideCode": "隐藏",
@@ -121,34 +121,34 @@
   "dialog": {
     "close": "关闭",
     "imageFilter": "图片",
-    "unexpectedError": "NyaMark 遇到意外错误：{{message}}\n\n如果有功能失灵，请保存文档后重启 NyaMark。",
+    "unexpectedError": "NyaMark 遇到意外错误：{{message}}\n\n如有功能无法正常使用，请保存文档并重新启动 NyaMark。",
     "imagePolicy": {
-      "title": "粘贴的图片需要保存位置",
-      "subtitle": "请选择一个规则，以后的截图粘贴将静默遵循该规则。",
+      "title": "选择粘贴图片的保存位置",
+      "subtitle": "选择一项规则。之后粘贴的截图将自动按此规则保存。",
       "noFolder": "未选择自定义文件夹",
       "choose": "选择…",
       "remember": "记住此选择"
     },
     "unsavedImage": {
-      "title": "插入粘贴的图片前请保存此文档",
-      "subtitle": "截图没有原始文件路径。请先保存文档，或将此图片作为 Base64 嵌入。",
+      "title": "插入粘贴的图片前，请先保存此文档",
+      "subtitle": "截图没有原始文件路径。请先保存文档，或以 Base64 形式嵌入此图片。",
       "saveDocument": "保存文档"
     },
     "fileConflict": {
-      "title": "文件已在磁盘上更改",
-      "body": "“{{fileName}}”已被其他程序修改。重新加载并放弃未保存的更改吗？",
+      "title": "文件已在磁盘上被修改",
+      "body": "“{{fileName}}”已被其他程序修改。要重新加载并放弃未保存的更改吗？",
       "reload": "重新加载",
-      "keep": "保留我的版本"
+      "keep": "保留当前版本"
     },
     "copyTarget": {
       "title": "将图片复制到文档文件夹之外？",
-      "body": "此文档的 front matter 要求把图片复制到“{{directory}}”，该位置在文档所在文件夹之外。允许，还是按你的附件设置处理？",
+      "body": "此文档的 front matter 要求将图片复制到“{{directory}}”，该位置位于文档所在文件夹之外。要允许此操作，还是按附件设置处理？",
       "allow": "允许",
-      "useSettings": "按我的设置"
+      "useSettings": "按附件设置"
     },
     "unsavedChanges": {
       "title": "未保存的更改",
-      "body": "“{{fileName}}”有未保存的更改。关闭前要保存吗？",
+      "body": "要保存对“{{fileName}}”所做的更改吗？如果不保存，更改将会丢失。",
       "save": "保存",
       "discard": "不保存",
       "cancel": "取消"
@@ -156,25 +156,25 @@
     "attachmentError": {
       "insertFailed": "无法插入“{{name}}”：{{reason}}",
       "openFailed": "无法打开“{{name}}”：{{reason}}",
-      "base64TooLarge": "图片大小 {{size}} MB，超过 Base64 内嵌上限 {{limit}} MB。请先保存文档，改为把图片复制到文件夹。",
-      "documentTooLarge": "内嵌这张图片后，文档会超过 {{limit}} MB，NyaMark 将无法再打开它。请先保存文档，改为把图片复制到文件夹。"
+      "base64TooLarge": "图片大小为 {{size}} MB，超出 Base64 嵌入上限（{{limit}} MB）。请先保存文档，再将图片复制到文件夹中。",
+      "documentTooLarge": "嵌入此图片后，文档将超过 {{limit}} MB，NyaMark 将无法再打开该文档。请先保存文档，再将图片复制到文件夹中。"
     },
     "documentError": {
-      "notUtf8": "“{{fileName}}”不是 UTF-8 编码，NyaMark 没有改动它。请先转换为 UTF-8 再打开。",
-      "notUtf8Known": "“{{fileName}}”是 {{encoding}} 编码。NyaMark 只编辑 UTF-8 文件，没有改动它。请先转换为 UTF-8 再打开。",
-      "forbidden": "NyaMark 无权访问“{{fileName}}”。",
-      "readOnly": "“{{fileName}}”是只读文件，NyaMark 没有改动它。可以用“另存为”把改动存到别的文件。",
-      "tooLarge": "“{{fileName}}”超过 {{limit}} MB，超出了 NyaMark 能编辑的大小。",
+      "notUtf8": "“{{fileName}}”不是 UTF-8 编码，NyaMark 未作任何修改。请将其转换为 UTF-8 后再打开。",
+      "notUtf8Known": "“{{fileName}}”使用 {{encoding}} 编码。NyaMark 仅支持编辑 UTF-8 文件，未作任何修改。请将其转换为 UTF-8 后再打开。",
+      "forbidden": "NyaMark 没有访问“{{fileName}}”的权限。",
+      "readOnly": "“{{fileName}}”为只读文件，NyaMark 未作任何修改。请使用“另存为”将更改保存到其他文件。",
+      "tooLarge": "“{{fileName}}”超过 {{limit}} MB，超出 NyaMark 支持编辑的文件大小。",
       "openFailed": "无法打开“{{fileName}}”：{{reason}}",
       "saveFailed": "无法保存“{{fileName}}”：{{reason}}"
     },
     "exportPdf": {
       "title": "导出为 PDF",
-      "subtitle": "按下面的设置将“{{fileName}}”导出为 PDF。",
+      "subtitle": "使用以下设置将“{{fileName}}”导出为 PDF。",
       "pageSize": "页面尺寸",
       "landscape": "横向",
       "margin": "边距",
-      "downscale": "缩放百分比",
+      "downscale": "缩放比例",
       "cancel": "取消",
       "export": "导出为 PDF",
       "pageSizes": {
@@ -191,27 +191,27 @@
     },
     "settingsReset": {
       "title": "设置已重置",
-      "body": "NyaMark 无法读取设置文件，已改用默认设置。无法读取的原文件保留在“{{path}}”。"
+      "body": "NyaMark 无法读取设置文件，已恢复为默认设置。原设置文件已保留在“{{path}}”。"
     }
   },
   "updates": {
     "title": "NyaMark 有新版本可用",
-    "subtitle": "当前运行的是 {{current}}。{{latest}} 已就绪。",
-    "failed": "{{latest}} 没能装上，可以到下载页手动下载。",
-    "installed": "{{latest}} 已装好，重启 NyaMark 后生效。",
+    "subtitle": "当前版本为 {{current}}，新版本 {{latest}} 现已可用。",
+    "failed": "无法安装 {{latest}}。请前往下载页手动下载。",
+    "installed": "{{latest}} 已安装，将在 NyaMark 重新启动后生效。",
     "upToDateTitle": "NyaMark 已是最新版本",
     "upToDate": "当前版本 {{version}} 为最新版本。",
     "checkFailedTitle": "无法检查更新",
     "checkFailed": "请检查网络连接，然后重试。",
     "feedMissing": "更新服务器暂未提供版本信息。请稍后重试。",
-    "saveFirst": "{{latest}} 已下载。安装程序会立刻关闭 NyaMark，请先保存文档，再点「立即安装」。",
+    "saveFirst": "{{latest}} 已下载。安装时 NyaMark 将立即退出，请先保存文档，再点按“立即安装”。",
     "newVersionAvailable": "新版本",
     "currentVersion": "当前版本",
     "latestVersion": "最新版本",
     "publishedAt": "发布时间",
     "unknownDate": "未知",
     "releaseNotes": "更新说明",
-    "noReleaseNotes": "这个版本没有填写更新说明。",
+    "noReleaseNotes": "此版本未提供更新说明。",
     "updateNow": "立即更新",
     "downloading": "正在下载…",
     "installing": "正在安装…",
@@ -224,12 +224,12 @@
   },
   "settings": {
     "title": "设置",
-    "subtitle": "在此个性化您的编辑器。",
+    "subtitle": "调整编辑器的外观与行为。",
     "cancel": "取消",
     "ok": "确定",
     "reset": "恢复默认设置",
     "confirmResetTitle": "重置所有设置？",
-    "confirmResetBody": "这会将外观、自动保存和附件选项恢复为默认值。此操作无法撤销。",
+    "confirmResetBody": "外观、自动保存和附件选项将恢复为默认值。此操作无法撤销。",
     "confirmResetButton": "重置",
     "general": {
       "title": "常规",
@@ -243,7 +243,7 @@
       "title": "外观",
       "fontSize": "字体大小",
       "lineHeight": "行高",
-      "readableWidth": "最佳阅读宽度 (px)",
+      "readableWidth": "最佳阅读宽度（px）",
       "windowTransparency": "毛玻璃效果",
       "theme": "主题",
       "themeAuto": "跟随系统",
@@ -253,7 +253,7 @@
     "save": {
       "title": "保存",
       "autoSave": "编辑时自动保存",
-      "autoSaveInterval": "自动保存间隔 (分钟)"
+      "autoSaveInterval": "自动保存间隔（分钟）"
     },
     "attachments": {
       "title": "附件",
@@ -268,23 +268,23 @@
       "policies": {
         "use-path": {
           "label": "保留原始路径",
-          "description": "引用原始文件位置，不复制。"
+          "description": "直接引用图片的原始位置，不复制文件。"
         },
         "copy-same-folder": {
-          "label": "相同文件夹",
-          "description": "复制到当前文档旁边。"
+          "label": "文档所在文件夹",
+          "description": "将图片复制到文档所在的文件夹。"
         },
         "copy-assets": {
           "label": "./assets",
-          "description": "复制到同级的 assets 文件夹中。"
+          "description": "将图片复制到文档旁的 assets 文件夹。"
         },
         "copy-custom-folder": {
           "label": "自定义文件夹",
-          "description": "复制到下方选择的文件夹。"
+          "description": "将图片复制到下方选择的文件夹。"
         },
         "base64": {
           "label": "嵌入为 Base64",
-          "description": "将图片直接内联到文档中。"
+          "description": "将图片以 Base64 形式嵌入文档。"
         }
       }
     }
