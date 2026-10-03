@@ -288,16 +288,32 @@ pub fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     // A brand-new document is created empty first so it receives the
     // permissions the umask dictates; the temporary file below is always
     // created owner-only and copies whatever the target has.
-    match fs::OpenOptions::new()
+    let created = match fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(&target)
     {
-        Ok(_) => {}
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Ok(_) => true,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
         Err(error) => return Err(error),
+    };
+
+    let result = replace_with_temp_file(&target, directory, file_name, bytes);
+    // A write that failed leaves no empty file where it was to create one.
+    if result.is_err() && created && fs::metadata(&target).is_ok_and(|metadata| metadata.len() == 0)
+    {
+        let _ = fs::remove_file(&target);
     }
-    let permissions = fs::metadata(&target)?.permissions();
+    result
+}
+
+fn replace_with_temp_file(
+    target: &Path,
+    directory: &Path,
+    file_name: &std::ffi::OsStr,
+    bytes: &[u8],
+) -> io::Result<()> {
+    let permissions = fs::metadata(target)?.permissions();
 
     let prefix = format!(".{}.", file_name.to_string_lossy());
     let mut temp = tempfile::Builder::new()
@@ -308,8 +324,8 @@ pub fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     temp.as_file().sync_all()?;
     temp.as_file().set_permissions(permissions)?;
     #[cfg(unix)]
-    copy_extended_attributes(&target, temp.path());
-    temp.persist(&target).map_err(|error| error.error)?;
+    copy_extended_attributes(target, temp.path());
+    temp.persist(target).map_err(|error| error.error)?;
 
     // The rename itself is durable only once the directory entry is flushed.
     #[cfg(unix)]
