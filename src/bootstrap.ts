@@ -4,8 +4,12 @@
  */
 
 import type { Node } from '@milkdown/kit/prose/model';
-import { errorDialog, warningDialog } from './bridge/ipc/files';
-import { checkForUpdate } from './bridge/ipc/updates';
+import { errorDialog, infoDialog, warningDialog } from './bridge/ipc/files';
+import {
+  checkForUpdate,
+  currentVersion,
+  isFeedMissing,
+} from './bridge/ipc/updates';
 import { isPrimaryWindow } from './bridge/ipc/windows';
 import { NyaEditor } from './editor/editor';
 import { SourceModeController } from './editor/source-mode';
@@ -52,11 +56,14 @@ export class App {
   private savedDoc: Node | null = null;
   private wasDirty = false;
   private markingDirty = false;
-  private readonly settingsPanel = new SettingsPanel();
+  private readonly settingsPanel = new SettingsPanel({
+    checkForUpdates: () => this.checkForUpdatesAsked(),
+  });
   private readonly pdfExporter = new PdfExporter(() =>
     this.sourceMode?.flush()
   );
   private readonly updateDialog = new UpdateDialog();
+  private checkingForUpdates = false;
 
   async init() {
     registerShellStyles();
@@ -200,6 +207,7 @@ export class App {
       'save-file-as': () => fileController.saveFileAs(),
       'export-pdf': () => this.pdfExporter.open(),
       'open-settings': () => this.settingsPanel.open(),
+      'check-updates': () => this.checkForUpdatesAsked(),
     });
     void menuController.bind();
 
@@ -251,6 +259,36 @@ export class App {
     const update = await checkForUpdate();
     if (update) {
       this.updateDialog.open(update);
+    }
+  }
+
+  /**
+   * Checked from the menu, the answer is shown whatever it is: the check at
+   * launch keeps quiet when there is nothing new or the feed cannot be read.
+   */
+  private async checkForUpdatesAsked() {
+    if (this.checkingForUpdates) return;
+    this.checkingForUpdates = true;
+    try {
+      const update = await checkForUpdate();
+      if (update) {
+        this.updateDialog.open(update);
+        return;
+      }
+      await infoDialog(
+        i18next.t('updates.upToDate', { version: await currentVersion() }),
+        i18next.t('updates.upToDateTitle')
+      );
+    } catch (error) {
+      console.error('[updates] Update check failed', error);
+      await errorDialog(
+        i18next.t(
+          isFeedMissing(error) ? 'updates.feedMissing' : 'updates.checkFailed'
+        ),
+        i18next.t('updates.checkFailedTitle')
+      );
+    } finally {
+      this.checkingForUpdates = false;
     }
   }
 

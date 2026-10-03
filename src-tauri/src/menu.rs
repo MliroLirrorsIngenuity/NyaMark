@@ -11,6 +11,7 @@ use crate::{quit, sessions};
 pub struct MenuTranslations {
     pub preferences: String,
     pub about: String,
+    pub check_updates: String,
     pub services: String,
     pub hide: String,
     pub hide_others: String,
@@ -44,6 +45,7 @@ const MENU_SAVE_ID: &str = "file_save";
 const MENU_SAVE_AS_ID: &str = "file_save_as";
 const MENU_EXPORT_PDF_ID: &str = "file_export_pdf";
 const MENU_SETTINGS_ID: &str = "app_settings";
+const MENU_CHECK_UPDATES_ID: &str = "app_check_updates";
 const MENU_QUIT_ID: &str = "app_quit";
 
 pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
@@ -119,6 +121,13 @@ pub fn build_custom_macos_menu<R: Runtime>(
         true,
         &[
             &PredefinedMenuItem::about(app, Some(&t.about), None)?,
+            &MenuItem::with_id(
+                app,
+                MENU_CHECK_UPDATES_ID,
+                &t.check_updates,
+                true,
+                None::<&str>,
+            )?,
             &PredefinedMenuItem::separator(app)?,
             &settings_item,
             &PredefinedMenuItem::separator(app)?,
@@ -230,6 +239,8 @@ pub fn handle_macos_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent)
         Some("export-pdf")
     } else if event.id() == MENU_SETTINGS_ID {
         Some("open-settings")
+    } else if event.id() == MENU_CHECK_UPDATES_ID {
+        Some("check-updates")
     } else {
         None
     };

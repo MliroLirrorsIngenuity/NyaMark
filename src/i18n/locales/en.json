@@ -2,6 +2,7 @@
   "menu": {
     "preferences": "Preferences…",
     "about": "About NyaMark",
+    "checkUpdates": "Check for Updates…",
     "services": "Services",
     "hide": "Hide NyaMark",
     "hideOthers": "Hide Others",
@@ -200,6 +201,11 @@
     "subtitle": "You are running {{current}}. {{latest}} is ready.",
     "failed": "{{latest}} could not be installed. Get it from the download page instead.",
     "installed": "{{latest}} is installed and takes effect once NyaMark restarts.",
+    "upToDateTitle": "NyaMark Is Up to Date",
+    "upToDate": "You are running the latest version, {{version}}.",
+    "checkFailedTitle": "Unable to Check for Updates",
+    "checkFailed": "Check your network connection and try again.",
+    "feedMissing": "The update server has not provided version information yet. Try again later.",
     "saveFirst": "{{latest}} is downloaded. Its installer closes NyaMark at once: save your documents, then choose Install now.",
     "newVersionAvailable": "New version",
     "currentVersion": "Current",
@@ -230,7 +236,10 @@
     "general": {
       "title": "General",
       "language": "Language",
-      "autoLabel": "Auto (System Default)"
+      "autoLabel": "Auto (System Default)",
+      "version": "Version",
+      "checkUpdates": "Check for Updates",
+      "checkingUpdates": "Checking…"
     },
     "appearance": {
       "title": "Appearance",

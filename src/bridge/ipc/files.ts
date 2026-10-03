@@ -44,8 +44,12 @@ export async function confirmDialog(
   return await ask(message, { kind: 'warning', ...options });
 }
 
-export async function errorDialog(msg: string): Promise<void> {
-  await message(msg, { kind: 'error' });
+export async function errorDialog(msg: string, title?: string): Promise<void> {
+  await message(msg, { kind: 'error', title });
+}
+
+export async function infoDialog(msg: string, title: string): Promise<void> {
+  await message(msg, { kind: 'info', title });
 }
 
 export async function warningDialog(msg: string, title: string): Promise<void> {

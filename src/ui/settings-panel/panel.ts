@@ -1,5 +1,6 @@
 import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
 import { translateDOM } from '../../i18n/dom';
+import { isMacOS } from '../../platform/detect';
 import {
   type Settings,
   changedSettings,
@@ -212,7 +213,8 @@ const styles = `
   border-color: color-mix(in srgb, var(--ny-border-strong), transparent 28%);
 }
 
-.ny-settings__directory {
+.ny-settings__directory,
+.ny-settings__version {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -233,11 +235,19 @@ const styles = `
   text-overflow: ellipsis;
 }
 
+.ny-settings__version-number {
+  flex: 1 1 auto;
+  color: var(--ny-text-primary);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
 .ny-settings__directory-path.is-empty {
   color: var(--ny-text-secondary);
 }
 
-.ny-settings__directory-button {
+.ny-settings__directory-button,
+.ny-settings__version-button {
   flex: 0 0 auto;
   padding: 8px 12px;
   border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
@@ -249,8 +259,14 @@ const styles = `
   cursor: pointer;
 }
 
-.ny-settings__directory-button:hover {
+.ny-settings__directory-button:hover,
+.ny-settings__version-button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--ny-border-strong), transparent 28%);
+}
+
+.ny-settings__version-button:disabled {
+  color: var(--ny-text-secondary);
+  cursor: default;
 }
 
 .ny-settings__directory-button[hidden] {
@@ -533,10 +549,15 @@ const styles = `
 }
 `;
 
+type SettingsPanelActions = {
+  /** Resolves once the answer has been shown. */
+  checkForUpdates: () => Promise<void>;
+};
+
 export class SettingsPanel {
   private overlay: HTMLDivElement | null = null;
 
-  constructor() {
+  constructor(private readonly actions: SettingsPanelActions) {
     ensureStyle('ny-settings-panel', styles);
   }
 
@@ -578,9 +599,14 @@ export class SettingsPanel {
       }, 180);
     };
 
-    const general = renderGeneralSection(working.general, (next) => {
-      working = { ...working, general: next };
-    });
+    const general = renderGeneralSection(
+      working.general,
+      (next) => {
+        working = { ...working, general: next };
+      },
+      // macOS checks from the app menu; elsewhere there is no menu bar.
+      isMacOS() ? undefined : { checkForUpdates: this.actions.checkForUpdates }
+    );
     const appearance = renderAppearanceSection(
       working.appearance,
       (next, mode) => {

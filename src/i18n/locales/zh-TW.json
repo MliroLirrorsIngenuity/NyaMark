@@ -2,6 +2,7 @@
   "menu": {
     "preferences": "偏好設定…",
     "about": "關於 NyaMark",
+    "checkUpdates": "檢查更新…",
     "services": "服務",
     "hide": "隱藏 NyaMark",
     "hideOthers": "隱藏其他",
@@ -198,6 +199,11 @@
     "subtitle": "目前執行的是 {{current}}。{{latest}} 已就緒。",
     "failed": "{{latest}} 沒能裝上，可以到下載頁手動下載。",
     "installed": "{{latest}} 已裝好，重新啟動 NyaMark 後生效。",
+    "upToDateTitle": "NyaMark 已是最新版本",
+    "upToDate": "目前版本 {{version}} 為最新版本。",
+    "checkFailedTitle": "無法檢查更新",
+    "checkFailed": "請檢查網路連線，然後再試一次。",
+    "feedMissing": "更新伺服器暫未提供版本資訊。請稍後再試。",
     "saveFirst": "{{latest}} 已下載。安裝程式會立刻關閉 NyaMark，請先儲存文件，再按「立即安裝」。",
     "newVersionAvailable": "新版本",
     "currentVersion": "目前版本",
@@ -228,7 +234,10 @@
     "general": {
       "title": "一般",
       "language": "語言",
-      "autoLabel": "自動（跟隨系統）"
+      "autoLabel": "自動（跟隨系統）",
+      "version": "版本",
+      "checkUpdates": "檢查更新",
+      "checkingUpdates": "正在檢查…"
     },
     "appearance": {
       "title": "外觀",
