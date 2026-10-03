@@ -8,6 +8,12 @@ export type SelectOption = {
 };
 
 let selectSequence = 0;
+/**
+ * Closes the dropdown that is open. Each trigger stops its click, so the
+ * open dropdown never hears it as a click outside: opening another one
+ * closes it through here.
+ */
+let closeOpenSelect: (() => void) | null = null;
 
 /**
  * The dropdown the settings dialog uses in place of a native `<select>`
@@ -68,8 +74,10 @@ export function renderSelect(
   const closeOnOutsideClick = (event: MouseEvent) => {
     if (!host.contains(event.target as Node)) close(false);
   };
+  const dismiss = () => close(false);
   const close = (refocus: boolean) => {
     if (menu.hidden) return;
+    if (closeOpenSelect === dismiss) closeOpenSelect = null;
     host.classList.remove('is-open');
     menu.hidden = true;
     trigger.setAttribute('aria-expanded', 'false');
@@ -80,6 +88,8 @@ export function renderSelect(
   };
   const open = () => {
     if (!menu.hidden) return;
+    closeOpenSelect?.();
+    closeOpenSelect = dismiss;
     host.classList.add('is-open');
     menu.hidden = false;
     trigger.setAttribute('aria-expanded', 'true');
