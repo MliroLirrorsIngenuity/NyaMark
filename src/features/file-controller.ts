@@ -159,9 +159,6 @@ export class FileController {
    * a save of this window's is never read halfway and taken for another's.
    */
   private async reloadChangedFile(path: string): Promise<ReloadOutcome> {
-    // Keystrokes still buffered in the source pane are unsaved edits too and
-    // must count towards the dirty check below.
-    this.flushPendingEdits();
     const state = store.getState();
     if (state.filePath !== path) {
       return 'moved';
@@ -178,6 +175,10 @@ export class FileController {
       console.error('Failed to reload changed file:', error);
       return 'unreadable';
     }
+    // Keystrokes still buffered in the source pane are unsaved edits too and
+    // must count towards the dirty check below, those typed during the read
+    // as well.
+    this.flushPendingEdits();
     const { text: newContent, version } = document;
     // Whoever rewrote the file may also have changed its BOM or line
     // endings; the next save follows the file as it is now.

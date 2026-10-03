@@ -406,6 +406,28 @@ describe('changes made by other programs', () => {
     expect(bridge.conflictPrompts).toBe(0);
   });
 
+  test('count keys typed in the source pane while a file that came back is read', async () => {
+    const { vanish, editor, path } = await watched('old');
+    await vanish();
+    const read = deferred();
+    bridge.read = async () => {
+      await read.promise;
+      return document('rewritten');
+    };
+    bridge.watchers.get(path)?.();
+    await settle();
+
+    // The source pane marks the document unsaved at the first key.
+    editor.pending = 'typed while it was read';
+    store.update({ isDirty: true });
+    read.resolve();
+    await settle();
+
+    expect(bridge.conflictPrompts).toBe(1);
+    expect(editor.markdown).toBe('typed while it was read');
+    expect(store.getState().isDirty).toBe(true);
+  });
+
   test('read the file only once a save in progress has written it', async () => {
     const { fire, edit, controller } = await watched('old');
     const write = deferred();
