@@ -25,6 +25,11 @@
   --ny-editor-check-mark: #ffffff;
   --ny-editor-quote-bar: rgba(148, 163, 178, 0.42);
   --ny-editor-rule: rgba(148, 163, 178, 0.3);
+  --ny-editor-table-line: color-mix(
+    in srgb,
+    var(--crepe-color-outline),
+    transparent 80%
+  );
   --ny-editor-toolbar-bg: var(--ny-window-toolbar-bg, rgba(255, 255, 255, 0.82));
   --ny-editor-toolbar-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 8px
     rgba(15, 23, 42, 0.04);
@@ -147,4 +152,36 @@
   --ny-editor-preview-bg: linear-gradient(180deg, #151c24 0%, #11171f 100%);
   --ny-editor-preview-border: rgba(89, 105, 126, 0.28);
   --ny-editor-preview-text: #e9f0f6;
+}
+
+/*
+ * Over the frosted window the page is what lies behind it, washed light or
+ * dark: over a dark terminal the light page is a mid grey. The page's pale
+ * greys were picked for a white page and went into that grey: a table's lines
+ * and a code block's line numbers could not be seen. Over glass they are the
+ * page's own ink at a strength, which holds over any backdrop, and a code
+ * block is a frosted pane on the page.
+ */
+:root.ny-shell--transparent .ny-editor-root .milkdown,
+:root.ny-shell--transparent .ny-editor-root .ny-source-pane {
+  --ny-editor-table-line: rgba(15, 23, 42, 0.14);
+  --ny-editor-marker: rgba(15, 23, 42, 0.42);
+  --ny-editor-quote-bar: rgba(15, 23, 42, 0.2);
+  --ny-editor-rule: rgba(15, 23, 42, 0.14);
+  --ny-editor-gutter-text: rgba(15, 23, 42, 0.38);
+  --ny-editor-codeblock-bg: rgba(255, 255, 255, 0.42);
+  --ny-editor-codeblock-border: rgba(15, 23, 42, 0.12);
+  --ny-editor-glass-field-bg: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-theme="dark"].ny-shell--transparent .ny-editor-root .milkdown,
+:root[data-theme="dark"].ny-shell--transparent .ny-editor-root .ny-source-pane {
+  --ny-editor-table-line: rgba(255, 255, 255, 0.13);
+  --ny-editor-marker: rgba(255, 255, 255, 0.42);
+  --ny-editor-quote-bar: rgba(255, 255, 255, 0.2);
+  --ny-editor-rule: rgba(255, 255, 255, 0.14);
+  --ny-editor-gutter-text: rgba(255, 255, 255, 0.36);
+  --ny-editor-codeblock-bg: rgba(0, 0, 0, 0.18);
+  --ny-editor-codeblock-border: rgba(255, 255, 255, 0.1);
+  --ny-editor-glass-field-bg: rgba(0, 0, 0, 0.22);
 }

@@ -236,6 +236,11 @@
   vertical-align: top !important;
 }
 
+/* The lines between cells, in a colour that the glass window can change. */
+.ny-editor-root .milkdown .milkdown-table-block :is(th, td) {
+  border-color: var(--ny-editor-table-line);
+}
+
 /* paragraph gap: a cell holds one paragraph; the cell padding is the gap. */
 .ny-editor-root .milkdown .editor :is(th, td) > p {
   padding: 0 !important;

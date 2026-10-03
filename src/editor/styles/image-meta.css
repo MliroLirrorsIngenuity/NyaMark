@@ -189,6 +189,30 @@
 }
 
 /*
+ * Over the frosted window the box for a picture's address is frosted like a
+ * code block. Crepe paints it white: it stood out of the glass as a solid
+ * slab.
+ */
+:root.ny-shell--transparent
+  .ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .image-edit {
+  border: 1px solid var(--ny-editor-codeblock-border) !important;
+  border-radius: 12px !important;
+  background: var(--ny-editor-codeblock-bg) !important;
+}
+
+:root.ny-shell--transparent
+  .ny-editor-root
+  .milkdown
+  .milkdown-image-block
+  .link-importer {
+  border-color: var(--ny-editor-codeblock-border) !important;
+  background: var(--ny-editor-glass-field-bg) !important;
+}
+
+/*
  * The picture at the address typed, beside the box, as tall as the box's
  * text. Crepe leaves it its own size: a photo stood out of the row, over the
  * lines around it.
