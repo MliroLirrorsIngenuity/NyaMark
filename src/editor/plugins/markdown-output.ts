@@ -686,8 +686,18 @@ export const writeRoot: Handle = (node, parent, state, info) => {
   return defaultHandlers.root(node, parent, state, info);
 };
 
-/** A block in a list item that takes in the line written right under it. */
-const RUNS_ON = new Set(['table', 'blockquote', 'list', 'html']);
+/**
+ * A block in a list item that takes in the line written right under it. A
+ * footnote's text does too: in a quote, a list item's line after a footnote
+ * went into the footnote.
+ */
+const RUNS_ON = new Set([
+  'table',
+  'blockquote',
+  'list',
+  'html',
+  'footnoteDefinition',
+]);
 
 /** An empty line, as its `<br />`: an HTML block, which runs on as well. */
 const isBreakLine = (node: MdNode) =>

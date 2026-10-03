@@ -354,12 +354,13 @@ describe('joinInTightItem', () => {
     return { out, same: shape(processor.parse(out)) === shape(tree as Shape) };
   }
 
-  test('keeps what follows a table, a quote, a nested list or HTML out of it', () => {
+  test('keeps what follows a table, a quote, a nested list, HTML or a footnote out of it', () => {
     for (const block of [
       '| x | y |\n  | - | - |\n  | 1 | 2 |',
       '> q',
       '- sub',
       '<div>x</div>',
+      '[^n]: A note.',
     ]) {
       expect(written(block).same).toBe(true);
     }
