@@ -315,7 +315,10 @@ fn replace_with_temp_file(
 ) -> io::Result<()> {
     let permissions = fs::metadata(target)?.permissions();
 
-    let prefix = format!(".{}.", file_name.to_string_lossy());
+    // Named after the document, cut short: the whole of a name near the
+    // limit left no room for the rest, and the document could not be saved.
+    let name = file_name.to_string_lossy();
+    let prefix = format!(".{}.", name_start(&name, 64));
     let mut temp = tempfile::Builder::new()
         .prefix(&prefix)
         .suffix(".tmp")
@@ -334,6 +337,15 @@ fn replace_with_temp_file(
     }
 
     Ok(())
+}
+
+/// The start of `name`, at most `max` bytes long and cut between characters.
+fn name_start(name: &str, max: usize) -> &str {
+    let mut end = name.len().min(max);
+    while !name.is_char_boundary(end) {
+        end -= 1;
+    }
+    &name[..end]
 }
 
 /// Finder tags, the quarantine flag and the other extended attributes belong
@@ -560,5 +572,17 @@ mod tests {
             xattr::get(&path, "user.nyamark.test").unwrap().as_deref(),
             Some(&b"red"[..])
         );
+    }
+
+    #[test]
+    fn atomic_write_saves_under_the_longest_name_a_file_can_have() {
+        let dir = tempfile::tempdir().unwrap();
+        // 255 characters, the most a file name may hold on every platform.
+        let path = dir.path().join(format!("{}.md", "n".repeat(252)));
+        fs::write(&path, b"old").unwrap();
+
+        write_atomically(&path, b"new").unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), b"new");
     }
 }
