@@ -529,10 +529,6 @@ body {
   justify-content: center;
 }
 
-.ny-shell--macos .ny-shell__settings-button {
-  display: none;
-}
-
 /* As tall as the title bar, for the window's buttons to fill it. */
 .ny-shell--windows .ny-shell__title-actions,
 .ny-shell--linux .ny-shell__title-actions {
