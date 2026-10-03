@@ -49,6 +49,13 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
 
+[lints.clippy]
+# A panic aborts the release build (`panic = "abort"`), and every open
+# window's unsaved edits go with it. Failures are returned as errors; the few
+# that cannot happen carry an allow saying why.
+unwrap_used = "deny"
+expect_used = "deny"
+
 [profile.release]
 codegen-units = 1
 lto = true

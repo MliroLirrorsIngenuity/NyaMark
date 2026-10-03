@@ -136,6 +136,8 @@ mod macos {
         let class: &AnyClass = object.class();
 
         // Method signature: `NSApplicationTerminateReply (id self, SEL _cmd, NSApplication *sender)`.
+        // Built from a fixed type encoding, which holds no NUL byte.
+        #[allow(clippy::expect_used)]
         let types = CString::new(format!("{}@:@", NSApplicationTerminateReply::ENCODING))
             .expect("static encoding has no interior NUL");
         let imp: Imp = unsafe {

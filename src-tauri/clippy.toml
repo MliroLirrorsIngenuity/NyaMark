@@ -1,0 +1,3 @@
+# Tests may unwrap: a panic there fails the test, not the app.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

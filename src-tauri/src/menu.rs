@@ -99,9 +99,11 @@ fn bundled_translations(locale: &str) -> MenuTranslations {
         .iter()
         .find(|(tag, _)| *tag == locale)
         .map_or(LOCALES[0].1, |(_, source)| source);
-    serde_json::from_str::<LocaleFile>(source)
-        .expect("bundled locale files carry a complete menu section")
-        .menu
+    // Bundled at build time and checked by `every_bundled_locale_has_a_menu`.
+    #[allow(clippy::expect_used)]
+    let file = serde_json::from_str::<LocaleFile>(source)
+        .expect("bundled locale files carry a complete menu section");
+    file.menu
 }
 
 pub fn build_custom_macos_menu<R: Runtime>(

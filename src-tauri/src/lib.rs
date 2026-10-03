@@ -288,17 +288,19 @@ pub fn run() {
         .menu(menu::build_macos_menu)
         .on_menu_event(menu::handle_macos_menu_event);
 
-    builder
+    // Nothing is open yet, so there is nothing to lose.
+    #[allow(clippy::expect_used)]
+    let app = builder
         .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|app, event| match event {
-            tauri::RunEvent::ExitRequested { code, api, .. } => {
-                quit::handle_exit_requested(app, code, &api);
-            }
-            #[cfg(target_os = "macos")]
-            tauri::RunEvent::Opened { urls } => handle_opened_urls(app, &urls),
-            _ => {}
-        });
+        .expect("error while building tauri application");
+    app.run(|app, event| match event {
+        tauri::RunEvent::ExitRequested { code, api, .. } => {
+            quit::handle_exit_requested(app, code, &api);
+        }
+        #[cfg(target_os = "macos")]
+        tauri::RunEvent::Opened { urls } => handle_opened_urls(app, &urls),
+        _ => {}
+    });
 }
 
 #[cfg(target_os = "macos")]
