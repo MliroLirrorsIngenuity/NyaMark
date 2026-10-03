@@ -228,7 +228,13 @@ jobs:
               ;;
             macOS)
               find "$BASE_DIR/bundle/dmg" -maxdepth 1 -type f -name "*.dmg" -exec cp {} upload_dist/ \; 2>/dev/null || true
-              find "$BASE_DIR/bundle/macos" -maxdepth 1 -type f \( -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" \) -exec cp {} upload_dist/ \; 2>/dev/null || true
+              # Both Macs build a NyaMark.app.tar.gz: named for its platform, or
+              # one would replace the other in the release and in latest.json.
+              for file in "$BASE_DIR"/bundle/macos/*.app.tar.gz "$BASE_DIR"/bundle/macos/*.app.tar.gz.sig; do
+                [ -f "$file" ] || continue
+                name=$(basename "$file")
+                cp "$file" "upload_dist/${name%%.app.tar.gz*}_${UPDATER_KEY}.app.tar.gz${name##*.app.tar.gz}"
+              done
               UPDATE_ASSET=$(find upload_dist -maxdepth 1 -type f -name "*.app.tar.gz" | head -n 1)
               ;;
             Windows)
