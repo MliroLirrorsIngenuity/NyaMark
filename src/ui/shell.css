@@ -20,6 +20,7 @@
   --ny-layer-settings-dialog: 130;
   --ny-layer-update-dialog: 135;
   --ny-layer-export-dialog: 140;
+  --ny-layer-toast: 150;
   --ny-layer-editor-toolbar: 500;
   --ny-layer-titlebar: 1000;
   /* Above the titlebar, or its top edge and corners could not be dragged. */

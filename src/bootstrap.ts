@@ -4,7 +4,7 @@
  */
 
 import type { Node } from '@milkdown/kit/prose/model';
-import { errorDialog, infoDialog, warningDialog } from './bridge/ipc/files';
+import { errorDialog, warningDialog } from './bridge/ipc/files';
 import {
   checkForUpdate,
   currentVersion,
@@ -40,6 +40,7 @@ import { registerShellStyles, renderAppShell } from './ui/shell';
 import { Statusbar } from './ui/statusbar';
 import { ThemeManager } from './ui/theme';
 import { Titlebar } from './ui/titlebar';
+import { showToast } from './ui/toast';
 import { UpdateDialog } from './ui/update-dialog';
 
 export class App {
@@ -265,6 +266,7 @@ export class App {
   /**
    * Checked from the menu, the answer is shown whatever it is: the check at
    * launch keeps quiet when there is nothing new or the feed cannot be read.
+   * A newer release opens the update dialog, the other answers a short note.
    */
   private async checkForUpdatesAsked() {
     if (this.checkingForUpdates) return;
@@ -275,17 +277,18 @@ export class App {
         this.updateDialog.open(update);
         return;
       }
-      await infoDialog(
-        i18next.t('updates.upToDate', { version: await currentVersion() }),
-        i18next.t('updates.upToDateTitle')
+      showToast(
+        i18next.t('updates.upToDateTitle'),
+        i18next.t('updates.upToDate', { version: await currentVersion() })
       );
     } catch (error) {
       console.error('[updates] Update check failed', error);
-      await errorDialog(
+      showToast(
+        i18next.t('updates.checkFailedTitle'),
         i18next.t(
           isFeedMissing(error) ? 'updates.feedMissing' : 'updates.checkFailed'
         ),
-        i18next.t('updates.checkFailedTitle')
+        'warning'
       );
     } finally {
       this.checkingForUpdates = false;
