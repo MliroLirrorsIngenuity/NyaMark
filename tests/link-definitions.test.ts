@@ -1,79 +1,92 @@
-import { describe, expect, test } from 'bun:test';
-import remarkInlineLinks from 'remark-inline-links';
-import remarkParse from 'remark-parse';
-import remarkStringify from 'remark-stringify';
-import { unified } from 'unified';
-import { keepUnusedDefinitions } from '../src/editor/plugins/link-definitions';
+/**
+ * Link reference definitions read and written back by the editor's own
+ * pipeline: Milkdown with no view, its presets, and the plugins that shape
+ * what it writes.
+ */
 
-type Tree = { type: string; value?: string; children?: Tree[] };
+import { beforeAll, describe, expect, test } from 'bun:test';
+import {
+  SerializerReady,
+  commands,
+  config,
+  editorState,
+  editorViewCtx,
+  init,
+  keymap,
+  parser,
+  parserCtx,
+  pasteRule,
+  schema,
+  serializer,
+  serializerCtx,
+} from '@milkdown/kit/core';
+import { Clock, Container, Ctx } from '@milkdown/kit/ctx';
+import { commonmark } from '@milkdown/kit/preset/commonmark';
+import { gfm } from '@milkdown/kit/preset/gfm';
+import { linkDefinitions } from '../src/editor/plugins/link-definitions';
+import {
+  markdownOutput,
+  writeAsNotes,
+} from '../src/editor/plugins/markdown-output';
 
-/** Read as the editor reads it: the definitions links use go into them. */
-function read(markdown: string) {
-  const processor = unified()
-    .use(remarkParse)
-    .use(keepUnusedDefinitions)
-    .use(remarkInlineLinks);
-  return processor.runSync(processor.parse(markdown), markdown) as Tree;
-}
+/** Opens `markdown` in the editor and saves it, as the app does. */
+let save: (markdown: string) => string;
 
-const resave = (markdown: string) =>
-  unified()
-    .use(remarkStringify)
-    .stringify(read(markdown) as never);
-
-const kept = (markdown: string) => {
-  const values: string[] = [];
-  const walk = (node: Tree) => {
-    if (node.type === 'html' && node.value) values.push(node.value);
-    for (const child of node.children ?? []) walk(child);
-  };
-  walk(read(markdown));
-  return values;
-};
+beforeAll(async () => {
+  const ctx = new Ctx(new Container(), new Clock());
+  // A paragraph asks the view for the document it ends; with no view, there
+  // is none to give.
+  ctx.inject(editorViewCtx, {} as never);
+  // In the order the editor takes them: its own after Milkdown's.
+  const plugins = [
+    config(writeAsNotes),
+    init({} as never),
+    schema,
+    parser,
+    serializer,
+    commands,
+    keymap,
+    pasteRule,
+    editorState,
+    commonmark,
+    gfm,
+    markdownOutput,
+    linkDefinitions,
+  ].flat();
+  const runners = plugins.map((plugin) => plugin(ctx));
+  void Promise.all(runners.map((run) => run()));
+  await ctx.wait(SerializerReady);
+  const parse = ctx.get(parserCtx);
+  const write = ctx.get(serializerCtx);
+  save = (markdown) => write(parse(markdown));
+});
 
 describe('link definitions', () => {
   test('keep one no link uses as written', () => {
     expect(
-      kept(
-        'Text [used][a].\n\n[a]: https://a.example\n[spare]: <my file.md> "kept"\n'
+      save(
+        "Text [used][a].\n\n[a]: https://a.example\n[spare]:   <my file.md>   'kept'\n"
       )
-    ).toEqual(['[spare]: <my file.md> "kept"']);
-  });
-
-  test('let the one a link uses go into the link', () => {
-    expect(resave('[used][a]\n\n[a]: https://a.example\n')).toBe(
-      '[used](https://a.example)\n'
+    ).toBe(
+      "Text [used](https://a.example).\n\n[spare]:   <my file.md>   'kept'\n"
     );
   });
 
   test('keep a second definition of a label', () => {
-    expect(kept('[x]\n\n[x]: /first\n[x]: /second\n')).toEqual([
-      '[x]: /second',
-    ]);
+    expect(save('[x]\n\n[x]: /first\n[x]: /second\n')).toBe(
+      '[x](/first)\n\n[x]: /second\n'
+    );
   });
 
   test('match labels as references do, case and spacing aside', () => {
-    expect(kept('[Some  Label]\n\n[some label]: /a\n')).toEqual([]);
+    expect(save('[Some  Label]\n\n[some label]: /a\n')).toBe(
+      '[Some  Label](/a)\n'
+    );
   });
 
   test('write one spread over lines on one line', () => {
-    expect(kept('> [q]:\n> /a\n> "t"\n')).toEqual(['[q]: /a "t"']);
-  });
-
-  test('read the kept ones back as definitions', () => {
-    const saved = resave(
-      '# T\n\n[a]: https://a.example "A"\n[b]: <with space.md>\n\n- item\n\n  [c]: /c\n'
+    expect(save('> [q]:\n> /a\n> "say \\"hi\\""\n')).toBe(
+      '> [q]: /a "say \\"hi\\""\n'
     );
-    expect(saved).toContain('[a]: https://a.example "A"');
-    expect(saved).toContain('[b]: <with space.md>');
-    expect(saved).toContain('[c]: /c');
-    const again = unified().use(remarkParse).parse(saved) as Tree;
-    const definitions: string[] = [];
-    const walk = (node: Tree) => {
-      if (node.type === 'definition') definitions.push(node.type);
-      for (const child of node.children ?? []) walk(child);
-    };
-    walk(again);
-    expect(definitions).toHaveLength(3);
   });
 });
