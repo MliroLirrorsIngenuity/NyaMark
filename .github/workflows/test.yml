@@ -39,7 +39,10 @@ jobs:
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
 
+  # Every commit builds the installers of all six platforms, each kept as an
+  # artifact of the run for testing that commit.
   build-test:
+    name: Build ${{ matrix.name }}
     needs: [ts-check, rust-check]
     runs-on: ${{ matrix.platform }}
     strategy:
@@ -49,25 +52,60 @@ jobs:
           - name: Windows x64
             platform: windows-latest
             args: ""
+            key: windows-x86_64
           - name: Windows ARM64
             platform: windows-latest
             args: "--target aarch64-pc-windows-msvc"
+            key: windows-aarch64
           - name: macOS x64
             platform: macos-latest
             args: "--target x86_64-apple-darwin"
+            key: darwin-x86_64
           - name: macOS Apple Silicon
             platform: macos-latest
             args: "--target aarch64-apple-darwin"
+            key: darwin-aarch64
           - name: Linux x64
             platform: ubuntu-22.04
             args: ""
+            key: linux-x86_64
           - name: Linux ARM64
             platform: ubuntu-24.04-arm
             args: ""
+            key: linux-aarch64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          # The version below counts the commits since the last release tag.
+          fetch-depth: 0
+
+      - name: Name the build after the last release
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Five commits after v1.0.0-rc.1 the build is 1.0.0-rc.1.dev.5, and
+          # five after v1.0.0 it is 1.0.1-dev.5: newer than that release, older
+          # than the next, which the beta feed then offers as an update.
+          tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+          if [ -n "$tag" ]; then
+            base=${tag#v}
+            count=$(git rev-list --count "$tag..HEAD")
+          else
+            base=0.0.0
+            count=$(git rev-list --count HEAD)
+          fi
+          case "$base" in
+            *-*) version="$base.dev.$count" ;;
+            *)
+              IFS=. read -r major minor patch <<< "$base"
+              version="$major.$minor.$((patch + 1))-dev.$count"
+              ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building NyaMark $version"
 
       - name: Install Linux dependencies
         if: contains(matrix.platform, 'ubuntu')
@@ -91,5 +129,28 @@ jobs:
         with:
           workspaces: ./src-tauri -> target
 
-      - name: Build test
-        run: bun tauri build ${{ matrix.args }} --no-bundle
+      # Test builds carry no updater bundles (the signing key stays with
+      # releases) and, being pre-releases, follow the beta feed like one.
+      - name: Build installers
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          FEED: https://github.com/${{ github.repository }}/releases/download/updater-beta/latest.json
+        run: |
+          set -euo pipefail
+          config=$(printf '{"version":"%s","bundle":{"createUpdaterArtifacts":false},"plugins":{"updater":{"endpoints":["%s"]}}}' "$VERSION" "$FEED")
+          bun tauri build ${{ matrix.args }} --config "$config"
+
+      # The cached target directory can hold older builds' installers, so
+      # only those named for this version are taken.
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: NyaMark-${{ steps.version.outputs.version }}-${{ matrix.key }}
+          if-no-files-found: error
+          path: |
+            src-tauri/target/**/release/bundle/nsis/*${{ steps.version.outputs.version }}*.exe
+            src-tauri/target/**/release/bundle/dmg/*${{ steps.version.outputs.version }}*.dmg
+            src-tauri/target/**/release/bundle/appimage/*${{ steps.version.outputs.version }}*.AppImage
+            src-tauri/target/**/release/bundle/deb/*${{ steps.version.outputs.version }}*.deb
+            src-tauri/target/**/release/bundle/rpm/*${{ steps.version.outputs.version }}*.rpm
