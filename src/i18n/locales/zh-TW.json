@@ -166,6 +166,7 @@
       "forbidden": "NyaMark 沒有存取「{{fileName}}」的權限。",
       "readOnly": "「{{fileName}}」為唯讀檔案，NyaMark 未作任何修改。請使用「另存新檔」將變更儲存到其他檔案。",
       "tooLarge": "「{{fileName}}」超過 {{limit}} MB，超出 NyaMark 支援編輯的檔案大小。",
+      "changed": "「{{fileName}}」在 NyaMark 讀取後已被其他程式修改，NyaMark 未作任何修改。請使用「另存新檔」儲存目前文件。",
       "openFailed": "無法開啟「{{fileName}}」：{{reason}}",
       "saveFailed": "無法儲存「{{fileName}}」：{{reason}}"
     },

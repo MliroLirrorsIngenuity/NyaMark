@@ -99,6 +99,8 @@ export interface MarkdownDocument {
   /** Always `\n`-terminated lines; the original style lives in `format`. */
   text: string;
   format: DocumentFormat;
+  /** Names the bytes read; a save based on them passes it back. */
+  version: string;
 }
 
 export type DocumentErrorKind =
@@ -107,6 +109,7 @@ export type DocumentErrorKind =
   | 'read-only'
   | 'too-large'
   | 'missing'
+  | 'changed'
   | 'io';
 
 /** Structured failure from the document commands (see `document.rs`). */
@@ -154,14 +157,24 @@ export async function readMarkdown(path: string): Promise<MarkdownDocument> {
   }
 }
 
-/** Atomic write (temp file + rename) that restores the recorded format. */
+/**
+ * Atomic write (temp file + rename) that restores the recorded format and
+ * returns the version written. Given the version the document was based on,
+ * a file another program changed since fails with `changed`, untouched.
+ */
 export async function saveMarkdown(
   path: string,
   text: string,
-  format: DocumentFormat
-): Promise<void> {
+  format: DocumentFormat,
+  expectedVersion: string | null
+): Promise<string> {
   try {
-    await invoke('write_markdown_document', { path, text, format });
+    return await invoke<string>('write_markdown_document', {
+      path,
+      text,
+      format,
+      expectedVersion,
+    });
   } catch (error) {
     throw toDocumentError(error, path);
   }

@@ -2,6 +2,7 @@ import {
   DEFAULT_DOCUMENT_FORMAT,
   DocumentError,
   type DocumentFormat,
+  type MarkdownDocument,
   confirmDialog,
   errorDialog,
   openFileDialog,
@@ -33,12 +34,35 @@ type Hooks = {
   fileDiverged?: () => void;
 };
 
+/**
+ * Where a reload of the file left the document: `unchanged` when the file
+ * holds the text as last read or saved here, `kept` when the edits here were
+ * kept over another program's version. After either, a save the change held
+ * up goes ahead.
+ */
+type ReloadOutcome =
+  | 'unchanged'
+  | 'reloaded'
+  | 'kept'
+  | 'missing'
+  | 'unreadable'
+  | 'moved';
+
+/** Saves that find the file changed again by the time they write give up. */
+const MAX_SAVE_ATTEMPTS = 3;
+
 export class FileController {
   private unwatch: (() => void) | null = null;
   private watchedPath: string | null = null;
   private lastKnownContent: string | null = null;
   /** BOM / line ending style of the file on disk, restored on every save. */
   private documentFormat: DocumentFormat = { ...DEFAULT_DOCUMENT_FORMAT };
+  /**
+   * The file as this window last read or wrote it. A save passes it to the
+   * write, which leaves alone a file another program changed since: the
+   * watcher reports such a change late, and misses it on some volumes.
+   */
+  private diskVersion: string | null = null;
   private watchVersion = 0;
   private conflictPrompting = false;
   /**
@@ -47,7 +71,7 @@ export class FileController {
    * saved. Nothing on disk holds the document then, so it counts as unsaved.
    */
   private missing: { text: string; dirty: boolean } | null = null;
-  /** Tail of the save queue; see `saveCurrentDocument`. */
+  /** Tail of the save queue; see `enqueue`. */
   private saveQueue: Promise<unknown> = Promise.resolve();
   /** Set once an auto-save failure was shown; cleared by the next good save. */
   private autoSaveFailureShown = false;
@@ -87,6 +111,7 @@ export class FileController {
       const document = await readMarkdown(filePath);
       this.lastKnownContent = document.text;
       this.documentFormat = document.format;
+      this.diskVersion = document.version;
       return { filePath, markdown: document.text };
     } catch (error) {
       // The window stays open but untitled; a silent blank editor would look
@@ -113,7 +138,9 @@ export class FileController {
 
     try {
       const unwatch = await watchMarkdownFile(path, () => {
-        void this.reloadChangedFile(path);
+        this.enqueue(() => this.reloadChangedFile(path)).catch((error) => {
+          console.error('Failed to reload changed file:', error);
+        });
       });
 
       if (this.watchVersion !== watchVersion) {
@@ -127,30 +154,34 @@ export class FileController {
     }
   }
 
-  private async reloadChangedFile(path: string) {
+  /**
+   * Takes in the file as another program left it. Runs in the save queue, so
+   * a save of this window's is never read halfway and taken for another's.
+   */
+  private async reloadChangedFile(path: string): Promise<ReloadOutcome> {
     // Keystrokes still buffered in the source pane are unsaved edits too and
     // must count towards the dirty check below.
     this.flushPendingEdits();
     const state = store.getState();
     if (state.filePath !== path) {
-      return;
+      return 'moved';
     }
 
-    let newContent: string;
+    let document: MarkdownDocument;
     try {
-      const document = await readMarkdown(path);
-      newContent = document.text;
-      // Whoever rewrote the file may also have changed its BOM or line
-      // endings; the next save follows the file as it is now.
-      this.documentFormat = document.format;
+      document = await readMarkdown(path);
     } catch (error) {
       if (error instanceof DocumentError && error.kind === 'missing') {
         this.markMissing();
-        return;
+        return 'missing';
       }
       console.error('Failed to reload changed file:', error);
-      return;
+      return 'unreadable';
     }
+    const { text: newContent, version } = document;
+    // Whoever rewrote the file may also have changed its BOM or line
+    // endings; the next save follows the file as it is now.
+    this.documentFormat = document.format;
 
     // The file is back, rewritten by a program that deletes it first or put
     // back from the trash. A document unedited since it went is as saved as
@@ -164,19 +195,19 @@ export class FileController {
 
     // Ignore events that report no real change (most commonly our own save).
     if (newContent === this.lastKnownContent) {
+      this.diskVersion = version;
       if (dirty !== store.getState().isDirty) store.update({ isDirty: dirty });
-      return;
+      return 'unchanged';
     }
 
     if (!dirty) {
-      this.applyExternalContent(newContent);
-      return;
+      this.applyExternalContent(newContent, version);
+      return 'reloaded';
     }
 
     // The file changed on disk while we hold unsaved edits. Ask before
     // discarding either side instead of silently dropping the external change
     // (and later overwriting it on save).
-    if (this.conflictPrompting) return;
     this.conflictPrompting = true;
     let reload = false;
     try {
@@ -185,18 +216,20 @@ export class FileController {
       this.conflictPrompting = false;
     }
 
-    // The document may have been saved or closed while the prompt was open.
-    if (store.getState().filePath !== path) return;
+    // The document may have been closed while the prompt was open.
+    if (store.getState().filePath !== path) return 'moved';
 
     if (reload) {
-      this.applyExternalContent(newContent);
-    } else {
-      // Keep local edits but adopt the disk version as the new baseline so the
-      // same change does not prompt again; the doc stays dirty and the next
-      // save intentionally overwrites disk.
-      this.lastKnownContent = newContent;
-      this.hooks.fileDiverged?.();
+      this.applyExternalContent(newContent, version);
+      return 'reloaded';
     }
+    // Keep local edits but adopt the disk version as the new baseline so the
+    // same change does not prompt again; the doc stays dirty and the next
+    // save intentionally overwrites disk.
+    this.lastKnownContent = newContent;
+    this.diskVersion = version;
+    this.hooks.fileDiverged?.();
+    return 'kept';
   }
 
   /**
@@ -213,8 +246,9 @@ export class FileController {
     store.update({ isDirty: true });
   }
 
-  private applyExternalContent(content: string) {
+  private applyExternalContent(content: string, version: string) {
     this.lastKnownContent = content;
+    this.diskVersion = version;
     this.hooks.syncEditorAfterSave(content);
     store.update({ isDirty: false });
   }
@@ -304,6 +338,9 @@ export class FileController {
         const limit = Math.round((error.limitBytes ?? 0) / (1024 * 1024));
         return i18next.t('dialog.documentError.tooLarge', { fileName, limit });
       }
+      if (error.kind === 'changed') {
+        return i18next.t('dialog.documentError.changed', { fileName });
+      }
     }
     return i18next.t(
       action === 'open'
@@ -338,16 +375,20 @@ export class FileController {
     }
   }
 
-  /**
-   * Saves run one at a time. An auto-save tick and Cmd+S (or the close
-   * prompt) would otherwise write the same file concurrently, and the older
-   * snapshot could land last.
-   */
   private saveCurrentDocument(options: {
     forceDialog: boolean;
     allowDialogWhenMissingPath: boolean;
   }): Promise<string | null> {
-    const run = this.saveQueue.then(() => this.saveCurrentDocumentNow(options));
+    return this.enqueue(() => this.saveCurrentDocumentNow(options));
+  }
+
+  /**
+   * Saves, and reloads of the file another program changed, run one at a
+   * time. An auto-save tick and Cmd+S (or the close prompt) would otherwise
+   * write the same file concurrently, and the older snapshot could land last.
+   */
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.saveQueue.then(task);
     // The queue itself never rejects, so one failed save does not block later ones.
     this.saveQueue = run.catch(() => undefined);
     return run;
@@ -376,7 +417,13 @@ export class FileController {
     if (!path) return null;
 
     if (state.filePath === path) {
-      await this.saveToExistingPath(path, editor.getMarkdown());
+      // Save As onto the document's own file replaces it, as the save
+      // dialog asked first.
+      if (options.forceDialog) {
+        await this.saveToExistingPath(path, editor.getMarkdown(), null);
+      } else {
+        await this.saveOverOwnFile(path);
+      }
       return path;
     }
     // References move with the file only once it is written there: moved
@@ -386,6 +433,7 @@ export class FileController {
     await this.saveToExistingPath(
       path,
       editor.getMarkdownWithReferences(relocate),
+      null,
       () => editor.rewriteLocalReferences(relocate)
     );
     const registeredPath = await this.registerDocumentPath(path);
@@ -421,10 +469,46 @@ export class FileController {
     }
   }
 
-  /** `written` runs once `snapshot` is on disk, before the dirty check. */
+  /**
+   * Writes the document over its file unless another program changed the
+   * file since this window last read or wrote it. That change is then taken
+   * in as the watcher would have, asking first when there are edits here,
+   * and edits kept are written over it.
+   */
+  private async saveOverOwnFile(path: string) {
+    for (let attempt = 0; attempt < MAX_SAVE_ATTEMPTS; attempt += 1) {
+      const editor = this.getEditor();
+      if (!editor) return;
+      try {
+        await this.saveToExistingPath(
+          path,
+          editor.getMarkdown(),
+          this.diskVersion
+        );
+        return;
+      } catch (error) {
+        if (!(error instanceof DocumentError && error.kind === 'changed')) {
+          throw error;
+        }
+      }
+      const outcome = await this.reloadChangedFile(path);
+      // A version this window cannot read is never written over unseen.
+      if (outcome === 'unreadable') break;
+      if (outcome !== 'unchanged' && outcome !== 'kept') return;
+      if (!store.getState().isDirty) return;
+    }
+    throw new DocumentError('changed', path, null, 'File changed on disk');
+  }
+
+  /**
+   * `expectedVersion` is the version of the file the snapshot replaces, or
+   * null to replace whatever is there. `written` runs once `snapshot` is on
+   * disk, before the dirty check.
+   */
   private async saveToExistingPath(
     path: string,
     snapshot: string,
+    expectedVersion: string | null,
     written?: () => void
   ) {
     // Update before the write so the file-watcher callback that fires during
@@ -433,7 +517,12 @@ export class FileController {
     const prevLastKnown = this.lastKnownContent;
     this.lastKnownContent = snapshot;
     try {
-      await saveMarkdown(path, snapshot, this.documentFormat);
+      this.diskVersion = await saveMarkdown(
+        path,
+        snapshot,
+        this.documentFormat,
+        expectedVersion
+      );
     } catch (error) {
       this.lastKnownContent = prevLastKnown;
       throw error;

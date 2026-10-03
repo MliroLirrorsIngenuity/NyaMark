@@ -11,16 +11,29 @@ import * as realFiles from '../src/bridge/ipc/files';
 import type { DocumentFormat, MarkdownDocument } from '../src/bridge/ipc/files';
 import type { NyaEditor } from '../src/editor/editor';
 
+/** Stands in for the hash the Rust side names a file's bytes by. */
+const versionOf = (text: string) => `v:${text}`;
+
+function document(
+  text: string,
+  format: DocumentFormat = { ...realFiles.DEFAULT_DOCUMENT_FORMAT }
+): MarkdownDocument {
+  return { text, format, version: versionOf(text) };
+}
+
 // The controller reaches the disk only through the files bridge; replacing
 // that module runs it against an in-memory file without Tauri.
 const bridge = {
   initialFile: null as string | null,
-  read: async (_path: string): Promise<MarkdownDocument> => ({
-    text: '',
-    format: { ...realFiles.DEFAULT_DOCUMENT_FORMAT },
-  }),
-  save: async (_path: string, _text: string): Promise<void> => {},
+  read: async (_path: string): Promise<MarkdownDocument> => document(''),
+  save: async (
+    _path: string,
+    _text: string,
+    _expectedVersion: string | null
+  ): Promise<void> => {},
   writes: [] as Array<{ path: string; text: string; format: DocumentFormat }>,
+  /** The version each write expected to replace. */
+  expectedVersions: [] as Array<string | null>,
   errors: [] as string[],
   saveDialogPath: null as string | null,
   saveDialogCalls: 0,
@@ -35,9 +48,16 @@ mock.module('../src/bridge/ipc/files', () => ({
   ...realFiles,
   resolveCurrentWindowFile: async () => bridge.initialFile,
   readMarkdown: (path: string) => bridge.read(path),
-  saveMarkdown: (path: string, text: string, format: DocumentFormat) => {
+  saveMarkdown: async (
+    path: string,
+    text: string,
+    format: DocumentFormat,
+    expectedVersion: string | null
+  ) => {
     bridge.writes.push({ path, text, format });
-    return bridge.save(path, text);
+    bridge.expectedVersions.push(expectedVersion);
+    await bridge.save(path, text, expectedVersion);
+    return versionOf(text);
   },
   saveFileDialog: async () => {
     bridge.saveDialogCalls += 1;
@@ -121,12 +141,10 @@ beforeEach(() => {
   consoleError = spyOn(console, 'error').mockImplementation(() => {});
   store.update({ filePath: null, isDirty: false });
   bridge.initialFile = null;
-  bridge.read = async () => ({
-    text: '',
-    format: { ...realFiles.DEFAULT_DOCUMENT_FORMAT },
-  });
+  bridge.read = async () => document('');
   bridge.save = async () => {};
   bridge.writes = [];
+  bridge.expectedVersions = [];
   bridge.errors = [];
   bridge.saveDialogPath = null;
   bridge.saveDialogCalls = 0;
@@ -144,7 +162,7 @@ describe('saving', () => {
     const { path, controller, edit } = setup();
     const format: DocumentFormat = { bom: true, lineEnding: 'crlf' };
     bridge.initialFile = path;
-    bridge.read = async () => ({ text: '# Old\n', format });
+    bridge.read = async () => document('# Old\n', format);
 
     const initial = await controller.resolveInitialDocument();
     store.update({ filePath: initial.filePath, isDirty: false });
@@ -291,10 +309,7 @@ describe('changes made by other programs', () => {
     store.update({ filePath: context.path, isDirty: false });
     await settle();
     const fire = async (diskText: string) => {
-      bridge.read = async () => ({
-        text: diskText,
-        format: { ...realFiles.DEFAULT_DOCUMENT_FORMAT },
-      });
+      bridge.read = async () => document(diskText);
       bridge.watchers.get(context.path)?.();
       await settle();
     };
@@ -391,6 +406,32 @@ describe('changes made by other programs', () => {
     expect(bridge.conflictPrompts).toBe(0);
   });
 
+  test('read the file only once a save in progress has written it', async () => {
+    const { fire, edit, controller } = await watched('old');
+    const write = deferred();
+    bridge.save = () => write.promise;
+    let reads = 0;
+
+    edit('saved here');
+    const saving = controller.saveFile();
+    await settle();
+    const firing = fire('saved here');
+    const read = bridge.read;
+    bridge.read = (path) => {
+      reads += 1;
+      return read(path);
+    };
+    await settle();
+    expect(reads).toBe(0);
+
+    write.resolve();
+    await Promise.all([saving, firing]);
+    await settle();
+    expect(reads).toBe(1);
+    expect(bridge.conflictPrompts).toBe(0);
+    expect(store.getState().isDirty).toBe(false);
+  });
+
   test('ignore the echo of our own save', async () => {
     const { fire, edit, controller } = await watched('old');
     edit('saved here');
@@ -401,5 +442,134 @@ describe('changes made by other programs', () => {
 
     expect(bridge.conflictPrompts).toBe(0);
     expect(store.getState().isDirty).toBe(true);
+  });
+});
+
+describe('saving over a file changed since it was read', () => {
+  /**
+   * A document opened from an in-memory disk whose writes, like the Rust
+   * side's, leave a file that no longer holds the version they expect.
+   */
+  async function opened(content: string) {
+    const context = setup();
+    const disk = { text: content, writable: true };
+    bridge.initialFile = context.path;
+    bridge.read = async () => document(disk.text);
+    bridge.save = async (path, text, expectedVersion) => {
+      if (
+        expectedVersion !== null &&
+        expectedVersion !== versionOf(disk.text)
+      ) {
+        throw new realFiles.DocumentError('changed', path, null, 'changed');
+      }
+      disk.text = text;
+    };
+    const initial = await context.controller.resolveInitialDocument();
+    context.editor.markdown = initial.markdown;
+    store.update({ filePath: initial.filePath, isDirty: false });
+    await settle();
+    return { ...context, disk };
+  }
+
+  test('passes the version read, then the version written', async () => {
+    const { controller, edit } = await opened('old');
+    edit('one');
+    await controller.saveFile();
+    edit('two');
+    await controller.saveFile();
+
+    expect(bridge.expectedVersions).toEqual([
+      versionOf('old'),
+      versionOf('one'),
+    ]);
+  });
+
+  test('asks first, then writes the edits kept', async () => {
+    const { controller, edit, disk } = await opened('old');
+    edit('local edit');
+    // Changed while the watcher has yet to report it.
+    disk.text = 'changed elsewhere';
+
+    await controller.saveFile();
+
+    expect(bridge.conflictPrompts).toBe(1);
+    expect(disk.text).toBe('local edit');
+    expect(bridge.expectedVersions).toEqual([
+      versionOf('old'),
+      versionOf('changed elsewhere'),
+    ]);
+    expect(store.getState().isDirty).toBe(false);
+  });
+
+  test('loads the other version when the user picks it', async () => {
+    const { controller, edit, disk, editor } = await opened('old');
+    bridge.keepLocalEdits = false;
+    edit('local edit');
+    disk.text = 'changed elsewhere';
+
+    await controller.saveFile();
+
+    expect(disk.text).toBe('changed elsewhere');
+    expect(editor.markdown).toBe('changed elsewhere');
+    expect(bridge.writes).toHaveLength(1);
+    expect(store.getState().isDirty).toBe(false);
+  });
+
+  test('writes over a change in line endings alone without asking', async () => {
+    const { controller, edit, disk } = await opened('old');
+    edit('local edit');
+    const crlf: DocumentFormat = { bom: false, lineEnding: 'crlf' };
+    bridge.read = async () => ({
+      ...document(disk.text, crlf),
+      version: 'v:crlf',
+    });
+    const save = bridge.save;
+    let converted = true;
+    bridge.save = async (path, text, expectedVersion) => {
+      if (converted && expectedVersion !== 'v:crlf') {
+        throw new realFiles.DocumentError('changed', path, null, 'changed');
+      }
+      converted = false;
+      await save(path, text, null);
+    };
+
+    await controller.saveFile();
+
+    expect(bridge.conflictPrompts).toBe(0);
+    expect(disk.text).toBe('local edit');
+    expect(bridge.writes.at(-1)?.format).toEqual(crlf);
+  });
+
+  test('leaves a version it cannot read and says so', async () => {
+    const { controller, edit, disk, path } = await opened('old');
+    edit('local edit');
+    disk.text = 'written in GBK';
+    bridge.read = async () => {
+      throw new realFiles.DocumentError('not-utf8', path, null, 'not UTF-8');
+    };
+
+    await controller.saveFile();
+
+    expect(disk.text).toBe('written in GBK');
+    expect(bridge.errors).toHaveLength(1);
+    const [, failure] =
+      consoleError.mock.calls.find(
+        ([text]) => text === 'Failed to save file:'
+      ) ?? [];
+    expect(failure).toMatchObject({ kind: 'changed' });
+    expect(store.getState().isDirty).toBe(true);
+  });
+
+  test('replaces the file when Save As picks it', async () => {
+    const { controller, edit, disk, path } = await opened('old');
+    edit('local edit');
+    disk.text = 'changed elsewhere';
+    bridge.saveDialogPath = path;
+
+    await controller.saveFileAs();
+
+    expect(bridge.expectedVersions).toEqual([null]);
+    expect(disk.text).toBe('local edit');
+    expect(bridge.conflictPrompts).toBe(0);
   });
 });

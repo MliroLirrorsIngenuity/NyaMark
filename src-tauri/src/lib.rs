@@ -92,15 +92,23 @@ fn read_markdown_document(app: AppHandle, path: String) -> Result<MarkdownDocume
 }
 
 /// Write the document body atomically, restoring the BOM and line endings
-/// recorded when it was read.
+/// recorded when it was read, and return the version written. Given the
+/// version the document was based on, a file changed since is left alone.
 #[tauri::command(async)]
 fn write_markdown_document(
     app: AppHandle,
     path: String,
     text: String,
     format: DocumentFormat,
-) -> Result<(), DocumentError> {
-    document::write(&app, Path::new(&path), &text, format)
+    expected_version: Option<String>,
+) -> Result<String, DocumentError> {
+    document::write(
+        &app,
+        Path::new(&path),
+        &text,
+        format,
+        expected_version.as_deref(),
+    )
 }
 
 /// Open a local file or folder a document links to with its default app.

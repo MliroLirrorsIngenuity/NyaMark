@@ -10,10 +10,15 @@
 //!   power cut can never leave a truncated document behind.
 //! - The byte order mark and the line ending style seen on read are restored
 //!   on write, so a Windows file does not turn into a whole-file diff.
+//! - A save names the version of the file it was based on and leaves alone a
+//!   file another program wrote since, whether or not the file watcher saw
+//!   that happen.
 
 use std::{
     borrow::Cow,
-    fs, io,
+    fs,
+    hash::{DefaultHasher, Hasher},
+    io,
     io::{Read, Write},
     path::Path,
 };
@@ -60,6 +65,8 @@ impl Default for DocumentFormat {
 pub struct MarkdownDocument {
     pub text: String,
     pub format: DocumentFormat,
+    /// Names the bytes read, for a later write to check against.
+    pub version: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -86,6 +93,9 @@ pub enum DocumentError {
     Missing {
         message: String,
     },
+    /// The file no longer holds the version a save was based on: another
+    /// program wrote it since it was read or saved here.
+    Changed,
     Io {
         message: String,
     },
@@ -123,19 +133,49 @@ fn read_limited(path: &Path, limit: u64) -> Result<Vec<u8>, DocumentError> {
     Ok(bytes)
 }
 
+/// Writes the document and returns the version it wrote. Given the version
+/// the document was based on, a file that holds anything else is left as it
+/// is; one that is gone is written again, since nothing on disk is lost then.
 pub fn write<R: Runtime>(
     app: &AppHandle<R>,
     path: &Path,
     text: &str,
     format: DocumentFormat,
-) -> Result<(), DocumentError> {
+    expected_version: Option<&str>,
+) -> Result<String, DocumentError> {
     ensure_allowed(app, path)?;
+    write_document(path, text, format, expected_version)
+}
+
+fn write_document(
+    path: &Path,
+    text: &str,
+    format: DocumentFormat,
+    expected_version: Option<&str>,
+) -> Result<String, DocumentError> {
     // The rename below replaces a file whatever its own permissions say.
     if fs::metadata(path).is_ok_and(|metadata| metadata.permissions().readonly()) {
         return Err(DocumentError::ReadOnly);
     }
-    write_atomically(path, &encode(text, format))?;
-    Ok(())
+    if let Some(expected) = expected_version {
+        match read_limited(path, MAX_DOCUMENT_BYTES) {
+            Ok(bytes) if version_of(&bytes) == expected => {}
+            Ok(_) | Err(DocumentError::TooLarge { .. }) => return Err(DocumentError::Changed),
+            Err(DocumentError::Missing { .. }) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    let bytes = encode(text, format);
+    write_atomically(path, &bytes)?;
+    Ok(version_of(&bytes))
+}
+
+/// The bytes' length and hash. Only ever compared within one run of the app,
+/// so the hash may change between Rust releases.
+fn version_of(bytes: &[u8]) -> String {
+    let mut hasher = DefaultHasher::new();
+    hasher.write(bytes);
+    format!("{}-{:016x}", bytes.len(), hasher.finish())
 }
 
 /// Same runtime scope the fs plugin enforces: the static capability entries
@@ -150,6 +190,7 @@ fn ensure_allowed<R: Runtime>(app: &AppHandle<R>, path: &Path) -> Result<(), Doc
 }
 
 pub fn decode(bytes: Vec<u8>) -> Result<MarkdownDocument, DocumentError> {
+    let version = version_of(&bytes);
     if bytes.starts_with(&[0xFF, 0xFE]) {
         return Err(DocumentError::NotUtf8 {
             encoding: Some("UTF-16 LE"),
@@ -177,6 +218,7 @@ pub fn decode(bytes: Vec<u8>) -> Result<MarkdownDocument, DocumentError> {
     Ok(MarkdownDocument {
         text,
         format: DocumentFormat { bom, line_ending },
+        version,
     })
 }
 
@@ -386,6 +428,77 @@ mod tests {
             read_limited(&path, 9).unwrap_err(),
             DocumentError::TooLarge { limit_bytes: 9 }
         ));
+    }
+
+    #[test]
+    fn write_returns_the_version_a_read_reports() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        let lf = format(false, LineEnding::Lf);
+
+        let written = write_document(&path, "first\n", lf, None).unwrap();
+
+        let document = decode(fs::read(&path).unwrap()).unwrap();
+        assert_eq!(document.version, written);
+        assert_ne!(written, version_of(b"second\n"));
+    }
+
+    #[test]
+    fn write_goes_ahead_while_the_file_holds_the_expected_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, b"old\n").unwrap();
+        let version = decode(fs::read(&path).unwrap()).unwrap().version;
+
+        let written = write_document(
+            &path,
+            "new\n",
+            format(false, LineEnding::Lf),
+            Some(&version),
+        )
+        .unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), b"new\n");
+        assert_eq!(written, version_of(b"new\n"));
+    }
+
+    #[test]
+    fn write_leaves_a_file_changed_since_it_was_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, b"old\n").unwrap();
+        let version = decode(fs::read(&path).unwrap()).unwrap().version;
+        fs::write(&path, b"written by another app\n").unwrap();
+
+        let error = write_document(
+            &path,
+            "new\n",
+            format(false, LineEnding::Lf),
+            Some(&version),
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, DocumentError::Changed));
+        assert_eq!(fs::read(&path).unwrap(), b"written by another app\n");
+    }
+
+    #[test]
+    fn write_puts_back_a_file_deleted_since_it_was_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, b"old\n").unwrap();
+        let version = decode(fs::read(&path).unwrap()).unwrap().version;
+        fs::remove_file(&path).unwrap();
+
+        write_document(
+            &path,
+            "new\n",
+            format(false, LineEnding::Lf),
+            Some(&version),
+        )
+        .unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), b"new\n");
     }
 
     #[test]

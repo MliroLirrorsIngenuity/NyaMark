@@ -168,6 +168,7 @@
       "forbidden": "NyaMark doesn’t have permission to access \"{{fileName}}\".",
       "readOnly": "\"{{fileName}}\" is read-only and was not modified. Use Save As to save your changes to another file.",
       "tooLarge": "\"{{fileName}}\" is larger than {{limit}} MB, the largest file NyaMark can edit.",
+      "changed": "\"{{fileName}}\" was changed by another app after NyaMark read it, so NyaMark left it unchanged. Use Save As to save this document.",
       "openFailed": "\"{{fileName}}\" could not be opened: {{reason}}",
       "saveFailed": "\"{{fileName}}\" could not be saved: {{reason}}"
     },
