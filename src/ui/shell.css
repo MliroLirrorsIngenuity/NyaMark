@@ -556,8 +556,8 @@ body {
   color: color-mix(in srgb, #f97316, white 12%);
 }
 
-/* Windows and Linux: every button in the title bar is a small round icon,
-   drawn only when the pointer is on it. */
+/* Every button in the title bar is a small round icon, drawn only when the
+   pointer is on it. */
 .ny-shell__icon-button,
 .ny-shell--windows .ny-shell__window-button,
 .ny-shell--linux .ny-shell__window-button {

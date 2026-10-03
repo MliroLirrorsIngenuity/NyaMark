@@ -64,20 +64,9 @@ export function renderAppShell(host: HTMLElement) {
   const exportPdfShortcutHint = isMac ? '⌘P' : 'Ctrl+P';
   const outlineShortcutHint = isMac ? '⌘⇧O' : 'Ctrl+Shift+O';
   const settingsShortcutHint = 'Ctrl+,';
-  // Windows and Linux have no menu bar to hold these: the title bar carries
-  // them as small round icons, their shortcuts in the tooltip.
-  const outlineClass = isMac
-    ? 'ny-shell__shortcut-button'
-    : 'ny-shell__shortcut-button ny-shell__icon-button';
-  const outlineShortcut = isMac
-    ? ''
-    : ` data-shortcut="${outlineShortcutHint}"`;
-  const outlineContent = isMac
-    ? `<span class="ny-shell__shortcut-label" data-i18n="shell.outline">Outline</span>
-              <span class="ny-shell__shortcut-hint">${outlineShortcutHint}</span>`
-    : `<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-                <path d="M2.75 4h10.5M4.75 8h8.5M6.75 12h6.5" />
-              </svg>`;
+  // The title bar's buttons are small round icons, their shortcuts in the
+  // tooltip. Windows and Linux carry the file menu and settings there too,
+  // having no menu bar to hold them.
   const fileActionsMarkup = isMac
     ? ''
     : `
@@ -147,8 +136,10 @@ export function renderAppShell(host: HTMLElement) {
                 <circle cx="12" cy="12" r="3" />
               </svg>
             </button>
-            <button id="tb-outline" class="${outlineClass}" type="button" title="Toggle outline" aria-label="Toggle outline" data-i18n-title="shell.outline" data-i18n-aria-label="shell.outline"${outlineShortcut}>
-              ${outlineContent}
+            <button id="tb-outline" class="ny-shell__shortcut-button ny-shell__icon-button" type="button" title="Toggle outline" aria-label="Toggle outline" data-i18n-title="shell.outline" data-i18n-aria-label="shell.outline" data-shortcut="${outlineShortcutHint}">
+              <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+                <path d="M2.75 4h10.5M4.75 8h8.5M6.75 12h6.5" />
+              </svg>
             </button>
           </div>
         </div>
