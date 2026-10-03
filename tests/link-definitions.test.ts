@@ -109,4 +109,10 @@ describe('link definitions', () => {
       '- item\n\n[a]: /second\n\n[a](/first)\n'
     );
   });
+
+  test('keep text in brackets where a kept definition has its label', () => {
+    expect(save('See \\[1\\] here.\n\n[1]: https://x\n')).toBe(
+      'See \\[1] here.\n\n[1]: https://x\n'
+    );
+  });
 });

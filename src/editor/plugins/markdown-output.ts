@@ -382,6 +382,40 @@ export function relaxEscapes(markdown: string): string {
 }
 
 /**
+ * A label as references match it, case and spacing aside, and its escapes
+ * too: remark relaxes some after the brackets are looked at.
+ */
+function labelKey(label: string): string {
+  return label
+    .replace(/\\([!-/:-@[-`{-~])/g, '$1')
+    .replace(/[\t\n\r ]+/g, ' ')
+    .replace(/^ | $/g, '')
+    .toLowerCase()
+    .toUpperCase();
+}
+
+// A kept definition is a line of raw HTML (see link-definitions).
+const DEFINITION = /^ {0,3}\[((?:[^\\[\]]|\\[\s\S])+)\]:/gm;
+
+/** The labels of the definitions `tree` keeps, as `labelKey` gives them. */
+function definedLabels(tree: MdNode): Set<string> {
+  const labels = new Set<string>();
+  const visit = (node: MdNode) => {
+    if (node.type === 'html') {
+      for (const match of (node.value ?? '').matchAll(DEFINITION)) {
+        labels.add(labelKey(match[1]));
+      }
+    }
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(tree);
+  return labels;
+}
+
+/** The labels of the definitions in the document each writer writes. */
+const definedBy = new WeakMap<State, Set<string>>();
+
+/**
  * Where the bracket escaped at `open` in written `text` closes, or -1. An
  * escaped closing bracket closes nothing.
  */
@@ -408,15 +442,21 @@ function closingBracket(text: string, open: number): number {
  * open, one that looks like a footnote (`[^`), an alert (`[!`), an image
  * (`![`) or a task box at the start of a line, and one whose closing
  * bracket is followed by `(`, `[` or `:`, in the text or as `after`, the
- * character written next. Milkdown turns reference definitions into inline
- * links as it reads, so no document defines `[1]`.
+ * character written next, and one whose label `defined` holds: a
+ * definition the document keeps (see link-definitions) turned `[1]` into
+ * its link when the file was opened again.
  */
-export function relaxBrackets(text: string, after = ''): string {
+export function relaxBrackets(
+  text: string,
+  after = '',
+  defined: ReadonlySet<string> = new Set()
+): string {
   return text.replace(/\\\[/g, (escaped, offset: number) => {
     const close = closingBracket(text, offset);
     if (close < 0) return escaped;
     const next = text.slice(close + 1).replace(/^\\/, '')[0] ?? after;
     if (/^[([:]/.test(next)) return escaped;
+    if (defined.has(labelKey(text.slice(offset + 2, close)))) return escaped;
     if (/[!^]/.test(text[offset + 2] ?? '') || text[offset - 1] === '!') {
       return escaped;
     }
@@ -477,7 +517,7 @@ export const writeText: Handle = (node, parent, state, info) => {
   const bracketed =
     state.stack.includes('label') || state.stack.includes('reference')
       ? text
-      : relaxBrackets(text, info.after);
+      : relaxBrackets(text, info.after, definedBy.get(state));
   const relaxed = relaxTildes(bracketed, info.before, info.after);
   const written = dollarText.has(node)
     ? relaxed.replace(/\\\$/g, '$')
@@ -632,6 +672,7 @@ export const writeStrong = writeAttention('strong');
  * as math when the file was opened again.
  */
 export const writeRoot: Handle = (node, parent, state, info) => {
+  definedBy.set(state, definedLabels(node as MdNode));
   state.unsafe = state.unsafe.map((pattern) => {
     if (pattern.character === '&' && pattern.after === '[#A-Za-z]') {
       return REFERENCE_AMPERSAND;
