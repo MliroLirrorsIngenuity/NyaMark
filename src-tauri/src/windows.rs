@@ -207,6 +207,7 @@ pub fn set_document_edited<R: Runtime>(window: &Window<R>, edited: bool) -> Resu
             // only touched here on the main thread.
             let ns_window = unsafe { &*(ns_window as *const NSWindow) };
             ns_window.setDocumentEdited(edited);
+            restore_traffic_lights(ns_window);
         })
         .context("Failed to reach the main thread")?;
     Ok(())
@@ -215,4 +216,46 @@ pub fn set_document_edited<R: Runtime>(window: &Window<R>, edited: bool) -> Resu
 #[cfg(not(target_os = "macos"))]
 pub fn set_document_edited<R: Runtime>(_window: &Window<R>, _edited: bool) -> Result<()> {
     Ok(())
+}
+
+/// Names the window after its document. The title is set on the main thread
+/// on macOS, where the traffic lights are put back in place right after.
+#[cfg(target_os = "macos")]
+pub fn set_title<R: Runtime>(window: &Window<R>, title: &str) -> Result<()> {
+    use objc2_app_kit::NSWindow;
+    use objc2_foundation::NSString;
+
+    let title = title.to_owned();
+    let ns_window = window
+        .ns_window()
+        .context("Failed to get native window handle")? as usize;
+    window
+        .run_on_main_thread(move || {
+            // SAFETY: the pointer is the window's live NSWindow, and AppKit is
+            // only touched here on the main thread.
+            let ns_window = unsafe { &*(ns_window as *const NSWindow) };
+            ns_window.setTitle(&NSString::from_str(&title));
+            restore_traffic_lights(ns_window);
+        })
+        .context("Failed to reach the main thread")?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn set_title<R: Runtime>(window: &Window<R>, title: &str) -> Result<()> {
+    window
+        .set_title(title)
+        .context("Failed to set the window title")
+}
+
+/// macOS: a new title or edited state has AppKit lay the title bar out again,
+/// which moves the traffic lights back to their default place until the
+/// window next resizes. The webview's parent view (wry) puts them at
+/// `trafficLightPosition` each time it draws, so it is drawn again, after
+/// that layout.
+#[cfg(target_os = "macos")]
+fn restore_traffic_lights(ns_window: &objc2_app_kit::NSWindow) {
+    if let Some(view) = ns_window.contentView() {
+        view.setNeedsDisplay(true);
+    }
 }

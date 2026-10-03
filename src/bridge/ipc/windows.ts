@@ -16,8 +16,9 @@ export type ResizeDirection =
   | 'SouthWest'
   | 'West';
 
+/** Set by Rust, which on macOS keeps the traffic lights in place under it. */
 export async function setWindowTitle(title: string): Promise<void> {
-  await getCurrentWindow().setTitle(title);
+  await invoke('set_window_title', { title });
 }
 
 export async function getWindowTheme(): Promise<WindowTheme | null> {

@@ -167,6 +167,11 @@ fn cancel_pending_quit(app: AppHandle) {
 }
 
 #[tauri::command]
+fn set_window_title(window: Window, title: String) -> Result<(), String> {
+    windows::set_title(&window, &title).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn set_windows_backdrop(window: Window, enabled: bool) -> Result<(), String> {
     windows::set_native_backdrop(&window, enabled).map_err(|error| error.to_string())
 }
@@ -253,6 +258,7 @@ pub fn run() {
             any_window_dirty,
             request_app_restart,
             cancel_pending_quit,
+            set_window_title,
             set_windows_backdrop,
             set_window_blur,
             print_current_window,
