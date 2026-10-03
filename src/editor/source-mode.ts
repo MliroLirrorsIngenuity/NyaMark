@@ -146,8 +146,13 @@ const css = `
   outline: none;
 }
 
-.ny-source-pane .cm-scroller {
+/*
+ * CodeMirror's own style sets the scroller in the generic monospace, which
+ * Windows in Chinese draws in the serif NSimSun.
+ */
+.ny-source-pane .cm-editor .cm-scroller {
   padding: 0;
+  font-family: var(--ny-font-mono);
 }
 
 .ny-source-pane .cm-content {
