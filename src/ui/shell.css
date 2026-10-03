@@ -197,12 +197,12 @@ body {
  * did, and what lies behind still shows through it.
  */
 :root[data-platform="macos"].ny-shell--transparent #ny-app.ny-shell {
-  background: rgba(248, 249, 251, 0.72) !important;
+  background: rgba(248, 249, 251, 0.84) !important;
 }
 
 :root[data-platform="macos"][data-theme="dark"].ny-shell--transparent
   #ny-app.ny-shell {
-  background: rgba(18, 23, 30, 0.72) !important;
+  background: rgba(18, 23, 30, 0.82) !important;
 }
 
 :root[data-platform="windows"].ny-shell--transparent #ny-titlebar {
