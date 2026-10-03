@@ -819,6 +819,20 @@
 }
 
 /*
+ * The block's name sits against the chevron, in a box as wide as the longest
+ * heading's name, so the buttons after it stay put as the caret moves from a
+ * paragraph to a heading: "Heading 6" in English, 标题 6 in Chinese.
+ */
+.ny-editor-root .milkdown .milkdown-top-bar .top-bar-heading-label {
+  min-width: 5.2em !important;
+  text-align: right !important;
+}
+
+.ny-editor-root .milkdown .milkdown-top-bar .top-bar-heading-label:lang(zh) {
+  min-width: 3.2em !important;
+}
+
+/*
  * In code the heading list names the block and stays shut: no heading goes
  * on a line of code. `top-bar-heading-code.ts` marks the root.
  */
@@ -850,13 +864,6 @@
   .milkdown-top-bar
   .top-bar-heading-selector {
   padding: 0 !important;
-}
-
-.ny-editor-root
-  .milkdown.ny-top-bar-narrow
-  .milkdown-top-bar
-  .top-bar-heading-label {
-  min-width: 3.5em !important;
 }
 
 .ny-editor-root
