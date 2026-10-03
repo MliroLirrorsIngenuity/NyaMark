@@ -585,4 +585,247 @@ mod tests {
 
         assert_eq!(fs::read(&path).unwrap(), b"new");
     }
+
+    /// A path one byte short of the system's limit takes the new file, and
+    /// the longer temporary file beside it fails.
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[test]
+    fn atomic_write_removes_the_empty_file_a_failed_first_write_created() {
+        const PATH_MAX: usize = if cfg!(target_os = "macos") {
+            1024
+        } else {
+            4096
+        };
+        let dir = tempfile::tempdir().unwrap();
+        // Resolved first: a link on the way (`/var` on macOS) counts towards
+        // the limit as well.
+        let mut deep = fs::canonicalize(dir.path()).unwrap();
+        let name = "a.md";
+        let wanted = PATH_MAX - 1 - name.len() - 1;
+        while deep.as_os_str().len() < wanted {
+            // A folder costs its name and a separator; one byte short of the
+            // mark could never be made up.
+            let left = wanted - deep.as_os_str().len();
+            let length = match left {
+                ..=201 => left - 1,
+                202 => 199,
+                _ => 200,
+            };
+            deep.push("d".repeat(length));
+        }
+        fs::create_dir_all(&deep).unwrap();
+        let path = deep.join(name);
+        assert_eq!(path.as_os_str().len(), PATH_MAX - 1);
+
+        assert!(write_atomically(&path, b"text").is_err());
+        assert!(fs::symlink_metadata(&path).is_err());
+    }
+
+    /// xorshift64*: enough to pick moves with, and no new dependency.
+    struct Moves(u64);
+
+    impl Moves {
+        fn new(seed: u64) -> Self {
+            Self(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1)
+        }
+
+        fn below(&mut self, n: usize) -> usize {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            (self.0.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 33) as usize % n
+        }
+
+        fn chance(&mut self, percent: usize) -> bool {
+            self.below(100) < percent
+        }
+
+        fn pick<'a, T>(&mut self, items: &'a [T]) -> &'a T {
+            &items[self.below(items.len())]
+        }
+    }
+
+    const LINES: [&str; 5] = ["# Title", "", "text", "中文", "emoji 😀"];
+
+    /// Bytes another program might leave: any line endings, a BOM or not,
+    /// and now and then something that is not UTF-8 at all.
+    fn bytes_from_elsewhere(moves: &mut Moves) -> Vec<u8> {
+        match moves.below(10) {
+            0 => vec![0xFF, 0xFE, b'a', 0],
+            1 => vec![b'a', 0x80, b'b'],
+            2 => Vec::new(),
+            _ => {
+                let mut bytes = Vec::new();
+                if moves.chance(30) {
+                    bytes.extend_from_slice(&UTF8_BOM);
+                }
+                for _ in 0..=moves.below(4) {
+                    bytes.extend_from_slice(moves.pick(&LINES).as_bytes());
+                    bytes.extend_from_slice(moves.pick(&["\n", "\r\n"]).as_bytes());
+                }
+                bytes
+            }
+        }
+    }
+
+    /// Text as the editor hands it over, a stray `\r\n` included now and then.
+    fn text_from_editor(moves: &mut Moves) -> String {
+        let mut text = String::new();
+        for _ in 0..moves.below(4) {
+            let line = *moves.pick(&LINES);
+            text.push_str(line);
+            text.push_str(if moves.chance(10) { "\r\n" } else { "\n" });
+        }
+        text
+    }
+
+    /// Each version handed out must name its bytes and nothing else.
+    fn remember(versions: &mut Vec<(String, Vec<u8>)>, version: &str, bytes: &[u8]) {
+        for (known, known_bytes) in versions.iter() {
+            assert_eq!(
+                known == version,
+                known_bytes == bytes,
+                "{version} and {known} against the bytes they name"
+            );
+        }
+        versions.push((version.to_owned(), bytes.to_vec()));
+    }
+
+    /// One run of random moves on a real file: another program rewriting,
+    /// deleting or locking it between the reads and writes a window makes.
+    /// Whether a write may go ahead is decided from the bytes a version
+    /// stood for against the bytes on disk, never from the version itself.
+    fn random_run(seed: u64) {
+        let mut moves = Moves::new(seed);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        let linked = cfg!(unix) && moves.chance(30);
+        let target = if linked {
+            dir.path().join("target.md")
+        } else {
+            path.clone()
+        };
+        fs::write(&target, bytes_from_elsewhere(&mut moves)).unwrap();
+        #[cfg(unix)]
+        if linked {
+            std::os::unix::fs::symlink(&target, &path).unwrap();
+        }
+
+        let mut versions: Vec<(String, Vec<u8>)> = Vec::new();
+        let mut latest: Option<String> = None;
+        for step in 0..30 {
+            let context = format!("seed {seed}, step {step}");
+            let on_disk = fs::read(&target).ok();
+            match moves.below(6) {
+                0 => fs::write(&target, bytes_from_elsewhere(&mut moves)).unwrap(),
+                1 if !linked => {
+                    let _ = fs::remove_file(&path);
+                }
+                2 => match read_limited(&path, MAX_DOCUMENT_BYTES).and_then(decode) {
+                    Ok(document) => {
+                        let bytes = on_disk.unwrap();
+                        remember(&mut versions, &document.version, &bytes);
+                        latest = Some(document.version);
+                    }
+                    Err(DocumentError::Missing { .. }) => assert!(on_disk.is_none(), "{context}"),
+                    Err(DocumentError::NotUtf8 { .. }) => {
+                        let bytes = on_disk.unwrap();
+                        assert!(
+                            bytes.starts_with(&[0xFF, 0xFE])
+                                || std::str::from_utf8(&bytes).is_err(),
+                            "{context}: {bytes:?} taken for something other than UTF-8"
+                        );
+                    }
+                    Err(error) => panic!("{context}: read failed: {error:?}"),
+                },
+                3 if on_disk.is_some() => {
+                    let mut permissions = fs::metadata(&target).unwrap().permissions();
+                    permissions.set_readonly(true);
+                    fs::set_permissions(&target, permissions.clone()).unwrap();
+                    let result = write_document(&path, "new\n", DocumentFormat::default(), None);
+                    assert!(matches!(result, Err(DocumentError::ReadOnly)), "{context}");
+                    assert_eq!(fs::read(&target).ok(), on_disk, "{context}");
+                    #[allow(clippy::permissions_set_readonly_false)]
+                    permissions.set_readonly(false);
+                    fs::set_permissions(&target, permissions).unwrap();
+                }
+                _ => {
+                    let text = text_from_editor(&mut moves);
+                    let format = format(
+                        moves.chance(30),
+                        *moves.pick(&[LineEnding::Lf, LineEnding::Crlf]),
+                    );
+                    let expected = match moves.below(4) {
+                        0 => None,
+                        1 => latest.clone(),
+                        2 if !versions.is_empty() => Some(moves.pick(&versions).0.clone()),
+                        _ => Some("0-0000000000000000".to_owned()),
+                    };
+                    let result = write_document(&path, &text, format, expected.as_deref());
+                    let after = fs::read(&target).ok();
+                    let goes_ahead = match (&expected, &on_disk) {
+                        (None, _) | (_, None) => true,
+                        (Some(version), Some(bytes)) => versions
+                            .iter()
+                            .any(|(known, known_bytes)| known == version && known_bytes == bytes),
+                    };
+                    if goes_ahead {
+                        let version = result
+                            .unwrap_or_else(|error| panic!("{context}: write failed: {error:?}"));
+                        let after = after.unwrap();
+                        let document = decode(after.clone()).unwrap();
+                        assert_eq!(document.text, text.replace("\r\n", "\n"), "{context}");
+                        assert_eq!(document.format.bom, format.bom, "{context}");
+                        if text.contains('\n') {
+                            assert_eq!(
+                                document.format.line_ending, format.line_ending,
+                                "{context}"
+                            );
+                        }
+                        remember(&mut versions, &version, &after);
+                        latest = Some(version);
+                    } else {
+                        assert!(
+                            matches!(result, Err(DocumentError::Changed)),
+                            "{context}: {result:?} for a file changed since"
+                        );
+                        assert_eq!(after, on_disk, "{context}");
+                    }
+                }
+            }
+
+            // Nothing left beside the document, and a link stays a link.
+            let mut names: Vec<_> = fs::read_dir(dir.path())
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+                .collect();
+            names.sort();
+            let expected_names: &[&str] = match (linked, fs::symlink_metadata(&path).is_ok()) {
+                (true, _) => &["note.md", "target.md"],
+                (false, true) => &["note.md"],
+                (false, false) => &[],
+            };
+            assert_eq!(names, expected_names, "{context}");
+            if linked {
+                assert!(
+                    fs::symlink_metadata(&path)
+                        .unwrap()
+                        .file_type()
+                        .is_symlink(),
+                    "{context}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn writes_hold_against_another_program_in_random_orders() {
+        let runs = std::env::var("FUZZ_RUNS")
+            .ok()
+            .and_then(|runs| runs.parse().ok())
+            .unwrap_or(60);
+        for seed in 1..=runs {
+            random_run(seed);
+        }
+    }
 }
