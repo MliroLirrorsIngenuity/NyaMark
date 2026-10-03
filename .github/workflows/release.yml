@@ -304,7 +304,40 @@ jobs:
           TARGET_COMMITISH: ${{ needs.preparation.outputs.ref }}
         run: |
           set -euo pipefail
-          printf '%s' "$RELEASE_BODY" > release_notes.md
+
+          # Download badges above the changes: a row for each system, its
+          # installers side by side, each linked to its file in this release.
+          DIST=collected_artifacts/upload_dist
+          BASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}"
+          badge() {
+            local pattern=$1 label=$2 message=$3 color=$4 logo=${5:-} file
+            file=$(cd "$DIST" && compgen -G "$pattern" | head -n 1 || true)
+            if [ -z "$file" ]; then
+              echo "$pattern" >> missing_installers.txt
+              return
+            fi
+            printf '[![%s %s](https://img.shields.io/badge/%s-%s-%s%s)](%s/%s) ' \
+              "$label" "$message" "${label// /%20}" "${message// /%20}" "$color" \
+              "${logo:+?logo=$logo&logoColor=white}" "$BASE_URL" "$file"
+          }
+          {
+            echo "## Download"
+            echo
+            echo "| System | Installers |"
+            echo "| --- | --- |"
+            echo "| Windows | $(badge '*_x64-setup.exe' Setup x64 0078D4)$(badge '*_arm64-setup.exe' Setup ARM64 005A9E) |"
+            echo "| macOS | $(badge '*_aarch64.dmg' DMG 'Apple Silicon' 000000 apple)$(badge '*_x64.dmg' DMG Intel 1E9BD7 apple) |"
+            echo "| Linux | $(badge '*_amd64.AppImage' AppImage x64 E95420 linux)$(badge '*_aarch64.AppImage' AppImage ARM64 E95420 linux)$(badge '*_amd64.deb' Deb x64 D70A53 debian)$(badge '*_arm64.deb' Deb ARM64 D70A53 debian)$(badge '*.x86_64.rpm' RPM x64 CC8800 redhat)$(badge '*.aarch64.rpm' RPM ARM64 CC8800 redhat) |"
+            echo
+            printf '%s' "$RELEASE_BODY"
+          } > release_notes.md
+          cat release_notes.md
+          echo
+          if [ -f missing_installers.txt ]; then
+            while read -r pattern; do
+              echo "::warning::No installer matches $pattern"
+            done < missing_installers.txt
+          fi
 
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             if [ "$IS_PRERELEASE" = "true" ]; then
