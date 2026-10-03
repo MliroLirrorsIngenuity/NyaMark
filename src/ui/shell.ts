@@ -64,6 +64,9 @@ export function renderAppShell(host: HTMLElement) {
   const exportPdfShortcutHint = isMac ? '⌘P' : 'Ctrl+P';
   const outlineShortcutHint = isMac ? '⌘⇧O' : 'Ctrl+Shift+O';
   const settingsShortcutHint = 'Ctrl+,';
+  // Tauri's drag region moves the window on macOS. On Windows and Linux,
+  // `Titlebar` moves it and takes the double-click.
+  const titlebarDragRegion = isMac ? ' data-tauri-drag-region' : '';
   // The title bar's buttons are small round icons, their shortcuts in the
   // tooltip. Windows and Linux carry the file menu and settings there too,
   // having no menu bar to hold them.
@@ -119,7 +122,7 @@ export function renderAppShell(host: HTMLElement) {
   host.innerHTML = `
     ${isLinux ? renderLinuxResizeHandles() : ''}
 
-    <div id="ny-titlebar" data-tauri-drag-region>
+    <div id="ny-titlebar"${titlebarDragRegion}>
       <div class="ny-shell__title-leading">
         <div class="ny-shell__title-quick-actions">${fileActionsMarkup}</div>
       </div>

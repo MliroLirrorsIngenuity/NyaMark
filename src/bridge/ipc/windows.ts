@@ -62,6 +62,11 @@ export async function startWindowResize(
   await getCurrentWindow().startResizeDragging(direction);
 }
 
+/** Move an undecorated window with the pointer, while its button is held. */
+export async function startWindowDrag(): Promise<void> {
+  await getCurrentWindow().startDragging();
+}
+
 export async function minimizeWindow(): Promise<void> {
   await getCurrentWindow().minimize();
 }

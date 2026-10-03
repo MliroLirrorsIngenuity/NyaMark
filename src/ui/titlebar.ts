@@ -3,6 +3,7 @@ import {
   isWindowMaximized,
   minimizeWindow,
   setWindowTitle,
+  startWindowDrag,
   toggleMaximizeWindow,
   unmaximizeWindow,
 } from '../bridge/ipc/windows';
@@ -23,9 +24,12 @@ type TitlebarActions = {
   onOpenSettings: () => void;
 };
 
+/** How far the pointer moves on the title bar before the window follows it. */
+const TITLEBAR_DRAG_DISTANCE = 4;
+
 /**
  * Pure UI binding: forwards button clicks to controller actions and reflects
- * state from the store. Drag regions still use Tauri's native window handler.
+ * state from the store. On macOS Tauri's drag region moves the window.
  */
 export class Titlebar {
   private readonly elFilename = document.getElementById(
@@ -65,64 +69,100 @@ export class Titlebar {
 
   private bindWindowChromeRestore() {
     const titlebar = document.getElementById('ny-titlebar') as HTMLElement;
-    const isMac = isMacOS();
-    let maximizedBeforeClick: Promise<boolean> | null = null;
-
     const isTitlebarClick = (event: MouseEvent) =>
       event.button === 0 && event.target === titlebar;
 
-    const restoreDoubleClick = (event: MouseEvent) => {
-      if (maximizedBeforeClick === null) {
-        return;
-      }
+    if (!isMacOS()) {
+      this.bindTitlebarDrag(titlebar, isTitlebarClick);
+      return;
+    }
 
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      const wasMaximized = maximizedBeforeClick;
-      maximizedBeforeClick = null;
-      void wasMaximized
-        .then((maximized) =>
-          maximized ? unmaximizeWindow() : toggleMaximizeWindow()
-        )
-        .catch(console.error);
-    };
+    let maximizedBeforeClick: Promise<boolean> | null = null;
 
     titlebar.addEventListener(
       'mousedown',
       (event) => {
-        if (!isTitlebarClick(event)) {
-          return;
-        }
-
-        if (event.detail === 1) {
+        if (isTitlebarClick(event) && event.detail === 1) {
           maximizedBeforeClick = isWindowMaximized().catch((error) => {
             console.error(error);
             return false;
           });
-          return;
-        }
-
-        if (!isMac && event.detail === 2) {
-          restoreDoubleClick(event);
         }
       },
       true
     );
-
-    if (!isMac) {
-      return;
-    }
 
     titlebar.addEventListener(
       'mouseup',
       (event) => {
-        if (isTitlebarClick(event) && event.detail === 2) {
-          restoreDoubleClick(event);
+        if (
+          !isTitlebarClick(event) ||
+          event.detail !== 2 ||
+          maximizedBeforeClick === null
+        ) {
+          return;
         }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        const wasMaximized = maximizedBeforeClick;
+        maximizedBeforeClick = null;
+        void wasMaximized
+          .then((maximized) =>
+            maximized ? unmaximizeWindow() : toggleMaximizeWindow()
+          )
+          .catch(console.error);
       },
       true
     );
+  }
+
+  /**
+   * Windows and Linux: the window follows the pointer once it moves a few
+   * pixels with the button down, and a double-click maximizes or restores it.
+   * A drag started on the press holds the pointer until the release, so the
+   * page would miss the second click of a double-click.
+   */
+  private bindTitlebarDrag(
+    titlebar: HTMLElement,
+    isTitlebarClick: (event: MouseEvent) => boolean
+  ) {
+    let pressedAt: { x: number; y: number } | null = null;
+
+    const release = () => {
+      pressedAt = null;
+      document.removeEventListener('mousemove', dragOnMove, true);
+      document.removeEventListener('mouseup', release, true);
+    };
+    const dragOnMove = (event: MouseEvent) => {
+      if (!pressedAt) return;
+      if ((event.buttons & 1) === 0) {
+        release();
+        return;
+      }
+      const distance = Math.hypot(
+        event.screenX - pressedAt.x,
+        event.screenY - pressedAt.y
+      );
+      if (distance < TITLEBAR_DRAG_DISTANCE) return;
+      release();
+      void startWindowDrag().catch(console.error);
+    };
+
+    titlebar.addEventListener('mousedown', (event) => {
+      if (!isTitlebarClick(event)) return;
+      // Keeps the caret where it is and the file name unselected.
+      event.preventDefault();
+      release();
+      if (event.detail === 2) {
+        void toggleMaximizeWindow().catch(console.error);
+        return;
+      }
+      pressedAt = { x: event.screenX, y: event.screenY };
+      document.addEventListener('mousemove', dragOnMove, true);
+      document.addEventListener('mouseup', release, true);
+    });
   }
 
   private bindFileMenu() {
