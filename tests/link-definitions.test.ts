@@ -93,4 +93,14 @@ describe('link definitions', () => {
   test('keep the label of one rewritten as written, escapes and all', () => {
     expect(save('- [X\\*Y]:\n  /a\n')).toBe('- [X\\*Y]: /a\n');
   });
+
+  test('bracket an address that would end early written bare', () => {
+    expect(save('> [a]:\n> <a(b>\n')).toBe('> [a]: <a(b>\n');
+  });
+
+  test('escape what would be read as a character reference', () => {
+    expect(save('- [a]:\n  ?q=&amp;lt; "&amp;amp;"\n')).toBe(
+      '- [a]: ?q=\\&lt; "\\&amp;"\n'
+    );
+  });
 });

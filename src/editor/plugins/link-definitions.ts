@@ -52,15 +52,21 @@ function writtenLabel(node: MdNode, written: string): string {
     : (node.identifier ?? '');
 }
 
+/** `&` escaped where it would start a character reference. */
+const escapeReferences = (value: string) =>
+  value.replace(/&(?=#?[0-9A-Za-z]+;)/g, '\\&');
+
 /** The definition on one line, for one written over several. */
 function writeDefinition(node: MdNode, written: string): string {
   const url = node.url ?? '';
-  const address =
-    url === '' || /[\s<>]/.test(url)
-      ? `<${url.replace(/[<>\\]/g, '\\$&')}>`
-      : url;
+  // A bracket left open ended an address written bare, `a(b` for one.
+  const address = /^[^\s\p{Cc}<>()\\]+$/u.test(url)
+    ? escapeReferences(url)
+    : `<${escapeReferences(url.replace(/[<>\\]/g, '\\$&'))}>`;
   const title =
-    node.title == null ? '' : ` "${node.title.replace(/["\\]/g, '\\$&')}"`;
+    node.title == null
+      ? ''
+      : ` "${escapeReferences(node.title.replace(/["\\]/g, '\\$&'))}"`;
   return `[${writtenLabel(node, written)}]: ${address}${title}`;
 }
 
