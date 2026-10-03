@@ -63,13 +63,28 @@ export function renderAppShell(host: HTMLElement) {
   const saveAsShortcutHint = isMac ? '⌘⇧S' : 'Ctrl+Shift+S';
   const exportPdfShortcutHint = isMac ? '⌘P' : 'Ctrl+P';
   const outlineShortcutHint = isMac ? '⌘⇧O' : 'Ctrl+Shift+O';
+  const settingsShortcutHint = 'Ctrl+,';
+  // Windows and Linux have no menu bar to hold these: the title bar carries
+  // them as small round icons, their shortcuts in the tooltip.
+  const outlineClass = isMac
+    ? 'ny-shell__shortcut-button'
+    : 'ny-shell__shortcut-button ny-shell__icon-button';
+  const outlineShortcut = isMac
+    ? ''
+    : ` data-shortcut="${outlineShortcutHint}"`;
+  const outlineContent = isMac
+    ? `<span class="ny-shell__shortcut-label" data-i18n="shell.outline">Outline</span>
+              <span class="ny-shell__shortcut-hint">${outlineShortcutHint}</span>`
+    : `<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+                <path d="M2.75 4h10.5M4.75 8h8.5M6.75 12h6.5" />
+              </svg>`;
   const fileActionsMarkup = isMac
     ? ''
     : `
         <div class="ny-shell__file-menu">
           <button
             id="tb-file-menu-button"
-            class="ny-shell__shortcut-button"
+            class="ny-shell__shortcut-button ny-shell__icon-button"
             type="button"
             title="File"
             aria-label="File"
@@ -78,7 +93,10 @@ export function renderAppShell(host: HTMLElement) {
             aria-haspopup="menu"
             aria-expanded="false"
           >
-            <span class="ny-shell__shortcut-label" data-i18n="shell.file">File</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+              <path d="M4.25 1.75h5l3.5 3.5v8a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1V2.75a1 1 0 0 1 1-1Z" />
+              <path d="M9.25 1.75v3.5h3.5" />
+            </svg>
           </button>
           <div id="tb-file-menu" class="ny-shell__menu" role="menu" hidden>
             <button class="ny-shell__menu-item" type="button" data-file-action="new" role="menuitem">
@@ -123,14 +141,14 @@ export function renderAppShell(host: HTMLElement) {
       <div class="ny-shell__title-actions">
         <div class="ny-shell__title-meta">
           <div class="ny-shell__title-quick-actions">
-            <button id="tb-settings" class="ny-shell__shortcut-button ny-shell__settings-button" type="button" title="Settings" aria-label="Settings" data-i18n-title="shell.settings" data-i18n-aria-label="shell.settings">
-              <svg viewBox="0 0 16 16" aria-hidden="true" width="14" height="14">
-                <path fill="currentColor" d="M9.405 1.05c-.413-.014-1.397-.014-1.81 0a.75.75 0 0 0-.707.62l-.18 1.07a5.25 5.25 0 0 0-1.225.71L4.5 3.18a.75.75 0 0 0-.92.33l-.91 1.55a.75.75 0 0 0 .15.94l.81.74a5.27 5.27 0 0 0 0 1.4l-.81.74a.75.75 0 0 0-.15.94l.91 1.55a.75.75 0 0 0 .92.33l.99-.27c.37.3.78.54 1.22.71l.18 1.07a.75.75 0 0 0 .71.62c.41.014 1.4.014 1.81 0a.75.75 0 0 0 .71-.62l.18-1.07a5.27 5.27 0 0 0 1.22-.71l.99.27a.75.75 0 0 0 .92-.33l.91-1.55a.75.75 0 0 0-.15-.94l-.81-.74a5.3 5.3 0 0 0 0-1.4l.81-.74a.75.75 0 0 0 .15-.94l-.91-1.55a.75.75 0 0 0-.92-.33l-.99.27a5.25 5.25 0 0 0-1.22-.71L10.115 1.67a.75.75 0 0 0-.71-.62ZM8 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/>
+            <button id="tb-settings" class="ny-shell__shortcut-button ny-shell__settings-button ny-shell__icon-button" type="button" title="Settings" aria-label="Settings" data-i18n-title="shell.settings" data-i18n-aria-label="shell.settings" data-shortcut="${settingsShortcutHint}">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
             </button>
-            <button id="tb-outline" class="ny-shell__shortcut-button" type="button" title="Toggle outline" aria-label="Toggle outline" data-i18n-title="shell.outline" data-i18n-aria-label="shell.outline">
-              <span class="ny-shell__shortcut-label" data-i18n="shell.outline">Outline</span>
-              <span class="ny-shell__shortcut-hint">${outlineShortcutHint}</span>
+            <button id="tb-outline" class="${outlineClass}" type="button" title="Toggle outline" aria-label="Toggle outline" data-i18n-title="shell.outline" data-i18n-aria-label="shell.outline"${outlineShortcut}>
+              ${outlineContent}
             </button>
           </div>
         </div>

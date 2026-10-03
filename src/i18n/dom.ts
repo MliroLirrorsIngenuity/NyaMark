@@ -18,7 +18,15 @@ export function translateDOM(root: HTMLElement | Document = document) {
     for (const el of root.querySelectorAll(`[${source}]`)) {
       const key = el.getAttribute(source);
       const translated = key && i18next.t(key);
-      if (translated) el.setAttribute(target, translated);
+      if (!translated) continue;
+      // A button shown as an icon alone names its shortcut in its tooltip.
+      const shortcut = el.getAttribute('data-shortcut');
+      el.setAttribute(
+        target,
+        target === 'title' && shortcut
+          ? `${translated} (${shortcut})`
+          : translated
+      );
     }
   }
 }

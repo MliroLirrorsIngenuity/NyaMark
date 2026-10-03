@@ -556,14 +556,54 @@ body {
   color: color-mix(in srgb, #f97316, white 12%);
 }
 
-.ny-shell--windows .ny-shell__window-button {
-  width: 34px;
-  border-radius: 7px;
+/* Windows and Linux: every button in the title bar is a small round icon,
+   drawn only when the pointer is on it. */
+.ny-shell__icon-button,
+.ny-shell--windows .ny-shell__window-button,
+.ny-shell--linux .ny-shell__window-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ny-text-secondary);
+  justify-content: center;
 }
 
-.ny-shell--linux .ny-shell__window-button {
-  width: 32px;
-  border-radius: 7px;
+.ny-shell__icon-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ny-shell--windows .ny-shell__window-button svg,
+.ny-shell--linux .ny-shell__window-button svg {
+  width: 10px;
+  height: 10px;
+}
+
+.ny-shell__icon-button:hover,
+.ny-shell__icon-button[aria-expanded="true"],
+.ny-shell--windows .ny-shell__window-button:hover,
+.ny-shell--linux .ny-shell__window-button:hover {
+  background: color-mix(in srgb, var(--ny-text-primary), transparent 91%);
+  color: var(--ny-text-primary);
+}
+
+.ny-shell__icon-button[aria-pressed="true"] {
+  background: var(--ny-accent-soft);
+  color: var(--ny-accent);
+}
+
+.ny-shell--windows .ny-shell__window-button--close:hover,
+.ny-shell--linux .ny-shell__window-button--close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+.ny-shell--windows .ny-shell__window-controls,
+.ny-shell--linux .ny-shell__window-controls {
+  gap: 4px;
 }
 
 .ny-shell__title-meta,
