@@ -103,4 +103,10 @@ describe('link definitions', () => {
       '- [a]: ?q=\\&lt; "\\&amp;"\n'
     );
   });
+
+  test('let links take the first definition, one in a list too', () => {
+    expect(save('- item\n\n  [a]: /first\n\n[a]: /second\n\n[a]\n')).toBe(
+      '- item\n\n[a]: /second\n\n[a](/first)\n'
+    );
+  });
 });

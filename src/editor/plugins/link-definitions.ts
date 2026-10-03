@@ -84,36 +84,44 @@ export function keepUnusedDefinitions() {
       }
     });
 
-    // The first definition of a label is the one its references take.
-    const taken = new Set<string>();
-    walk(tree, (node) => {
-      for (const [index, child] of (node.children ?? []).entries()) {
-        if (child.type !== 'definition') continue;
-        const id = child.identifier ?? '';
-        if (referenced.has(id) && !taken.has(id)) {
-          taken.add(id);
-          continue;
-        }
-        const start = child.position?.start.offset;
-        const end = child.position?.end.offset;
-        const written =
-          start !== undefined && end !== undefined
-            ? source.slice(start, end)
-            : '';
-        // Over several lines, the source holds quote markers or list
-        // indentation too.
-        const value =
-          written.startsWith('[') && !written.includes('\n')
-            ? written
-            : writeDefinition(child, written);
-        // In a paragraph of its own, where Milkdown takes raw HTML in any
-        // block that holds it.
-        node.children?.splice(index, 1, {
-          type: 'paragraph',
-          children: [{ type: 'html', value }],
-        });
+    // In the order they are written: the first definition of a label is the
+    // one its references take. One in a list before another below the list
+    // came second when they were taken a parent at a time, and the links
+    // went where the other one points.
+    const definitions: { node: MdNode; child: MdNode }[] = [];
+    const collect = (node: MdNode) => {
+      for (const child of node.children ?? []) {
+        if (child.type === 'definition') definitions.push({ node, child });
+        collect(child);
       }
-    });
+    };
+    collect(tree);
+    const taken = new Set<string>();
+    for (const { node, child } of definitions) {
+      const id = child.identifier ?? '';
+      if (referenced.has(id) && !taken.has(id)) {
+        taken.add(id);
+        continue;
+      }
+      const start = child.position?.start.offset;
+      const end = child.position?.end.offset;
+      const written =
+        start !== undefined && end !== undefined
+          ? source.slice(start, end)
+          : '';
+      // Over several lines, the source holds quote markers or list
+      // indentation too.
+      const value =
+        written.startsWith('[') && !written.includes('\n')
+          ? written
+          : writeDefinition(child, written);
+      // In a paragraph of its own, where Milkdown takes raw HTML in any
+      // block that holds it.
+      node.children?.splice(node.children.indexOf(child), 1, {
+        type: 'paragraph',
+        children: [{ type: 'html', value }],
+      });
+    }
   };
 }
 
