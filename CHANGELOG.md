@@ -1,4 +1,79 @@
 # Changelog
+## 1.0.0 (2026-10-03)
+
+### ✨ Features
+
+- *(updates)* Answer a manual update check with a note inside the window  @Lemon-miaow
+
+
+### 🐛 Bug Fixes
+
+- *(editor)* Set source mode in the code blocks' font on every system  @Lemon-miaow
+
+- *(editor)* Keep link definitions no link uses  @Lemon-miaow
+
+- *(editor)* Keep the label a rewritten link definition was written with  @Lemon-miaow
+
+- *(editor)* Bracket a rewritten definition's address where it needs it  @Lemon-miaow
+
+- *(editor)* Give links the first definition in the order written  @Lemon-miaow
+
+- *(editor)* Keep brackets escaped where a kept definition has their label  @Lemon-miaow
+
+- *(editor)* Keep a list item's line after a footnote out of it  @Lemon-miaow
+
+- *(save)* Ask before writing over a file another program changed  @Lemon-miaow
+
+- *(save)* Remove the empty file a failed first save created  @Lemon-miaow
+
+- *(save)* Count keys typed in the source pane while the file is read  @Lemon-miaow
+
+- *(save)* Save files whose names reach the length limit  @Lemon-miaow
+
+- *(settings)* Close the open dropdown when another one opens  @Lemon-miaow
+
+- *(titlebar)* Restore a maximized window on a double-click on Windows and Linux  @Lemon-miaow
+
+- *(titlebar)* Keep the traffic lights in place under a new title on macOS  @Lemon-miaow
+
+
+### 🚜 Refactor
+
+- *(editor)* Share the options notes are written with  @Lemon-miaow
+
+
+### 🎨 Styling
+
+- *(titlebar)* Draw the Mac outline button as a small round icon  @Lemon-miaow
+
+- *(titlebar)* Draw the window buttons on Windows and Linux as the system does  @Lemon-miaow
+
+- *(titlebar)* Put settings beside the file menu on Windows and Linux  @Lemon-miaow
+
+
+### 🧪 Testing
+
+- *(editor)* Read link definitions through the editor's pipeline  @Lemon-miaow
+
+- *(editor)* Fuzz link definitions against plain remark  @Lemon-miaow
+
+- *(save)* Fuzz saves against another program writing the file  @Lemon-miaow
+
+- *(save)* Fuzz writes against another program changing the file  @Lemon-miaow
+
+
+### ⚙️ CI
+
+- *(release)* Put download badges for each installer above the changes  @Lemon-miaow
+
+- Build the installers of every commit and keep them as artifacts  @Lemon-miaow
+
+
+### Build
+
+- *(clippy)* Reject unwrap and expect outside tests  @Lemon-miaow
+
+
 ## 1.0.0-rc.1 (2026-10-03)
 
 ### ✨ Features
