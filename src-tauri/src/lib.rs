@@ -172,6 +172,11 @@ fn set_windows_backdrop(window: Window, enabled: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn set_window_blur(window: Window, enabled: bool) -> Result<(), String> {
+    windows::set_background_blur(&window, enabled).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn print_current_window(window: tauri::WebviewWindow) -> Result<(), String> {
     window.print().map_err(|error| error.to_string())
 }
@@ -249,6 +254,7 @@ pub fn run() {
             request_app_restart,
             cancel_pending_quit,
             set_windows_backdrop,
+            set_window_blur,
             print_current_window,
             #[cfg(target_os = "macos")]
             menu::update_macos_menu,

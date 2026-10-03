@@ -3,10 +3,7 @@ import {
   onPersistedSettingsChange,
   savePersistedSettings,
 } from '../bridge/ipc/settings';
-import {
-  setNativeWindowBackdrop,
-  setWindowVibrancy,
-} from '../bridge/ipc/windows';
+import { setNativeWindowBackdrop, setWindowBlur } from '../bridge/ipc/windows';
 import { getPlatform } from '../platform/detect';
 import {
   type ImageInsertPolicy,
@@ -107,7 +104,7 @@ async function applyWindowEffects(transparency: boolean) {
   try {
     if (transparency) {
       if (platform === 'macos') {
-        await setWindowVibrancy(true);
+        await setWindowBlur(true);
       } else if (platform === 'windows') {
         await setNativeWindowBackdrop(true);
       }
@@ -118,7 +115,7 @@ async function applyWindowEffects(transparency: boolean) {
         await setNativeWindowBackdrop(false);
         return;
       }
-      await setWindowVibrancy(false);
+      await setWindowBlur(false);
       document.documentElement.classList.remove('ny-shell--transparent');
     }
   } catch (e) {

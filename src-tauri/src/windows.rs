@@ -148,6 +148,50 @@ pub fn set_native_backdrop<R: Runtime>(_window: &Window<R>, _enabled: bool) -> R
     Ok(())
 }
 
+/// How far the frosted window blurs what lies behind it, in points.
+#[cfg(target_os = "macos")]
+const GLASS_BLUR_RADIUS: i32 = 16;
+
+/// macOS: blurs what lies behind the transparent window, or stops blurring
+/// it. The system's vibrancy blurs at a width of its own, so wide that nothing
+/// behind the window could be made out but the edges of other windows; the
+/// window server blurs at the width it is given, as it does for iTerm2, kitty
+/// and Ghostty.
+#[cfg(target_os = "macos")]
+pub fn set_background_blur<R: Runtime>(window: &Window<R>, enabled: bool) -> Result<()> {
+    use objc2_app_kit::NSWindow;
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGSMainConnectionID() -> i32;
+        fn CGSSetWindowBackgroundBlurRadius(connection: i32, window: i32, radius: i32) -> i32;
+    }
+
+    let radius = if enabled { GLASS_BLUR_RADIUS } else { 0 };
+    let ns_window = window
+        .ns_window()
+        .context("Failed to get native window handle")? as usize;
+    window
+        .run_on_main_thread(move || {
+            // SAFETY: the pointer is the window's live NSWindow, and AppKit is
+            // only touched here on the main thread.
+            let ns_window = unsafe { &*(ns_window as *const NSWindow) };
+            let number = ns_window.windowNumber() as i32;
+            // SAFETY: plain values, for a window of this process's own
+            // connection to the window server.
+            unsafe {
+                CGSSetWindowBackgroundBlurRadius(CGSMainConnectionID(), number, radius);
+            }
+        })
+        .context("Failed to reach the main thread")?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn set_background_blur<R: Runtime>(_window: &Window<R>, _enabled: bool) -> Result<()> {
+    Ok(())
+}
+
 /// Mirrors unsaved changes into the native window: on macOS the close button
 /// shows its dot and the title bar's document icon dims.
 #[cfg(target_os = "macos")]

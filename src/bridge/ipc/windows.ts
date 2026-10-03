@@ -2,12 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import type { Event } from '@tauri-apps/api/event';
 import type { DragDropEvent } from '@tauri-apps/api/webview';
-import {
-  Effect,
-  EffectState,
-  getAllWindows,
-  getCurrentWindow,
-} from '@tauri-apps/api/window';
+import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window';
 
 export type WindowTheme = 'light' | 'dark';
 
@@ -55,17 +50,9 @@ export async function setNativeWindowBackdrop(enabled: boolean): Promise<void> {
   await invoke('set_windows_backdrop', { enabled });
 }
 
-/** macOS: the sidebar vibrancy behind the transparent webview. */
-export async function setWindowVibrancy(enabled: boolean): Promise<void> {
-  const window = getCurrentWindow();
-  if (enabled) {
-    await window.setEffects({
-      effects: [Effect.Sidebar],
-      state: EffectState.Active,
-    });
-  } else {
-    await window.clearEffects();
-  }
+/** macOS: the blur of what lies behind the transparent webview. */
+export async function setWindowBlur(enabled: boolean): Promise<void> {
+  await invoke('set_window_blur', { enabled });
 }
 
 /** Resize from an edge of an undecorated window, following the pointer. */

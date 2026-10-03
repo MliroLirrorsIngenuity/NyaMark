@@ -191,6 +191,20 @@ body {
   --ny-text-muted: rgba(255, 255, 255, 0.5);
 }
 
+/*
+ * macOS blurs what lies behind the window and leaves its colours as they
+ * are. The window washes them toward its own page, as the system's vibrancy
+ * did, and what lies behind still shows through it.
+ */
+:root[data-platform="macos"].ny-shell--transparent #ny-app.ny-shell {
+  background: rgba(248, 249, 251, 0.72) !important;
+}
+
+:root[data-platform="macos"][data-theme="dark"].ny-shell--transparent
+  #ny-app.ny-shell {
+  background: rgba(18, 23, 30, 0.72) !important;
+}
+
 :root[data-platform="windows"].ny-shell--transparent #ny-titlebar {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
