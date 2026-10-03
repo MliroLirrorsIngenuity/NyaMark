@@ -148,18 +148,22 @@ export function renderAppShell(host: HTMLElement) {
         </div>
         <div class="ny-shell__window-controls" aria-label="Window controls" data-i18n-aria-label="shell.windowControls">
           <button id="tb-minimize" class="ny-shell__window-button" type="button" title="Minimize" aria-label="Minimize" data-i18n-title="shell.minimize" data-i18n-aria-label="shell.minimize" data-window-control>
-            <svg viewBox="0 0 12 12" aria-hidden="true">
-              <path fill="currentColor" d="M2 5.25h8v1.5H2z" />
+            <svg viewBox="0 0 10 10" aria-hidden="true">
+              <path d="M0 5.5h10" />
             </svg>
           </button>
           <button id="tb-maximize" class="ny-shell__window-button" type="button" title="Maximize" aria-label="Maximize" data-i18n-title="shell.maximize" data-i18n-aria-label="shell.maximize" data-window-control>
-            <svg viewBox="0 0 12 12" aria-hidden="true">
-              <path fill="currentColor" d="M2.5 2.5h7v7h-7zm1.25 1.25v4.5h4.5v-4.5z" />
+            <svg class="ny-shell__maximize-glyph" viewBox="0 0 10 10" aria-hidden="true">
+              <rect x="0.5" y="0.5" width="9" height="9" rx="1" />
+            </svg>
+            <svg class="ny-shell__restore-glyph" viewBox="0 0 10 10" aria-hidden="true">
+              <rect x="0.5" y="2.5" width="7" height="7" rx="1" />
+              <path d="M2.5 2.5v-1a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-1" />
             </svg>
           </button>
           <button id="tb-close" class="ny-shell__window-button ny-shell__window-button--close" type="button" title="Close" aria-label="Close" data-i18n-title="shell.close" data-i18n-aria-label="shell.close" data-window-control>
-            <svg viewBox="0 0 12 12" aria-hidden="true">
-              <path fill="currentColor" d="M3.03 2L6 4.97 8.97 2 10 3.03 7.03 6 10 8.97 8.97 10 6 7.03 3.03 10 2 8.97 4.97 6 2 3.03z" />
+            <svg viewBox="0 0 10 10" aria-hidden="true">
+              <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" />
             </svg>
           </button>
         </div>

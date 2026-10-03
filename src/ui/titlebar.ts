@@ -1,6 +1,7 @@
 import {
   closeWindow,
   isWindowMaximized,
+  listenWindowResize,
   minimizeWindow,
   setWindowTitle,
   startWindowDrag,
@@ -48,6 +49,7 @@ export class Titlebar {
     private readonly actions: TitlebarActions
   ) {
     this.bindWindowChromeRestore();
+    this.bindMaximizeState();
     this.bindFileMenu();
     this.bindAction('tb-outline', this.actions.onToggleOutline);
     this.bindClick('tb-settings', () => this.actions.onOpenSettings());
@@ -116,6 +118,43 @@ export class Titlebar {
       },
       true
     );
+  }
+
+  /**
+   * Windows and Linux: maximized, the window's maximize button turns into
+   * restore, as the system's does, and the shell drops its resize edges.
+   */
+  private bindMaximizeState() {
+    const button = document.getElementById('tb-maximize');
+    if (!button || isMacOS()) return;
+    const shell = button.closest('.ny-shell');
+    let syncing = false;
+    let resizedAgain = false;
+    const sync = async () => {
+      if (syncing) {
+        resizedAgain = true;
+        return;
+      }
+      syncing = true;
+      try {
+        do {
+          resizedAgain = false;
+          const maximized = await isWindowMaximized();
+          const label = maximized ? 'shell.restore' : 'shell.maximize';
+          button.classList.toggle('is-maximized', maximized);
+          shell?.classList.toggle('ny-shell--maximized', maximized);
+          button.setAttribute('data-i18n-title', label);
+          button.setAttribute('data-i18n-aria-label', label);
+          button.title = i18next.t(label);
+          button.setAttribute('aria-label', i18next.t(label));
+        } while (resizedAgain);
+      } finally {
+        syncing = false;
+      }
+    };
+    const syncLogged = () => void sync().catch(console.error);
+    syncLogged();
+    void listenWindowResize(syncLogged).catch(console.error);
   }
 
   /**

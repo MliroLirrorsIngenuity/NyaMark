@@ -241,6 +241,12 @@ body {
   -webkit-user-select: none;
 }
 
+/* Maximized, the window has no edge to drag, and its corner is the close
+   button's. */
+.ny-shell--maximized .ny-shell__resize-handle {
+  display: none;
+}
+
 .ny-shell__resize-handle--n,
 .ny-shell__resize-handle--s {
   left: 18px;
@@ -507,8 +513,10 @@ body {
 .ny-shell__window-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  align-self: stretch;
   flex-shrink: 0;
+  /* Out through the title bar's padding to the window's edge. */
+  margin-right: -16px;
 }
 
 .ny-shell--macos .ny-shell__window-controls {
@@ -525,50 +533,77 @@ body {
   display: none;
 }
 
+/* As tall as the title bar, for the window's buttons to fill it. */
+.ny-shell--windows .ny-shell__title-actions,
+.ny-shell--linux .ny-shell__title-actions {
+  align-self: stretch;
+}
+
+/*
+ * The window's own buttons as the system draws them: as tall as the title
+ * bar, 46px wide and flush with its right edge, so the close button takes
+ * the corner, red under the pointer.
+ */
 .ny-shell__window-button {
   appearance: none;
-  width: 30px;
-  height: 26px;
+  width: 46px;
+  height: 100%;
   padding: 0;
-  border: 1px solid var(--ny-border-button);
-  border-radius: 8px;
-  background: var(--ny-surface-muted);
-  color: var(--ny-text-secondary);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ny-text-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: default;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
-    box-shadow 0.15s ease;
+  transition: background 0.1s ease, color 0.1s ease;
 }
 
 .ny-shell__window-button svg {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
 }
 
 .ny-shell__window-button:hover {
-  background: var(--ny-surface-elevated);
-  border-color: var(--ny-border-button-hover);
-  color: var(--ny-text-primary);
+  background: color-mix(in srgb, var(--ny-text-primary), transparent 93%);
+}
+
+.ny-shell__window-button:active {
+  background: color-mix(in srgb, var(--ny-text-primary), transparent 95%);
+  color: var(--ny-text-secondary);
 }
 
 .ny-shell__window-button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 72%);
-  outline-offset: 1px;
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 50%);
+  outline-offset: -2px;
 }
 
 .ny-shell__window-button--close:hover {
-  background: color-mix(in srgb, #b42318, transparent 90%);
-  border-color: color-mix(in srgb, #b42318, transparent 76%);
-  color: color-mix(in srgb, #f97316, white 12%);
+  background: #c42b1c;
+  color: #fff;
 }
 
-/* Every button in the title bar is a small round icon, drawn only when the
-   pointer is on it. */
-.ny-shell__icon-button,
-.ny-shell--windows .ny-shell__window-button,
-.ny-shell--linux .ny-shell__window-button {
+.ny-shell__window-button--close:active {
+  background: color-mix(in srgb, #c42b1c, transparent 10%);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ny-shell__restore-glyph,
+#tb-maximize.is-maximized .ny-shell__maximize-glyph {
+  display: none;
+}
+
+#tb-maximize.is-maximized .ny-shell__restore-glyph {
+  display: block;
+}
+
+/* The other buttons in the title bar are small round icons, drawn only when
+   the pointer is on them. */
+.ny-shell__icon-button {
   width: 28px;
   height: 28px;
   padding: 0;
@@ -584,16 +619,8 @@ body {
   height: 15px;
 }
 
-.ny-shell--windows .ny-shell__window-button svg,
-.ny-shell--linux .ny-shell__window-button svg {
-  width: 10px;
-  height: 10px;
-}
-
 .ny-shell__icon-button:hover,
-.ny-shell__icon-button[aria-expanded="true"],
-.ny-shell--windows .ny-shell__window-button:hover,
-.ny-shell--linux .ny-shell__window-button:hover {
+.ny-shell__icon-button[aria-expanded="true"] {
   background: color-mix(in srgb, var(--ny-text-primary), transparent 91%);
   color: var(--ny-text-primary);
 }
@@ -601,17 +628,6 @@ body {
 .ny-shell__icon-button[aria-pressed="true"] {
   background: var(--ny-accent-soft);
   color: var(--ny-accent);
-}
-
-.ny-shell--windows .ny-shell__window-button--close:hover,
-.ny-shell--linux .ny-shell__window-button--close:hover {
-  background: #c42b1c;
-  color: #fff;
-}
-
-.ny-shell--windows .ny-shell__window-controls,
-.ny-shell--linux .ny-shell__window-controls {
-  gap: 4px;
 }
 
 .ny-shell__title-meta,

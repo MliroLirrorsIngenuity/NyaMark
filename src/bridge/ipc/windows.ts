@@ -83,6 +83,13 @@ export async function isWindowMaximized(): Promise<boolean> {
   return await getCurrentWindow().isMaximized();
 }
 
+/** Called each time the window's size changes, maximized and restored too. */
+export async function listenWindowResize(
+  handler: () => void
+): Promise<UnlistenFn> {
+  return await getCurrentWindow().onResized(() => handler());
+}
+
 export async function closeWindow(): Promise<void> {
   await getCurrentWindow().close();
 }

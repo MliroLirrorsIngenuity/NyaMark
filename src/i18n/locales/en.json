@@ -38,6 +38,7 @@
     "outline": "Outline",
     "minimize": "Minimize",
     "maximize": "Maximize",
+    "restore": "Restore",
     "close": "Close",
     "untitled": "Untitled.md",
     "windowControls": "Window controls"
