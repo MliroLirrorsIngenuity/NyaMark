@@ -6,7 +6,9 @@
 
 import { Crepe } from '@milkdown/crepe';
 import {
+  editorStateOptionsCtx,
   editorViewCtx,
+  editorViewOptionsCtx,
   parserCtx,
   remarkCtx,
   serializerCtx,
@@ -29,7 +31,7 @@ import {
   Slice,
 } from '@milkdown/kit/prose/model';
 import {
-  type EditorState,
+  EditorState,
   Plugin,
   PluginKey,
   Selection,
@@ -41,6 +43,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange, settleParsed } from './doc-diff';
 import { anchorIndex, headingId, headingLabel, pageId } from './heading-anchor';
+import { type Opening, drawRest, splitOpening } from './open-in-parts';
 import { bareLinkInput } from './plugins/bare-link-input';
 import { bareLinkParse, keepBareLinks } from './plugins/bare-links';
 import { blockArrows } from './plugins/block-arrows';
@@ -317,6 +320,25 @@ export class NyaEditor {
       });
     });
 
+    // A long document opens on its first screens, and stays closed to
+    // editing until the rest is drawn (see open-in-parts).
+    let opening: Opening | null = null;
+    crepe.editor.config((ctx) => {
+      ctx.update(editorStateOptionsCtx, (options) => (config) => {
+        const stateOptions = options(config);
+        const { doc } = stateOptions;
+        if (!doc) return stateOptions;
+        const { shouldAppend } = ctx.get(trailingConfig.key);
+        const whole = EditorState.create({ doc });
+        opening = splitOpening(doc, (last) => shouldAppend(last, whole));
+        return opening ? { ...stateOptions, doc: opening.first } : stateOptions;
+      });
+      ctx.update(editorViewOptionsCtx, (options) => ({
+        ...options,
+        editable: (state) => !opening && (options.editable?.(state) ?? true),
+      }));
+    });
+
     this.crepe = crepe;
     await crepe.create();
     crepe.editor.action(markTogglesThroughout);
@@ -334,6 +356,13 @@ export class NyaEditor {
     closeHeadingListOnKeys(this.root);
     languagePickerKeys(this.root);
     languagePickerRoom(this.root);
+
+    const rest = (opening as Opening | null)?.rest;
+    if (view && rest) {
+      await drawRest(view, rest);
+      opening = null;
+      if (!view.isDestroyed) view.setProps({});
+    }
   }
 
   /**
