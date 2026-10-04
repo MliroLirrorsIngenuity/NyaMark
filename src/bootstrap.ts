@@ -66,6 +66,7 @@ export class App {
   });
   private readonly updateDialog = new UpdateDialog();
   private checkingForUpdates = false;
+  private statsQueued = false;
 
   async init() {
     registerShellStyles();
@@ -340,8 +341,19 @@ export class App {
     store.update({ wordCount: stats.words, lineCount: stats.lines });
   }
 
+  /**
+   * Counts again once the next frame is drawn, once however often it is
+   * asked. Counting the lines writes the whole document out, and done twice
+   * on opening a long one, it held back the first look at it.
+   */
   private refreshStatsSoon() {
-    this.updateStats();
-    queueMicrotask(() => this.updateStats());
+    if (this.statsQueued) return;
+    this.statsQueued = true;
+    requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        this.statsQueued = false;
+        this.updateStats();
+      }, 0);
+    });
   }
 }
