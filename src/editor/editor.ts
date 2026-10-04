@@ -114,7 +114,11 @@ import {
 } from './plugins/markdown-output';
 import { dollarInput, dollarTextParse } from './plugins/math-dollars';
 import { mathInlineKeys } from './plugins/math-inline-keys';
-import { bindMermaidThemeListener, configureMermaid } from './plugins/mermaid';
+import {
+  bindMermaidThemeListener,
+  configureMermaid,
+  drawWaitingDiagrams,
+} from './plugins/mermaid';
 import { pasteIntoCell } from './plugins/paste-cell';
 import { pasteCodeAsCode } from './plugins/paste-code';
 import { pasteCodeEdges } from './plugins/paste-code-edges';
@@ -373,6 +377,11 @@ export class NyaEditor {
 
   getMarkdown(): string {
     return this.crepe ? this.crepe.getMarkdown() : '';
+  }
+
+  /** Draws the diagrams still waiting to come near the screen. */
+  drawWaitingDiagrams(): Promise<void> {
+    return drawWaitingDiagrams();
   }
 
   getView(): ProseMirrorEditorView | null {

@@ -24,10 +24,12 @@ export class PdfExporter {
   private busy = false;
 
   /**
-   * `flushPendingEdits` puts what the source pane holds into the preview,
-   * which is what prints.
+   * `prepare` puts what the source pane holds into the preview, which is
+   * what prints, and draws the diagrams still waiting to be drawn.
    */
-  constructor(private readonly flushPendingEdits: () => void = () => {}) {}
+  constructor(
+    private readonly prepare: () => void | Promise<void> = () => {}
+  ) {}
 
   /**
    * Asked again while the dialog is open or printing runs, it stays with
@@ -41,7 +43,7 @@ export class PdfExporter {
     try {
       const settings = await this.dialog.open({ fileName: printableTitle() });
       if (settings) {
-        this.flushPendingEdits();
+        await this.prepare();
         await exportAsPdf(settings);
       }
     } finally {

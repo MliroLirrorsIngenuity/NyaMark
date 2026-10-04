@@ -60,9 +60,10 @@ export class App {
   private readonly settingsPanel = new SettingsPanel({
     checkForUpdates: () => this.checkForUpdatesAsked(),
   });
-  private readonly pdfExporter = new PdfExporter(() =>
-    this.sourceMode?.flush()
-  );
+  private readonly pdfExporter = new PdfExporter(async () => {
+    this.sourceMode?.flush();
+    await this.editor?.drawWaitingDiagrams();
+  });
   private readonly updateDialog = new UpdateDialog();
   private checkingForUpdates = false;
 

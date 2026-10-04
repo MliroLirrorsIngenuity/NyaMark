@@ -1,5 +1,6 @@
 import { EditorView as CodeMirror } from '@codemirror/view';
 import DOMPurify from 'dompurify';
+import i18next from 'i18next';
 import type { MermaidConfig } from 'mermaid';
 import type { EditorView } from 'prosemirror-view';
 
@@ -74,20 +75,36 @@ function escapeHtml(text: string) {
   );
 }
 
+type Drawing = { ok: boolean; markup: string };
+
+/**
+ * The last diagrams drawn, by theme and source. A code block's view is built
+ * again when the blocks around it change, and each time it drew its diagram
+ * anew.
+ */
+const drawings = new Map<string, Drawing>();
+const KEPT_DRAWINGS = 24;
+
+function drawingKey(content: string) {
+  return `${isDarkTheme ? 'dark' : 'light'}\n${content}`;
+}
+
 /**
  * Render a diagram to the markup the preview shows: the SVG, or the parser's
  * message when the source does not parse. Mermaid renders inside a
  * temporary element under `<body>` and does not always remove it when it
  * throws, so a failed render cleans up after it.
  */
-async function renderDiagram(
-  content: string
-): Promise<{ ok: boolean; markup: string }> {
+async function renderDiagram(content: string): Promise<Drawing> {
+  const key = drawingKey(content);
+  const kept = drawings.get(key);
+  if (kept) return kept;
   const id = genId();
+  let drawing: Drawing;
   try {
     const mermaid = await loadMermaid();
     const { svg } = await mermaid.render(id, content);
-    return {
+    drawing = {
       ok: true,
       markup: `<div class="nyamark-mermaid-preview">${svg}</div>`,
     };
@@ -95,15 +112,183 @@ async function renderDiagram(
     document.getElementById(`d${id}`)?.remove();
     document.getElementById(id)?.remove();
     const message = error instanceof Error ? error.message : String(error);
-    return {
+    drawing = {
       ok: false,
       markup: `<div class="nyamark-mermaid-error">${escapeHtml(message)}</div>`,
     };
   }
+  drawings.set(key, drawing);
+  if (drawings.size > KEPT_DRAWINGS) {
+    drawings.delete(drawings.keys().next().value as string);
+  }
+  return drawing;
 }
 
-async function renderToMarkup(content: string): Promise<string> {
-  return (await renderDiagram(content)).markup;
+/*
+ * Diagrams are drawn as they come near the screen. Drawing one holds the
+ * page for a few hundred milliseconds, and a document opened with six of
+ * them could not be scrolled or typed in for over a second. Each waits
+ * under a placeholder until it is within a screen's height of what is
+ * shown, and they are drawn one at a time, with input and painting let in
+ * between.
+ */
+
+type Job = { content: string; place: (markup: string) => void };
+
+/** Diagrams waiting to be drawn, by the element standing where each goes. */
+const jobs = new Map<Element, Job>();
+/** Those whose placeholder Crepe has yet to put in the page, by its id. */
+const unplaced = new Map<string, Job>();
+/** Those near the screen. */
+const due = new Set<Element>();
+const observers = new Map<Element | null, IntersectionObserver>();
+let draining = false;
+let attachQueued = false;
+
+function placeholder(id: string) {
+  const label = escapeHtml(i18next.t('editor.blocks.loading'));
+  return `<div class="nyamark-mermaid-pending" data-mermaid-job="${id}">${label}</div>`;
+}
+
+/**
+ * What scrolls the page `element` is in. The search starts above the code
+ * block: the preview inside scrolls a wide diagram sideways, and taken for
+ * the page it made every diagram look on screen.
+ */
+function scrollParent(element: Element): Element | null {
+  const block = element.closest('.milkdown-code-block') ?? element;
+  for (let node = block.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (overflowY === 'auto' || overflowY === 'scroll') return node;
+  }
+  return null;
+}
+
+/** The part of the page `scroller` shows, top and bottom. */
+function shownSpan(scroller: Element | null): [number, number] {
+  if (!scroller) return [0, window.innerHeight];
+  const { top, bottom } = scroller.getBoundingClientRect();
+  return [top, bottom];
+}
+
+function watchFor(element: Element, job: Job) {
+  jobs.set(element, job);
+  const root = scrollParent(element);
+  let observer = observers.get(root);
+  if (!observer) {
+    observer = new IntersectionObserver(onNearScreen, {
+      root,
+      rootMargin: '100% 0px',
+    });
+    observers.set(root, observer);
+  }
+  observer.observe(element);
+}
+
+function forget(element: Element) {
+  jobs.delete(element);
+  due.delete(element);
+  for (const observer of observers.values()) observer.unobserve(element);
+}
+
+/** Watch the placeholders Crepe has put in since, and drop the gone ones. */
+function attachPlaceholders() {
+  attachQueued = false;
+  for (const element of document.querySelectorAll('[data-mermaid-job]')) {
+    const id = (element as HTMLElement).dataset.mermaidJob ?? '';
+    const job = unplaced.get(id);
+    if (job) watchFor(element, job);
+  }
+  // One not in the page by now belongs to a block already replaced.
+  unplaced.clear();
+  for (const element of jobs.keys()) {
+    if (!element.isConnected) forget(element);
+  }
+}
+
+function queueAttach() {
+  if (attachQueued) return;
+  attachQueued = true;
+  window.setTimeout(attachPlaceholders, 0);
+}
+
+function onNearScreen(entries: IntersectionObserverEntry[]) {
+  for (const entry of entries) {
+    if (entry.isIntersecting && jobs.has(entry.target)) due.add(entry.target);
+    else due.delete(entry.target);
+  }
+  void drainDue();
+}
+
+/** The waiting diagram nearest to what is shown, those on screen first. */
+function nearestDue(): Element | undefined {
+  let nearest: Element | undefined;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const element of due) {
+    const [top, bottom] = shownSpan(scrollParent(element));
+    const rect = element.getBoundingClientRect();
+    const distance = Math.max(0, top - rect.bottom, rect.top - bottom);
+    if (distance < nearestDistance) {
+      nearest = element;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
+async function drainDue() {
+  if (draining) return;
+  draining = true;
+  try {
+    for (let element = nearestDue(); element; element = nearestDue()) {
+      due.delete(element);
+      await draw(element);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    }
+  } finally {
+    draining = false;
+  }
+}
+
+function nextFrame() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
+/**
+ * Draw the diagram waiting at `element`. One drawn above the screen grows
+ * the page there, and WebKit, with no scroll anchoring, pushed the text
+ * being read down by its height; the scroll moves with it instead. The
+ * frame waited for comes before the page is painted.
+ */
+async function draw(element: Element) {
+  const job = jobs.get(element);
+  if (!job) return;
+  const { markup } = await renderDiagram(job.content);
+  // A newer job for the element, as a second change of theme, draws it.
+  if (jobs.get(element) !== job) return;
+  forget(element);
+  if (!element.isConnected) return;
+
+  const block = element.closest('.milkdown-code-block') ?? element;
+  const scroller = scrollParent(block);
+  const [top] = shownSpan(scroller);
+  const before = block.getBoundingClientRect();
+  job.place(markup);
+  const scrolled = scroller ?? document.scrollingElement;
+  if (!scrolled || before.top >= top) return;
+  await nextFrame();
+  if (!block.isConnected) return;
+  scrolled.scrollTop += block.getBoundingClientRect().height - before.height;
+}
+
+/** Draw every diagram still waiting: a printed page shows all of them. */
+export async function drawWaitingDiagrams() {
+  // Crepe puts a placeholder in after the change that asked for it.
+  await new Promise((resolve) => window.setTimeout(resolve, 0));
+  attachPlaceholders();
+  for (const element of [...jobs.keys()]) await draw(element);
 }
 
 /**
@@ -155,21 +340,26 @@ function changedSince(editor: Element, content: string): boolean {
  * it finished is dropped rather than shown over the newer one.
  *
  * A change made from outside the code, as the closing fence typed and taken
- * out on Enter, comes after the caret has left it and renders at once. The
- * render still waiting from the last keystroke in it is dropped too: it
- * drew the fence into the diagram over the right one.
+ * out on Enter, comes after the caret has left it and is drawn when near
+ * the screen, at once if it is on it. The render still waiting from the
+ * last keystroke in it is dropped too: it drew the fence into the diagram
+ * over the right one.
  */
 export function renderMermaidPreview(
   language: string,
   content: string,
   applyPreview: (value: string) => void
-): null | undefined {
+): string | null | undefined {
   if (language !== 'mermaid' || !content.trim()) return null;
 
   const editor = editorBeingTyped();
   if (!editor) {
-    void renderToMarkup(content).then(applyPreview);
-    return undefined;
+    const kept = drawings.get(drawingKey(content));
+    if (kept) return kept.markup;
+    const id = genId();
+    unplaced.set(id, { content, place: applyPreview });
+    queueAttach();
+    return placeholder(id);
   }
 
   const previous = pendingRenders.get(editor);
@@ -188,11 +378,12 @@ export function renderMermaidPreview(
 }
 
 /**
- * Re-render every mermaid preview after a theme change. The colours are
- * baked into the SVG, so each diagram is drawn again from its source. The
- * source comes from the document node: CodeMirror only keeps the visible
- * lines in the DOM and its line elements carry no newlines, so reading the
- * editor's text would hand mermaid a truncated single line.
+ * Re-render every mermaid preview after a theme change, each as it comes
+ * near the screen. The colours are baked into the SVG, so each diagram is
+ * drawn again from its source. The source comes from the document node:
+ * CodeMirror only keeps the visible lines in the DOM and its line elements
+ * carry no newlines, so reading the editor's text would hand mermaid a
+ * truncated single line.
  */
 export function reRenderMermaidPreviews(
   root: HTMLElement,
@@ -218,9 +409,11 @@ export function reRenderMermaidPreviews(
       previewByBlock.delete(block);
       const content = node.textContent;
       if (!content.trim()) break;
-      void renderToMarkup(content).then((markup) => {
-        if (!preview.isConnected) return;
-        preview.outerHTML = DOMPurify.sanitize(markup);
+      watchFor(preview, {
+        content,
+        place: (markup) => {
+          preview.outerHTML = DOMPurify.sanitize(markup);
+        },
       });
       break;
     }
