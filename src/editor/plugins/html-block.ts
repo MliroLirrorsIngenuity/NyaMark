@@ -214,12 +214,22 @@ p:has(> .ny-html-block) > :is(.ProseMirror-separator, .ProseMirror-trailingBreak
   border-radius: 12px;
   background: var(--ny-editor-codeblock-bg);
   color: var(--ny-text-primary);
+  /* The editor draws its own caret and leaves the native one clear, which
+     the field took in: clicked into, the source showed no caret at all. */
+  caret-color: var(--ny-text-primary);
   font-family: var(--ny-font-mono);
   font-size: 13px;
   line-height: 1.4;
   resize: none;
   outline: none;
   overflow: hidden;
+}
+
+/* The block under the editor's selection clears the native one in it, and
+   text selected in its source showed nothing. The field selects as text
+   in the document does. */
+.ny-editor-root .milkdown .ProseMirror :is(.ny-html-block, .ny-html-inline) > .ny-html-editor::selection {
+  background-color: color-mix(in srgb, var(--ny-accent), transparent 72%) !important;
 }
 `;
 
