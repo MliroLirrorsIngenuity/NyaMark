@@ -100,8 +100,22 @@ index c5069d95686d9c90e24a69366fdbe46402d91cea..d5cae1d2feffc19c3e7e0b8806a066e4
        __privateGet(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
+diff --git a/lib/cjs/feature/top-bar/index.js b/lib/cjs/feature/top-bar/index.js
+index 771177d0e3c09f3274aaeb63db0affd377c81115..a8edb705420a358672e9d901acb143e6d299b92a 100644
+--- a/lib/cjs/feature/top-bar/index.js
++++ b/lib/cjs/feature/top-bar/index.js
+@@ -689,6 +689,9 @@ const TopBar = vue.defineComponent({
+     return () => {
+       const view = isReady() ? ctx.get(core.editorViewCtx) : null;
+       const isReadonly = view ? !view.editable : false;
++      // Read on the way out too: a bar first drawn read-only has to hear
++      // when the editor opens again (NyaMark).
++      subscribeState();
+       if (isReadonly) return null;
+       return /* @__PURE__ */ vue.h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
+         return group.items.map((item) => {
 diff --git a/lib/cjs/index.js b/lib/cjs/index.js
-index 9726836fbea853e8be52f11df9b14b5589d457b3..08ba2ab2ca1f372d46f682ea850961f191bbc174 100644
+index 9726836fbea853e8be52f11df9b14b5589d457b3..1c533d2272ff53ecedc03d4df7929dd9c8dfaf5f 100644
 --- a/lib/cjs/index.js
 +++ b/lib/cjs/index.js
 @@ -1183,6 +1183,14 @@ const Menu = vue.defineComponent({
@@ -198,6 +212,16 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..08ba2ab2ca1f372d46f682ea850961f1
        __privateGet$2(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
+@@ -2706,6 +2743,9 @@ const TopBar = vue.defineComponent({
+     return () => {
+       const view = isReady() ? ctx.get(core.editorViewCtx) : null;
+       const isReadonly = view ? !view.editable : false;
++      // Read on the way out too: a bar first drawn read-only has to hear
++      // when the editor opens again (NyaMark).
++      subscribeState();
+       if (isReadonly) return null;
+       return /* @__PURE__ */ vue.h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
+         return group.items.map((item) => {
 diff --git a/lib/esm/feature/block-edit/index.js b/lib/esm/feature/block-edit/index.js
 index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..b364a4daf125684e73c27d4a65bc4c7317350bc3 100644
 --- a/lib/esm/feature/block-edit/index.js
@@ -300,8 +324,22 @@ index fb4d168a050811dc53bd55bcad0ce05c603233b4..08ac44738e60639bfcf294a9a32c601e
        __privateGet(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
+diff --git a/lib/esm/feature/top-bar/index.js b/lib/esm/feature/top-bar/index.js
+index dc55498f949c44e7848b15398c96d55b54c81a87..b8fe19a2a7ac50cfd0f010782728d42d4a5c5537 100644
+--- a/lib/esm/feature/top-bar/index.js
++++ b/lib/esm/feature/top-bar/index.js
+@@ -687,6 +687,9 @@ const TopBar = defineComponent({
+     return () => {
+       const view = isReady() ? ctx.get(editorViewCtx) : null;
+       const isReadonly = view ? !view.editable : false;
++      // Read on the way out too: a bar first drawn read-only has to hear
++      // when the editor opens again (NyaMark).
++      subscribeState();
+       if (isReadonly) return null;
+       return /* @__PURE__ */ h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
+         return group.items.map((item) => {
 diff --git a/lib/esm/index.js b/lib/esm/index.js
-index ea68de6cfb124faa35d9f047d82788a1043d255c..fd4ab92a6d6d789ca2faced8f4e29a90ba1a0320 100644
+index ea68de6cfb124faa35d9f047d82788a1043d255c..703d0223b078ea75e9b7afe9b5b90f0b56a02924 100644
 --- a/lib/esm/index.js
 +++ b/lib/esm/index.js
 @@ -1181,6 +1181,14 @@ const Menu = defineComponent({
@@ -398,3 +436,13 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..fd4ab92a6d6d789ca2faced8f4e29a90
        __privateGet$2(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
+@@ -2704,6 +2741,9 @@ const TopBar = defineComponent({
+     return () => {
+       const view = isReady() ? ctx.get(editorViewCtx) : null;
+       const isReadonly = view ? !view.editable : false;
++      // Read on the way out too: a bar first drawn read-only has to hear
++      // when the editor opens again (NyaMark).
++      subscribeState();
+       if (isReadonly) return null;
+       return /* @__PURE__ */ h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
+         return group.items.map((item) => {
