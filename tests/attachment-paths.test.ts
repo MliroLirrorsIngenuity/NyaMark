@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
   dirnamePath,
+  findSiteRootFile,
   formatAttachmentReference,
+  isSiteRootReference,
   isWithinDirectory,
   normalizePath,
   resolveAttachmentPath,
@@ -151,6 +153,78 @@ describe('resolveAttachmentPath', () => {
     ],
   ])('%s', (_label, documentPath, assetPath, expected) => {
     expect(resolveAttachmentPath(documentPath, assetPath)).toBe(expected);
+  });
+});
+
+describe('site-root references', () => {
+  /** The file `reference` in `documentPath` finds among `files`. */
+  const find = (documentPath: string, reference: string, files: string[]) => {
+    const path = resolveAttachmentPath(documentPath, reference) ?? '';
+    return findSiteRootFile(documentPath, path, async (candidate) =>
+      files.includes(candidate)
+    );
+  };
+
+  test.each([
+    ['from the root of a site', '/images/a.png', true],
+    ['with spaces around', '  /a.png ', true],
+    ['on a network share', '//server/share/a.png', false],
+    ['relative to the document', './a.png', false],
+    ['bare', 'a.png', false],
+    ['on a drive', 'C:/a.png', false],
+    ['as a file URI', 'file:///a.png', false],
+  ])('a reference %s is one: %s', (_label, reference, expected) => {
+    expect(isSiteRootReference(reference)).toBe(expected);
+  });
+
+  test.each([
+    [
+      'in public beside the posts (Astro, Vite)',
+      '/Users/me/blog/posts/a.md',
+      ['/Users/me/blog/public/images/x.png'],
+      '/Users/me/blog/public/images/x.png',
+    ],
+    [
+      'in static above the posts (Hugo)',
+      '/site/content/posts/deep/a.md',
+      ['/site/static/images/x.png'],
+      '/site/static/images/x.png',
+    ],
+    [
+      'in the site folder itself (Jekyll)',
+      '/site/_posts/a.md',
+      ['/site/images/x.png'],
+      '/site/images/x.png',
+    ],
+    [
+      'the nearest of two',
+      '/blog/posts/a.md',
+      ['/blog/public/images/x.png', '/blog/posts/public/images/x.png'],
+      '/blog/posts/public/images/x.png',
+    ],
+    [
+      'the file at that path on disk first',
+      '/blog/posts/a.md',
+      ['/images/x.png', '/blog/public/images/x.png'],
+      '/images/x.png',
+    ],
+    [
+      'on a Windows drive',
+      'C:/blog/posts/a.md',
+      ['C:/blog/public/images/x.png'],
+      'C:/blog/public/images/x.png',
+    ],
+    ['none, with no such file', '/blog/posts/a.md', [], null],
+  ])('finds the file %s', async (_label, documentPath, files, expected) => {
+    expect(await find(documentPath, '/images/x.png', files)).toBe(expected);
+  });
+
+  test('decodes the reference before looking', async () => {
+    expect(
+      await find('/blog/posts/a.md', '/images/my%20pic.png', [
+        '/blog/public/images/my pic.png',
+      ])
+    ).toBe('/blog/public/images/my pic.png');
   });
 });
 

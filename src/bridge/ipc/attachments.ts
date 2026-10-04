@@ -4,7 +4,9 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   type AttachmentReferenceOptions,
   basenamePath,
+  findSiteRootFile,
   formatAttachmentReference,
+  isSiteRootReference,
   normalizePath,
   resolveAttachmentPath,
   resolveStorageDir,
@@ -60,11 +62,20 @@ export async function copyLocalAttachment(
   return buildStoredAttachment(documentPath, targetPath, options);
 }
 
+/**
+ * The file `assetPath` in the document at `documentPath` points to. One
+ * written from a website's root, `/images/a.png`, is looked for in the
+ * site's folders too when no such file is at the root of the disk.
+ */
 export async function resolveDocumentAssetPath(
   documentPath: string | null,
   assetPath: string
 ): Promise<string | null> {
-  return resolveAttachmentPath(documentPath, assetPath);
+  const path = resolveAttachmentPath(documentPath, assetPath);
+  if (!path || !documentPath || !isSiteRootReference(assetPath)) return path;
+  // A path outside what the app may read is refused, and not there for it.
+  const onDisk = (candidate: string) => exists(candidate).catch(() => false);
+  return (await findSiteRootFile(documentPath, path, onDisk)) ?? path;
 }
 
 export async function formatMarkdownReference(

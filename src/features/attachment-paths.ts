@@ -234,6 +234,55 @@ export function resolveAttachmentPath(
   return joinPaths(dirnamePath(documentPath), unescaped);
 }
 
+/**
+ * Folders a site generator serves at its site's `/`, inside the site's
+ * folder: `public` (Astro, Vite, Next.js), `static` (Hugo, SvelteKit,
+ * Docusaurus), or the site's folder itself (Jekyll).
+ */
+const SITE_ROOT_FOLDERS = ['public', 'static', '.'];
+
+/** Whether `reference`, as written, starts at a website's root. */
+export function isSiteRootReference(reference: string) {
+  return /^\/(?!\/)/.test(reference.trim());
+}
+
+/**
+ * The files a site-root reference may mean, nearest first. A blog post
+ * writes its pictures as `/images/a.png`, served from the site's root; the
+ * post is in a folder of the site, and the picture in `public/images/a.png`
+ * or the like beside that folder, or higher up.
+ */
+export function siteRootCandidates(documentPath: string, absolutePath: string) {
+  const fromRoot = `.${normalizePath(absolutePath)}`;
+  const candidates: string[] = [];
+  let dir = dirnamePath(documentPath);
+  for (;;) {
+    for (const folder of SITE_ROOT_FOLDERS) {
+      const candidate = joinPaths(joinPaths(dir, folder), fromRoot);
+      if (candidate !== absolutePath) candidates.push(candidate);
+    }
+    const parent = dirnamePath(dir);
+    if (parent === dir) return candidates;
+    dir = parent;
+  }
+}
+
+/**
+ * The file a site-root reference resolved to `absolutePath` means: that
+ * path when it is on disk, else the nearest of `siteRootCandidates` that is.
+ */
+export async function findSiteRootFile(
+  documentPath: string,
+  absolutePath: string,
+  exists: (path: string) => Promise<boolean>
+): Promise<string | null> {
+  if (await exists(absolutePath)) return absolutePath;
+  for (const candidate of siteRootCandidates(documentPath, absolutePath)) {
+    if (await exists(candidate)) return candidate;
+  }
+  return null;
+}
+
 export function formatAttachmentReference(
   documentPath: string | null,
   assetPath: string,
