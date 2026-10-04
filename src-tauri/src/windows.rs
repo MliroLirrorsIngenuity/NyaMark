@@ -29,14 +29,24 @@ fn base_window_config<R: Runtime>(app: &AppHandle<R>) -> Result<WindowConfig> {
 /// command. See the `WebviewWindowBuilder` documentation ("On Windows, this
 /// function deadlocks when used in a synchronous command and event handlers").
 fn build_window<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Result<()> {
-    let window = WebviewWindowBuilder::from_config(app, config)?
+    let builder = WebviewWindowBuilder::from_config(app, config)?
         .on_navigation(is_app_navigation)
         // `platform/detect.ts` reads this; the webview's user agent is a guess.
         .initialization_script(format!(
             "window.__NYAMARK_PLATFORM__ = {:?};",
             std::env::consts::OS
-        ))
-        .build()?;
+        ));
+    // macOS: shown once it has a backdrop, in the theme its page opens in.
+    // The window is transparent so that it can be frosted, and till its page
+    // was drawn it was its traffic lights alone, floating over what lay
+    // behind.
+    #[cfg(target_os = "macos")]
+    let (frosted, theme) = saved_look(app);
+    #[cfg(target_os = "macos")]
+    let builder = builder.visible(false).theme(theme);
+    let window = builder.build()?;
+    #[cfg(target_os = "macos")]
+    let _ = set_background_blur(&window.as_ref().window(), frosted);
     let _ = window.show();
     let _ = window.set_focus();
     Ok(())
@@ -157,9 +167,12 @@ const GLASS_BLUR_RADIUS: i32 = 16;
 /// behind the window could be made out but the edges of other windows; the
 /// window server blurs at the width it is given, as it does for iTerm2, kitty
 /// and Ghostty.
+///
+/// Unblurred, the window takes the colour of its page, which shows before
+/// the page is drawn and wherever it lags behind a resize.
 #[cfg(target_os = "macos")]
 pub fn set_background_blur<R: Runtime>(window: &Window<R>, enabled: bool) -> Result<()> {
-    use objc2_app_kit::NSWindow;
+    use objc2_app_kit::{NSColor, NSWindow};
 
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
@@ -182,9 +195,71 @@ pub fn set_background_blur<R: Runtime>(window: &Window<R>, enabled: bool) -> Res
             unsafe {
                 CGSSetWindowBackgroundBlurRadius(CGSMainConnectionID(), number, radius);
             }
+            let color = if enabled {
+                NSColor::clearColor()
+            } else {
+                page_color()
+            };
+            ns_window.setBackgroundColor(Some(&color));
         })
         .context("Failed to reach the main thread")?;
     Ok(())
+}
+
+/// The colour the page opens on, `--ny-app-bg-start` in `shell.css`, in the
+/// appearance the window is drawn in: it follows the theme as it changes.
+#[cfg(target_os = "macos")]
+fn page_color() -> objc2::rc::Retained<objc2_app_kit::NSColor> {
+    use objc2_app_kit::{NSAppearance, NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSColor};
+    use objc2_foundation::NSArray;
+    use std::ptr::NonNull;
+
+    let light = NSColor::colorWithSRGBRed_green_blue_alpha(1.0, 254.0 / 255.0, 251.0 / 255.0, 1.0);
+    let dark =
+        NSColor::colorWithSRGBRed_green_blue_alpha(16.0 / 255.0, 21.0 / 255.0, 27.0 / 255.0, 1.0);
+    let provider = block2::RcBlock::new(move |appearance: NonNull<NSAppearance>| {
+        // SAFETY: AppKit hands the provider a live appearance, and the names
+        // are its own constants.
+        let (appearance, aqua, dark_aqua) = unsafe {
+            (
+                appearance.as_ref(),
+                NSAppearanceNameAqua,
+                NSAppearanceNameDarkAqua,
+            )
+        };
+        let is_dark = appearance
+            .bestMatchFromAppearancesWithNames(&NSArray::from_slice(&[aqua, dark_aqua]))
+            .is_some_and(|name| name.isEqualToString(dark_aqua));
+        NonNull::from(if is_dark { &*dark } else { &*light })
+    });
+    // SAFETY: the provider returns one of the colours it holds, which live
+    // as long as it does.
+    unsafe { NSColor::colorWithName_dynamicProvider(None, &provider) }
+}
+
+/// The window's look as the settings last saved it: whether it is frosted
+/// (`appearance.windowTransparency`) and the theme chosen over the system's
+/// (`appearance.theme`), from the store of `bridge/ipc/settings.ts`. Till the
+/// page set its theme, a window of a light page opened dark on a dark system.
+#[cfg(target_os = "macos")]
+fn saved_look<R: Runtime>(app: &AppHandle<R>) -> (bool, Option<tauri::Theme>) {
+    use serde_json::Value;
+
+    let appearance = app
+        .path()
+        .app_data_dir()
+        .ok()
+        .and_then(|dir| std::fs::read_to_string(dir.join("preferences.json")).ok())
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|store| store.pointer("/settings/appearance").cloned())
+        .unwrap_or(Value::Null);
+    let frosted = appearance["windowTransparency"].as_bool().unwrap_or(false);
+    let theme = match appearance["theme"].as_str() {
+        Some("light") => Some(tauri::Theme::Light),
+        Some("dark") => Some(tauri::Theme::Dark),
+        _ => None,
+    };
+    (frosted, theme)
 }
 
 #[cfg(not(target_os = "macos"))]

@@ -40,9 +40,10 @@ xattr = "1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Used to hook `applicationShouldTerminate:` so dock Quit / logout prompt for unsaved changes,
-# and to mark windows with unsaved changes as edited.
+# to mark windows with unsaved changes as edited, and to colour a window before its page draws.
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSView", "NSWindow"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-core-foundation", "NSAppearance", "NSApplication", "NSColor", "NSColorList", "NSResponder", "NSView", "NSWindow"] }
+block2 = "0.6"
 # The system's preferred languages pick the menu language before the webview loads.
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSLocale", "NSString"] }
 
