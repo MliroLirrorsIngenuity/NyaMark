@@ -153,8 +153,20 @@
   background: transparent !important;
 }
 
+/*
+ * The readable width in a window of ordinary size. A wide window, a full
+ * screen among them, widens the column with it, up to a third more: at
+ * 720px it grows past a window of about 1240px and reaches 960px at about
+ * 1660px. Fixed, it left most of a full screen empty.
+ */
 .milkdown .editor {
-  width: min(calc(100% - 104px), var(--ny-editor-readable-max)) !important;
+  width: min(
+    calc(100% - 104px),
+    max(
+      var(--ny-editor-readable-max),
+      min(58vw, calc(var(--ny-editor-readable-max) * 4 / 3))
+    )
+  ) !important;
   max-width: 100% !important;
   margin: 0 auto !important;
   padding: 0 !important;
