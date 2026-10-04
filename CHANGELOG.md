@@ -1,4 +1,46 @@
 # Changelog
+## 1.0.1 (2026-10-04)
+
+### ✨ Features
+
+- *(editor)* Follow links to anchors written in HTML  @Lemon-miaow
+
+
+### 🐛 Bug Fixes
+
+- *(attachments)* Find site-root pictures in the site's public folders  @Lemon-miaow
+
+- *(editor)* Draw HTML elements written in running text  @Lemon-miaow
+
+- *(editor)* Land outline jumps on far headings while diagrams draw  @Lemon-miaow
+
+- *(editor)* Bring the toolbar back after a long document opens  @Lemon-miaow
+
+- *(html)* Show the caret and selection in an HTML source field  @Lemon-miaow
+
+- *(table)* Take an empty row away with Backspace  @Lemon-miaow
+
+- *(ui)* Draw scrollbars in WebKit from Safari 26 on  @Lemon-miaow
+
+- *(window)* Show a new window in its page's colour from its first frame on macOS  @Lemon-miaow
+
+
+### 🚀 Performance
+
+- *(app)* Count a document once its first frame is drawn  @Lemon-miaow
+
+- *(editor)* Draw mermaid diagrams as they come near the screen  @Lemon-miaow
+
+- *(editor)* Open a long document on its first screens  @Lemon-miaow
+
+- *(editor)* Read only the opening of a long document before its first screen  @Lemon-miaow
+
+
+### 🎨 Styling
+
+- *(editor)* Widen the column in wide and full-screen windows  @Lemon-miaow
+
+
 ## 1.0.0 (2026-10-03)
 
 ### ✨ Features
