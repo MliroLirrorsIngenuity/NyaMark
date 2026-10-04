@@ -110,11 +110,12 @@
   color: inherit;
 }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--ny-border-strong) transparent;
-}
-
+/*
+ * Every web view the app runs in draws these. `scrollbar-width` and
+ * `scrollbar-color` stay unset: WebKit (from Safari 26) and Chromium drop
+ * these rules for any element that has them, and macOS then shows its own
+ * bar only while scrolling, in the near-white it was given.
+ */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -125,12 +126,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--ny-border-strong);
+  background: color-mix(in srgb, var(--ny-text-primary), transparent 76%);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--ny-text-muted);
+  background: color-mix(in srgb, var(--ny-text-primary), transparent 58%);
 }
 
 html,

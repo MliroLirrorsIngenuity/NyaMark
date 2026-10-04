@@ -57,8 +57,6 @@ const outlineStyles = `
   min-height: 0;
   overflow-y: auto;
   padding: 0 8px 16px;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--ny-text-muted), transparent 56%) transparent;
 }
 
 .ny-outline__empty {
