@@ -148,6 +148,7 @@ import { closeHeadingListOnKeys } from './plugins/top-bar-heading-list';
 import { typeOverBlocks } from './plugins/type-over-blocks';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
 import { undoByLine } from './plugins/undo-lines';
+import { scrollIntoViewSettled } from './scroll-settled';
 import { type BlockSpan, blockSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
 import { countLines, countWords } from './text-stats';
@@ -513,10 +514,8 @@ export class NyaEditor {
     }
     const smooth =
       !sourceMode && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this.headingElement(id)?.scrollIntoView({
-      behavior: smooth ? 'smooth' : 'auto',
-      block: 'start',
-    });
+    const heading = this.headingElement(id);
+    if (heading) scrollIntoViewSettled(heading, 'start', smooth);
   }
 
   /**
