@@ -27,6 +27,12 @@
  * took the whole item, table and all, out of the list. It goes to the cell
  * before, as it does in a table of its own; from the first cell, nowhere.
  *
+ * Backspace in a row with nothing typed in it: the row goes, and the caret
+ * to the end of the row above, as Backspace in an empty list item joins the
+ * item above. A row added by Enter or Tab and not wanted stood there until it
+ * was taken away from its handle's menu. A table with nothing typed in any
+ * cell goes whole.
+ *
  * Enter: Milkdown left the table from any cell, the header's too, so Enter
  * while filling in a row threw the caret out under the table. It goes down a
  * row in the same column instead, and from the last row adds one, the way
@@ -291,6 +297,42 @@ export function isEmptyRow(row: Node): boolean {
 }
 
 /**
+ * Backspace in an empty row: the row gone, the caret at the end of the row
+ * above; in an empty table, the table gone. The header and one row are as
+ * few as a table has: the last row left under a header with words in it
+ * stays, and the caret goes up to the header.
+ */
+export function backspaceEmptyRow(
+  state: EditorState,
+  dispatch?: (tr: Transaction) => void
+): boolean {
+  if (!state.selection.empty) return false;
+  const $cell = selectedCell(state);
+  if (!$cell || !isEmptyRow($cell.parent)) return false;
+  const table = $cell.node(-1);
+  const tr = state.tr;
+  if (isEmptyRow(table)) {
+    const at = $cell.before(-1);
+    if (state.doc.resolve(at).index() > 0) {
+      tr.delete(at, at + table.nodeSize);
+      tr.setSelection(Selection.near(tr.doc.resolve(at), -1));
+    } else {
+      // Nothing above it to go to: a line in its place.
+      const line = state.schema.nodes.paragraph.create();
+      tr.replaceWith(at, at + table.nodeSize, line);
+      tr.setSelection(TextSelection.create(tr.doc, at + 1));
+    }
+  } else {
+    const index = $cell.index(-1);
+    if (index === 0) return false;
+    if (table.childCount > 2) tr.delete($cell.before(), $cell.after());
+    tr.setSelection(Selection.near(tr.doc.resolve($cell.before()), -1));
+  }
+  dispatch?.(tr.scrollIntoView());
+  return true;
+}
+
+/**
  * Enter in a cell: to the end of the cell below. From the last row, a new row
  * to fill in from its first cell; from a last row left empty, out of the
  * table, the row gone.
@@ -452,6 +494,9 @@ export const tableCells = $prose(
           }
           if (event.key === 'Tab' && !event.metaKey) {
             return addRowFromLastCell(ctx, view);
+          }
+          if (event.key === 'Backspace' && !event.metaKey) {
+            return backspaceEmptyRow(view.state, view.dispatch);
           }
           if (event.key === 'Enter') {
             if (!event.metaKey && enterCellBelow(ctx, view)) return true;
