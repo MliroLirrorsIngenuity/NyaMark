@@ -532,8 +532,9 @@ export class NyaEditor {
   }
 
   /**
-   * Goes to the heading a link to `#fragment` names. False when none has
-   * that anchor.
+   * Goes to the heading a link to `#fragment` names, or else to the element
+   * of HTML in the document with that id, as a citation's `#ref-5` names the
+   * anchor of its reference. False when nothing has that anchor.
    */
   scrollToAnchor(fragment: string): boolean {
     const view = this.getView();
@@ -548,8 +549,38 @@ export class NyaEditor {
       fragment
     );
     const heading = headings[index];
-    if (!heading) return false;
-    this.scrollToHeading(pageId(heading));
+    if (heading) {
+      this.scrollToHeading(pageId(heading));
+      return true;
+    }
+    return this.scrollToHtmlAnchor(fragment);
+  }
+
+  /** Goes to the element of HTML in the document whose id is `fragment`. */
+  private scrollToHtmlAnchor(fragment: string): boolean {
+    const view = this.getView();
+    if (!view) return false;
+    let id = fragment;
+    try {
+      id = decodeURIComponent(fragment);
+    } catch {}
+    const target = id
+      ? view.dom.querySelector<HTMLElement>(
+          `.ny-html-preview [id="${CSS.escape(id)}"]`
+        )
+      : null;
+    if (!target) return false;
+    // As at a heading: the caret beside it, or in source mode, where it is.
+    const sourceMode = view.dom.closest('.is-source-mode') != null;
+    if (!sourceMode) {
+      const { tr } = view.state;
+      const $pos = tr.doc.resolve(view.posAtDOM(target, 0));
+      view.dispatch(tr.setSelection(Selection.near($pos)));
+      view.focus();
+    }
+    const smooth =
+      !sourceMode && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    scrollIntoViewSettled(target, 'center', smooth);
     return true;
   }
 
