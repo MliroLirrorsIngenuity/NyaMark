@@ -6,7 +6,6 @@
 
 import { Crepe } from '@milkdown/crepe';
 import {
-  editorStateOptionsCtx,
   editorViewCtx,
   editorViewOptionsCtx,
   parserCtx,
@@ -31,7 +30,7 @@ import {
   Slice,
 } from '@milkdown/kit/prose/model';
 import {
-  EditorState,
+  type EditorState,
   Plugin,
   PluginKey,
   Selection,
@@ -43,7 +42,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 import { buildCrepeConfig } from './config';
 import { replaceChangedRange, settleParsed } from './doc-diff';
 import { anchorIndex, headingId, headingLabel, pageId } from './heading-anchor';
-import { type Opening, drawRest, splitOpening } from './open-in-parts';
+import { afterFirstFrame, openingOf } from './open-in-parts';
 import { bareLinkInput } from './plugins/bare-link-input';
 import { bareLinkParse, keepBareLinks } from './plugins/bare-links';
 import { blockArrows } from './plugins/block-arrows';
@@ -193,10 +192,14 @@ export class NyaEditor {
     bindMermaidThemeListener(this.root, () => this.getView());
     installDragSelectGuard(this.root);
 
+    // A long document opens on its first screens, and stays closed to
+    // editing until the rest is drawn (see open-in-parts).
+    const opening = openingOf(initialMarkdown);
+    let opened = opening === null;
     const crepe = new Crepe(
       buildCrepeConfig({
         root: this.root,
-        defaultValue: initialMarkdown,
+        defaultValue: opening ?? initialMarkdown,
         onUpload: async (file) => {
           const upload = this.options.onUploadFile;
           return upload ? upload(file) : URL.createObjectURL(file);
@@ -320,22 +323,10 @@ export class NyaEditor {
       });
     });
 
-    // A long document opens on its first screens, and stays closed to
-    // editing until the rest is drawn (see open-in-parts).
-    let opening: Opening | null = null;
     crepe.editor.config((ctx) => {
-      ctx.update(editorStateOptionsCtx, (options) => (config) => {
-        const stateOptions = options(config);
-        const { doc } = stateOptions;
-        if (!doc) return stateOptions;
-        const { shouldAppend } = ctx.get(trailingConfig.key);
-        const whole = EditorState.create({ doc });
-        opening = splitOpening(doc, (last) => shouldAppend(last, whole));
-        return opening ? { ...stateOptions, doc: opening.first } : stateOptions;
-      });
       ctx.update(editorViewOptionsCtx, (options) => ({
         ...options,
-        editable: (state) => !opening && (options.editable?.(state) ?? true),
+        editable: (state) => opened && (options.editable?.(state) ?? true),
       }));
     });
 
@@ -357,10 +348,13 @@ export class NyaEditor {
     languagePickerKeys(this.root);
     languagePickerRoom(this.root);
 
-    const rest = (opening as Opening | null)?.rest;
-    if (view && rest) {
-      await drawRest(view, rest);
-      opening = null;
+    if (view && !opened) {
+      await afterFirstFrame();
+      // The text in full, drawn past the opening, which it leaves as drawn.
+      if (!view.isDestroyed) {
+        this.setMarkdown(initialMarkdown, { addToHistory: false });
+      }
+      opened = true;
       if (!view.isDestroyed) view.setProps({});
     }
   }
