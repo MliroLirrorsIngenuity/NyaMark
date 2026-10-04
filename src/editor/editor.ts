@@ -91,6 +91,7 @@ import { ImageMetaPanel } from './plugins/image-meta-panel';
 import { imageRatio } from './plugins/image-ratio';
 import { imageOwnTitle } from './plugins/image-title';
 import { inlineCodeText } from './plugins/inline-code-text';
+import { inlineHtmlRuns } from './plugins/inline-html';
 import { caretPastSelectedBlock, insertBlocks } from './plugins/insert-blocks';
 import { languagePickerKeys } from './plugins/language-picker-keys';
 import { languagePickerRoom } from './plugins/language-picker-room';
@@ -233,6 +234,7 @@ export class NyaEditor {
     crepe.editor.use(cjkStrikethrough);
     crepe.editor.use(dollarTextParse);
     crepe.editor.use(bareLinkParse);
+    crepe.editor.use(inlineHtmlRuns);
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(blockEdges);
     crepe.editor.use(hrInput);

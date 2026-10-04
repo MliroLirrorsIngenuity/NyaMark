@@ -10,6 +10,7 @@ import {
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $ctx, $prose, $view } from '@milkdown/kit/utils';
 import DOMPurify, { type Config } from 'dompurify';
+import { micromark } from 'micromark';
 import { ensureStyle } from '../../style/register';
 import { forInputMethod } from '../../ui/ime';
 
@@ -106,6 +107,18 @@ function holdLocalImages(root: ParentNode) {
   return held;
 }
 
+/**
+ * The HTML a piece of running text makes: its tags, and the Markdown between
+ * them read as the line it stands in reads it.
+ */
+function inlineHtml(value: string): string {
+  const html = micromark(value, { allowDangerousHtml: true });
+  return /^<p>([\s\S]*)<\/p>\s*$/.exec(html)?.[1] ?? html;
+}
+
+/** Elements that show, with no text in them. */
+const SHOWN_EMPTY = 'img, br, hr, svg, video, audio, picture, canvas, math';
+
 const css = `
 /* The paragraph it sits in spaces it from the blocks around it, as every
    other block is spaced. */
@@ -153,14 +166,9 @@ p:has(> .ny-html-block) > :is(.ProseMirror-separator, .ProseMirror-trailingBreak
   height: auto;
 }
 
-.ny-html-inline .ny-html-preview {
-  padding: 0 0.2em;
-  border-radius: 3px;
-  background: rgba(128, 128, 128, 0.12);
-  color: var(--ny-text-muted);
-  font-family: var(--ny-font-mono);
-  font-size: 0.88em;
-  white-space: pre-wrap;
+/* Raised or lowered, a citation mark stood its line apart from the rest. */
+.ny-html-preview :where(sup, sub) {
+  line-height: 0;
 }
 
 .ny-html-source .ny-html-preview {
@@ -170,9 +178,24 @@ p:has(> .ny-html-block) > :is(.ProseMirror-separator, .ProseMirror-trailingBreak
   white-space: pre-wrap;
 }
 
+.ny-html-inline.ny-html-source .ny-html-preview {
+  padding: 0 0.2em;
+  border-radius: 3px;
+  background: rgba(128, 128, 128, 0.12);
+}
+
+/* Drawn in the line it stands in. Positioned, so what it places absolutely
+   stays in the editor's scrolling: paint containment holds no inline box. */
+.ny-html-inline:not(.ny-html-source) .ny-html-preview {
+  position: relative;
+  padding: 0;
+  line-height: inherit;
+}
+
 .ny-html-inline .ny-html-editor {
   display: inline-block;
   width: auto;
+  max-width: 100%;
   min-height: 0;
   padding: 0 0.2em;
 }
@@ -207,8 +230,8 @@ export function registerHtmlBlockStyles() {
 /**
  * Milkdown models every HTML node as an inline atom. An HTML block reaches the
  * document wrapped alone in a paragraph (`remarkHtmlTransformer`); anything else
- * is a single tag inside running text, such as the `<kbd>` of `<kbd>K</kbd>`,
- * which cannot render on its own and is shown as source instead.
+ * is HTML inside running text, an element whole (`inlineHtmlRuns`) or a tag
+ * whose element is not all there, which is shown as source.
  */
 export function isHtmlBlock(node: ProseNode): boolean {
   return (
@@ -273,7 +296,7 @@ export const htmlBlockView = $view(htmlSchema.node, (ctx) => {
     const dom = document.createElement(block ? 'div' : 'span');
     dom.classList.add(block ? 'ny-html-block' : 'ny-html-inline');
 
-    const preview = document.createElement(block ? 'div' : 'span');
+    const preview: HTMLElement = document.createElement(block ? 'div' : 'span');
     preview.classList.add('ny-html-preview');
 
     const editor = block
@@ -285,14 +308,10 @@ export const htmlBlockView = $view(htmlSchema.node, (ctx) => {
     let renders = 0;
     const render = (value: string) => {
       const current = ++renders;
-      if (!block) {
-        preview.textContent = value;
-        return;
-      }
       // Parsed in a template, where nothing loads, so a local image never
       // asks the app's own address for itself first.
       const template = document.createElement('template');
-      template.innerHTML = sanitizeHtmlBlock(value);
+      template.innerHTML = sanitizeHtmlBlock(block ? value : inlineHtml(value));
       const source = ctx.get(htmlImageSource.key);
       for (const [image, src] of holdLocalImages(template.content)) {
         void Promise.resolve(source(src))
@@ -302,11 +321,23 @@ export const htmlBlockView = $view(htmlSchema.node, (ctx) => {
           });
       }
       preview.replaceChildren(template.content);
+      if (!block) {
+        // Fixed to the window, it was drawn over the app's own controls.
+        for (const element of preview.querySelectorAll<HTMLElement>(
+          '[style]'
+        )) {
+          if (element.style.position === 'fixed') {
+            element.style.removeProperty('position');
+          }
+        }
+      }
       // A comment, or a closing tag on its own such as the `</details>` after
       // the folded content, shows nothing: the block stood as a blank gap that
-      // no click could find. It shows its source instead, as a tag in running
-      // text does.
-      const blank = !preview.querySelector('*') && !preview.textContent?.trim();
+      // no click could find. It shows its source instead. In running text, so
+      // does a tag whose element is not all there, and an empty anchor.
+      const blank = block
+        ? !preview.querySelector('*') && !preview.textContent?.trim()
+        : !preview.textContent?.trim() && !preview.querySelector(SHOWN_EMPTY);
       dom.classList.toggle('ny-html-source', blank);
       if (blank) preview.textContent = value;
     };
@@ -425,7 +456,9 @@ export const htmlBlockView = $view(htmlSchema.node, (ctx) => {
         // the privileged window away and sever the IPC bridge. Ctrl/Cmd-click
         // bubbles to the editor container, which opens it via the opener.
         e.preventDefault();
-        return;
+        // In running text the link is often all there is, as a citation's
+        // `[5]` is, and a click on it opens the source as one on text does.
+        if (block || e.metaKey || e.ctrlKey) return;
       }
       if (target.closest('summary, audio, video')) {
         return;
