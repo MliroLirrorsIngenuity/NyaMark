@@ -401,6 +401,22 @@
       "rateLimited": "请求太多或额度已用完，请稍后再试。",
       "network": "连不上这个服务。",
       "other": "服务返回了错误。"
+    },
+    "tool": {
+      "readDocument": "读取文档",
+      "readDocumentAll": "读取了全文",
+      "readLines": "读取了第 {{from}}–{{to}} 行",
+      "readOutline": "查看了大纲",
+      "readSection": "读取了「{{heading}}」一节",
+      "readSelection": "读取了选中内容",
+      "search": "搜索「{{query}}」",
+      "searchFound": "搜索「{{query}}」· {{count}} 处",
+      "generic": "调用了 {{name}}"
+    },
+    "ending": {
+      "stepLimit": "已达到单次回复的步骤上限。发送「继续」可接着做。",
+      "length": "回复达到了模型的长度上限。",
+      "filtered": "服务方过滤了这条回复。"
     }
   }
 }

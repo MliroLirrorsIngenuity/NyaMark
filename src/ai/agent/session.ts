@@ -6,6 +6,7 @@
 
 import {
   APICallError,
+  type FinishReason,
   type LanguageModel,
   type LanguageModelUsage,
   type ModelMessage,
@@ -24,9 +25,23 @@ export type TurnSetup = {
   tools?: ToolSet;
 };
 
+/** A tool the model called, as the reply shows it. */
+export type ToolPart = {
+  type: 'tool';
+  /** The call's id, as the model gave it. */
+  id: string;
+  name: string;
+  /** What the model called it with; undefined while it is still writing it. */
+  input: unknown;
+  state: 'running' | 'done' | 'error' | 'stopped';
+  output?: unknown;
+  error?: string;
+};
+
 export type ChatPart =
   | { type: 'text'; text: string }
-  | { type: 'reasoning'; text: string };
+  | { type: 'reasoning'; text: string }
+  | ToolPart;
 
 export type ChatFailureCode =
   /** No model is chosen. */
@@ -61,6 +76,8 @@ export type AssistantEntry = {
   model: string;
   error?: ChatFailure;
   usage?: ChatUsage;
+  /** Why a reply that finished ended short of what the model meant to do. */
+  ending?: 'step-limit' | 'length' | 'filtered';
   /** Where its messages begin in what the model is sent. */
   historyStart: number;
 };
@@ -75,6 +92,14 @@ export type SessionChange =
 
 /** Model steps a turn may take before it is cut off. */
 const MAX_STEPS = 40;
+
+/** How the last step's finish reasons read once the turn is over. */
+const ENDINGS: Partial<Record<FinishReason, AssistantEntry['ending']>> = {
+  // The model still had tools to call: the turn ran out of steps.
+  'tool-calls': 'step-limit',
+  length: 'length',
+  'content-filter': 'filtered',
+};
 
 export class ChatFailureError extends Error {
   constructor(readonly failure: ChatFailure) {
@@ -152,12 +177,13 @@ function addUsage(
   };
 }
 
-/** The text a reply shows, without its reasoning. */
+/** The text a reply shows, without its reasoning and tools. */
 export function replyText(entry: AssistantEntry): string {
-  return entry.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
-    .join('');
+  let text = '';
+  for (const part of entry.parts) {
+    if (part.type === 'text') text += part.text;
+  }
+  return text;
 }
 
 export class ChatSession {
@@ -278,10 +304,36 @@ export class ChatSession {
             this.append(entry, 'reasoning', part.text);
             update();
             break;
+          case 'tool-input-start':
+            this.tool(entry, part.id, part.toolName);
+            update();
+            break;
+          case 'tool-call':
+            this.tool(entry, part.toolCallId, part.toolName).input = part.input;
+            update();
+            break;
+          case 'tool-result': {
+            if (part.preliminary) break;
+            const tool = this.tool(entry, part.toolCallId, part.toolName);
+            tool.state = 'done';
+            tool.output = part.output;
+            update();
+            break;
+          }
+          case 'tool-error': {
+            const tool = this.tool(entry, part.toolCallId, part.toolName);
+            tool.state = 'error';
+            tool.error = errorMessage(part.error);
+            update();
+            break;
+          }
           case 'finish-step':
             stepText = '';
             entry.usage = addUsage(entry.usage, part.usage);
             update();
+            break;
+          case 'finish':
+            entry.ending = ENDINGS[part.finishReason];
             break;
           case 'error':
             failure ??= part.error;
@@ -307,6 +359,11 @@ export class ChatSession {
     // Cleared while it ran: the entry is gone already.
     if (this.running !== controller) return;
     this.running = null;
+    for (const part of entry.parts) {
+      if (part.type === 'tool' && part.state === 'running') {
+        part.state = 'stopped';
+      }
+    }
     if (entry.status !== 'done') {
       // What the model said before it stopped is kept, so a follow-up
       // can refer to it; a retry drops it again.
@@ -323,10 +380,30 @@ export class ChatSession {
     this.emit({ kind: 'updated', entry });
   }
 
-  private append(entry: AssistantEntry, type: ChatPart['type'], text: string) {
+  private append(
+    entry: AssistantEntry,
+    type: 'text' | 'reasoning',
+    text: string
+  ) {
     if (!text) return;
     const last = entry.parts[entry.parts.length - 1];
     if (last?.type === type) last.text += text;
     else entry.parts.push({ type, text });
+  }
+
+  /** The reply's part for tool call `id`, added when it is new. */
+  private tool(entry: AssistantEntry, id: string, name: string): ToolPart {
+    for (const part of entry.parts) {
+      if (part.type === 'tool' && part.id === id) return part;
+    }
+    const part: ToolPart = {
+      type: 'tool',
+      id,
+      name,
+      input: undefined,
+      state: 'running',
+    };
+    entry.parts.push(part);
+    return part;
   }
 }

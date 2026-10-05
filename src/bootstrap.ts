@@ -274,6 +274,7 @@ export class App {
       ({ AiPanel }) =>
         new AiPanel({
           editor,
+          sourceSelection: () => this.sourceMode?.selectionInDocument() ?? null,
           documentPath: () => store.getState().filePath,
           openSettings: () => this.settingsPanel.open('ai'),
         })

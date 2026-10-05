@@ -24,4 +24,8 @@ export const ICONS = {
     '<path d="M13 8a5 5 0 1 1-1.46-3.54" /><path d="M13.25 2.5v2.75H10.5" />'
   ),
   down: svg('<path d="M8 3.5V12.5M3.75 8.25 8 12.5l4.25-4.25" />'),
+  alert: svg(
+    '<circle cx="8" cy="8" r="5.75" /><path d="M8 5v3.25" /><path d="M8 10.9v.1" />'
+  ),
+  dash: svg('<path d="M4.75 8h6.5" />'),
 };

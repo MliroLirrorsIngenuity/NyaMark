@@ -401,6 +401,22 @@
       "rateLimited": "請求過多或額度已用完，請稍後再試。",
       "network": "無法連線到這個服務。",
       "other": "服務傳回了錯誤。"
+    },
+    "tool": {
+      "readDocument": "讀取文件",
+      "readDocumentAll": "讀取了全文",
+      "readLines": "讀取了第 {{from}}–{{to}} 行",
+      "readOutline": "查看了大綱",
+      "readSection": "讀取了「{{heading}}」一節",
+      "readSelection": "讀取了選取內容",
+      "search": "搜尋「{{query}}」",
+      "searchFound": "搜尋「{{query}}」· {{count}} 處",
+      "generic": "呼叫了 {{name}}"
+    },
+    "ending": {
+      "stepLimit": "已達到單次回覆的步驟上限。傳送「繼續」可接著做。",
+      "length": "回覆達到了模型的長度上限。",
+      "filtered": "服務方過濾了這則回覆。"
     }
   }
 }

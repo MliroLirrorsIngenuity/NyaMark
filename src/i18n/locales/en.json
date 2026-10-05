@@ -404,6 +404,23 @@
       "rateLimited": "Too many requests, or the quota is used up. Try again in a moment.",
       "network": "The service could not be reached.",
       "other": "The service returned an error."
+    },
+    "tool": {
+      "readDocument": "Reading the document",
+      "readDocumentAll": "Read the whole document",
+      "readLines": "Read lines {{from}}–{{to}}",
+      "readOutline": "Read the outline",
+      "readSection": "Read “{{heading}}”",
+      "readSelection": "Read the selection",
+      "search": "Searching for “{{query}}”",
+      "searchFound_one": "Searched for “{{query}}” · {{count}} match",
+      "searchFound_other": "Searched for “{{query}}” · {{count}} matches",
+      "generic": "Used {{name}}"
+    },
+    "ending": {
+      "stepLimit": "Stopped after the most steps one reply may take. Send “continue” to carry on.",
+      "length": "The reply reached the model’s length limit.",
+      "filtered": "The service filtered this reply."
     }
   }
 }

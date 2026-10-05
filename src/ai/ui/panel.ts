@@ -16,12 +16,14 @@ import {
 import { ensureStyle } from '../../style/register';
 import { keepReadingPosition } from '../../ui/reading-position';
 import { buildInstructions } from '../agent/instructions';
+import { liveDocument } from '../agent/live-document';
 import {
   ChatFailureError,
   ChatSession,
   type SessionChange,
   type TurnSetup,
 } from '../agent/session';
+import { type DocumentReader, documentTools } from '../agent/tools/document';
 import { connectModel } from '../providers/connect';
 import { Composer } from './composer';
 import { ICONS } from './icons';
@@ -31,6 +33,8 @@ import panelStyles from './panel.css?inline';
 
 export type AiPanelHost = {
   editor: NyaEditor;
+  /** The source pane's selection in the editor's document, null outside it. */
+  sourceSelection: () => { from: number; to: number } | null;
   /** The open document's path, `null` while it is unsaved. */
   documentPath: () => string | null;
   /** Opens the AI section of the settings. */
@@ -88,6 +92,7 @@ export class AiPanel {
   private readonly list: MessageList;
   private readonly composer: Composer;
   private readonly session: ChatSession;
+  private readonly readDocument: DocumentReader;
   private readonly newChat: HTMLButtonElement;
   private ai: AiSettings = getSettings().ai;
   private visible = false;
@@ -97,6 +102,7 @@ export class AiPanel {
     ensureStyle('ai-panel', panelStyles);
     applyWidth(storedWidth());
 
+    this.readDocument = liveDocument(host.editor, host.sourceSelection);
     this.session = new ChatSession(() => this.prepareTurn());
 
     this.root = document.createElement('aside');
@@ -272,20 +278,23 @@ export class AiPanel {
     return card;
   }
 
-  private prepareTurn(): TurnSetup {
+  private async prepareTurn(): Promise<TurnSetup> {
     const ai = getSettings().ai;
     const ref = ai.chatModel;
     const provider = ref && ai.providers.find((p) => p.id === ref.provider);
     if (!ref || !provider) {
       throw new ChatFailureError({ code: 'no-model', message: '' });
     }
+    const document = await this.readDocument();
     return {
       model: connectModel(provider, ref.model, () => getSettings().ai.proxy),
       modelLabel: ref.model,
       instructions: buildInstructions({
         documentPath: this.host.documentPath(),
         custom: ai.instructions,
+        document,
       }),
+      tools: documentTools(this.readDocument),
     };
   }
 

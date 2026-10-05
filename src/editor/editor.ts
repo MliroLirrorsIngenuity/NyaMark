@@ -174,6 +174,10 @@ export class NyaEditor {
   private readonly imageMetaPanel: ImageMetaPanel;
   private onChangeCallback?: (markdown: string) => void;
   private readonly docChangedListeners = new Set<() => void>();
+  private markReady: () => void = () => {};
+  private readonly ready = new Promise<void>((resolve) => {
+    this.markReady = resolve;
+  });
 
   constructor(
     private readonly root: HTMLElement,
@@ -357,6 +361,12 @@ export class NyaEditor {
       opened = true;
       if (!view.isDestroyed) view.setProps({});
     }
+    this.markReady();
+  }
+
+  /** Resolves once the whole document is in the editor (see open-in-parts). */
+  whenReady(): Promise<void> {
+    return this.ready;
   }
 
   /**

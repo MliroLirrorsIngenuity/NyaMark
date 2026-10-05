@@ -359,6 +359,25 @@ export class SourceModeController {
     return true;
   }
 
+  /**
+   * The source pane's selection as positions in the editor's document, its
+   * edits pushed there first; null outside source mode.
+   */
+  selectionInDocument(): { from: number; to: number } | null {
+    const cm = this.cmView;
+    const view = this.previewView;
+    if (!cm || !view) return null;
+    this.flush();
+    const text = cm.state.doc.toString();
+    const spans = this.editor.blockSpans(text);
+    const { from, to } = cm.state.selection.main;
+    const { doc } = view.state;
+    return {
+      from: docPosition(doc, from, text, spans),
+      to: docPosition(doc, to, text, spans),
+    };
+  }
+
   /** Opens the source pane's own find bar; false outside source mode. */
   find() {
     if (!this.cmView) return false;

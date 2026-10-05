@@ -346,6 +346,70 @@
   line-height: 1.5;
 }
 
+.ny-ai-tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ny-text-muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.ny-ai-msg__content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ny-ai-tool + .ny-ai-tool {
+  margin-top: -6px;
+}
+
+.ny-ai-tool__icon {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.ny-ai-tool__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ny-ai-tool[data-state="running"] .ny-ai-tool__icon {
+  box-sizing: border-box;
+  border: 1.5px solid var(--ny-border-strong);
+  border-top-color: var(--ny-accent);
+  border-radius: 50%;
+  animation: ny-ai-spin 0.8s linear infinite;
+}
+
+.ny-ai-tool[data-state="error"] {
+  color: var(--ny-ai-error);
+}
+
+.ny-ai-tool__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@keyframes ny-ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ny-ai-tool[data-state="running"] .ny-ai-tool__icon {
+    animation: none;
+  }
+}
+
 .ny-ai-msg__pending {
   display: inline-flex;
   gap: 4px;

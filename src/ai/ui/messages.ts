@@ -5,12 +5,14 @@ import {
   type ChatEntry,
   type ChatFailureCode,
   type ChatPart,
+  type ToolPart,
   type UserEntry,
   replyText,
 } from '../agent/session';
 import { isOpenableLink, renderChatMarkdown } from '../render/markdown';
 import { copyText } from './clipboard';
 import { ICONS } from './icons';
+import { toolLabel } from './tool-labels';
 
 /** Within this of the end, the list keeps following a reply as it grows. */
 const NEAR_END_PX = 32;
@@ -44,10 +46,24 @@ const SELF_EXPLAINED = new Set<ChatFailureCode>([
   'key-needed',
 ]);
 
+const ENDING_TEXT: Record<NonNullable<AssistantEntry['ending']>, string> = {
+  'step-limit': 'ai.ending.stepLimit',
+  length: 'ai.ending.length',
+  filtered: 'ai.ending.filtered',
+};
+
+const TOOL_ICONS: Record<ToolPart['state'], string> = {
+  running: '',
+  done: ICONS.check,
+  error: ICONS.alert,
+  stopped: ICONS.dash,
+};
+
 type PartView = {
   type: ChatPart['type'];
   root: HTMLElement;
   body: HTMLElement;
+  /** A reasoning part's summary line, or a tool part's state icon. */
   summary: HTMLElement | null;
   shown: string;
 };
@@ -261,6 +277,10 @@ export class MessageList {
         if (!view.parts[index]) view.content.append(shown.root);
         view.parts[index] = shown;
       }
+      if (part.type === 'tool') {
+        this.drawTool(part, shown);
+        return;
+      }
       if (shown.summary) {
         const thinking = streaming && index === entry.parts.length - 1;
         shown.summary.textContent = i18next.t(
@@ -277,13 +297,20 @@ export class MessageList {
       }
     });
 
-    const waiting = streaming && entry.parts.length === 0;
-    if (waiting && !view.pending) {
-      view.pending = el('div', 'ny-ai-msg__pending');
-      view.pending.setAttribute('aria-label', i18next.t('ai.waiting'));
-      view.pending.append(el('span', ''), el('span', ''), el('span', ''));
+    // Waiting for the first word, or for what the model makes of a tool's
+    // result.
+    const last = entry.parts[entry.parts.length - 1];
+    const waiting =
+      streaming &&
+      (!last || (last.type === 'tool' && last.state !== 'running'));
+    if (waiting) {
+      if (!view.pending) {
+        view.pending = el('div', 'ny-ai-msg__pending');
+        view.pending.setAttribute('aria-label', i18next.t('ai.waiting'));
+        view.pending.append(el('span', ''), el('span', ''), el('span', ''));
+      }
       view.content.append(view.pending);
-    } else if (!waiting && view.pending) {
+    } else if (view.pending) {
       view.pending.remove();
       view.pending = null;
     }
@@ -295,6 +322,7 @@ export class MessageList {
       entry.model,
       entry.usage?.input ?? '',
       entry.usage?.output ?? '',
+      entry.ending ?? '',
       i18next.language,
     ].join('\u0000');
     if (state === view.shownState) return;
@@ -308,11 +336,29 @@ export class MessageList {
       const body = el('div', 'ny-ai-md');
       return { type, root: body, body, summary: null, shown: '\u0000' };
     }
+    if (type === 'tool') {
+      const root = el('div', 'ny-ai-tool');
+      const icon = el('span', 'ny-ai-tool__icon');
+      const body = el('span', 'ny-ai-tool__label');
+      root.append(icon, body);
+      return { type, root, body, summary: icon, shown: '\u0000' };
+    }
     const root = el('details', 'ny-ai-reasoning');
     const summary = el('summary', '');
     const body = el('div', 'ny-ai-reasoning__text');
     root.append(summary, body);
     return { type, root, body, summary, shown: '\u0000' };
+  }
+
+  private drawTool(part: ToolPart, view: PartView) {
+    const label = toolLabel(part);
+    const key = [part.state, label, part.error ?? ''].join('\u0000');
+    if (view.shown === key) return;
+    view.shown = key;
+    view.root.dataset.state = part.state;
+    view.body.textContent = label;
+    view.root.title = part.error ? `${label}\n${part.error}` : label;
+    if (view.summary) view.summary.innerHTML = TOOL_ICONS[part.state];
   }
 
   private addCodeCopyButtons(body: HTMLElement) {
@@ -327,6 +373,12 @@ export class MessageList {
     status.replaceChildren();
     if (entry.status === 'stopped') {
       status.append(el('div', 'ny-ai-msg__note', i18next.t('ai.stopped')));
+      return;
+    }
+    if (entry.status === 'done' && entry.ending) {
+      status.append(
+        el('div', 'ny-ai-msg__note', i18next.t(ENDING_TEXT[entry.ending]))
+      );
       return;
     }
     if (entry.status !== 'error' || !entry.error) return;
