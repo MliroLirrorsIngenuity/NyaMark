@@ -704,7 +704,12 @@ export class SettingsPanel {
       secretsSettled = true;
       await aiLoaded.catch(() => undefined);
       await aiSection?.settled();
-      await (keep ? commitAiSecrets() : discardAiSecrets());
+      if (!keep) {
+        await discardAiSecrets();
+        return;
+      }
+      await commitAiSecrets();
+      aiSection?.committed();
     };
     const loadAi = () => {
       aiLoaded ??= import('./sections/ai').then(({ renderAiSection }) => {
@@ -789,6 +794,7 @@ export class SettingsPanel {
       if (closing) return;
       closing = true;
       void settleSecrets(false).catch(console.error);
+      aiSection?.destroy();
       // Handing the focus back blurs a field still being typed in, and its
       // change event previews that value: a font size typed and then
       // cancelled with Escape stayed on the page.

@@ -63,6 +63,7 @@ describe('AI settings', () => {
       instructions: '',
       editMode: 'review',
       search: { engine: 'auto', searxngUrl: '', native: false },
+      mcpServers: [],
     });
   });
 

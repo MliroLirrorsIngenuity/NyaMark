@@ -369,7 +369,53 @@
       "searxngUrl": "SearXNG 地址",
       "searchNote": "不用填搜索 key：应用直接读取 Bing 和 DuckDuckGo 给浏览器的结果页。“自动”会依次尝试。",
       "nativeSearch": "服务商自带联网搜索时优先用它",
-      "nativeSearchNote": "Anthropic 和 OpenAI 在自己那边搜索，每次搜索单独计费。其他服务商由应用来搜。"
+      "nativeSearchNote": "Anthropic 和 OpenAI 在自己那边搜索，每次搜索单独计费。其他服务商由应用来搜。",
+      "mcp": {
+        "title": "MCP 服务器",
+        "note": "服务器给助手提供更多工具。本地服务器以你的权限在这台电脑上运行程序，只添加你信任的。改动在按“确定”后生效。",
+        "addLocal": "添加本地服务器",
+        "addRemote": "添加网络服务器",
+        "localName": "本地服务器",
+        "remoteName": "网络服务器",
+        "empty": "还没有服务器。",
+        "enabled": "启用",
+        "kind": "运行方式",
+        "stdio": "这台电脑上的程序",
+        "http": "网络上的服务",
+        "command": "命令",
+        "args": "参数",
+        "argsNote": "每行一个。",
+        "env": "环境变量",
+        "envNote": "每行一个 NAME=value，以明文存在设置文件里。",
+        "cwd": "工作文件夹",
+        "cwdPlaceholder": "你的个人文件夹",
+        "url": "地址",
+        "headers": "请求头",
+        "headersNote": "每行一个 Name: value，以明文存在设置文件里；填在下面密钥栏的令牌存进系统钥匙串。",
+        "useKey": "每次请求都带上密钥（Bearer）",
+        "log": "服务器日志",
+        "restart": "重启",
+        "tools": "工具 · 不用问就运行",
+        "alwaysAllow": "不用问就运行",
+        "toolsNote": "其它工具每次运行前，助手都会先问你。",
+        "status": {
+          "off": "已关闭",
+          "incomplete": "未设置完",
+          "pending": "按“确定”后启动",
+          "starting": "正在启动…",
+          "ready": "{{count}} 个工具",
+          "failed": "启动失败",
+          "stopped": "已停止"
+        },
+        "error": {
+          "spawn": "命令启动不了：{{detail}}",
+          "badCwd": "工作文件夹不存在：{{detail}}",
+          "badUrl": "地址无效：{{detail}}",
+          "noKey": "这个服务器还没有保存密钥。",
+          "timeout": "服务器没有及时响应。",
+          "exited": "服务器已停止。"
+        }
+      }
     }
   },
   "ai": {
@@ -457,7 +503,11 @@
       "pageFailed": "打不开 {{site}}",
       "viewingImage": "正在查看 {{image}}",
       "viewedImage": "看了 {{image}}",
-      "imageFailed": "打不开 {{image}}"
+      "imageFailed": "打不开 {{image}}",
+      "mcpRunning": "正在运行 {{tool}}（{{server}}）",
+      "mcpUsed": "用了 {{tool}}（{{server}}）",
+      "mcpFailed": "{{tool}}（{{server}}）出错",
+      "mcpDenied": "没有运行 {{tool}}（{{server}}）"
     },
     "edit": {
       "accept": "接受",
@@ -493,7 +543,10 @@
       "notNow": "暂不",
       "page": "打开本机或局域网里的网页？",
       "pageNote": "这类地址能访问到路由器、本机服务和局域网里的其他设备。允许后，本次对话里助手都可以打开 {{host}} 上的网页。",
-      "open": "打开"
+      "open": "打开",
+      "tool": "运行 {{server}} 的 {{tool}}？",
+      "toolNote": "MCP 工具能读取和改动 NyaMark 之外的东西，请看清它会收到什么。",
+      "alwaysTool": "总是允许这个工具"
     },
     "ending": {
       "stepLimit": "已达到单次回复的步骤上限。发送「继续」可接着做。",

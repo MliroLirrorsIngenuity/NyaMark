@@ -372,7 +372,54 @@
       "searxngUrl": "SearXNG address",
       "searchNote": "Needs no search key: the app reads the result pages Bing and DuckDuckGo show a browser. Automatic tries them in turn.",
       "nativeSearch": "Use the service’s own web search when it has one",
-      "nativeSearchNote": "Anthropic and OpenAI search on their side and charge for each search. With other services the app searches."
+      "nativeSearchNote": "Anthropic and OpenAI search on their side and charge for each search. With other services the app searches.",
+      "mcp": {
+        "title": "MCP servers",
+        "note": "Servers give the assistant more tools. A local server runs as a program on this computer with your permissions: add only ones you trust. Changes take effect when you press OK.",
+        "addLocal": "Add a local server",
+        "addRemote": "Add a web server",
+        "localName": "Local server",
+        "remoteName": "Web server",
+        "empty": "No servers yet.",
+        "enabled": "On",
+        "kind": "Runs as",
+        "stdio": "A program on this computer",
+        "http": "A service on the web",
+        "command": "Command",
+        "args": "Arguments",
+        "argsNote": "One per line.",
+        "env": "Environment variables",
+        "envNote": "NAME=value, one per line. Saved in the settings file as plain text.",
+        "cwd": "Working folder",
+        "cwdPlaceholder": "Your home folder",
+        "url": "Address",
+        "headers": "Request headers",
+        "headersNote": "Name: value, one per line. Saved in the settings file as plain text; a token typed as the key below is kept in the system keychain.",
+        "useKey": "Send a key with each request (Bearer)",
+        "log": "Server log",
+        "restart": "Restart",
+        "tools": "Tools · run without asking",
+        "alwaysAllow": "Run without asking",
+        "toolsNote": "The assistant asks you before it runs any other tool.",
+        "status": {
+          "off": "Off",
+          "incomplete": "Not set up",
+          "pending": "Starts when you press OK",
+          "starting": "Starting…",
+          "ready_one": "{{count}} tool",
+          "ready_other": "{{count}} tools",
+          "failed": "Failed",
+          "stopped": "Stopped"
+        },
+        "error": {
+          "spawn": "Could not start the command: {{detail}}",
+          "badCwd": "The working folder is not there: {{detail}}",
+          "badUrl": "That address is not valid: {{detail}}",
+          "noKey": "No key is saved for this server.",
+          "timeout": "The server did not answer in time.",
+          "exited": "The server stopped."
+        }
+      }
     }
   },
   "ai": {
@@ -467,7 +514,11 @@
       "pageFailed": "Could not open {{site}}",
       "viewingImage": "Opening {{image}}",
       "viewedImage": "Looked at {{image}}",
-      "imageFailed": "Could not open {{image}}"
+      "imageFailed": "Could not open {{image}}",
+      "mcpRunning": "Running {{tool}} ({{server}})",
+      "mcpUsed": "Used {{tool}} ({{server}})",
+      "mcpFailed": "{{tool}} ({{server}}) failed",
+      "mcpDenied": "Did not run {{tool}} ({{server}})"
     },
     "edit": {
       "accept": "Accept",
@@ -510,7 +561,10 @@
       "notNow": "Not now",
       "page": "Open a page on this computer or the local network?",
       "pageNote": "Addresses like this reach your router, local services and other devices. Allowing it lets the assistant open pages on {{host}} for the rest of this chat.",
-      "open": "Open"
+      "open": "Open",
+      "tool": "Run {{tool}} from {{server}}?",
+      "toolNote": "MCP tools can read and change things outside NyaMark. Check what it will be given.",
+      "alwaysTool": "Always allow this tool"
     },
     "ending": {
       "stepLimit": "Stopped after the most steps one reply may take. Send “continue” to carry on.",

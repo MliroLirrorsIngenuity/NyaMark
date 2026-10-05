@@ -1,5 +1,6 @@
 import { i18next } from '../../i18n';
 import type { ToolPart } from '../agent/session';
+import { isMcpToolName } from '../agent/tools/mcp';
 
 /** A field of a tool's input or output, when it has that field. */
 function field<T>(value: unknown, key: string): T | undefined {
@@ -208,6 +209,22 @@ LABELS.view_image = (part) => {
   return i18next.t('ai.tool.viewedImage', { image });
 };
 
+/**
+ * An MCP tool's line, by the names the server and tool have; until it
+ * returns, by the name the assistant called it.
+ */
+function mcpLabel(part: ToolPart): string {
+  const [, server = '', ...rest] = part.name.split('__');
+  const names = {
+    server: field<string>(part.output, 'server') ?? server,
+    tool: field<string>(part.output, 'tool') ?? (rest.join('__') || part.name),
+  };
+  if (isDenied(part)) return i18next.t('ai.tool.mcpDenied', names);
+  if (part.state === 'error') return i18next.t('ai.tool.mcpFailed', names);
+  if (part.state !== 'done') return i18next.t('ai.tool.mcpRunning', names);
+  return i18next.t('ai.tool.mcpUsed', names);
+}
+
 /** The edit a tool call proposed, while it is the user's to accept. */
 export function proposedEdit(part: ToolPart): string | null {
   if (part.state !== 'done' || !LABELS[part.name]) return null;
@@ -220,5 +237,6 @@ export function proposedEdit(part: ToolPart): string | null {
 export function toolLabel(part: ToolPart): string {
   const label = LABELS[part.name];
   if (label) return label(part);
+  if (isMcpToolName(part.name)) return mcpLabel(part);
   return i18next.t('ai.tool.generic', { name: part.name });
 }

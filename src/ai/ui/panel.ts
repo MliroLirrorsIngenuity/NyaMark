@@ -43,11 +43,13 @@ import {
 import { documentTools } from '../agent/tools/document';
 import { editTools } from '../agent/tools/edit';
 import { imageTools } from '../agent/tools/image';
+import { mcpTools } from '../agent/tools/mcp';
 import { type WebApi, webTools } from '../agent/tools/web';
 import { type WorkspaceApi, workspaceTools } from '../agent/tools/workspace';
 import { EditController } from '../edit/controller';
 import proposalStyles from '../edit/proposals.css?inline';
 import { prepareImage } from '../images/prepare';
+import { mcpHub } from '../mcp/hub';
 import { connectModel } from '../providers/connect';
 import { nativeSearchTool } from '../providers/native-search';
 import { Composer } from './composer';
@@ -137,6 +139,16 @@ function iconButton(icon: string, key: string, fallback: string) {
   button.setAttribute('data-i18n-title', key);
   button.setAttribute('data-i18n-aria-label', key);
   return button;
+}
+
+/** Keeps the user's choice to run an MCP server's tool without asking. */
+function allowMcpTool(server: string, tool: string) {
+  const mcpServers = getSettings().ai.mcpServers.map((entry) =>
+    entry.id === server && !entry.allowed.includes(tool)
+      ? { ...entry, allowed: [...entry.allowed, tool] }
+      : entry
+  );
+  void updateSettings({ ai: { mcpServers } }).catch(console.error);
 }
 
 export class AiPanel {
@@ -293,6 +305,8 @@ export class AiPanel {
     this.cleanups.push(() => i18next.off('languageChanged', onLanguage));
     this.drawVision();
     void this.bindDrop();
+    // The servers the user added start with the assistant.
+    mcpHub();
   }
 
   get isVisible(): boolean {
@@ -474,6 +488,11 @@ export class AiPanel {
     const read = () => this.edits.read();
     const folders = await workspaceRoots().catch(() => []);
     const native = ai.search.native ? nativeSearchTool(provider) : null;
+    const hub = mcpHub();
+    await hub.refresh().catch(console.error);
+    const servers = hub.statuses.filter(
+      (status) => status.state === 'ready' && status.tools.length > 0
+    );
     return {
       model: connectModel(provider, ref.model, () => getSettings().ai.proxy),
       modelLabel: ref.model,
@@ -485,8 +504,20 @@ export class AiPanel {
         notices,
         folders,
         vision,
+        mcpServers: servers.map((status) => status.name),
       }),
       tools: {
+        ...mcpTools({
+          statuses: servers,
+          servers: () => getSettings().ai.mcpServers,
+          call: (server, tool, args) => hub.call(server, tool, args),
+          approvals: this.approvals,
+          allowAlways: allowMcpTool,
+          prepare: vision ? prepareImage : undefined,
+          show: vision
+            ? (caption, images) => this.session.showModel(caption, images)
+            : undefined,
+        }),
         ...documentTools(read, () => this.edits.notices()),
         ...editTools(this.edits),
         ...workspaceTools({

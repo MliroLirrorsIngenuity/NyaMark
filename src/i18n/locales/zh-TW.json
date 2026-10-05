@@ -369,7 +369,53 @@
       "searxngUrl": "SearXNG 位址",
       "searchNote": "不必填搜尋 key：應用程式直接讀取 Bing 和 DuckDuckGo 給瀏覽器的結果頁。「自動」會依序嘗試。",
       "nativeSearch": "服務商內建連網搜尋時優先使用",
-      "nativeSearchNote": "Anthropic 和 OpenAI 在自己那邊搜尋，每次搜尋另外計費。其他服務商由應用程式來搜。"
+      "nativeSearchNote": "Anthropic 和 OpenAI 在自己那邊搜尋，每次搜尋另外計費。其他服務商由應用程式來搜。",
+      "mcp": {
+        "title": "MCP 伺服器",
+        "note": "伺服器為助理提供更多工具。本機伺服器以你的權限在這台電腦上執行程式，只加入你信任的。變更在按「確定」後生效。",
+        "addLocal": "加入本機伺服器",
+        "addRemote": "加入網路伺服器",
+        "localName": "本機伺服器",
+        "remoteName": "網路伺服器",
+        "empty": "還沒有伺服器。",
+        "enabled": "啟用",
+        "kind": "執行方式",
+        "stdio": "這台電腦上的程式",
+        "http": "網路上的服務",
+        "command": "指令",
+        "args": "參數",
+        "argsNote": "每行一個。",
+        "env": "環境變數",
+        "envNote": "每行一個 NAME=value，以明文存在設定檔裡。",
+        "cwd": "工作資料夾",
+        "cwdPlaceholder": "你的個人資料夾",
+        "url": "位址",
+        "headers": "請求標頭",
+        "headersNote": "每行一個 Name: value，以明文存在設定檔裡；填在下方金鑰欄的權杖存進系統鑰匙圈。",
+        "useKey": "每次請求都附上金鑰（Bearer）",
+        "log": "伺服器記錄",
+        "restart": "重新啟動",
+        "tools": "工具 · 不用詢問就執行",
+        "alwaysAllow": "不用詢問就執行",
+        "toolsNote": "其他工具每次執行前，助理都會先問你。",
+        "status": {
+          "off": "已關閉",
+          "incomplete": "尚未設定完成",
+          "pending": "按「確定」後啟動",
+          "starting": "正在啟動…",
+          "ready": "{{count}} 個工具",
+          "failed": "啟動失敗",
+          "stopped": "已停止"
+        },
+        "error": {
+          "spawn": "指令無法啟動：{{detail}}",
+          "badCwd": "工作資料夾不存在：{{detail}}",
+          "badUrl": "位址無效：{{detail}}",
+          "noKey": "這個伺服器還沒有儲存金鑰。",
+          "timeout": "伺服器沒有及時回應。",
+          "exited": "伺服器已停止。"
+        }
+      }
     }
   },
   "ai": {
@@ -457,7 +503,11 @@
       "pageFailed": "無法開啟 {{site}}",
       "viewingImage": "正在檢視 {{image}}",
       "viewedImage": "看了 {{image}}",
-      "imageFailed": "無法開啟 {{image}}"
+      "imageFailed": "無法開啟 {{image}}",
+      "mcpRunning": "正在執行 {{tool}}（{{server}}）",
+      "mcpUsed": "用了 {{tool}}（{{server}}）",
+      "mcpFailed": "{{tool}}（{{server}}）出錯",
+      "mcpDenied": "沒有執行 {{tool}}（{{server}}）"
     },
     "edit": {
       "accept": "接受",
@@ -493,7 +543,10 @@
       "notNow": "暫不",
       "page": "開啟本機或區域網路裡的網頁？",
       "pageNote": "這類位址能連到路由器、本機服務和區域網路裡的其他裝置。允許後，本次對話裡助理都可以開啟 {{host}} 上的網頁。",
-      "open": "開啟"
+      "open": "開啟",
+      "tool": "執行 {{server}} 的 {{tool}}？",
+      "toolNote": "MCP 工具能讀取和改動 NyaMark 以外的東西，請看清它會收到什麼。",
+      "alwaysTool": "一律允許這個工具"
     },
     "ending": {
       "stepLimit": "已達到單次回覆的步驟上限。傳送「繼續」可接著做。",

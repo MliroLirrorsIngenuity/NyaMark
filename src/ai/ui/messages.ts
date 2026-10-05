@@ -12,6 +12,7 @@ import {
   replyText,
 } from '../agent/session';
 import type { ViewImageOutput } from '../agent/tools/image';
+import { type McpOutput, isMcpToolName } from '../agent/tools/mcp';
 import type { EditOutcome } from '../edit/controller';
 import type { ChatImage } from '../images/image';
 import { isOpenableLink, renderChatMarkdown } from '../render/markdown';
@@ -528,6 +529,24 @@ export class MessageList {
         button('allow', 'ai.approval.open', true),
         button('deny', 'ai.approval.deny')
       );
+    } else if (request.kind === 'tool') {
+      card.append(
+        el(
+          'div',
+          'ny-ai-approval__title',
+          i18next.t('ai.approval.tool', {
+            tool: request.tool,
+            server: request.serverName,
+          })
+        ),
+        el('pre', 'ny-ai-approval__input', request.input),
+        el('div', 'ny-ai-approval__reason', i18next.t('ai.approval.toolNote'))
+      );
+      actions.append(
+        button('allow', 'ai.approval.allow', true),
+        button('always', 'ai.approval.alwaysTool'),
+        button('deny', 'ai.approval.deny')
+      );
     } else {
       const title = el(
         'div',
@@ -574,20 +593,24 @@ export class MessageList {
     view.approval = { request, card };
   }
 
-  /** The pages a finished web search found, folded under its line. */
-  /** The image a tool opened, as the model was shown it. */
+  /** The images a tool opened or returned, as the model was shown them. */
   private drawImage(view: PartView, part: ToolPart, entryId: number) {
-    if (view.image || part.state !== 'done' || part.name !== 'view_image') {
-      return;
+    if (view.image || part.state !== 'done') return;
+    let images: ChatImage[] = [];
+    if (part.name === 'view_image') {
+      const image = (part.output as ViewImageOutput | undefined)?.image;
+      if (image) images = [image];
+    } else if (isMcpToolName(part.name)) {
+      images = (part.output as McpOutput | undefined)?.images ?? [];
     }
-    const image = (part.output as ViewImageOutput | undefined)?.image;
-    if (!image) return;
+    if (images.length === 0) return;
     const row = el('div', 'ny-ai-tool__image');
-    row.append(this.thumbnail(entryId, image));
+    for (const image of images) row.append(this.thumbnail(entryId, image));
     view.root.insertBefore(row, view.edit?.row ?? view.approval?.card ?? null);
     view.image = row;
   }
 
+  /** The pages a finished web search found, folded under its line. */
   private drawSources(view: PartView, part: ToolPart) {
     view.sources?.remove();
     view.sources = undefined;

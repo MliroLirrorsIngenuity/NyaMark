@@ -224,3 +224,82 @@ export async function readImageForAi(path: string): Promise<Uint8Array> {
     await invoke<ArrayBuffer>('read_image_for_ai', { path })
   );
 }
+
+/** A Model Context Protocol server, as the app starts it. */
+export type McpServerConfig =
+  | {
+      transport: 'stdio';
+      id: string;
+      name: string;
+      command: string;
+      args: string[];
+      env: [string, string][];
+      cwd: string | null;
+    }
+  | {
+      transport: 'http';
+      id: string;
+      name: string;
+      url: string;
+      headers: [string, string][];
+      /** Sends the key saved under the profile `mcp-<id>`. */
+      useKey: boolean;
+    };
+
+export type McpTool = {
+  name: string;
+  title: string | null;
+  description: string | null;
+  /** A JSON Schema for the tool's arguments. */
+  inputSchema: Record<string, unknown>;
+};
+
+export type McpState = 'starting' | 'ready' | 'failed' | 'stopped';
+
+export type McpStatus = {
+  id: string;
+  name: string;
+  state: McpState;
+  error: string | null;
+  tools: McpTool[];
+  /** What a local server last wrote to stderr, oldest first. */
+  stderr: string[];
+};
+
+export type McpToolResult = {
+  /** MCP content blocks: text, image, audio, resource or resource link. */
+  content: Record<string, unknown>[];
+  isError: boolean;
+  structuredContent: unknown;
+};
+
+/**
+ * Starts, stops and restarts the app's MCP servers to match `servers`, in
+ * their order. Returns where each one is.
+ */
+export async function mcpSync(
+  servers: McpServerConfig[],
+  proxy: ProxySetting
+): Promise<McpStatus[]> {
+  return await invoke<McpStatus[]>('mcp_sync', { servers, proxy });
+}
+
+export async function mcpStatus(): Promise<McpStatus[]> {
+  return await invoke<McpStatus[]>('mcp_status');
+}
+
+export async function mcpRestart(id: string): Promise<McpStatus> {
+  return await invoke<McpStatus>('mcp_restart', { id });
+}
+
+export async function mcpCallTool(
+  server: string,
+  tool: string,
+  args: Record<string, unknown> | null
+): Promise<McpToolResult> {
+  return await invoke<McpToolResult>('mcp_call_tool', {
+    server,
+    tool,
+    arguments: args,
+  });
+}

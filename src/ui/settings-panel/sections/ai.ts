@@ -34,6 +34,16 @@ import {
 } from '../../../state/ai-settings';
 import { ensureStyle } from '../../../style/register';
 import { type SelectOption, renderSelect } from '../select';
+import {
+  button,
+  el,
+  escapeHtml,
+  failureText,
+  input,
+  isUrl,
+  translated,
+} from './ai-dom';
+import { mcpStyles, renderMcpSection } from './ai-mcp';
 
 const styles = `
 .ny-settings__field[hidden] {
@@ -334,73 +344,11 @@ export type AiSection = {
    * keeping or dropping them all takes in the last one.
    */
   settled: () => Promise<void>;
+  /** The keys were kept: what starts with a key starts again with the new one. */
+  committed: () => void;
+  /** The dialog closed. */
+  destroy: () => void;
 };
-
-/** The text of a failure, for a line in the settings. */
-function failureText(error: unknown): string {
-  const message =
-    error instanceof Error ? error.message : String(error ?? 'error');
-  if (message.includes('not-connected')) {
-    return i18next.t('settings.ai.notConnected');
-  }
-  if (message.includes('key-needed')) {
-    return i18next.t('settings.ai.keyNeeded');
-  }
-  return message;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className?: string,
-  text?: string
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
-function translated<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  key: string,
-  className?: string
-): HTMLElementTagNameMap[K] {
-  const node = el(tag, className, i18next.t(key));
-  node.dataset.i18n = key;
-  return node;
-}
-
-function button(key: string, className = 'ny-settings__button') {
-  const node = translated('button', key, className);
-  node.type = 'button';
-  return node;
-}
-
-function input(type: string, className = 'ny-settings__input') {
-  const node = el('input', className);
-  node.type = type;
-  node.spellcheck = false;
-  node.autocomplete = 'off';
-  return node;
-}
-
-/** `renderSelect` puts labels into HTML; names typed by the user go there. */
-function escapeHtml(text: string) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function isUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:';
-  } catch {
-    return false;
-  }
-}
 
 /** Where a model the service lists starts in the settings. */
 export function modelFromListing(
@@ -450,8 +398,8 @@ function choiceFor(
 }
 
 /**
- * The settings' AI tab: the services, the models to use, the proxy and the
- * user's own instructions. Keys typed here are held by the app for this
+ * The settings' AI tab: the services, the models to use, the proxy, the
+ * MCP servers and the user's own instructions. Keys typed here are held by the app for this
  * window until the dialog is confirmed or dismissed.
  */
 export function renderAiSection(
@@ -460,6 +408,7 @@ export function renderAiSection(
   options: AiSectionOptions
 ): AiSection {
   ensureStyle('ny-settings-ai', styles);
+  ensureStyle('ny-settings-ai-mcp', mcpStyles);
   const state: AiSettings = structuredClone(current);
   const statuses = new Map<string, AiSecretStatus>();
   /** Providers moved to another address whose key must be typed again. */
@@ -580,7 +529,9 @@ export function renderAiSection(
     </div>
   `;
 
-  root.append(services, defaults, network, instructions);
+  const mcp = renderMcpSection({ state, emit, track });
+
+  root.append(services, defaults, network, mcp.element, instructions);
 
   const renderDefaults = () => {
     const { refs, options: choices } = modelChoices(state.providers);
@@ -1312,5 +1263,7 @@ export function renderAiSection(
     settled: async () => {
       while (pending.size) await Promise.allSettled([...pending]);
     },
+    committed: mcp.committed,
+    destroy: mcp.destroy,
   };
 }

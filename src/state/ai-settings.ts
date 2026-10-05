@@ -64,6 +64,34 @@ export type AiSearchSettings = {
   native: boolean;
 };
 
+/** How the app reaches an MCP server. */
+export type AiMcpTransport = 'stdio' | 'http';
+
+/**
+ * A Model Context Protocol server the user added. Both ways of reaching it
+ * are kept, so switching between them loses nothing typed.
+ */
+export type AiMcpServer = {
+  /** Names the server, and its key in the keychain as `mcp-<id>`. */
+  id: string;
+  name: string;
+  enabled: boolean;
+  transport: AiMcpTransport;
+  /** A program on this computer, spoken to over its stdin and stdout. */
+  command: string;
+  args: string[];
+  env: [string, string][];
+  /** Where the program runs; empty for the user's home folder. */
+  cwd: string;
+  /** A service reached over HTTP. */
+  url: string;
+  headers: [string, string][];
+  /** Sends the key saved for the server as a bearer token. */
+  useKey: boolean;
+  /** The tools that run without asking each time. */
+  allowed: string[];
+};
+
 export type AiSettings = {
   providers: AiProvider[];
   /** The model the assistant panel talks to. */
@@ -75,6 +103,7 @@ export type AiSettings = {
   instructions: string;
   editMode: AiEditMode;
   search: AiSearchSettings;
+  mcpServers: AiMcpServer[];
 };
 
 export const defaultAiSettings: AiSettings = {
@@ -85,9 +114,13 @@ export const defaultAiSettings: AiSettings = {
   instructions: '',
   editMode: 'review',
   search: { engine: 'auto', searxngUrl: '', native: false },
+  mcpServers: [],
 };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+/** Short enough to name a keychain entry once `mcp-` goes before it. */
+const MCP_ID = /^[A-Za-z0-9_-]{1,60}$/;
+const MAX_MCP_SERVERS = 50;
 
 export function isAiProfileId(value: unknown): value is string {
   return typeof value === 'string' && ID.test(value);
@@ -177,6 +210,43 @@ function sanitizeSearch(value: unknown): AiSearchSettings {
   return { engine, searxngUrl, native: bool(search.native, false) };
 }
 
+function pairs(value: unknown, max: number): [string, string][] {
+  const result: [string, string][] = [];
+  for (const entry of Array.isArray(value) ? value : []) {
+    if (!Array.isArray(entry) || entry.length !== 2) continue;
+    const name = text(entry[0], 500).trim();
+    if (name) result.push([name, text(entry[1], 20_000)]);
+    if (result.length === max) break;
+  }
+  return result;
+}
+
+function strings(value: unknown, max: number, length: number): string[] {
+  return (Array.isArray(value) ? value : [])
+    .filter((entry): entry is string => typeof entry === 'string')
+    .slice(0, max)
+    .map((entry) => entry.slice(0, length));
+}
+
+function sanitizeMcpServer(value: unknown): AiMcpServer | null {
+  if (!isRecord(value) || typeof value.id !== 'string') return null;
+  if (!MCP_ID.test(value.id)) return null;
+  return {
+    id: value.id,
+    name: text(value.name, 100).trim() || value.id,
+    enabled: bool(value.enabled, true),
+    transport: value.transport === 'http' ? 'http' : 'stdio',
+    command: text(value.command, 2000).trim(),
+    args: strings(value.args, 200, 4000),
+    env: pairs(value.env, 200),
+    cwd: text(value.cwd, 2000).trim(),
+    url: text(value.url, 2000).trim(),
+    headers: pairs(value.headers, 50),
+    useKey: bool(value.useKey, false),
+    allowed: [...new Set(strings(value.allowed, 500, 200))],
+  };
+}
+
 export function sanitizeAiSettings(value: unknown): AiSettings {
   const ai = isRecord(value) ? value : {};
   const providers: AiProvider[] = [];
@@ -186,6 +256,14 @@ export function sanitizeAiSettings(value: unknown): AiSettings {
       providers.push(provider);
     }
   }
+  const mcpServers: AiMcpServer[] = [];
+  for (const entry of Array.isArray(ai.mcpServers) ? ai.mcpServers : []) {
+    const server = sanitizeMcpServer(entry);
+    if (server && !mcpServers.some((other) => other.id === server.id)) {
+      mcpServers.push(server);
+    }
+    if (mcpServers.length === MAX_MCP_SERVERS) break;
+  }
   return {
     providers,
     chatModel: sanitizeModelRef(ai.chatModel, providers),
@@ -194,10 +272,21 @@ export function sanitizeAiSettings(value: unknown): AiSettings {
     instructions: text(ai.instructions, 20_000),
     editMode: ai.editMode === 'auto' ? 'auto' : 'review',
     search: sanitizeSearch(ai.search),
+    mcpServers,
   };
 }
 
 /** A fresh id for a provider's keychain entry. */
 export function newAiProfileId(): string {
   return `p-${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+}
+
+/** A fresh id for an MCP server. */
+export function newMcpServerId(): string {
+  return `s-${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+}
+
+/** The keychain profile an MCP server's key is saved under. */
+export function mcpKeyProfile(id: string): string {
+  return `mcp-${id}`;
 }
