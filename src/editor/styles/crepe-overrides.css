@@ -1460,7 +1460,7 @@
 .ny-editor-root
   .milkdown
   .milkdown-code-block
-  .cm-editor:not(:focus-within)
+  .cm-editor:not(.cm-focused)
   .cm-selectionBackground {
   background: transparent !important;
 }
