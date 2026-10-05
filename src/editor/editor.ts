@@ -12,6 +12,7 @@ import {
   remarkCtx,
   serializerCtx,
 } from '@milkdown/kit/core';
+import { listener } from '@milkdown/kit/plugin/listener';
 import { trailingConfig } from '@milkdown/kit/plugin/trailing';
 import {
   emphasisStarInputRule,
@@ -45,6 +46,7 @@ import {
   replaceChangedRuns,
   settleParsed,
 } from './doc-diff';
+import { type DocCounts, DocStats } from './doc-stats';
 import { anchorIndex, headingId, headingLabel, pageId } from './heading-anchor';
 import { afterFirstFrame, openingOf } from './open-in-parts';
 import {
@@ -80,11 +82,7 @@ import {
   frontMatterSyntax,
   pastFrontMatter,
 } from './plugins/front-matter';
-import {
-  alertMarkers,
-  gfmAlerts,
-  registerGfmAlertStyles,
-} from './plugins/gfm-alerts';
+import { gfmAlerts, registerGfmAlertStyles } from './plugins/gfm-alerts';
 import { headingOneLine, headingShiftEnter } from './plugins/heading-break';
 import { headingInput } from './plugins/heading-input';
 import { headingDigitKeys } from './plugins/heading-keys';
@@ -163,7 +161,6 @@ import { undoByLine } from './plugins/undo-lines';
 import { scrollIntoViewSettled } from './scroll-settled';
 import { type BlockSpan, blockSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
-import { countLines, countWords } from './text-stats';
 
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
@@ -182,7 +179,7 @@ export type NyaEditorOptions = {
 export class NyaEditor {
   private crepe: Crepe | null = null;
   private readonly imageMetaPanel: ImageMetaPanel;
-  private onChangeCallback?: (markdown: string) => void;
+  private readonly stats = new DocStats((doc) => this.serializeDoc(doc));
   private readonly docChangedListeners = new Set<() => void>();
   private markReady: () => void = () => {};
   private readonly ready = new Promise<void>((resolve) => {
@@ -273,6 +270,7 @@ export class NyaEditor {
       emphasisUnderscoreInputRule,
       insertImageInputRule,
       strikethroughInputRule,
+      listener,
     ]);
     crepe.editor.use(markInput);
     crepe.editor.use(markCursor);
@@ -333,14 +331,6 @@ export class NyaEditor {
     crepe.editor.use(aiProposals);
     crepe.editor.use(this.docChangedPlugin());
 
-    crepe.on((api) => {
-      api.markdownUpdated((_ctx, markdown, prev) => {
-        if (this.onChangeCallback && markdown !== prev) {
-          this.onChangeCallback(markdown);
-        }
-      });
-    });
-
     crepe.editor.config((ctx) => {
       ctx.update(editorViewOptionsCtx, (options) => ({
         ...options,
@@ -381,14 +371,6 @@ export class NyaEditor {
   /** Resolves once the whole document is in the editor (see open-in-parts). */
   whenReady(): Promise<void> {
     return this.ready;
-  }
-
-  /**
-   * Markdown-level change notification. Milkdown's listener plugin debounces
-   * this by 200ms, so it suits statistics but must never gate a save.
-   */
-  onChange(callback: (markdown: string) => void) {
-    this.onChangeCallback = callback;
   }
 
   /**
@@ -536,20 +518,9 @@ export class NyaEditor {
     return items;
   }
 
-  /** Pass `markdown` when it is already at hand to skip serializing the document again. */
-  getStats(markdown?: string) {
-    if (!this.crepe) return { words: 0, lines: 1 };
-    const view = this.crepe.editor.ctx.get(editorViewCtx);
-    const { doc } = view.state;
-    // `textContent` runs the blocks together; keep them apart.
-    const text = doc.textBetween(0, doc.content.size, '\n', ' ');
-    let words = countWords(text);
-    // An alert's `[!NOTE]` shows as its label, which is no word of the text.
-    for (const { from, to } of alertMarkers(doc)) {
-      words -= countWords(doc.textBetween(from, to, '\n', ' '));
-    }
-    const source = markdown ?? this.getMarkdown();
-    return { words, lines: countLines(source) };
+  getStats(): DocCounts {
+    const doc = this.getView()?.state.doc;
+    return doc ? this.stats.count(doc) : { words: 0, lines: 1 };
   }
 
   /** Where the text of heading `id` ends, or -1 when none has that id. */

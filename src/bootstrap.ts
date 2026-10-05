@@ -48,6 +48,8 @@ import { Titlebar } from './ui/titlebar';
 import { showToast } from './ui/toast';
 import { UpdateDialog } from './ui/update-dialog';
 
+const STATS_DELAY_MS = 300;
+
 export class App {
   private editor: NyaEditor | null = null;
   private outline: OutlinePanel | null = null;
@@ -74,6 +76,7 @@ export class App {
   private readonly updateDialog = new UpdateDialog();
   private checkingForUpdates = false;
   private statsQueued = false;
+  private statsTimer: number | undefined;
 
   async init() {
     registerShellStyles();
@@ -149,9 +152,6 @@ export class App {
     });
 
     await this.editor.init(initialDocument.markdown);
-    // Dirty state comes from onDocChanged alone. The debounced onChange can
-    // land after a save that already captured the latest keystroke.
-    this.editor.onChange((markdown) => this.updateStats(markdown));
     this.editor.onDocChanged(() => this.docChanged());
     this.savedDoc = this.currentDoc();
     store.subscribe((state) => {
@@ -425,6 +425,7 @@ export class App {
   }
 
   private docChanged() {
+    this.countAfterTyping();
     if (this.suppressDirtyTracking) return;
     const doc = this.currentDoc();
     if (this.savedDoc && doc?.eq(this.savedDoc)) {
@@ -440,10 +441,18 @@ export class App {
     }
   }
 
-  private updateStats(markdown?: string) {
+  private updateStats() {
     if (!this.editor) return;
-    const stats = this.editor.getStats(markdown);
+    const stats = this.editor.getStats();
     store.update({ wordCount: stats.words, lineCount: stats.lines });
+  }
+
+  private countAfterTyping() {
+    window.clearTimeout(this.statsTimer);
+    this.statsTimer = window.setTimeout(
+      () => this.updateStats(),
+      STATS_DELAY_MS
+    );
   }
 
   /**
