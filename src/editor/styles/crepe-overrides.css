@@ -649,7 +649,6 @@
 }
 
 .ny-editor-root .milkdown .editor li.list-item > .label-wrapper > .label {
-  position: relative !important;
   width: 100% !important;
   height: auto !important;
   padding: 0 !important;
@@ -758,6 +757,10 @@
 .ny-editor-root .milkdown .editor .label.checked::before {
   background: var(--nyamark-accent) !important;
   box-shadow: none !important;
+}
+
+.ny-editor-root .milkdown .editor .label.checked {
+  position: relative !important;
 }
 
 .ny-editor-root .milkdown .editor .label.checked::after {
@@ -1559,6 +1562,14 @@
  */
 .ny-editor-root .milkdown .milkdown-code-block .preview .katex-display {
   margin: 0 !important;
+}
+
+.ny-editor-root .milkdown .katex {
+  position: static;
+}
+
+.ny-editor-root .milkdown .katex .pstrut {
+  overflow: visible;
 }
 
 /* Anchored to the pill, which now sits at the block's right edge. */

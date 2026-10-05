@@ -15,10 +15,6 @@
   white-space: pre-wrap;
 }
 
-.ProseMirror li {
-  position: relative;
-}
-
 .ProseMirror [draggable][contenteditable="false"] {
   user-select: text;
 }
