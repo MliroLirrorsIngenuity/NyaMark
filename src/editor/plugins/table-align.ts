@@ -16,7 +16,18 @@
 
 import type { Ctx } from '@milkdown/kit/ctx';
 import { tableCellSchema, tableHeaderSchema } from '@milkdown/kit/preset/gfm';
-import type { DOMOutputSpec, NodeSpec } from '@milkdown/kit/prose/model';
+import type {
+  DOMOutputSpec,
+  NodeSpec,
+  Node as ProseNode,
+} from '@milkdown/kit/prose/model';
+import {
+  type EditorState,
+  Plugin,
+  PluginKey,
+  type Transaction,
+} from '@milkdown/kit/prose/state';
+import { $prose } from '@milkdown/kit/utils';
 
 const ALIGNMENTS = ['left', 'center', 'right'];
 
@@ -60,3 +71,52 @@ export function keepCellAlignment(ctx: Ctx) {
     );
   }
 }
+
+export function alignCellsToHeaders(
+  oldState: EditorState,
+  state: EditorState
+): Transaction | null {
+  const before = oldState.doc;
+  const { doc } = state;
+  if (before === doc) return null;
+  const from = before.content.findDiffStart(doc.content);
+  if (from == null) return null;
+  const end = before.content.findDiffEnd(doc.content);
+  const to = Math.max(from, end?.b ?? doc.content.size);
+  let tr: Transaction | null = null;
+  doc.nodesBetween(from, Math.min(to + 1, doc.content.size), (node, pos) => {
+    if (node.type.name !== 'table') return true;
+    for (const [cell, at, alignment] of misalignedCells(node, pos)) {
+      tr ??= state.tr;
+      tr.setNodeMarkup(at, undefined, { ...cell.attrs, alignment });
+    }
+    return false;
+  });
+  return tr;
+}
+
+function misalignedCells(table: ProseNode, pos: number) {
+  const out: [ProseNode, number, unknown][] = [];
+  const header = table.firstChild;
+  if (!header) return out;
+  table.forEach((row, rowOffset) => {
+    row.forEach((cell, cellOffset, index) => {
+      if (cell.type.name !== 'table_cell') return;
+      const headerCell = header.maybeChild(index);
+      if (!headerCell) return;
+      const align = headerCell.attrs.alignment;
+      if (align === cell.attrs.alignment) return;
+      out.push([cell, pos + 1 + rowOffset + 1 + cellOffset, align]);
+    });
+  });
+  return out;
+}
+
+export const keepTableAlign = $prose(
+  () =>
+    new Plugin({
+      key: new PluginKey('nyamark/table-align'),
+      appendTransaction: (_trs, oldState, state) =>
+        alignCellsToHeaders(oldState, state),
+    })
+);

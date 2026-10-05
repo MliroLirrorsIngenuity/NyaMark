@@ -22,6 +22,7 @@ import {
   strongInputRule,
 } from '@milkdown/kit/preset/commonmark';
 import {
+  keepTableAlignPlugin,
   remarkGFMPlugin,
   strikethroughInputRule,
 } from '@milkdown/kit/preset/gfm';
@@ -148,7 +149,7 @@ import {
 } from './plugins/search';
 import { slashMenuRoom } from './plugins/slash-menu-room';
 import { tabFocus } from './plugins/tab-focus';
-import { keepCellAlignment } from './plugins/table-align';
+import { keepCellAlignment, keepTableAlign } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
 import { keepPastedTasks } from './plugins/task-paste';
 import { fitTopBar } from './plugins/top-bar-fit';
@@ -270,8 +271,10 @@ export class NyaEditor {
       emphasisUnderscoreInputRule,
       insertImageInputRule,
       strikethroughInputRule,
+      keepTableAlignPlugin,
       listener,
     ]);
+    crepe.editor.use(keepTableAlign);
     crepe.editor.use(markInput);
     crepe.editor.use(markCursor);
     crepe.editor.use(inlineCodeText);
