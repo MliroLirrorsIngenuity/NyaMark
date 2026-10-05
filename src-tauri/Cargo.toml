@@ -30,6 +30,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Atomic document saves: write next to the target, then rename over it.
 tempfile = "3"
+# AI requests. Already in the tree through the updater, which also brings
+# the ring provider; aws-lc would be a second TLS backend to build.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "system-proxy"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-util = "0.7"
+url = "2"
+base64 = "0.22"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2"
@@ -46,6 +53,10 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 block2 = "0.6"
 # The system's preferred languages pick the menu language before the webview loads.
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSLocale", "NSString"] }
+
+[target.'cfg(any(windows, target_os = "linux"))'.dependencies]
+# AI service keys go to the Windows credential manager or the Secret Service.
+keyring = "4"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }

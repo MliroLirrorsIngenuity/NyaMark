@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod document;
 #[cfg(target_os = "macos")]
 pub mod menu;
@@ -196,6 +197,7 @@ fn print_current_window(window: tauri::WebviewWindow) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    ai::http::install_crypto_provider();
     let builder = tauri::Builder::default()
         .manage(PendingLaunchFiles(Mutex::new(
             sessions::collect_launch_files(),
@@ -207,6 +209,9 @@ pub fn run() {
         .manage(WindowDirtyFlags(Mutex::new(HashMap::new())))
         .manage(RestartPending(AtomicBool::new(false)))
         .manage(QuitPending(AtomicBool::new(false)))
+        .manage(ai::http::HttpClients::default())
+        .manage(ai::http::InFlight::default())
+        .manage(ai::secrets::SecretCache::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -270,6 +275,11 @@ pub fn run() {
             set_windows_backdrop,
             set_window_blur,
             print_current_window,
+            ai::http::ai_fetch,
+            ai::http::ai_fetch_abort,
+            ai::secrets::ai_secret_set,
+            ai::secrets::ai_secret_status,
+            ai::secrets::ai_secret_delete,
             #[cfg(target_os = "macos")]
             menu::update_macos_menu,
         ])
