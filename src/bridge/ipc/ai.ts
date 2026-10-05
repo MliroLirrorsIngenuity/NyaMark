@@ -303,3 +303,90 @@ export async function mcpCallTool(
     arguments: args,
   });
 }
+
+/** A saved conversation, as the list of a document's conversations shows it. */
+export type ConversationSummary = {
+  id: string;
+  title: string;
+  /** Milliseconds since 1970. */
+  updatedAt: number;
+  messageCount: number;
+};
+
+/**
+ * Conversations are kept for the document at `document`, or for this
+ * window's drafts while it has none.
+ */
+export async function listConversations(
+  document: string | null
+): Promise<ConversationSummary[]> {
+  return await invoke<ConversationSummary[]>('history_list', { document });
+}
+
+export async function readConversation(
+  document: string | null,
+  id: string
+): Promise<unknown> {
+  return await invoke<unknown>('history_read', { document, id });
+}
+
+export async function writeConversation(
+  document: string | null,
+  id: string,
+  conversation: unknown
+): Promise<void> {
+  await invoke('history_write', { document, id, conversation });
+}
+
+export async function deleteConversation(
+  document: string | null,
+  id: string
+): Promise<void> {
+  await invoke('history_delete', { document, id });
+}
+
+/** Conversations follow the window's document to `to`; null is its drafts. */
+export async function moveConversations(
+  from: string | null,
+  to: string | null
+): Promise<void> {
+  await invoke('history_move', { from, to });
+}
+
+export async function clearConversations(): Promise<void> {
+  await invoke('history_clear');
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let at = 0; at < bytes.length; at += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(at, at + chunk));
+  }
+  return btoa(binary);
+}
+
+/** Keeps an image of conversation `id`; returns the id to read it back by. */
+export async function saveConversationImage(
+  document: string | null,
+  id: string,
+  bytes: Uint8Array,
+  mime: string
+): Promise<string> {
+  return await invoke<string>('history_save_image', {
+    document,
+    id,
+    bytes: toBase64(bytes),
+    mime,
+  });
+}
+
+export async function readConversationImage(
+  document: string | null,
+  id: string,
+  image: string
+): Promise<Uint8Array> {
+  return new Uint8Array(
+    await invoke<ArrayBuffer>('history_read_image', { document, id, image })
+  );
+}

@@ -48,12 +48,14 @@ import { type WebApi, webTools } from '../agent/tools/web';
 import { type WorkspaceApi, workspaceTools } from '../agent/tools/workspace';
 import { EditController } from '../edit/controller';
 import proposalStyles from '../edit/proposals.css?inline';
+import { ConversationKeeper } from '../history/keeper';
 import { prepareImage } from '../images/prepare';
 import { mcpHub } from '../mcp/hub';
 import { connectModel } from '../providers/connect';
 import { nativeSearchTool } from '../providers/native-search';
 import { QuickMenu, type QuickMode } from '../quick/popover';
 import { Composer } from './composer';
+import { HistoryMenu } from './history-menu';
 import { ICONS } from './icons';
 import { MessageList } from './messages';
 import { ModelPicker } from './model-picker';
@@ -114,6 +116,9 @@ function chatModel(ai: AiSettings) {
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() || path;
 
+/** Four letters that set this run's edits apart from those kept before. */
+const editTag = () => Math.random().toString(36).slice(2, 6).padEnd(4, '0');
+
 const MODE_TEXT: Record<AiEditMode, { key: string; title: string }> = {
   review: { key: 'ai.edit.modeReview', title: 'ai.edit.modeReviewTitle' },
   auto: { key: 'ai.edit.modeAuto', title: 'ai.edit.modeAutoTitle' },
@@ -162,6 +167,8 @@ export class AiPanel {
   private readonly composer: Composer;
   private readonly session: ChatSession;
   private readonly edits: EditController;
+  private readonly keeper: ConversationKeeper;
+  private readonly history: HistoryMenu;
   private readonly approvals = new Approvals();
   private quick: QuickMenu | null = null;
   private readonly review: HTMLElement;
@@ -184,8 +191,16 @@ export class AiPanel {
       flushSource: host.flushSource,
       followSource: host.followSource,
       editMode: () => getSettings().ai.editMode,
+      editTag: editTag(),
     });
     this.session = new ChatSession(() => this.prepareTurn());
+    this.keeper = new ConversationKeeper({
+      session: this.session,
+      edits: this.edits,
+      documentPath: host.documentPath,
+      enabled: () => getSettings().ai.keepHistory,
+      switched: () => this.approvals.reset(),
+    });
 
     this.root = document.createElement('aside');
     this.root.className = 'ny-ai';
@@ -209,11 +224,16 @@ export class AiPanel {
     });
     this.newChat = iconButton(ICONS.newChat, 'ai.newChat', 'New chat');
     this.newChat.addEventListener('click', () => {
-      this.session.clear();
-      this.edits.reset();
-      this.approvals.reset();
+      this.keeper.startNew();
       this.composer.focus();
     });
+    this.history = new HistoryMenu({
+      list: () => this.keeper.list(),
+      current: () => this.keeper.current,
+      open: (id) => this.keeper.open(id),
+      remove: (id) => this.keeper.remove(id),
+    });
+    this.history.element.hidden = !this.ai.keepHistory;
     this.mode = document.createElement('button');
     this.mode.type = 'button';
     this.mode.className = 'ny-ai__mode';
@@ -223,7 +243,13 @@ export class AiPanel {
     });
     const close = iconButton(ICONS.close, 'ai.close', 'Close');
     close.addEventListener('click', () => this.hide());
-    header.append(this.picker.element, this.mode, this.newChat, close);
+    header.append(
+      this.picker.element,
+      this.mode,
+      this.history.element,
+      this.newChat,
+      close
+    );
 
     this.scroller = document.createElement('div');
     this.scroller.className = 'ny-ai__body';
@@ -309,6 +335,7 @@ export class AiPanel {
     void this.bindDrop();
     // The servers the user added start with the assistant.
     mcpHub();
+    void this.keeper.openLatest();
   }
 
   get isVisible(): boolean {
@@ -341,6 +368,8 @@ export class AiPanel {
     const hadFocus = this.hasFocus;
     this.visible = false;
     this.picker.destroy();
+    this.history.destroy();
+    this.keeper.flush();
     keepReadingPosition(this.host.editor.getView(), () => {
       this.root.hidden = true;
       document.documentElement.classList.remove('ny-ai-open');
@@ -375,6 +404,7 @@ export class AiPanel {
 
   destroy() {
     this.destroyed = true;
+    this.keeper.destroy();
     this.quick?.destroy();
     this.composer.images.clear();
     this.approvals.reset();
@@ -591,6 +621,8 @@ export class AiPanel {
   private settingsChanged(ai: AiSettings) {
     this.ai = ai;
     this.picker.update(ai);
+    this.history.element.hidden = !ai.keepHistory;
+    if (!ai.keepHistory) this.history.destroy();
     this.drawMode();
     this.drawState();
     this.drawVision();

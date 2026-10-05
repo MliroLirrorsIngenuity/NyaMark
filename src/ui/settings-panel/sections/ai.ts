@@ -44,6 +44,7 @@ import {
   isUrl,
   translated,
 } from './ai-dom';
+import { renderHistorySection } from './ai-history';
 import { mcpStyles, renderMcpSection } from './ai-mcp';
 import { quickStyles, renderQuickSection } from './ai-quick';
 
@@ -401,7 +402,7 @@ function choiceFor(
 
 /**
  * The settings' AI tab: the services, the models to use, the proxy, the
- * MCP servers and the user's own instructions. Keys typed here are held by the app for this
+ * MCP servers, the user's own instructions and the conversations kept. Keys typed here are held by the app for this
  * window until the dialog is confirmed or dismissed.
  */
 export function renderAiSection(
@@ -539,6 +540,7 @@ export function renderAiSection(
   const mcp = renderMcpSection({ state, emit, track });
   const quick = renderQuickSection({ state, emit });
   const complete = renderCompleteSection({ state, emit });
+  const history = renderHistorySection({ state, emit });
 
   root.append(
     services,
@@ -547,7 +549,8 @@ export function renderAiSection(
     complete,
     network,
     mcp.element,
-    instructions
+    instructions,
+    history
   );
 
   const renderDefaults = () => {

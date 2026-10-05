@@ -162,6 +162,25 @@ export class App {
       if (!state.isDirty) this.savedDoc = this.currentDoc();
       else if (!this.markingDirty) this.savedDoc = null;
     });
+    // The assistant's conversations go along when the document is first
+    // saved, or saved under another name.
+    let documentPath = store.getState().filePath;
+    store.subscribe((state) => {
+      if (state.filePath === documentPath) return;
+      const from = documentPath;
+      const to = state.filePath;
+      documentPath = to;
+      void import('./ai/history/store')
+        .then(({ conversationStore }) =>
+          conversationStore().documentMoved(from, to)
+        )
+        .catch((error) => {
+          console.error(
+            '[ai] Conversations failed to follow the document',
+            error
+          );
+        });
+    });
 
     this.sourceMode = new SourceModeController(
       editorContainer,

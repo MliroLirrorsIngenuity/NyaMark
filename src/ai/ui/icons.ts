@@ -29,6 +29,12 @@ export const ICONS = {
     '<circle cx="8" cy="8" r="5.75" /><path d="M8 5v3.25" /><path d="M8 10.9v.1" />'
   ),
   dash: svg('<path d="M4.75 8h6.5" />'),
+  history: svg(
+    '<path d="M2.75 8a5.25 5.25 0 1 0 1.54-3.71" /><path d="M2.5 2.75v2.5H5" /><path d="M8 5.25V8l1.85 1.35" />'
+  ),
+  trash: svg(
+    '<path d="M3 4.5h10" /><path d="M6.25 4.5V3.25a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 .75.75V4.5" /><path d="M4.25 4.5l.6 8.1a1 1 0 0 0 1 .9h4.3a1 1 0 0 0 1-.9l.6-8.1" />'
+  ),
   image: svg(
     '<rect x="2.25" y="3" width="11.5" height="10" rx="1.5" /><circle cx="5.75" cy="6.25" r="1.1" /><path d="m2.75 11.75 3.5-3.5 2.5 2.5 1.75-1.75 2.75 2.75" />'
   ),

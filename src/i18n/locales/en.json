@@ -445,6 +445,17 @@
         "delay": "Pause before suggesting",
         "seconds": "{{value}} s",
         "atEndOnly": "Only at the end of a paragraph"
+      },
+      "history": {
+        "title": "Conversations",
+        "keep": "Keep each document’s conversations",
+        "note": "Kept on this computer with the app’s data, and opened again with the document. An unsaved document’s conversations go when its window closes.",
+        "clear": "Delete all conversations…",
+        "clearTitle": "Delete all conversations?",
+        "clearConfirm": "Every saved conversation of every document is deleted from this computer, along with the images in them. This can’t be undone.",
+        "clearOk": "Delete",
+        "cleared": "All conversations were deleted.",
+        "clearFailed": "Couldn’t delete the conversations."
       }
     }
   },
@@ -638,6 +649,15 @@
         "translate-en": "Translate into English",
         "translate-zh": "Translate into Chinese"
       }
+    },
+    "history": {
+      "open": "Conversations",
+      "empty": "No saved conversations for this document",
+      "untitled": "Untitled conversation",
+      "delete": "Delete conversation",
+      "failed": "Couldn’t read this conversation",
+      "listFailed": "Couldn’t read the saved conversations",
+      "loading": "Loading…"
     }
   }
 }

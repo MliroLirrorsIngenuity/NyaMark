@@ -441,6 +441,17 @@
         "delay": "停顿多久后补全",
         "seconds": "{{value}} 秒",
         "atEndOnly": "只在段落末尾补全"
+      },
+      "history": {
+        "title": "对话记录",
+        "keep": "保存每篇文档的对话",
+        "note": "保存在这台电脑的应用数据里，再次打开文档时一并恢复。未保存文档的对话在关闭窗口时删除。",
+        "clear": "删除全部对话…",
+        "clearTitle": "删除全部对话？",
+        "clearConfirm": "所有文档保存的对话及其中的图片都会从这台电脑上删除，无法恢复。",
+        "clearOk": "删除",
+        "cleared": "已删除全部对话。",
+        "clearFailed": "无法删除对话。"
       }
     }
   },
@@ -619,6 +630,15 @@
         "translate-en": "翻译成英文",
         "translate-zh": "翻译成中文"
       }
+    },
+    "history": {
+      "open": "对话记录",
+      "empty": "这篇文档还没有保存的对话",
+      "untitled": "未命名对话",
+      "delete": "删除对话",
+      "failed": "无法读取这段对话",
+      "listFailed": "无法读取保存的对话",
+      "loading": "正在读取…"
     }
   }
 }

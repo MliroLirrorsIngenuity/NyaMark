@@ -5,13 +5,19 @@
  * assistant as they are taken or turned down.
  */
 
-import { type Node as ProseNode, Slice } from '@milkdown/kit/prose/model';
+import {
+  Fragment,
+  type Node as ProseNode,
+  Slice,
+} from '@milkdown/kit/prose/model';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { NyaEditor } from '../../editor/editor';
 import {
   type Hunk,
   type ProposalMeta,
   acceptHunks,
+  fragmentsMatch,
+  hunkContent,
   onProposalsChange,
   proposalKey,
   proposalState,
@@ -30,6 +36,12 @@ import {
   editReport,
   noticeText,
 } from './report';
+import {
+  type SavedEdits,
+  type SavedHunk,
+  type Tally,
+  readSavedEdits,
+} from './saved-edits';
 import { EditError, type TextEdit } from './text-edit';
 
 /** A textblock's leaves as text: a line break, or nothing. */
@@ -68,21 +80,15 @@ export type EditHost = {
   /** Has the source pane follow a change made to the editor from `before`. */
   followSource(before: ProseNode): void;
   editMode(): AiEditMode;
+  /**
+   * Set apart in each edit's id, so the edits of a conversation kept from
+   * an earlier run are told apart from this run's.
+   */
+  editTag?: string;
 };
 
 /** What became of an edit's changes. */
-export type EditOutcome = {
-  total: number;
-  pending: number;
-  accepted: number;
-  rejected: number;
-  /** Dropped as the user changed their text, a reload did, or no fit. */
-  dropped: number;
-  /** Taken back or redone by a later edit of the assistant's. */
-  replaced: number;
-};
-
-type Tally = Omit<EditOutcome, 'pending'>;
+export type EditOutcome = Tally & { pending: number };
 
 /** How long a revealed change stays marked. */
 const MARK_MS = 1600;
@@ -103,6 +109,10 @@ export class EditController {
   private readonly ownEdits = new Set<string>();
   private current: number | null = null;
   private markTimer: number | null = null;
+  /** Kept changes to show again once the document is ready. */
+  private waiting: SavedEdits['pending'] = null;
+  /** Counts the restores, to drop one overtaken by another or a reset. */
+  private restores = 0;
   private readonly listeners = new Set<() => void>();
   private readonly cleanups: Array<() => void> = [];
 
@@ -141,6 +151,135 @@ export class EditController {
     this.seenSeq = this.state()?.seq ?? this.seenSeq;
     this.lastText = null;
     this.ownEdits.clear();
+    this.waiting = null;
+    this.restores++;
+  }
+
+  /** What to keep of this conversation's edits, to `restore` later. */
+  save(): SavedEdits {
+    const tallies: Record<string, Tally> = {};
+    for (const edit of this.ownEdits) {
+      const tally = this.tallies.get(edit);
+      if (tally) tallies[edit] = { ...tally };
+    }
+    if (this.waiting) return { tallies, pending: this.waiting };
+    const { editor } = this.host;
+    const view = editor.getView();
+    const hunks = this.pending().filter((hunk) => this.ownEdits.has(hunk.edit));
+    if (!view || hunks.length === 0) return { tallies, pending: null };
+    return {
+      tallies,
+      pending: {
+        text: editor.serializeDoc(view.state.doc),
+        hunks: hunks.map((hunk) => ({
+          edit: hunk.edit,
+          from: hunk.from,
+          to: hunk.to,
+          kind: hunk.kind,
+          insert: hunk.insert.toJSON(),
+          base: hunk.base.toJSON(),
+        })),
+      },
+    };
+  }
+
+  /**
+   * A kept conversation's edits in place of this one's. Its changes still
+   * waiting show again where the document reads as it did, beside none
+   * already shown; those that cannot count as dropped. An edit this window
+   * knows already is left as it is: what became of it is counted, and its
+   * changes still waiting are shown.
+   */
+  async restore(saved: unknown): Promise<void> {
+    this.reset();
+    const edits = readSavedEdits(saved);
+    if (!edits) return;
+    const known = new Set<string>();
+    for (const [edit, tally] of Object.entries(edits.tallies)) {
+      this.ownEdits.add(edit);
+      if (this.tallies.has(edit)) known.add(edit);
+      else this.tallies.set(edit, { ...tally });
+    }
+    const hunks =
+      edits.pending?.hunks.filter((hunk) => !known.has(hunk.edit)) ?? [];
+    if (!edits.pending || hunks.length === 0) {
+      this.notify();
+      return;
+    }
+    const pending = { text: edits.pending.text, hunks };
+    this.waiting = pending;
+    const restore = this.restores;
+    await this.host.editor.whenReady();
+    if (restore !== this.restores) return;
+    this.waiting = null;
+    this.putBack(pending);
+  }
+
+  private putBack(pending: NonNullable<SavedEdits['pending']>) {
+    const { editor } = this.host;
+    const view = editor.getView();
+    const shown = new Set<SavedHunk>();
+    if (
+      view &&
+      !view.isDestroyed &&
+      editor.serializeDoc(view.state.doc) === pending.text
+    ) {
+      const { doc, schema } = view.state;
+      const present = this.pending();
+      const hunks: Hunk[] = [];
+      let end = 0;
+      const ordered = [...pending.hunks].sort((a, b) => a.from - b.from);
+      for (const saved of ordered) {
+        if (saved.from < end) continue;
+        // Up against a change shown already, which of the two goes first
+        // is no longer known.
+        if (
+          present.some(
+            (other) => saved.from <= other.to && other.from <= saved.to
+          )
+        ) {
+          continue;
+        }
+        let insert: Slice;
+        let base: Fragment;
+        try {
+          insert = Slice.fromJSON(schema, saved.insert as never);
+          base = Fragment.fromJSON(schema, saved.base as never);
+        } catch {
+          continue;
+        }
+        const content = hunkContent(doc, saved.from, saved.to, saved.kind);
+        if (!content || !fragmentsMatch(content, base)) continue;
+        hunks.push({
+          id: ++this.hunkIds,
+          edit: saved.edit,
+          from: saved.from,
+          to: saved.to,
+          insert,
+          base,
+          kind: saved.kind,
+        });
+        shown.add(saved);
+        end = saved.to;
+      }
+      if (hunks.length) {
+        const meta: ProposalMeta = {
+          type: 'set',
+          hunks: [...present, ...hunks],
+        };
+        view.dispatch(view.state.tr.setMeta(proposalKey, meta));
+      }
+    }
+    for (const saved of pending.hunks) {
+      if (shown.has(saved)) continue;
+      const tally = this.tallies.get(saved.edit);
+      if (tally) tally.dropped++;
+    }
+    this.notify();
+  }
+
+  private notify() {
+    for (const listener of this.listeners) listener();
   }
 
   /** The pending hunks, in document order. */
@@ -307,7 +446,8 @@ export class EditController {
       throw error;
     }
 
-    const edit = `e${++this.edits}`;
+    const { editTag } = this.host;
+    const edit = editTag ? `e${++this.edits}-${editTag}` : `e${++this.edits}`;
     const hunks: Hunk[] = proposed.hunks.map((draft) => ({
       id: ++this.hunkIds,
       edit,
@@ -437,7 +577,7 @@ export class EditController {
     this.markTimer = window.setTimeout(() => {
       for (const element of marked) element.classList.remove('is-current');
     }, MARK_MS);
-    for (const listener of this.listeners) listener();
+    this.notify();
   }
 
   private scrollToPos(view: EditorView, id: number) {
@@ -486,6 +626,6 @@ export class EditController {
         this.current = null;
       }
     }
-    for (const listener of this.listeners) listener();
+    this.notify();
   }
 }

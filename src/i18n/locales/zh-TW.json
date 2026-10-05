@@ -441,6 +441,17 @@
         "delay": "停頓多久後補全",
         "seconds": "{{value}} 秒",
         "atEndOnly": "只在段落結尾補全"
+      },
+      "history": {
+        "title": "對話紀錄",
+        "keep": "儲存每份文件的對話",
+        "note": "儲存在這台電腦的應用程式資料中，再次開啟文件時一併還原。未儲存文件的對話會在關閉視窗時刪除。",
+        "clear": "刪除全部對話…",
+        "clearTitle": "刪除全部對話？",
+        "clearConfirm": "所有文件儲存的對話及其中的圖片都會從這台電腦上刪除，無法復原。",
+        "clearOk": "刪除",
+        "cleared": "已刪除全部對話。",
+        "clearFailed": "無法刪除對話。"
       }
     }
   },
@@ -619,6 +630,15 @@
         "translate-en": "翻譯成英文",
         "translate-zh": "翻譯成中文"
       }
+    },
+    "history": {
+      "open": "對話紀錄",
+      "empty": "這份文件還沒有儲存的對話",
+      "untitled": "未命名對話",
+      "delete": "刪除對話",
+      "failed": "無法讀取這段對話",
+      "listFailed": "無法讀取儲存的對話",
+      "loading": "正在讀取…"
     }
   }
 }

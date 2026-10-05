@@ -151,6 +151,8 @@ export type AiSettings = {
   mcpServers: AiMcpServer[];
   quickActions: AiQuickAction[];
   complete: AiCompleteSettings;
+  /** Keeps each document's conversations on this computer. */
+  keepHistory: boolean;
 };
 
 export const defaultAiSettings: AiSettings = {
@@ -165,6 +167,7 @@ export const defaultAiSettings: AiSettings = {
   mcpServers: [],
   quickActions: defaultQuickActions(),
   complete: { enabled: false, delay: 700, atEndOnly: true },
+  keepHistory: true,
 };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -362,6 +365,7 @@ export function sanitizeAiSettings(value: unknown): AiSettings {
     mcpServers,
     quickActions: sanitizeQuickActions(ai.quickActions),
     complete: sanitizeComplete(ai.complete),
+    keepHistory: bool(ai.keepHistory, true),
   };
 }
 

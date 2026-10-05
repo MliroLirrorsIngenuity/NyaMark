@@ -292,6 +292,34 @@ export class ChatSession {
     this.emit({ kind: 'reset' });
   }
 
+  /**
+   * What is kept of the conversation: the entries and what the model is
+   * sent, without a reply still on its way.
+   */
+  saved(): { entries: ChatEntry[]; messages: ModelMessage[] } {
+    const last = this.entries[this.entries.length - 1];
+    if (this.running && last?.role === 'assistant') {
+      return {
+        entries: this.entries.slice(0, -1),
+        messages: this.history.slice(0, last.historyStart),
+      };
+    }
+    return { entries: [...this.entries], messages: [...this.history] };
+  }
+
+  /** Puts back a conversation kept before, in place of this one. */
+  restore(entries: readonly ChatEntry[], messages: readonly ModelMessage[]) {
+    this.stop();
+    this.running = null;
+    this.entries.length = 0;
+    this.entries.push(...entries);
+    this.history = [...messages];
+    let last = 0;
+    for (const entry of entries) last = Math.max(last, entry.id);
+    this.nextId = last + 1;
+    this.emit({ kind: 'reset' });
+  }
+
   private emit(change: SessionChange) {
     for (const listener of this.listeners) listener(change);
   }

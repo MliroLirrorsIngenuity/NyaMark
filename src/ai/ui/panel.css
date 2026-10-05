@@ -243,6 +243,101 @@
   background: var(--ny-border-strong);
 }
 
+/* A menu under a button at the header's end opens towards the panel. */
+.ny-ai-menu--end {
+  left: auto;
+  right: 0;
+}
+
+.ny-ai__history {
+  position: relative;
+  flex: none;
+}
+
+.ny-ai__history[hidden] {
+  display: none;
+}
+
+.ny-ai-history {
+  width: min(320px, calc(var(--ny-ai-width) - 24px));
+}
+
+.ny-ai-history__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ny-ai-history__row .ny-ai-menu__item {
+  padding-right: 32px;
+}
+
+.ny-ai-history__row .ny-ai-menu__item[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+.ny-ai-history__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ny-ai-history__title,
+.ny-ai-history__when {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ny-ai-history__when {
+  color: var(--ny-text-muted);
+  font-size: 11px;
+}
+
+.ny-ai-history__delete {
+  position: absolute;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ny-text-muted);
+  opacity: 0;
+  cursor: default;
+}
+
+.ny-ai-history__delete svg {
+  width: 13px;
+  height: 13px;
+}
+
+.ny-ai-history__row:hover .ny-ai-history__delete,
+.ny-ai-history__row:focus-within .ny-ai-history__delete {
+  opacity: 1;
+}
+
+.ny-ai-history__delete:hover,
+.ny-ai-history__delete:focus-visible {
+  background: color-mix(in srgb, var(--ny-text-primary), transparent 90%);
+  color: var(--ny-ai-error);
+  outline: none;
+}
+
+.ny-ai-history__note {
+  padding: 8px 10px;
+  color: var(--ny-text-muted);
+  font-size: 12px;
+}
+
+.ny-ai-history__note--error {
+  color: var(--ny-ai-error);
+}
+
 .ny-ai__body {
   position: relative;
   flex: 1;

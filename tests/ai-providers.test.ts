@@ -67,6 +67,7 @@ describe('AI settings', () => {
       mcpServers: [],
       quickActions: defaultQuickActions(),
       complete: { enabled: false, delay: 700, atEndOnly: true },
+      keepHistory: true,
     });
   });
 
