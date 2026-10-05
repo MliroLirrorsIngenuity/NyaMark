@@ -1052,8 +1052,8 @@
  * pops that block's pill on top of the list you are reading.
  */
 .ny-editor-root
+  [data-ny-language-open]
   .milkdown
-  .editor:has(.language-button[data-expanded="true"])
   .milkdown-code-block:not(:has(.language-button[data-expanded="true"]))
   .tools {
   opacity: 0 !important;

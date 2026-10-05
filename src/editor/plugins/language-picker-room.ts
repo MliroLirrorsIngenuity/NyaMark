@@ -51,6 +51,13 @@ function place(root: HTMLElement, button: HTMLElement) {
   picker.style.setProperty('--ny-language-list-height', `${height}px`);
 }
 
+const OPEN = 'data-ny-language-open';
+
+function markOpen(root: HTMLElement) {
+  const open = root.querySelector('.language-button[data-expanded="true"]');
+  root.toggleAttribute(OPEN, open !== null);
+}
+
 /** Call once the editor is created. */
 export function languagePickerRoom(root: HTMLElement) {
   new MutationObserver((records) => {
@@ -59,9 +66,13 @@ export function languagePickerRoom(root: HTMLElement) {
         place(root, target);
       }
     }
+    markOpen(root);
   }).observe(root, {
     subtree: true,
     attributes: true,
     attributeFilter: ['data-expanded'],
+  });
+  root.addEventListener('pointerover', () => {
+    if (root.hasAttribute(OPEN)) markOpen(root);
   });
 }
