@@ -3,8 +3,8 @@ import DOMPurify from 'dompurify';
 import i18next from 'i18next';
 import type { MermaidConfig } from 'mermaid';
 import type { EditorView } from 'prosemirror-view';
-
-type Mermaid = typeof import('mermaid').default;
+import type { MermaidFrame } from './mermaid-frame';
+import frameScript from './mermaid-frame?worker&url';
 
 const FONT_FAMILY =
   'SF Pro Text, PingFang SC, Hiragino Sans GB, Noto Sans CJK SC, Microsoft YaHei, -apple-system, BlinkMacSystemFont, sans-serif';
@@ -12,12 +12,47 @@ const FONT_FAMILY =
 /** Typing pause before a mermaid block is re-rendered. */
 const RENDER_DELAY_MS = 300;
 
+function themeCss(isDark: boolean) {
+  const [node, border, line, text, cluster, clusterBorder] = isDark
+    ? [
+        '#243446',
+        '#8db4c8',
+        '#a5b8c9',
+        '#edf3f8',
+        '#1c2733',
+        'rgba(141, 180, 200, 0.3)',
+      ]
+    : [
+        '#eef2ff',
+        '#8b7cf6',
+        '#3f3f46',
+        '#1f2937',
+        '#fafaf9',
+        'rgba(139, 124, 246, 0.3)',
+      ];
+  return `
+.node rect, .node circle, .node ellipse, .node polygon, .node path {
+  fill: ${node} !important;
+  stroke: ${border} !important;
+}
+.edgePath .path, .flowchart-link { stroke: ${line} !important; }
+marker path { fill: ${line} !important; stroke: ${line} !important; }
+.nodeLabel, .nodeLabel p, .label, text, .edgeLabel {
+  fill: ${text} !important;
+  color: ${text} !important;
+}
+.cluster rect { fill: ${cluster} !important; stroke: ${clusterBorder} !important; }
+.edgeLabel rect { opacity: 1 !important; }
+`;
+}
+
 function mermaidConfig(isDark: boolean): MermaidConfig {
   return {
     startOnLoad: false,
     securityLevel: 'strict',
     theme: 'base',
     htmlLabels: false,
+    fontFamily: FONT_FAMILY,
     // On a parse error mermaid otherwise draws its own error diagram; the
     // message is shown in place of the preview instead.
     suppressErrorRendering: true,
@@ -30,35 +65,49 @@ function mermaidConfig(isDark: boolean): MermaidConfig {
       tertiaryColor: isDark ? '#141a22' : '#fafaf9',
       fontFamily: FONT_FAMILY,
     },
+    themeCSS: themeCss(isDark),
   };
 }
 
 let isDarkTheme = false;
-let loadedMermaid: Mermaid | null = null;
-let mermaidPromise: Promise<Mermaid> | null = null;
+let framePromise: Promise<MermaidFrame> | null = null;
 
-/**
- * Mermaid is the largest dependency by far, and most documents have no
- * diagram, so it is fetched on the first render instead of with the editor.
- */
-function loadMermaid(): Promise<Mermaid> {
-  mermaidPromise ??= import('mermaid').then(
-    ({ default: mermaid }) => {
-      mermaid.initialize(mermaidConfig(isDarkTheme));
-      loadedMermaid = mermaid;
-      return mermaid;
-    },
-    (error) => {
-      mermaidPromise = null;
-      throw error;
-    }
-  );
-  return mermaidPromise;
+function openFrame(): Promise<MermaidFrame> {
+  if (framePromise) return framePromise;
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.tabIndex = -1;
+  frame.style.cssText =
+    'position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; border: 0; visibility: hidden; pointer-events: none; z-index: -1; contain: strict;';
+  framePromise = new Promise<MermaidFrame>((resolve, reject) => {
+    document.body.append(frame);
+    const page = frame.contentDocument;
+    if (!page) throw new Error('The diagram frame did not open.');
+    page.open();
+    page.write(
+      '<!doctype html><html><head><meta charset="utf-8"></head><body style="margin: 0"></body></html>'
+    );
+    page.close();
+    const script = page.createElement('script');
+    script.type = 'module';
+    script.src = new URL(frameScript, document.baseURI).href;
+    script.onload = () => {
+      const drawer = frame.contentWindow?.nyamarkMermaid;
+      if (drawer) resolve(drawer);
+      else reject(new Error('Mermaid did not load.'));
+    };
+    script.onerror = () => reject(new Error('Mermaid did not load.'));
+    page.head.append(script);
+  }).catch((error) => {
+    frame.remove();
+    framePromise = null;
+    throw error;
+  });
+  return framePromise;
 }
 
 export function configureMermaid(isDark: boolean) {
   isDarkTheme = isDark;
-  loadedMermaid?.initialize(mermaidConfig(isDark));
 }
 
 function genId() {
@@ -75,7 +124,7 @@ function escapeHtml(text: string) {
   );
 }
 
-type Drawing = { ok: boolean; markup: string };
+type Drawing = { ok: boolean; markup: string; picture?: string };
 
 /**
  * The last diagrams drawn, by theme and source. A code block's view is built
@@ -83,34 +132,53 @@ type Drawing = { ok: boolean; markup: string };
  * anew.
  */
 const drawings = new Map<string, Drawing>();
-const KEPT_DRAWINGS = 24;
+const KEPT_DRAWINGS = 64;
+const pictures = new Map<string, { svg: string; sized: boolean }>();
+let pictureCount = 0;
+const PICTURE = '[data-ny-picture]';
 
-function drawingKey(content: string) {
-  return `${isDarkTheme ? 'dark' : 'light'}\n${content}`;
+function drawingKey(content: string, dark = isDarkTheme) {
+  return `${dark ? 'dark' : 'light'}\n${content}`;
 }
 
 /**
  * Render a diagram to the markup the preview shows: the SVG, or the parser's
- * message when the source does not parse. Mermaid renders inside a
- * temporary element under `<body>` and does not always remove it when it
- * throws, so a failed render cleans up after it.
+ * message when the source does not parse.
  */
-async function renderDiagram(content: string): Promise<Drawing> {
-  const key = drawingKey(content);
+async function renderDiagram(
+  content: string,
+  dark = isDarkTheme
+): Promise<Drawing> {
+  const key = drawingKey(content, dark);
   const kept = drawings.get(key);
   if (kept) return kept;
-  const id = genId();
   let drawing: Drawing;
   try {
-    const mermaid = await loadMermaid();
-    const { svg } = await mermaid.render(id, content);
+    const frame = await openFrame();
+    const drawn = await frame.draw(genId(), content, mermaidConfig(dark));
+    if (!drawn.ok) throw new Error(drawn.message);
+    pictureCount += 1;
+    const picture = `picture-${pictureCount}`;
+    const sized = Boolean(drawn.width && drawn.height);
+    pictures.set(picture, {
+      svg: DOMPurify.sanitize(drawn.svg, {
+        USE_PROFILES: { svg: true, svgFilters: true },
+      }),
+      sized,
+    });
+    const size = sized
+      ? ` style="width: ${drawn.width}px; aspect-ratio: ${drawn.width} / ${drawn.height}"`
+      : '';
+    const links = drawn.links.map(
+      (link) =>
+        `<a class="nyamark-mermaid-link" href="${escapeHtml(link.href)}" title="${escapeHtml(link.title)}" style="left: ${link.left}%; top: ${link.top}%; width: ${link.width}%; height: ${link.height}%"></a>`
+    );
     drawing = {
       ok: true,
-      markup: `<div class="nyamark-mermaid-preview">${svg}</div>`,
+      markup: `<div class="nyamark-mermaid-preview"><span class="nyamark-mermaid-picture" data-ny-picture="${picture}"${size}>${links.join('')}</span></div>`,
+      picture,
     };
   } catch (error) {
-    document.getElementById(`d${id}`)?.remove();
-    document.getElementById(id)?.remove();
     const message = error instanceof Error ? error.message : String(error);
     drawing = {
       ok: false,
@@ -119,9 +187,43 @@ async function renderDiagram(content: string): Promise<Drawing> {
   }
   drawings.set(key, drawing);
   if (drawings.size > KEPT_DRAWINGS) {
-    drawings.delete(drawings.keys().next().value as string);
+    const oldest = drawings.keys().next().value as string;
+    const picture = drawings.get(oldest)?.picture;
+    if (picture) pictures.delete(picture);
+    drawings.delete(oldest);
   }
   return drawing;
+}
+
+function showPicture(host: Element) {
+  if (host.shadowRoot) return;
+  const picture = pictures.get(host.getAttribute('data-ny-picture') ?? '');
+  if (!picture) return;
+  const place = picture.sized
+    ? 'position: absolute; inset: 0'
+    : 'display: block';
+  host.attachShadow({
+    mode: 'open',
+  }).innerHTML = `<div style="all: initial; ${place}; pointer-events: none">${picture.svg}</div><slot></slot>`;
+}
+
+function showPicturesIn(node: Node) {
+  if (!(node instanceof Element)) return;
+  if (node.matches(PICTURE)) showPicture(node);
+  else if (node.firstElementChild) {
+    for (const host of node.querySelectorAll(PICTURE)) showPicture(host);
+  }
+}
+
+export function showMermaidPictures(root: HTMLElement) {
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) showPicturesIn(node);
+    }
+  });
+  observer.observe(root, { childList: true, subtree: true });
+  showPicturesIn(root);
+  return () => observer.disconnect();
 }
 
 /*
@@ -284,11 +386,37 @@ async function draw(element: Element) {
 }
 
 /** Draw every diagram still waiting: a printed page shows all of them. */
-export async function drawWaitingDiagrams() {
+async function drawWaitingDiagrams() {
   // Crepe puts a placeholder in after the change that asked for it.
   await new Promise((resolve) => window.setTimeout(resolve, 0));
   attachPlaceholders();
   for (const element of [...jobs.keys()]) await draw(element);
+}
+
+export async function drawDiagramsForPrint(view: EditorView | null) {
+  await drawWaitingDiagrams();
+  const sources = new Set<string>();
+  view?.state.doc.descendants((node) => {
+    if (node.type.name !== 'code_block') return true;
+    if (node.attrs.language === 'mermaid' && node.textContent.trim()) {
+      sources.add(node.textContent);
+    }
+    return false;
+  });
+  for (const source of sources) await renderDiagram(source, false);
+}
+
+export async function followTheme(
+  root: HTMLElement,
+  view: EditorView | null,
+  all = false
+) {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  if (dark !== isDarkTheme) {
+    configureMermaid(dark);
+    reRenderMermaidPreviews(root, view);
+  }
+  if (all) await drawWaitingDiagrams();
 }
 
 /**
@@ -429,10 +557,7 @@ export function bindMermaidThemeListener(
   root: HTMLElement,
   getView: () => EditorView | null
 ): () => void {
-  const handler = () => {
-    configureMermaid(document.documentElement.dataset.theme === 'dark');
-    reRenderMermaidPreviews(root, getView());
-  };
+  const handler = () => void followTheme(root, getView());
   window.addEventListener('nyamark:themechange', handler);
   return () => window.removeEventListener('nyamark:themechange', handler);
 }

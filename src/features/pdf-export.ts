@@ -15,6 +15,12 @@ const PAGE_MARGINS: Record<ExportPdfSettings['margin'], string> = {
   wide: '24mm',
 };
 
+export interface PrintSteps {
+  prepare(): void | Promise<void>;
+  printing(): void | Promise<void>;
+  printed(): void;
+}
+
 /**
  * Export to PDF through the system print dialog: the export dialog picks the
  * page, then the document alone is laid out for print until printing ends.
@@ -23,13 +29,7 @@ export class PdfExporter {
   private readonly dialog = new ExportPdfDialog();
   private busy = false;
 
-  /**
-   * `prepare` puts what the source pane holds into the preview, which is
-   * what prints, and draws the diagrams still waiting to be drawn.
-   */
-  constructor(
-    private readonly prepare: () => void | Promise<void> = () => {}
-  ) {}
+  constructor(private readonly steps: PrintSteps) {}
 
   /**
    * Asked again while the dialog is open or printing runs, it stays with
@@ -43,8 +43,8 @@ export class PdfExporter {
     try {
       const settings = await this.dialog.open({ fileName: printableTitle() });
       if (settings) {
-        await this.prepare();
-        await exportAsPdf(settings);
+        await this.steps.prepare();
+        await exportAsPdf(settings, this.steps);
       }
     } finally {
       this.busy = false;
@@ -66,7 +66,7 @@ function nextFrame() {
   });
 }
 
-async function exportAsPdf(settings: ExportPdfSettings) {
+async function exportAsPdf(settings: ExportPdfSettings, steps: PrintSteps) {
   // Source mode stays on and print.css hides the source pane: leaving it
   // rebuilt the pane from the serialised preview, which put the text in the
   // serialiser's spelling and dropped its undo history.
@@ -115,12 +115,14 @@ async function exportAsPdf(settings: ExportPdfSettings) {
     else root.dataset.theme = theme.name;
     root.classList.toggle('dark', theme.dark);
     root.style.colorScheme = theme.scheme;
+    steps.printed();
   };
 
   // WebKit (the native print sheet included) and Chromium fire afterprint
   // once printing is over. Input reaching the page is the backstop: the
   // print dialog is modal, so the page only sees input once it is gone.
   window.addEventListener('afterprint', restore, true);
+  await steps.printing();
   await nextFrame();
   window.addEventListener('pointerdown', restore, true);
   window.addEventListener('keydown', restore, true);

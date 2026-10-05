@@ -30,6 +30,9 @@ export default defineConfig(async () => ({
   },
   // 4. expose Tauri's build-time variables (TAURI_ENV_PLATFORM, ...) next to VITE_*
   envPrefix: ['VITE_', 'TAURI_ENV_'],
+  worker: {
+    format: 'es',
+  },
   build: {
     // WebView2 is Chromium; macOS and Linux run WebKit
     target: env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',

@@ -129,7 +129,9 @@ import { mathInlineKeys } from './plugins/math-inline-keys';
 import {
   bindMermaidThemeListener,
   configureMermaid,
-  drawWaitingDiagrams,
+  drawDiagramsForPrint,
+  followTheme,
+  showMermaidPictures,
 } from './plugins/mermaid';
 import { pasteIntoCell } from './plugins/paste-cell';
 import { pasteCodeAsCode } from './plugins/paste-code';
@@ -202,6 +204,7 @@ export class NyaEditor {
     configureMermaid(document.documentElement.dataset.theme === 'dark');
     // One editor lives as long as its window, so these are never torn down.
     bindMermaidThemeListener(this.root, () => this.getView());
+    showMermaidPictures(this.root);
     installDragSelectGuard(this.root);
 
     // A long document opens on its first screens, and stays closed to
@@ -414,9 +417,12 @@ export class NyaEditor {
     return this.crepe ? this.crepe.getMarkdown() : '';
   }
 
-  /** Draws the diagrams still waiting to come near the screen. */
-  drawWaitingDiagrams(): Promise<void> {
-    return drawWaitingDiagrams();
+  drawDiagramsForPrint(): Promise<void> {
+    return drawDiagramsForPrint(this.getView());
+  }
+
+  followTheme(all = false): Promise<void> {
+    return followTheme(this.root, this.getView(), all);
   }
 
   getView(): ProseMirrorEditorView | null {
