@@ -44,6 +44,7 @@ import {
   translated,
 } from './ai-dom';
 import { mcpStyles, renderMcpSection } from './ai-mcp';
+import { quickStyles, renderQuickSection } from './ai-quick';
 
 const styles = `
 .ny-settings__field[hidden] {
@@ -409,6 +410,7 @@ export function renderAiSection(
 ): AiSection {
   ensureStyle('ny-settings-ai', styles);
   ensureStyle('ny-settings-ai-mcp', mcpStyles);
+  ensureStyle('ny-settings-ai-quick', quickStyles);
   const state: AiSettings = structuredClone(current);
   const statuses = new Map<string, AiSecretStatus>();
   /** Providers moved to another address whose key must be typed again. */
@@ -530,8 +532,9 @@ export function renderAiSection(
   `;
 
   const mcp = renderMcpSection({ state, emit, track });
+  const quick = renderQuickSection({ state, emit });
 
-  root.append(services, defaults, network, mcp.element, instructions);
+  root.append(services, defaults, quick, network, mcp.element, instructions);
 
   const renderDefaults = () => {
     const { refs, options: choices } = modelChoices(state.providers);

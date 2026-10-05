@@ -80,6 +80,20 @@ export class Composer {
     this.input.focus();
   }
 
+  /** Adds `text` to what is written, as the AI menu hands it over. */
+  write(text: string) {
+    if (text) {
+      const draft = this.input.value.trimEnd();
+      this.input.value = draft ? `${draft}\n${text}` : text;
+      this.changed();
+    }
+    this.input.focus();
+    this.input.setSelectionRange(
+      this.input.value.length,
+      this.input.value.length
+    );
+  }
+
   setBusy(busy: boolean) {
     if (busy === this.busy) return;
     this.busy = busy;

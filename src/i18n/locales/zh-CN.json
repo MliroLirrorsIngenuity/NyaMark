@@ -22,6 +22,7 @@
     "paste": "粘贴",
     "selectAll": "全选",
     "view": "视图",
+    "aiAssistant": "AI 助手",
     "fullscreen": "切换全屏",
     "window": "窗口",
     "minimize": "最小化",
@@ -117,7 +118,11 @@
       "confirm": "确定",
       "imageCaption": "图片说明",
       "pasteImageLink": "或粘贴链接",
-      "pasteLink": "粘贴链接…"
+      "pasteLink": "粘贴链接…",
+      "groupAi": "AI",
+      "aiContinue": "AI 续写",
+      "aiWrite": "AI 按提示写作",
+      "aiSummarize": "AI 总结上文"
     }
   },
   "dialog": {
@@ -415,6 +420,17 @@
           "timeout": "服务器没有及时响应。",
           "exited": "服务器已停止。"
         }
+      },
+      "quick": {
+        "title": "AI 菜单命令",
+        "note": "选中文字后 AI 菜单列出的命令，按此顺序排列。内置命令留空时沿用自带的名称和指令。",
+        "add": "添加命令",
+        "reset": "恢复默认",
+        "moveUp": "上移",
+        "moveDown": "下移",
+        "untitled": "未命名",
+        "prompt": "给 AI 的指令",
+        "promptPlaceholder": "例如：把这段文字整理成列表。"
       }
     }
   },
@@ -568,6 +584,31 @@
       "noVision": "{{model}} 未标注支持图片，服务可能拒收。若它能看图，请在 AI 设置里为它勾选“图片”。",
       "pasted": "粘贴的图片",
       "embedded": "内嵌图片"
+    },
+    "quick": {
+      "title": "AI 菜单",
+      "placeholderSelection": "让 AI 修改选中的文字…",
+      "placeholderCaret": "让 AI 写点什么…",
+      "changeAs": "按此修改：{{text}}",
+      "writeAs": "写：{{text}}",
+      "continue": "续写",
+      "summarize": "总结上文",
+      "toChat": "转到 AI 助手对话",
+      "escHint": "按 Esc 停止",
+      "empty": "模型没有返回内容。",
+      "notPlaced": "回复要放的位置已经改动了。可以复制回复，自己贴进去。",
+      "unchanged": "回复与原文相同。",
+      "action": {
+        "polish": "润色",
+        "rewrite": "改写",
+        "shorter": "缩短",
+        "longer": "扩写",
+        "grammar": "修正拼写和语法",
+        "formal": "更正式",
+        "casual": "更随意",
+        "translate-en": "翻译成英文",
+        "translate-zh": "翻译成中文"
+      }
     }
   }
 }

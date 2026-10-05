@@ -31,6 +31,7 @@ pub struct MenuTranslations {
     pub paste: String,
     pub select_all: String,
     pub view: String,
+    pub ai_assistant: String,
     pub fullscreen: String,
     pub window: String,
     pub minimize: String,
@@ -46,6 +47,7 @@ const MENU_SAVE_AS_ID: &str = "file_save_as";
 const MENU_EXPORT_PDF_ID: &str = "file_export_pdf";
 const MENU_SETTINGS_ID: &str = "app_settings";
 const MENU_CHECK_UPDATES_ID: &str = "app_check_updates";
+const MENU_TOGGLE_AI_ID: &str = "view_toggle_ai";
 const MENU_QUIT_ID: &str = "app_quit";
 
 pub fn build_macos_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
@@ -193,7 +195,13 @@ pub fn build_custom_macos_menu<R: Runtime>(
         app,
         &t.view,
         true,
-        &[&PredefinedMenuItem::fullscreen(app, Some(&t.fullscreen))?],
+        &[
+            // No accelerator: the webview binds Cmd+Shift+L itself, and a
+            // menu's would toggle the panel a second time.
+            &MenuItem::with_id(app, MENU_TOGGLE_AI_ID, &t.ai_assistant, true, None::<&str>)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::fullscreen(app, Some(&t.fullscreen))?,
+        ],
     )?;
     let window_menu = Submenu::with_items(
         app,
@@ -243,6 +251,8 @@ pub fn handle_macos_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent)
         Some("open-settings")
     } else if event.id() == MENU_CHECK_UPDATES_ID {
         Some("check-updates")
+    } else if event.id() == MENU_TOGGLE_AI_ID {
+        Some("toggle-ai")
     } else {
         None
     };

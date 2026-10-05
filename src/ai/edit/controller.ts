@@ -18,9 +18,10 @@ import {
   rejectHunks,
   setHunkRenderer,
 } from '../../editor/plugins/ai-proposals';
-import { sourceOffset } from '../../editor/source-caret';
+import { type BlockSpan, sourceOffset } from '../../editor/source-caret';
 import type { AiEditMode } from '../../state/ai-settings';
 import type { DocumentSnapshot } from '../agent/document-text';
+import type { Placement } from '../quick/place';
 import { type EditEnv, applyHunks, proposeEdit } from './propose';
 import { renderHunk } from './render';
 import {
@@ -30,6 +31,30 @@ import {
   noticeText,
 } from './report';
 import { EditError, type TextEdit } from './text-edit';
+
+/** A textblock's leaves as text: a line break, or nothing. */
+const leafText = (node: ProseNode) =>
+  node.type.name === 'hardbreak' ? '\n' : '';
+
+/** Text with its white space taken out, to compare what two texts read. */
+const bare = (text: string) => text.replace(/\s+/g, '');
+
+/** The top-level blocks the selection `from`–`to` runs over, whole. */
+function wholeBlocks(
+  doc: ProseNode,
+  from: number,
+  to: number,
+  spans: readonly BlockSpan[],
+  start: number,
+  end: number
+): { from: number; to: number } {
+  const first = spans[doc.resolve(from).index(0)];
+  const last = spans[Math.min(doc.resolve(to).index(0), spans.length - 1)];
+  return {
+    from: Math.min(start, first?.from ?? start),
+    to: Math.max(end, last?.to ?? end),
+  };
+}
 
 export type EditHost = {
   editor: NyaEditor;
@@ -135,26 +160,88 @@ export class EditController {
    * proposals in it, and the selection in that text.
    */
   async read(): Promise<DocumentSnapshot> {
-    const { editor } = this.host;
-    await editor.whenReady();
-    const inSource = this.host.sourceSelection();
-    const view = editor.getView();
-    if (!view) return { text: editor.getMarkdown(), selection: null };
-    const hunks = proposalState(view.state)?.hunks ?? [];
-    const shown = hunks.length ? applyHunks(view.state.doc, hunks) : null;
-    const doc = shown?.doc ?? view.state.doc;
-    const text = shown ? editor.serializeDoc(doc) : editor.getMarkdown();
+    const shown = await this.shown();
+    if (!shown)
+      return { text: this.host.editor.getMarkdown(), selection: null };
+    const { doc, text, from, to } = shown;
     this.lastText = text;
-    const selection = inSource ?? view.state.selection;
-    const from = shown ? shown.mapping.map(selection.from, 1) : selection.from;
-    const to = shown ? shown.mapping.map(selection.to, -1) : selection.to;
     if (from >= to) return { text, selection: null };
-    const spans = editor.blockSpans(text);
+    const spans = this.host.editor.blockSpans(text);
     // As when entering source mode: the text the selection covers, none of
     // the markup around it.
     const start = sourceOffset(doc, from, text, spans, 1);
     const end = Math.max(start, sourceOffset(doc, to, text, spans, -1));
     return { text, selection: start < end ? { from: start, to: end } : null };
+  }
+
+  /**
+   * Where the selection and the caret are in the document as the assistant
+   * reads it, for a command of the AI or the slash menu. The selection takes
+   * in the markup it cuts through, so what replaces it is whole Markdown.
+   */
+  async placement(): Promise<Placement> {
+    const { editor } = this.host;
+    const shown = await this.shown();
+    if (!shown) {
+      const text = editor.getMarkdown();
+      const end = text.length;
+      return {
+        text,
+        selection: null,
+        caret: end,
+        block: { from: end, to: end, empty: true },
+      };
+    }
+    const { doc, text, from, to } = shown;
+    const spans = editor.blockSpans(text);
+    let selection: Placement['selection'] = null;
+    if (from < to) {
+      const start = sourceOffset(doc, from, text, spans, 1);
+      const end = Math.max(start, sourceOffset(doc, to, text, spans, -1));
+      if (start < end) {
+        const covered = doc.textBetween(from, to, '', leafText);
+        const read = editor.parseMarkdown(text.slice(start, end));
+        selection =
+          read && bare(read.textContent) === bare(covered)
+            ? { from: start, to: end }
+            : wholeBlocks(doc, from, to, spans, start, end);
+      }
+    }
+    const index = doc.resolve(to).index(0);
+    const span = spans[index];
+    const node = index < doc.childCount ? doc.child(index) : null;
+    // The empty paragraph the editor keeps at the end is not in the text.
+    const block =
+      span && node
+        ? {
+            from: span.from,
+            to: span.to,
+            empty: node.type.name === 'paragraph' && node.content.size === 0,
+          }
+        : { from: text.length, to: text.length, empty: true };
+    return {
+      text,
+      selection,
+      caret: sourceOffset(doc, to, text, spans, -1),
+      block,
+    };
+  }
+
+  /** The document with its proposals in, and the selection in it. */
+  private async shown() {
+    const { editor } = this.host;
+    await editor.whenReady();
+    const inSource = this.host.sourceSelection();
+    const view = editor.getView();
+    if (!view) return null;
+    const hunks = proposalState(view.state)?.hunks ?? [];
+    const shown = hunks.length ? applyHunks(view.state.doc, hunks) : null;
+    const doc = shown?.doc ?? view.state.doc;
+    const text = shown ? editor.serializeDoc(doc) : editor.getMarkdown();
+    const selection = inSource ?? view.state.selection;
+    const from = shown ? shown.mapping.map(selection.from, 1) : selection.from;
+    const to = shown ? shown.mapping.map(selection.to, -1) : selection.to;
+    return { doc, text, from, to };
   }
 
   /**
@@ -181,11 +268,21 @@ export class EditController {
 
   /**
    * Makes the edit `make` gives on the document as the assistant reads it.
-   * Throws an `EditError` when it cannot be made.
+   * Throws an `EditError` when it cannot be made. An edit not `own` comes
+   * from a command of the AI or the slash menu: the conversation's assistant
+   * is told neither of it nor, with it, of what it has yet to hear.
    */
-  async edit(make: (text: string) => TextEdit): Promise<EditResult> {
+  async edit(
+    make: (text: string) => TextEdit,
+    own = true
+  ): Promise<EditResult> {
     const { editor } = this.host;
-    const notices = await this.notices();
+    let notices: string | null = null;
+    if (own) notices = await this.notices();
+    else {
+      await editor.whenReady();
+      this.host.flushSource();
+    }
     const view = editor.getView();
     if (!view) {
       throw new EditError(
@@ -232,7 +329,7 @@ export class EditController {
       dropped: 0,
       replaced: 0,
     });
-    this.ownEdits.add(edit);
+    if (own) this.ownEdits.add(edit);
     const meta: ProposalMeta = {
       type: 'set',
       hunks: [...pending.filter((hunk) => !dropped.has(hunk.id)), ...hunks],
@@ -241,9 +338,11 @@ export class EditController {
 
     const auto = this.host.editMode() === 'auto' && hunks.length > 0;
     if (auto) this.accept(hunks.map((hunk) => hunk.id));
-    // What the edit did itself is no news to the assistant.
-    this.seenSeq = this.state()?.seq ?? this.seenSeq;
-    this.lastText = proposed.after;
+    if (own) {
+      // What the edit did itself is no news to the assistant.
+      this.seenSeq = this.state()?.seq ?? this.seenSeq;
+      this.lastText = proposed.after;
+    }
     return {
       report: editReport({
         status: auto ? 'applied' : 'proposed',

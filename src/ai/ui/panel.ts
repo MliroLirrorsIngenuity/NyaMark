@@ -52,6 +52,7 @@ import { prepareImage } from '../images/prepare';
 import { mcpHub } from '../mcp/hub';
 import { connectModel } from '../providers/connect';
 import { nativeSearchTool } from '../providers/native-search';
+import { QuickMenu, type QuickMode } from '../quick/popover';
 import { Composer } from './composer';
 import { ICONS } from './icons';
 import { MessageList } from './messages';
@@ -162,6 +163,7 @@ export class AiPanel {
   private readonly session: ChatSession;
   private readonly edits: EditController;
   private readonly approvals = new Approvals();
+  private quick: QuickMenu | null = null;
   private readonly review: HTMLElement;
   private readonly reviewCount: HTMLElement;
   private readonly mode: HTMLButtonElement;
@@ -353,8 +355,27 @@ export class AiPanel {
     else this.setup.querySelector<HTMLElement>('button')?.focus();
   }
 
+  /**
+   * Opens the AI menu at the selection or the caret, or runs one of its
+   * slash commands there. Its edits are this panel's, to review alike.
+   */
+  ask(mode: QuickMode) {
+    this.quick ??= new QuickMenu({
+      editor: this.host.editor,
+      edits: this.edits,
+      documentPath: this.host.documentPath,
+      openSettings: this.host.openSettings,
+      toChat: (text) => {
+        this.show();
+        if (hasModels(this.ai)) this.composer.write(text);
+      },
+    });
+    void this.quick.open(mode);
+  }
+
   destroy() {
     this.destroyed = true;
+    this.quick?.destroy();
     this.composer.images.clear();
     this.approvals.reset();
     this.session.clear();

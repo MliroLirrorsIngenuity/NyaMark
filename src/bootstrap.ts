@@ -13,6 +13,7 @@ import {
 } from './bridge/ipc/updates';
 import { isPrimaryWindow } from './bridge/ipc/windows';
 import { NyaEditor } from './editor/editor';
+import { type AiAskMode, setAiAskHandler } from './editor/plugins/ai-entry';
 import { SourceModeController } from './editor/source-mode';
 import { AttachmentController } from './features/attachment-controller';
 import { bindAutoSave } from './features/auto-save';
@@ -214,6 +215,7 @@ export class App {
       'export-pdf': () => this.pdfExporter.open(),
       'open-settings': () => this.settingsPanel.open(),
       'check-updates': () => this.checkForUpdatesAsked(),
+      'toggle-ai': () => this.toggleAi(true),
     });
     void menuController.bind();
 
@@ -231,9 +233,11 @@ export class App {
       },
       toggleOutline: () => this.toggleOutline(),
       toggleAi: () => this.toggleAi(true),
+      askAi: () => this.askAi('menu'),
       openSettings: () => this.settingsPanel.open(),
     });
     shortcutController.bind();
+    setAiAskHandler((mode) => this.askAi(mode));
 
     this.refreshStatsSoon();
     this.scheduleUpdateCheck();
@@ -261,6 +265,16 @@ export class App {
         else if (fromShortcut && !panel.hasFocus) panel.focus();
         else panel.hide();
       })
+      .catch((error) => {
+        this.aiPanel = null;
+        console.error('[ai] The assistant failed to load', error);
+      });
+  }
+
+  /** Opens the AI menu at the selection or the caret, or runs a command of it. */
+  private askAi(mode: AiAskMode) {
+    void this.loadAiPanel()
+      .then((panel) => panel.ask(mode))
       .catch((error) => {
         this.aiPanel = null;
         console.error('[ai] The assistant failed to load', error);

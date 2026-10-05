@@ -16,7 +16,7 @@ import {
   authSchemeOf,
   isPlainRemoteAddress,
 } from '../src/ai/providers/presets';
-import type { AiProvider } from '../src/state/ai-settings';
+import { type AiProvider, defaultQuickActions } from '../src/state/ai-settings';
 import { normalizeSettings } from '../src/state/settings';
 
 function provider(overrides: Partial<AiProvider> = {}): AiProvider {
@@ -64,6 +64,7 @@ describe('AI settings', () => {
       editMode: 'review',
       search: { engine: 'auto', searxngUrl: '', native: false },
       mcpServers: [],
+      quickActions: defaultQuickActions(),
     });
   });
 

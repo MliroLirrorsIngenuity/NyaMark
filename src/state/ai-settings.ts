@@ -92,6 +92,37 @@ export type AiMcpServer = {
   allowed: string[];
 };
 
+/**
+ * A command of the AI menu over the selection: what it is called and what
+ * it asks of the model. The built-in ones keep their name and prompt empty
+ * until the user writes their own, and read in the app's language till then.
+ */
+export type AiQuickAction = { id: string; name: string; prompt: string };
+
+/** The AI menu's commands as they come, by id. */
+export const BUILTIN_QUICK_ACTIONS = [
+  'polish',
+  'rewrite',
+  'shorter',
+  'longer',
+  'grammar',
+  'formal',
+  'casual',
+  'translate-en',
+  'translate-zh',
+] as const;
+
+export type BuiltinQuickAction = (typeof BUILTIN_QUICK_ACTIONS)[number];
+
+export function isBuiltinQuickAction(id: string): id is BuiltinQuickAction {
+  return (BUILTIN_QUICK_ACTIONS as readonly string[]).includes(id);
+}
+
+/** The AI menu as it comes. */
+export function defaultQuickActions(): AiQuickAction[] {
+  return BUILTIN_QUICK_ACTIONS.map((id) => ({ id, name: '', prompt: '' }));
+}
+
 export type AiSettings = {
   providers: AiProvider[];
   /** The model the assistant panel talks to. */
@@ -104,6 +135,7 @@ export type AiSettings = {
   editMode: AiEditMode;
   search: AiSearchSettings;
   mcpServers: AiMcpServer[];
+  quickActions: AiQuickAction[];
 };
 
 export const defaultAiSettings: AiSettings = {
@@ -115,12 +147,15 @@ export const defaultAiSettings: AiSettings = {
   editMode: 'review',
   search: { engine: 'auto', searxngUrl: '', native: false },
   mcpServers: [],
+  quickActions: defaultQuickActions(),
 };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 /** Short enough to name a keychain entry once `mcp-` goes before it. */
 const MCP_ID = /^[A-Za-z0-9_-]{1,60}$/;
 const MAX_MCP_SERVERS = 50;
+const QUICK_ID = /^[A-Za-z0-9_-]{1,40}$/;
+export const MAX_QUICK_ACTIONS = 40;
 
 export function isAiProfileId(value: unknown): value is string {
   return typeof value === 'string' && ID.test(value);
@@ -247,6 +282,23 @@ function sanitizeMcpServer(value: unknown): AiMcpServer | null {
   };
 }
 
+function sanitizeQuickActions(value: unknown): AiQuickAction[] {
+  if (!Array.isArray(value)) return defaultQuickActions();
+  const actions: AiQuickAction[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry) || typeof entry.id !== 'string') continue;
+    if (!QUICK_ID.test(entry.id)) continue;
+    if (actions.some((other) => other.id === entry.id)) continue;
+    actions.push({
+      id: entry.id,
+      name: text(entry.name, 100).trim(),
+      prompt: text(entry.prompt, 8000).trim(),
+    });
+    if (actions.length === MAX_QUICK_ACTIONS) break;
+  }
+  return actions;
+}
+
 export function sanitizeAiSettings(value: unknown): AiSettings {
   const ai = isRecord(value) ? value : {};
   const providers: AiProvider[] = [];
@@ -273,6 +325,7 @@ export function sanitizeAiSettings(value: unknown): AiSettings {
     editMode: ai.editMode === 'auto' ? 'auto' : 'review',
     search: sanitizeSearch(ai.search),
     mcpServers,
+    quickActions: sanitizeQuickActions(ai.quickActions),
   };
 }
 
@@ -284,6 +337,11 @@ export function newAiProfileId(): string {
 /** A fresh id for an MCP server. */
 export function newMcpServerId(): string {
   return `s-${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+}
+
+/** A fresh id for a command of the AI menu. */
+export function newQuickActionId(): string {
+  return `q-${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 }
 
 /** The keychain profile an MCP server's key is saved under. */

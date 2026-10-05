@@ -9,7 +9,8 @@ export type AppMenuAction =
   | 'save-file-as'
   | 'export-pdf'
   | 'open-settings'
-  | 'check-updates';
+  | 'check-updates'
+  | 'toggle-ai';
 
 const APP_MENU_ACTION_EVENT = 'nyamark://menu-action';
 
@@ -21,6 +22,7 @@ const KNOWN_ACTIONS = new Set<AppMenuAction>([
   'export-pdf',
   'open-settings',
   'check-updates',
+  'toggle-ai',
 ]);
 
 export async function listenAppMenuAction(

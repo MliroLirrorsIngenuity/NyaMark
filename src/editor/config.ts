@@ -13,6 +13,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
+import { intoAiSlash, intoAiToolbar } from './plugins/ai-entry';
 import { codeArrowsByRow } from './plugins/block-arrows';
 import { intoKeys } from './plugins/block-keys';
 import { codeClearOfBar } from './plugins/caret-scroll';
@@ -336,8 +337,14 @@ function localizedFeatureConfigs() {
         })),
       ],
     },
+    [CrepeFeature.Toolbar]: {
+      buildToolbar: intoAiToolbar,
+    },
     [CrepeFeature.BlockEdit]: {
-      buildMenu: intoSlashBlocks,
+      buildMenu: (builder: Builder & Parameters<typeof intoAiSlash>[0]) => {
+        intoSlashBlocks(builder);
+        intoAiSlash(builder);
+      },
       textGroup: {
         label: blockLabel('groupText'),
         text: { label: blockLabel('text') },

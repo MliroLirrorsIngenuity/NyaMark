@@ -5,7 +5,6 @@ import type { DiffRow } from '../agent/line-diff';
 import {
   type AssistantEntry,
   type ChatEntry,
-  type ChatFailureCode,
   type ChatPart,
   type ToolPart,
   type UserEntry,
@@ -17,6 +16,7 @@ import type { EditOutcome } from '../edit/controller';
 import type { ChatImage } from '../images/image';
 import { isOpenableLink, renderChatMarkdown } from '../render/markdown';
 import { copyText } from './clipboard';
+import { FAILURE_TEXT, SELF_EXPLAINED, SETTINGS_FIXES } from './failure';
 import { ICONS } from './icons';
 import { imageUrl } from './image-tray';
 import { proposedEdit, searchSources, toolLabel } from './tool-labels';
@@ -27,31 +27,6 @@ const NEAR_END_PX = 32;
 const STREAM_RENDER_MS = 50;
 /** How long a copy button says it copied. */
 const COPIED_MS = 1500;
-
-const FAILURE_TEXT: Record<ChatFailureCode, string> = {
-  'no-model': 'ai.error.noModel',
-  'not-connected': 'ai.error.notConnected',
-  'key-needed': 'ai.error.keyNeeded',
-  unauthorized: 'ai.error.unauthorized',
-  'rate-limited': 'ai.error.rateLimited',
-  network: 'ai.error.network',
-  other: 'ai.error.other',
-};
-
-/** Failures fixed in the settings, with a button that goes there. */
-const SETTINGS_FIXES = new Set<ChatFailureCode>([
-  'no-model',
-  'not-connected',
-  'key-needed',
-  'unauthorized',
-]);
-
-/** Failures the message explains in full; the service's words add nothing. */
-const SELF_EXPLAINED = new Set<ChatFailureCode>([
-  'no-model',
-  'not-connected',
-  'key-needed',
-]);
 
 const ENDING_TEXT: Record<NonNullable<AssistantEntry['ending']>, string> = {
   'step-limit': 'ai.ending.stepLimit',

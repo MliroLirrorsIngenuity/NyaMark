@@ -22,6 +22,7 @@
     "paste": "Paste",
     "selectAll": "Select All",
     "view": "View",
+    "aiAssistant": "AI Assistant",
     "fullscreen": "Toggle Full Screen",
     "window": "Window",
     "minimize": "Minimize",
@@ -119,7 +120,11 @@
       "confirm": "Confirm",
       "imageCaption": "Image caption",
       "pasteImageLink": "or paste link",
-      "pasteLink": "Paste link…"
+      "pasteLink": "Paste link…",
+      "groupAi": "AI",
+      "aiContinue": "AI continue writing",
+      "aiWrite": "AI write from a prompt",
+      "aiSummarize": "AI summarize above"
     }
   },
   "dialog": {
@@ -419,6 +424,17 @@
           "timeout": "The server did not answer in time.",
           "exited": "The server stopped."
         }
+      },
+      "quick": {
+        "title": "AI menu commands",
+        "note": "What the AI menu over a selection offers, in this order. A built-in command left blank keeps its own name and wording.",
+        "add": "Add command",
+        "reset": "Restore defaults",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "untitled": "Untitled",
+        "prompt": "What it asks the AI",
+        "promptPlaceholder": "e.g. Turn the text into a bulleted list."
       }
     }
   },
@@ -587,6 +603,31 @@
       "noVision": "{{model}} is not marked as seeing images, so the service may refuse them. Tick Images for it in the AI settings if it can.",
       "pasted": "Pasted image",
       "embedded": "an embedded image"
+    },
+    "quick": {
+      "title": "AI menu",
+      "placeholderSelection": "Ask AI to change the selection…",
+      "placeholderCaret": "Ask AI to write…",
+      "changeAs": "Change it: {{text}}",
+      "writeAs": "Write: {{text}}",
+      "continue": "Continue writing",
+      "summarize": "Summarize the text above",
+      "toChat": "Ask in the assistant panel",
+      "escHint": "Esc to stop",
+      "empty": "The model sent back nothing.",
+      "notPlaced": "The text changed where the reply was to go. Copy the reply to put it in yourself.",
+      "unchanged": "The reply is the same as the text.",
+      "action": {
+        "polish": "Polish",
+        "rewrite": "Rewrite",
+        "shorter": "Make shorter",
+        "longer": "Make longer",
+        "grammar": "Fix spelling and grammar",
+        "formal": "More formal",
+        "casual": "More casual",
+        "translate-en": "Translate into English",
+        "translate-zh": "Translate into Chinese"
+      }
     }
   }
 }

@@ -11,6 +11,7 @@ type ShortcutHandlers = {
   findAgain: (back: boolean) => void;
   toggleOutline: () => void;
   toggleAi: () => void;
+  askAi: () => void;
   openSettings: () => void;
 };
 
@@ -83,14 +84,21 @@ export class ShortcutController {
    * Mod-Shift-L opens the assistant, or goes back to the document from it.
    * Captured: a code block's CodeMirror selects the selection's matches on
    * the same keys.
+   *
+   * Mod-J opens the AI menu at the selection or the caret, from the
+   * document or the source pane.
    */
   private ai(event: KeyboardEvent) {
-    if (!hasPrimaryModifier(event) || event.altKey || !event.shiftKey) return;
-    if (shortcutKey(event) !== 'KeyL' || event.isComposing) return;
-    if (isModalOpen()) return;
+    if (!hasPrimaryModifier(event) || event.altKey || event.isComposing) return;
+    const key = shortcutKey(event);
+    const toggle = key === 'KeyL' && event.shiftKey;
+    const ask = key === 'KeyJ' && !event.shiftKey && this.inDocument(event);
+    if ((!toggle && !ask) || isModalOpen()) return;
     event.preventDefault();
     event.stopPropagation();
-    if (!event.repeat) this.handlers.toggleAi();
+    if (event.repeat) return;
+    if (toggle) this.handlers.toggleAi();
+    else this.handlers.askAi();
   }
 
   private dispatch(event: KeyboardEvent) {
@@ -139,6 +147,14 @@ export class ShortcutController {
       default:
         break;
     }
+  }
+
+  private inDocument(event: KeyboardEvent) {
+    const target = event.target;
+    return (
+      target instanceof Element &&
+      target.closest('.milkdown, .ny-source-pane') !== null
+    );
   }
 
   private targetsSourcePane(event: KeyboardEvent) {
