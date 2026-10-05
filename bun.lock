@@ -60,6 +60,7 @@
     "@milkdown/crepe@7.20.0": "patches/@milkdown%2Fcrepe@7.20.0.patch",
     "@milkdown/components@7.20.0": "patches/@milkdown%2Fcomponents@7.20.0.patch",
     "@milkdown/transformer@7.20.0": "patches/@milkdown%2Ftransformer@7.20.0.patch",
+    "style-mod@4.1.3": "patches/style-mod@4.1.3.patch",
   },
   "packages": {
     "@ai-sdk/anthropic": ["@ai-sdk/anthropic@4.0.65", "", { "dependencies": { "@ai-sdk/provider": "4.0.18", "@ai-sdk/provider-utils": "5.0.49" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-3fmxxn5xWGOPU1wGrUCI30YFW5r6h2WrY+sz3rokkVlBHrDr889hPYP1yNoSmOVvtAwCFWlm79P2lRngIPOObg=="],
