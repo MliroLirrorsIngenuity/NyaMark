@@ -366,7 +366,13 @@
       "proxyNone": "Direct connection",
       "proxyManual": "Manual",
       "instructions": "Custom instructions",
-      "instructionsNote": "Sent with every request: how you write, the language to answer in, what to leave alone."
+      "instructionsNote": "Sent with every request: how you write, the language to answer in, what to leave alone.",
+      "searchEngine": "Web search",
+      "searchAuto": "Automatic",
+      "searxngUrl": "SearXNG address",
+      "searchNote": "Needs no search key: the app reads the result pages Bing and DuckDuckGo show a browser. Automatic tries them in turn.",
+      "nativeSearch": "Use the service’s own web search when it has one",
+      "nativeSearchNote": "Anthropic and OpenAI search on their side and charge for each search. With other services the app searches."
     }
   },
   "ai": {
@@ -445,7 +451,20 @@
       "fileFailed": "Could not write {{file}}",
       "askingFolder": "Asking for a folder",
       "gotFolder": "Given the folder {{folder}}",
-      "noFolder": "No folder given"
+      "noFolder": "No folder given",
+      "webSearching": "Searching the web",
+      "webSearchingFor": "Searching the web for “{{query}}”",
+      "webSearched": "Searched the web",
+      "webSearchedFor_one": "Searched the web for “{{query}}” · {{count}} result",
+      "webSearchedFor_other": "Searched the web for “{{query}}” · {{count}} results",
+      "webSearchFailed": "Web search failed",
+      "sources_one": "{{count}} page found",
+      "sources_other": "{{count}} pages found",
+      "fetchingPage": "Opening {{site}}",
+      "fetchedPage": "Read {{site}}",
+      "fetchedTitledPage": "Read “{{title}}” · {{site}}",
+      "pageDenied": "Did not open {{site}}",
+      "pageFailed": "Could not open {{site}}"
     },
     "edit": {
       "accept": "Accept",
@@ -485,7 +504,10 @@
       "deny": "Deny",
       "folder": "The assistant asks for a folder of notes",
       "chooseFolder": "Choose a folder…",
-      "notNow": "Not now"
+      "notNow": "Not now",
+      "page": "Open a page on this computer or the local network?",
+      "pageNote": "Addresses like this reach your router, local services and other devices. Allowing it lets the assistant open pages on {{host}} for the rest of this chat.",
+      "open": "Open"
     },
     "ending": {
       "stepLimit": "Stopped after the most steps one reply may take. Send “continue” to carry on.",

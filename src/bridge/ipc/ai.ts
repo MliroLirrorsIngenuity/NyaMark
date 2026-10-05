@@ -169,3 +169,47 @@ export async function writeWorkspaceFile(options: {
 }): Promise<WorkspaceWritten> {
   return await invoke<WorkspaceWritten>('workspace_write', options);
 }
+
+/** The engines web search reads; auto tries each in turn. */
+export type WebSearchEngine = 'auto' | 'bing' | 'duckduckgo' | 'searxng';
+
+export type WebSearchResult = { title: string; url: string; snippet: string };
+
+export type WebSearchResponse = {
+  /** The engine that answered. */
+  engine: string;
+  results: WebSearchResult[];
+};
+
+/** Searches the web through the result pages the engines show a browser. */
+export async function webSearch(request: {
+  query: string;
+  engine: WebSearchEngine;
+  searxngUrl?: string;
+  proxy: ProxySetting;
+  limit?: number;
+}): Promise<WebSearchResponse> {
+  return await invoke<WebSearchResponse>('web_search', { request });
+}
+
+export type WebPage = {
+  /** Where the page was found, after redirects. */
+  url: string;
+  status: number;
+  contentType: string;
+  text: string;
+  /** The page was too long and is cut off. */
+  truncated: boolean;
+};
+
+/**
+ * Fetches a page as text. Addresses on this machine and the local network
+ * are refused unless `allowPrivate` is set.
+ */
+export async function webFetch(request: {
+  url: string;
+  proxy: ProxySetting;
+  allowPrivate?: boolean;
+}): Promise<WebPage> {
+  return await invoke<WebPage>('web_fetch', { request });
+}

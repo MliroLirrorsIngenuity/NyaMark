@@ -122,6 +122,78 @@ LABELS.request_folder = (part) => {
   });
 };
 
+/** What a web search looked for: ours and Anthropic's give a query, OpenAI's its action. */
+function searchQuery(part: ToolPart): string {
+  const query = field<string>(part.input, 'query');
+  if (typeof query === 'string') return query;
+  const action = field<unknown>(part.output, 'action');
+  const asked = field<string>(action, 'query');
+  if (typeof asked === 'string') return asked;
+  const queries = field<unknown[]>(action, 'queries');
+  return Array.isArray(queries) && typeof queries[0] === 'string'
+    ? queries[0]
+    : '';
+}
+
+export type Source = { title: string; url: string };
+
+/**
+ * The pages a web search found: the results of ours, or of the service's
+ * own search, which gives them as a list (Anthropic) or as sources (OpenAI).
+ */
+export function searchSources(part: ToolPart): Source[] {
+  if (part.name !== 'web_search') return [];
+  const output = part.output;
+  const list = Array.isArray(output)
+    ? output
+    : (field<unknown[]>(output, 'results') ??
+      field<unknown[]>(output, 'sources'));
+  const sources: Source[] = [];
+  for (const entry of Array.isArray(list) ? list : []) {
+    const url = field<string>(entry, 'url');
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) continue;
+    const title = field<string>(entry, 'title');
+    sources.push({ url, title: typeof title === 'string' ? title : '' });
+  }
+  return sources;
+}
+
+function siteOf(url: string | undefined) {
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+LABELS.web_search = (part) => {
+  const query = searchQuery(part);
+  if (part.state === 'error') return i18next.t('ai.tool.webSearchFailed');
+  if (part.state !== 'done') {
+    return query
+      ? i18next.t('ai.tool.webSearchingFor', { query })
+      : i18next.t('ai.tool.webSearching');
+  }
+  if (!query) return i18next.t('ai.tool.webSearched');
+  return i18next.t('ai.tool.webSearchedFor', {
+    query,
+    count: searchSources(part).length,
+  });
+};
+LABELS.fetch_url = (part) => {
+  const site = siteOf(
+    field<string>(part.output, 'url') ?? field<string>(part.input, 'url')
+  );
+  if (isDenied(part)) return i18next.t('ai.tool.pageDenied', { site });
+  if (part.state === 'error') return i18next.t('ai.tool.pageFailed', { site });
+  if (part.state !== 'done') return i18next.t('ai.tool.fetchingPage', { site });
+  const title = field<string>(part.output, 'title');
+  return title
+    ? i18next.t('ai.tool.fetchedTitledPage', { title, site })
+    : i18next.t('ai.tool.fetchedPage', { site });
+};
+
 /** The edit a tool call proposed, while it is the user's to accept. */
 export function proposedEdit(part: ToolPart): string | null {
   if (part.state !== 'done' || !LABELS[part.name]) return null;

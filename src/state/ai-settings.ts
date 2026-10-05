@@ -1,6 +1,6 @@
 // Pure types, defaults and checks for the AI part of the settings. Keys are
 // never here: they live in the system keychain, by provider id.
-import type { ProxySetting } from '../bridge/ipc/ai';
+import type { ProxySetting, WebSearchEngine } from '../bridge/ipc/ai';
 
 /** The API a provider speaks. */
 export type AiProviderKind =
@@ -46,6 +46,24 @@ export type AiModelRef = { provider: string; model: string };
 /** The assistant's edits: shown to accept or reject, or applied right away. */
 export type AiEditMode = 'review' | 'auto';
 
+/** Where the assistant searches the web; auto tries each engine in turn. */
+export type AiSearchEngine = WebSearchEngine;
+
+export const AI_SEARCH_ENGINES: readonly AiSearchEngine[] = [
+  'auto',
+  'bing',
+  'duckduckgo',
+  'searxng',
+];
+
+export type AiSearchSettings = {
+  engine: AiSearchEngine;
+  /** The SearXNG instance searched when the engine is `searxng`. */
+  searxngUrl: string;
+  /** Use the service's own web search where it has one. */
+  native: boolean;
+};
+
 export type AiSettings = {
   providers: AiProvider[];
   /** The model the assistant panel talks to. */
@@ -56,6 +74,7 @@ export type AiSettings = {
   /** What the user wants the assistant always to keep in mind. */
   instructions: string;
   editMode: AiEditMode;
+  search: AiSearchSettings;
 };
 
 export const defaultAiSettings: AiSettings = {
@@ -65,6 +84,7 @@ export const defaultAiSettings: AiSettings = {
   proxy: { mode: 'system' },
   instructions: '',
   editMode: 'review',
+  search: { engine: 'auto', searxngUrl: '', native: false },
 };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -146,6 +166,17 @@ function sanitizeProxy(value: unknown): ProxySetting {
   return { mode: 'system' };
 }
 
+function sanitizeSearch(value: unknown): AiSearchSettings {
+  const search = isRecord(value) ? value : {};
+  const searxngUrl = text(search.searxngUrl, 2000).trim();
+  let engine = AI_SEARCH_ENGINES.includes(search.engine as AiSearchEngine)
+    ? (search.engine as AiSearchEngine)
+    : 'auto';
+  // SearXNG with no address to search at searches as auto does.
+  if (engine === 'searxng' && !searxngUrl) engine = 'auto';
+  return { engine, searxngUrl, native: bool(search.native, false) };
+}
+
 export function sanitizeAiSettings(value: unknown): AiSettings {
   const ai = isRecord(value) ? value : {};
   const providers: AiProvider[] = [];
@@ -162,6 +193,7 @@ export function sanitizeAiSettings(value: unknown): AiSettings {
     proxy: sanitizeProxy(ai.proxy),
     instructions: text(ai.instructions, 20_000),
     editMode: ai.editMode === 'auto' ? 'auto' : 'review',
+    search: sanitizeSearch(ai.search),
   };
 }
 

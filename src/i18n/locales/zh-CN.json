@@ -363,7 +363,13 @@
       "proxyNone": "直接连接",
       "proxyManual": "手动设置",
       "instructions": "自定义指令",
-      "instructionsNote": "每次请求都会带上：你的写作习惯、回答用的语言、哪些内容不要动。"
+      "instructionsNote": "每次请求都会带上：你的写作习惯、回答用的语言、哪些内容不要动。",
+      "searchEngine": "联网搜索",
+      "searchAuto": "自动",
+      "searxngUrl": "SearXNG 地址",
+      "searchNote": "不用填搜索 key：应用直接读取 Bing 和 DuckDuckGo 给浏览器的结果页。“自动”会依次尝试。",
+      "nativeSearch": "服务商自带联网搜索时优先用它",
+      "nativeSearchNote": "Anthropic 和 OpenAI 在自己那边搜索，每次搜索单独计费。其他服务商由应用来搜。"
     }
   },
   "ai": {
@@ -437,7 +443,18 @@
       "fileFailed": "没能写入 {{file}}",
       "askingFolder": "请求一个文件夹",
       "gotFolder": "获得了文件夹 {{folder}}",
-      "noFolder": "没有获得文件夹"
+      "noFolder": "没有获得文件夹",
+      "webSearching": "正在联网搜索",
+      "webSearchingFor": "联网搜索「{{query}}」",
+      "webSearched": "已联网搜索",
+      "webSearchedFor": "联网搜索「{{query}}」· {{count}} 条结果",
+      "webSearchFailed": "联网搜索失败",
+      "sources": "找到 {{count}} 个网页",
+      "fetchingPage": "正在打开 {{site}}",
+      "fetchedPage": "读了 {{site}}",
+      "fetchedTitledPage": "读了「{{title}}」· {{site}}",
+      "pageDenied": "没有打开 {{site}}",
+      "pageFailed": "打不开 {{site}}"
     },
     "edit": {
       "accept": "接受",
@@ -470,7 +487,10 @@
       "deny": "拒绝",
       "folder": "助手请求访问一个笔记文件夹",
       "chooseFolder": "选择文件夹…",
-      "notNow": "暂不"
+      "notNow": "暂不",
+      "page": "打开本机或局域网里的网页？",
+      "pageNote": "这类地址能访问到路由器、本机服务和局域网里的其他设备。允许后，本次对话里助手都可以打开 {{host}} 上的网页。",
+      "open": "打开"
     },
     "ending": {
       "stepLimit": "已达到单次回复的步骤上限。发送「继续」可接着做。",

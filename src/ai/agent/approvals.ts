@@ -1,8 +1,9 @@
 /**
  * What the assistant asks the user before it does: writing a note other
- * than the open document, or reaching a folder the user has yet to give
- * it. A tool waits on the answer; the panel shows the question under the
- * tool's line in the reply and answers it.
+ * than the open document, reaching a folder the user has yet to give it,
+ * or opening a page on this computer or the local network. A tool waits on
+ * the answer; the panel shows the question under the tool's line in the
+ * reply and answers it.
  */
 
 import type { LineDiff } from './line-diff';
@@ -19,9 +20,18 @@ export type ApprovalRequest =
       kind: 'folder';
       /** Why the assistant asks, in its words. */
       reason: string;
+    }
+  | {
+      kind: 'page';
+      url: string;
+      /** The private host the page is on, or redirects to. */
+      host: string;
     };
 
-/** `always` allows writes for the rest of the conversation. */
+/**
+ * `always` allows writes for the rest of the conversation. Allowing a page
+ * allows its host for the rest of the conversation.
+ */
 export type ApprovalAnswer = 'allow' | 'always' | 'deny';
 
 type Waiting = {
@@ -32,6 +42,7 @@ type Waiting = {
 export class Approvals {
   private readonly waiting = new Map<string, Waiting>();
   private writesAllowed = false;
+  private readonly hostsAllowed = new Set<string>();
   private readonly listeners = new Set<() => void>();
 
   /**
@@ -46,6 +57,9 @@ export class Approvals {
     if (request.kind === 'write' && this.writesAllowed) {
       return Promise.resolve('allow');
     }
+    if (request.kind === 'page' && this.hostAllowed(request.host)) {
+      return Promise.resolve('allow');
+    }
     if (signal?.aborted) return Promise.resolve('deny');
     return new Promise((resolve) => {
       const stop = () => answer('deny');
@@ -54,6 +68,9 @@ export class Approvals {
         signal?.removeEventListener('abort', stop);
         this.waiting.delete(id);
         if (given === 'always') this.writesAllowed = true;
+        if (request.kind === 'page' && given !== 'deny') {
+          this.hostsAllowed.add(request.host.toLowerCase());
+        }
         this.changed();
         resolve(given);
       };
@@ -61,6 +78,11 @@ export class Approvals {
       this.waiting.set(id, { request, answer });
       this.changed();
     });
+  }
+
+  /** Whether the user let the assistant open pages on `host`. */
+  hostAllowed(host: string): boolean {
+    return this.hostsAllowed.has(host.toLowerCase());
   }
 
   /** The question waiting for the tool call `id`, if any. */
@@ -76,6 +98,7 @@ export class Approvals {
   reset() {
     for (const waiting of [...this.waiting.values()]) waiting.answer('deny');
     this.writesAllowed = false;
+    this.hostsAllowed.clear();
   }
 
   subscribe(listener: () => void) {

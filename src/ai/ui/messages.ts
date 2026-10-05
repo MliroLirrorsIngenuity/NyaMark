@@ -15,7 +15,7 @@ import type { EditOutcome } from '../edit/controller';
 import { isOpenableLink, renderChatMarkdown } from '../render/markdown';
 import { copyText } from './clipboard';
 import { ICONS } from './icons';
-import { proposedEdit, toolLabel } from './tool-labels';
+import { proposedEdit, searchSources, toolLabel } from './tool-labels';
 
 /** Within this of the end, the list keeps following a reply as it grows. */
 const NEAR_END_PX = 32;
@@ -74,6 +74,8 @@ type PartView = {
   /** A tool part's call id, and the question it waits on the user for. */
   toolId?: string;
   approval?: { request: ApprovalRequest; card: HTMLElement };
+  /** The pages a web search found, under its line. */
+  sources?: HTMLElement;
 };
 
 type EntryView = {
@@ -423,6 +425,7 @@ export class MessageList {
     view.body.title = part.error ? `${label}\n${part.error}` : label;
     view.toolId = part.id;
     this.drawApproval(view);
+    this.drawSources(view, part);
     if (view.summary) view.summary.innerHTML = TOOL_ICONS[part.state];
     const edit = this.actions.edits ? proposedEdit(part) : null;
     if (edit !== (view.edit?.id ?? null)) {
@@ -468,6 +471,22 @@ export class MessageList {
         button('allow', 'ai.approval.chooseFolder', true),
         button('deny', 'ai.approval.notNow')
       );
+    } else if (request.kind === 'page') {
+      const url = el('div', 'ny-ai-approval__path', request.url);
+      url.title = request.url;
+      card.append(
+        el('div', 'ny-ai-approval__title', i18next.t('ai.approval.page')),
+        url,
+        el(
+          'div',
+          'ny-ai-approval__reason',
+          i18next.t('ai.approval.pageNote', { host: request.host })
+        )
+      );
+      actions.append(
+        button('allow', 'ai.approval.open', true),
+        button('deny', 'ai.approval.deny')
+      );
     } else {
       const title = el(
         'div',
@@ -512,6 +531,48 @@ export class MessageList {
     card.append(actions);
     view.root.append(card);
     view.approval = { request, card };
+  }
+
+  /** The pages a finished web search found, folded under its line. */
+  private drawSources(view: PartView, part: ToolPart) {
+    view.sources?.remove();
+    view.sources = undefined;
+    const sources = part.state === 'done' ? searchSources(part) : [];
+    if (sources.length === 0) return;
+    const details = el('details', 'ny-ai-sources');
+    const list = el('ol', 'ny-ai-sources__list');
+    for (const source of sources) {
+      let host = source.url;
+      try {
+        host = new URL(source.url).hostname.replace(/^www\./, '');
+      } catch {
+        // Shown as given.
+      }
+      const link = el('a', 'ny-ai-sources__link');
+      link.href = source.url;
+      link.title = source.url;
+      link.append(
+        el('span', 'ny-ai-sources__title', source.title || host),
+        el('span', 'ny-ai-sources__host', host)
+      );
+      const item = el('li', '');
+      item.append(link);
+      list.append(item);
+    }
+    details.append(
+      el(
+        'summary',
+        '',
+        i18next.t('ai.tool.sources', { count: sources.length })
+      ),
+      list
+    );
+    // Above the edit row and the question, which come and go.
+    view.root.insertBefore(
+      details,
+      view.edit?.row ?? view.approval?.card ?? null
+    );
+    view.sources = details;
   }
 
   /**
@@ -684,7 +745,9 @@ export class MessageList {
       });
       return;
     }
-    const link = target.closest<HTMLAnchorElement>('.ny-ai-md a[href]');
+    const link = target.closest<HTMLAnchorElement>(
+      '.ny-ai-md a[href], .ny-ai-sources a[href]'
+    );
     if (!link) return;
     event.preventDefault();
     const href = link.getAttribute('href') ?? '';

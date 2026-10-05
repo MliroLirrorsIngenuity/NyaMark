@@ -62,6 +62,30 @@ describe('AI settings', () => {
       proxy: { mode: 'system' },
       instructions: '',
       editMode: 'review',
+      search: { engine: 'auto', searxngUrl: '', native: false },
+    });
+  });
+
+  test('keep a search engine only when it can be searched', () => {
+    const search = (value: unknown) =>
+      normalizeSettings({ ai: { search: value } }).ai.search;
+    expect(search({ engine: 'bing', native: true })).toEqual({
+      engine: 'bing',
+      searxngUrl: '',
+      native: true,
+    });
+    expect(search({ engine: 'searxng', searxngUrl: ' ' }).engine).toBe('auto');
+    expect(
+      search({ engine: 'searxng', searxngUrl: ' https://sx.example ' })
+    ).toEqual({
+      engine: 'searxng',
+      searxngUrl: 'https://sx.example',
+      native: false,
+    });
+    expect(search({ engine: 'google', native: 'yes' })).toEqual({
+      engine: 'auto',
+      searxngUrl: '',
+      native: false,
     });
   });
 

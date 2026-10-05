@@ -423,6 +423,62 @@
   text-overflow: ellipsis;
 }
 
+/* The pages a web search found, folded under its line. */
+.ny-ai-sources {
+  flex: 1 0 100%;
+  min-width: 0;
+  padding-left: 20px;
+}
+
+.ny-ai-sources > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--ny-text-muted);
+  font-size: 12px;
+}
+
+.ny-ai-sources > summary:hover {
+  color: var(--ny-text-secondary);
+}
+
+.ny-ai-sources__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ny-ai-sources__link {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--ny-text-secondary);
+  text-decoration: none;
+}
+
+.ny-ai-sources__link:hover {
+  background: color-mix(in srgb, var(--ny-text-primary), transparent 94%);
+  color: var(--ny-text-primary);
+}
+
+.ny-ai-sources__title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ny-ai-sources__host {
+  flex: none;
+  margin-left: auto;
+  color: var(--ny-text-muted);
+  font-size: 11.5px;
+}
+
 /* What became of an edit the assistant proposed, under its line. */
 .ny-ai-tool__edit {
   display: flex;

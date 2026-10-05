@@ -363,7 +363,13 @@
       "proxyNone": "直接連線",
       "proxyManual": "手動設定",
       "instructions": "自訂指示",
-      "instructionsNote": "每次請求都會附上：你的寫作習慣、回答使用的語言、哪些內容不要更動。"
+      "instructionsNote": "每次請求都會附上：你的寫作習慣、回答使用的語言、哪些內容不要更動。",
+      "searchEngine": "連網搜尋",
+      "searchAuto": "自動",
+      "searxngUrl": "SearXNG 位址",
+      "searchNote": "不必填搜尋 key：應用程式直接讀取 Bing 和 DuckDuckGo 給瀏覽器的結果頁。「自動」會依序嘗試。",
+      "nativeSearch": "服務商內建連網搜尋時優先使用",
+      "nativeSearchNote": "Anthropic 和 OpenAI 在自己那邊搜尋，每次搜尋另外計費。其他服務商由應用程式來搜。"
     }
   },
   "ai": {
@@ -437,7 +443,18 @@
       "fileFailed": "沒能寫入 {{file}}",
       "askingFolder": "請求一個資料夾",
       "gotFolder": "取得了資料夾 {{folder}}",
-      "noFolder": "沒有取得資料夾"
+      "noFolder": "沒有取得資料夾",
+      "webSearching": "正在連網搜尋",
+      "webSearchingFor": "連網搜尋「{{query}}」",
+      "webSearched": "已連網搜尋",
+      "webSearchedFor": "連網搜尋「{{query}}」· {{count}} 筆結果",
+      "webSearchFailed": "連網搜尋失敗",
+      "sources": "找到 {{count}} 個網頁",
+      "fetchingPage": "正在開啟 {{site}}",
+      "fetchedPage": "讀了 {{site}}",
+      "fetchedTitledPage": "讀了「{{title}}」· {{site}}",
+      "pageDenied": "沒有開啟 {{site}}",
+      "pageFailed": "無法開啟 {{site}}"
     },
     "edit": {
       "accept": "接受",
@@ -470,7 +487,10 @@
       "deny": "拒絕",
       "folder": "助理請求存取一個筆記資料夾",
       "chooseFolder": "選擇資料夾…",
-      "notNow": "暫不"
+      "notNow": "暫不",
+      "page": "開啟本機或區域網路裡的網頁？",
+      "pageNote": "這類位址能連到路由器、本機服務和區域網路裡的其他裝置。允許後，本次對話裡助理都可以開啟 {{host}} 上的網頁。",
+      "open": "開啟"
     },
     "ending": {
       "stepLimit": "已達到單次回覆的步驟上限。傳送「繼續」可接著做。",

@@ -24,9 +24,11 @@ import { i18next } from '../../../i18n';
 import { translateDOM } from '../../../i18n/dom';
 import {
   AI_PROVIDER_KINDS,
+  AI_SEARCH_ENGINES,
   type AiModelInfo,
   type AiModelRef,
   type AiProvider,
+  type AiSearchEngine,
   type AiSettings,
   newAiProfileId,
 } from '../../../state/ai-settings';
@@ -548,6 +550,24 @@ export function renderAiSection(
         <input class="ny-settings__input" type="text" data-key="proxyUrl" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:7890" />
       </label>
     </div>
+    <div class="ny-settings__row">
+      <label class="ny-settings__field">
+        <span data-i18n="settings.ai.searchEngine">Web search</span>
+        <div class="ny-settings__select" data-key="searchEngine"></div>
+      </label>
+      <label class="ny-settings__field" data-row="searxngUrl">
+        <span data-i18n="settings.ai.searxngUrl">SearXNG address</span>
+        <input class="ny-settings__input" type="text" data-key="searxngUrl" spellcheck="false" autocomplete="off" placeholder="https://searx.example.org" />
+      </label>
+    </div>
+    <p class="ny-settings__note" data-i18n="settings.ai.searchNote">Needs no search key: the app reads the result pages Bing and DuckDuckGo show a browser. Automatic tries them in turn.</p>
+    <div class="ny-settings__row">
+      <label class="ny-settings__field ny-settings__field--checkbox">
+        <input type="checkbox" data-key="nativeSearch" />
+        <span data-i18n="settings.ai.nativeSearch">Use the service’s own web search when it has one</span>
+      </label>
+    </div>
+    <p class="ny-settings__note" data-i18n="settings.ai.nativeSearchNote">Anthropic and OpenAI search on their side and charge for each search. With other services the app searches.</p>
   `;
 
   // Instructions.
@@ -1176,6 +1196,64 @@ export function renderAiSection(
     setProxy();
     emit();
   });
+
+  // Web search.
+  const engineHost = network.querySelector<HTMLElement>(
+    '[data-key="searchEngine"]'
+  );
+  const searxngRow = network.querySelector<HTMLElement>(
+    '[data-row="searxngUrl"]'
+  );
+  const searxngInput = network.querySelector<HTMLInputElement>(
+    '[data-key="searxngUrl"]'
+  );
+  let engine = state.search.engine;
+  if (searxngInput) searxngInput.value = state.search.searxngUrl;
+  const setSearch = () => {
+    if (searxngRow) searxngRow.hidden = engine !== 'searxng';
+    const searxngUrl = searxngInput?.value.trim() ?? '';
+    // SearXNG with no address yet searches as auto until one is typed.
+    state.search = {
+      ...state.search,
+      searxngUrl,
+      engine: engine === 'searxng' && !searxngUrl ? 'auto' : engine,
+    };
+  };
+  setSearch();
+  if (engineHost) {
+    renderSelect(
+      engineHost,
+      [
+        { value: 'auto', label: 'Automatic', i18n: 'settings.ai.searchAuto' },
+        { value: 'bing', label: 'Bing' },
+        { value: 'duckduckgo', label: 'DuckDuckGo' },
+        { value: 'searxng', label: 'SearXNG' },
+      ],
+      engine,
+      (value) => {
+        engine = AI_SEARCH_ENGINES.includes(value as AiSearchEngine)
+          ? (value as AiSearchEngine)
+          : 'auto';
+        setSearch();
+        emit();
+        if (engine === 'searxng') searxngInput?.focus();
+      }
+    );
+  }
+  searxngInput?.addEventListener('change', () => {
+    setSearch();
+    emit();
+  });
+  const nativeBox = network.querySelector<HTMLInputElement>(
+    '[data-key="nativeSearch"]'
+  );
+  if (nativeBox) {
+    nativeBox.checked = state.search.native;
+    nativeBox.addEventListener('change', () => {
+      state.search = { ...state.search, native: nativeBox.checked };
+      emit();
+    });
+  }
 
   const editModeHost = defaults.querySelector<HTMLElement>(
     '[data-key="editMode"]'

@@ -10,6 +10,8 @@ import {
   pickWorkspaceRoot,
   readWorkspaceFile,
   searchWorkspace,
+  webFetch,
+  webSearch,
   workspaceRoots,
   writeWorkspaceFile,
 } from '../../bridge/ipc/ai';
@@ -34,10 +36,12 @@ import {
 } from '../agent/session';
 import { documentTools } from '../agent/tools/document';
 import { editTools } from '../agent/tools/edit';
+import { type WebApi, webTools } from '../agent/tools/web';
 import { type WorkspaceApi, workspaceTools } from '../agent/tools/workspace';
 import { EditController } from '../edit/controller';
 import proposalStyles from '../edit/proposals.css?inline';
 import { connectModel } from '../providers/connect';
+import { nativeSearchTool } from '../providers/native-search';
 import { Composer } from './composer';
 import { ICONS } from './icons';
 import { MessageList } from './messages';
@@ -101,6 +105,8 @@ const WORKSPACE: WorkspaceApi = {
   search: searchWorkspace,
   write: writeWorkspaceFile,
 };
+
+const WEB: WebApi = { search: webSearch, fetch: webFetch };
 
 function iconButton(icon: string, key: string, fallback: string) {
   const button = document.createElement('button');
@@ -367,6 +373,7 @@ export class AiPanel {
     const document = await this.edits.read();
     const read = () => this.edits.read();
     const folders = await workspaceRoots().catch(() => []);
+    const native = ai.search.native ? nativeSearchTool(provider) : null;
     return {
       model: connectModel(provider, ref.model, () => getSettings().ai.proxy),
       modelLabel: ref.model,
@@ -388,6 +395,13 @@ export class AiPanel {
           readDocument: read,
           edits: this.edits,
         }),
+        ...webTools({
+          api: WEB,
+          approvals: this.approvals,
+          settings: () => getSettings().ai,
+        }),
+        // The service's own search, where the user prefers it and it has one.
+        ...(native ? { web_search: native } : {}),
       },
     };
   }
