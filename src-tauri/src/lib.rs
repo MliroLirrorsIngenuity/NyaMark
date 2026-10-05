@@ -213,6 +213,10 @@ pub fn run() {
         .manage(ai::http::InFlight::default())
         .manage(ai::secrets::SecretCache::default())
         .manage(ai::secrets::StagedSecrets::default())
+        .manage(ai::web::LastSearchEngine::default())
+        .manage(ai::workspace::WorkspaceGrants::default())
+        .manage(ai::history::HistoryLock::default())
+        .manage(ai::mcp::McpServers::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -256,6 +260,8 @@ pub fn run() {
                 sessions::forget_window_dirty(app, window.label());
                 sessions::clear_last_focused_window(app, window.label());
                 ai::secrets::forget_window(app, window.label());
+                ai::workspace::forget_window(app, window.label());
+                ai::history::forget_window(app, window.label());
                 quit::continue_pending_quit(app);
             }
             _ => {}
@@ -284,6 +290,27 @@ pub fn run() {
             ai::secrets::ai_secret_delete,
             ai::secrets::ai_secrets_commit,
             ai::secrets::ai_secrets_discard,
+            ai::web::web_search,
+            ai::web::web_fetch,
+            ai::workspace::workspace_roots,
+            ai::workspace::workspace_pick_root,
+            ai::workspace::workspace_list,
+            ai::workspace::workspace_read,
+            ai::workspace::workspace_search,
+            ai::workspace::workspace_write,
+            ai::images::read_image_for_ai,
+            ai::history::history_list,
+            ai::history::history_read,
+            ai::history::history_write,
+            ai::history::history_delete,
+            ai::history::history_move,
+            ai::history::history_clear,
+            ai::history::history_save_image,
+            ai::history::history_read_image,
+            ai::mcp::mcp_sync,
+            ai::mcp::mcp_status,
+            ai::mcp::mcp_call_tool,
+            ai::mcp::mcp_restart,
             #[cfg(target_os = "macos")]
             menu::update_macos_menu,
         ])
@@ -313,6 +340,7 @@ pub fn run() {
         }
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Opened { urls } => handle_opened_urls(app, &urls),
+        tauri::RunEvent::Exit => ai::mcp::shutdown(app),
         _ => {}
     });
 }

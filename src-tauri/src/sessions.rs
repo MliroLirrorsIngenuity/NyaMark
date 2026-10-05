@@ -143,7 +143,7 @@ pub fn ensure_attachment_directory<R: Runtime>(
     Ok(strip_verbatim_prefix(canonical))
 }
 
-fn strip_verbatim_prefix(path: PathBuf) -> String {
+pub(crate) fn strip_verbatim_prefix(path: PathBuf) -> String {
     let s = path.to_string_lossy().into_owned();
     #[cfg(windows)]
     if let Some(stripped) = s.strip_prefix(r"\\?\") {

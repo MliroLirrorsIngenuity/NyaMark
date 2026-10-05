@@ -37,6 +37,27 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tokio-util = "0.7"
 url = "2"
 base64 = "0.22"
+# Search result pages. Already in the tree through tauri's build tools, so its
+# html5ever and selectors come at no cost; scraper would bring second copies.
+dom_query = { version = "0.27", default-features = false }
+# Fetched pages in GBK, Shift_JIS and the like, by the charset they declare.
+encoding_rs = "0.8"
+# Workspace listing and search skip what .gitignore and hidden folders hide.
+ignore = "0.4"
+# The glob a workspace listing is filtered by; the matcher `ignore` uses.
+globset = "0.4"
+# Workspace search by the pattern the assistant gives.
+regex = "1"
+# Conversation folders are named by a hash of the document path.
+sha2 = "0.10"
+# MCP servers: the protocol, child processes and streamable HTTP.
+rmcp = { version = "3.5", default-features = false, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
+# A stdio MCP server runs in its own process group (a job object on Windows),
+# so the processes it starts stop with it. Already in the tree through rmcp.
+process-wrap = { version = "10", default-features = false, features = ["tokio1", "kill-on-drop", "process-group", "creation-flags", "job-object"] }
+# Timeouts, child processes and stderr for MCP servers. Already in the tree
+# through tauri.
+tokio = { version = "1", features = ["io-util", "net", "process", "sync", "time"] }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2"
@@ -44,6 +65,8 @@ tauri-plugin-updater = "2"
 [target.'cfg(unix)'.dependencies]
 # Finder tags and other extended attributes outlive an atomic save.
 xattr = "1"
+# Stops what is left of an MCP server's process group when the app quits.
+libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Used to hook `applicationShouldTerminate:` so dock Quit / logout prompt for unsaved changes,
@@ -60,6 +83,9 @@ keyring = "4"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
+# process-wrap takes its creation flags as this version's type; CREATE_NO_WINDOW
+# keeps an MCP server from opening a console window.
+windows-process = { package = "windows", version = "0.62", features = ["Win32_System_Threading"] }
 
 [lints.clippy]
 # A panic aborts the release build (`panic = "abort"`), and every open

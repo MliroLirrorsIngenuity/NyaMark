@@ -31,9 +31,16 @@ pub enum ProxySetting {
     },
 }
 
-/// One client per proxy setting, kept for its pooled connections.
+/// The clients last built, kept for their pooled connections: one for
+/// requests that carry a key, one for web search.
 #[derive(Default)]
-pub struct HttpClients(Mutex<Option<(ProxySetting, reqwest::Client)>>);
+pub struct HttpClients {
+    keyed: Mutex<Option<(ProxySetting, reqwest::Client)>>,
+    search: Mutex<Option<(ProxySetting, reqwest::Client)>>,
+}
+
+/// Redirects followed before giving up, as reqwest does by default.
+const MAX_REDIRECTS: usize = 10;
 
 /// Requests on their way, by the id the page gave them, so it can stop one.
 #[derive(Default)]
@@ -48,35 +55,105 @@ pub fn install_crypto_provider() {
     }
 }
 
+/// The client for requests that carry a key. It follows a redirect only
+/// within the origin the key was saved for; one elsewhere comes back to the
+/// page as it is.
 pub fn build_client(proxy: &ProxySetting) -> Result<reqwest::Client, String> {
     install_crypto_provider();
     let builder = reqwest::Client::builder()
+        .redirect(same_origin_redirects())
         .connect_timeout(Duration::from_secs(15))
         // A reasoning model may think for minutes before its first word.
         .read_timeout(Duration::from_secs(300));
-    let builder = match proxy {
+    apply_proxy(builder, proxy)?
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+/// The client for web search, which carries no key and follows redirects
+/// anywhere: a search engine may send a reader to its regional site.
+pub fn build_search_client(proxy: &ProxySetting) -> Result<reqwest::Client, String> {
+    install_crypto_provider();
+    let builder = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(15))
+        .read_timeout(Duration::from_secs(300));
+    apply_proxy(builder, proxy)?
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+/// Follows a redirect only to the scheme, host and port the redirecting
+/// request went to. Any other comes back to the caller as the 3xx it is, so
+/// what a request carries (a key, a body) never reaches another server.
+pub fn same_origin_redirects() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        // `previous` starts with the first request; its last entry is the
+        // one that was answered with this redirect.
+        let from = attempt.previous().last();
+        if attempt.previous().len() > MAX_REDIRECTS {
+            attempt.error("too-many-redirects")
+        } else if from.is_some_and(|from| same_origin(from, attempt.url())) {
+            attempt.follow()
+        } else {
+            attempt.stop()
+        }
+    })
+}
+
+fn same_origin(a: &url::Url, b: &url::Url) -> bool {
+    a.scheme() == b.scheme()
+        && a.host_str() == b.host_str()
+        && a.port_or_known_default() == b.port_or_known_default()
+}
+
+/// Routes a client through the proxy setting, for clients built elsewhere
+/// with settings of their own.
+pub fn apply_proxy(
+    builder: reqwest::ClientBuilder,
+    proxy: &ProxySetting,
+) -> Result<reqwest::ClientBuilder, String> {
+    Ok(match proxy {
         ProxySetting::System => builder,
         ProxySetting::None => builder.no_proxy(),
         ProxySetting::Manual { url } => builder
             .proxy(reqwest::Proxy::all(url.trim()).map_err(|error| format!("{url}: {error}"))?),
-    };
-    builder.build().map_err(|error| error.to_string())
+    })
 }
 
-pub fn client<R: Runtime>(
-    app: &AppHandle<R>,
+fn cached(
+    slot: &Mutex<Option<(ProxySetting, reqwest::Client)>>,
     proxy: &ProxySetting,
+    build: fn(&ProxySetting) -> Result<reqwest::Client, String>,
 ) -> Result<reqwest::Client, String> {
-    let clients = app.state::<HttpClients>();
-    let mut cached = clients.0.lock().map_err(|error| error.to_string())?;
+    let mut cached = slot.lock().map_err(|error| error.to_string())?;
     if let Some((setting, client)) = cached.as_ref() {
         if setting == proxy {
             return Ok(client.clone());
         }
     }
-    let client = build_client(proxy)?;
+    let client = build(proxy)?;
     *cached = Some((proxy.clone(), client.clone()));
     Ok(client)
+}
+
+/// The client for requests that carry a key; see [`build_client`].
+pub fn client<R: Runtime>(
+    app: &AppHandle<R>,
+    proxy: &ProxySetting,
+) -> Result<reqwest::Client, String> {
+    cached(&app.state::<HttpClients>().keyed, proxy, build_client)
+}
+
+/// The client for web search; see [`build_search_client`].
+pub fn search_client<R: Runtime>(
+    app: &AppHandle<R>,
+    proxy: &ProxySetting,
+) -> Result<reqwest::Client, String> {
+    cached(
+        &app.state::<HttpClients>().search,
+        proxy,
+        build_search_client,
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -156,7 +233,8 @@ pub async fn send(
     headers: Vec<(String, String)>,
     body: Option<String>,
 ) -> Result<reqwest::Response, String> {
-    let method = reqwest::Method::from_bytes(method.as_bytes()).map_err(|error| error.to_string())?;
+    let method =
+        reqwest::Method::from_bytes(method.as_bytes()).map_err(|error| error.to_string())?;
     let mut request = client.request(method, url);
     for (name, value) in headers {
         request = request.header(name, value);
@@ -391,7 +469,11 @@ mod tests {
         let headers = authorize(
             "https://api.example.com/v1/chat/completions",
             sent,
-            Some(&record("https://api.example.com", AuthScheme::Bearer, Some("sk-1"))),
+            Some(&record(
+                "https://api.example.com",
+                AuthScheme::Bearer,
+                Some("sk-1"),
+            )),
         )
         .unwrap();
         assert_eq!(header(&headers, "authorization"), ["Bearer sk-1"]);
@@ -485,7 +567,12 @@ mod tests {
                         .lines()
                         .find_map(|line| {
                             let line = line.to_ascii_lowercase();
-                            Some(line.strip_prefix("content-length:")?.trim().parse::<usize>().unwrap())
+                            Some(
+                                line.strip_prefix("content-length:")?
+                                    .trim()
+                                    .parse::<usize>()
+                                    .unwrap(),
+                            )
                         })
                         .unwrap_or(0);
                     if request.len() >= end + 4 + length {
@@ -533,12 +620,17 @@ mod tests {
             .unwrap();
             let head = head_of(&response);
             assert_eq!(head.status, 200);
-            assert!(head.headers.iter().all(|(name, _)| name != "transfer-encoding"));
+            assert!(head
+                .headers
+                .iter()
+                .all(|(name, _)| name != "transfer-encoding"));
             pump(response, &channel, &CancellationToken::new()).await;
         });
         let request = seen.lock().unwrap().clone();
         assert!(request.starts_with("POST /v1/chat/completions HTTP/1.1"));
-        assert!(request.to_ascii_lowercase().contains("authorization: bearer sk-secret"));
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer sk-secret"));
         assert!(request.ends_with("{\"stream\":true}"));
         let events: Vec<serde_json::Value> = events
             .lock()
@@ -584,9 +676,125 @@ mod tests {
         drop(listener);
         let error = tauri::async_runtime::block_on(async {
             let client = build_client(&ProxySetting::None).unwrap();
-            send(&client, "GET", &address, vec![], None).await.unwrap_err()
+            send(&client, "GET", &address, vec![], None)
+                .await
+                .unwrap_err()
         });
         assert!(error.to_lowercase().contains("connect"), "{error}");
+    }
+
+    #[test]
+    fn origins_are_scheme_host_and_port() {
+        let url = |text: &str| url::Url::parse(text).unwrap();
+        assert!(same_origin(
+            &url("https://api.example.com/v1"),
+            &url("https://api.example.com:443/v2?x")
+        ));
+        for other in [
+            "http://api.example.com/v1",
+            "https://api.example.com:8443/v1",
+            "https://evil.example/v1",
+            "https://sub.api.example.com/v1",
+        ] {
+            assert!(
+                !same_origin(&url("https://api.example.com/v1"), &url(other)),
+                "{other}"
+            );
+        }
+    }
+
+    /// Answers a POST to `/final` with 200 and any other request with a 307
+    /// to `location`, for up to two requests; returns the requests read.
+    fn serve_redirect(listener: TcpListener, location: String) -> Arc<Mutex<Vec<String>>> {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let kept = seen.clone();
+        thread::spawn(move || {
+            for _ in 0..2 {
+                let Ok((mut socket, _)) = listener.accept() else {
+                    return;
+                };
+                let mut buffer = vec![0u8; 65536];
+                let mut request = Vec::new();
+                loop {
+                    let read = socket.read(&mut buffer).unwrap_or(0);
+                    if read == 0 {
+                        break;
+                    }
+                    request.extend_from_slice(&buffer[..read]);
+                    let text = String::from_utf8_lossy(&request);
+                    if let Some(end) = text.find("\r\n\r\n") {
+                        // The test bodies are two bytes long.
+                        if request.len() >= end + 4 + 2 {
+                            break;
+                        }
+                    }
+                }
+                let text = String::from_utf8_lossy(&request).to_string();
+                let response = if text.starts_with("POST /final ") {
+                    "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok"
+                        .to_string()
+                } else {
+                    format!(
+                        "HTTP/1.1 307 Temporary Redirect\r\nlocation: {location}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+                    )
+                };
+                kept.lock().unwrap().push(text);
+                let _ = socket.write_all(response.as_bytes());
+            }
+        });
+        seen
+    }
+
+    #[test]
+    fn a_keyed_request_is_not_redirected_to_another_server() {
+        let elsewhere = TcpListener::bind("127.0.0.1:0").unwrap();
+        elsewhere.set_nonblocking(true).unwrap();
+        let target = format!("http://{}/steal", elsewhere.local_addr().unwrap());
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = format!("http://{}", listener.local_addr().unwrap());
+        let seen = serve_redirect(listener, target);
+        let response = tauri::async_runtime::block_on(async {
+            let client = build_client(&ProxySetting::None).unwrap();
+            send(
+                &client,
+                "POST",
+                &format!("{address}/"),
+                vec![("x-api-key".into(), "sk-secret".into())],
+                Some("{}".into()),
+            )
+            .await
+            .unwrap()
+        });
+        assert_eq!(response.status().as_u16(), 307);
+        assert_eq!(seen.lock().unwrap().len(), 1);
+        assert!(elsewhere.accept().is_err(), "the other server was reached");
+    }
+
+    #[test]
+    fn a_redirect_within_the_origin_is_followed_with_its_key() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = format!("http://{}", listener.local_addr().unwrap());
+        let seen = serve_redirect(listener, format!("{address}/final"));
+        let response = tauri::async_runtime::block_on(async {
+            let client = build_client(&ProxySetting::None).unwrap();
+            send(
+                &client,
+                "POST",
+                &format!("{address}/"),
+                vec![("x-api-key".into(), "sk-secret".into())],
+                Some("{}".into()),
+            )
+            .await
+            .unwrap()
+        });
+        assert_eq!(response.status().as_u16(), 200);
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 2);
+        assert!(seen[1].starts_with("POST /final "));
+        assert!(seen[1]
+            .to_ascii_lowercase()
+            .contains("x-api-key: sk-secret"));
+        assert!(seen[1].ends_with("{}"));
     }
 
     #[test]

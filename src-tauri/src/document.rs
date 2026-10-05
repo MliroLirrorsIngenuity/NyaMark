@@ -122,7 +122,7 @@ pub fn read<R: Runtime>(
 
 /// Read at most `limit` bytes. The size is checked on the bytes actually read
 /// so a file that grows after a metadata check cannot slip past it.
-fn read_limited(path: &Path, limit: u64) -> Result<Vec<u8>, DocumentError> {
+pub(crate) fn read_limited(path: &Path, limit: u64) -> Result<Vec<u8>, DocumentError> {
     let mut bytes = Vec::new();
     fs::File::open(path)?
         .take(limit + 1)
@@ -147,7 +147,7 @@ pub fn write<R: Runtime>(
     write_document(path, text, format, expected_version)
 }
 
-fn write_document(
+pub(crate) fn write_document(
     path: &Path,
     text: &str,
     format: DocumentFormat,
@@ -172,7 +172,7 @@ fn write_document(
 
 /// The bytes' length and hash. Only ever compared within one run of the app,
 /// so the hash may change between Rust releases.
-fn version_of(bytes: &[u8]) -> String {
+pub(crate) fn version_of(bytes: &[u8]) -> String {
     let mut hasher = DefaultHasher::new();
     hasher.write(bytes);
     format!("{}-{:016x}", bytes.len(), hasher.finish())

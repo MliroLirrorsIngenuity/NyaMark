@@ -217,7 +217,14 @@ mod keychain {
     impl SecretStore for Keychain {
         fn get(&self, account: &str) -> Result<Option<String>, String> {
             let output = Command::new(SECURITY)
-                .args(["find-generic-password", "-s", &self.service, "-a", account, "-w"])
+                .args([
+                    "find-generic-password",
+                    "-s",
+                    &self.service,
+                    "-a",
+                    account,
+                    "-w",
+                ])
                 .output()
                 .map_err(|error| error.to_string())?;
             if output.status.code() == Some(NOT_FOUND) {
@@ -227,7 +234,9 @@ mod keychain {
                 return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
             }
             Ok(Some(
-                String::from_utf8_lossy(&output.stdout).trim_end().to_string(),
+                String::from_utf8_lossy(&output.stdout)
+                    .trim_end()
+                    .to_string(),
             ))
         }
 
@@ -244,7 +253,9 @@ mod keychain {
                     .write_all(add_command(&self.service, account, value).as_bytes())
                     .map_err(|error| error.to_string())?;
             }
-            let output = child.wait_with_output().map_err(|error| error.to_string())?;
+            let output = child
+                .wait_with_output()
+                .map_err(|error| error.to_string())?;
             // `security -i` exits 0 when a command in it failed and tells
             // only on standard error.
             let errors = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -260,7 +271,13 @@ mod keychain {
 
         fn delete(&self, account: &str) -> Result<(), String> {
             let output = Command::new(SECURITY)
-                .args(["delete-generic-password", "-s", &self.service, "-a", account])
+                .args([
+                    "delete-generic-password",
+                    "-s",
+                    &self.service,
+                    "-a",
+                    account,
+                ])
                 .output()
                 .map_err(|error| error.to_string())?;
             if output.status.success() || output.status.code() == Some(NOT_FOUND) {
@@ -340,7 +357,10 @@ fn store<R: Runtime>(app: &AppHandle<R>) -> Result<(Box<dyn SecretStore>, Storag
 }
 
 /// The record saved for a profile, read through the cache.
-fn saved_record<R: Runtime>(app: &AppHandle<R>, account: &str) -> Result<Option<SecretRecord>, String> {
+fn saved_record<R: Runtime>(
+    app: &AppHandle<R>,
+    account: &str,
+) -> Result<Option<SecretRecord>, String> {
     let cache = app.state::<SecretCache>();
     if let Some(cached) = cache.0.lock().map_err(|e| e.to_string())?.get(account) {
         return Ok(cached.clone());
@@ -623,10 +643,16 @@ mod tests {
 
     #[test]
     fn the_status_shows_only_the_end_of_a_key() {
-        let status = status_of(Some(&record("https://a.example", Some("sk-123456"))), Storage::File);
+        let status = status_of(
+            Some(&record("https://a.example", Some("sk-123456"))),
+            Storage::File,
+        );
         assert_eq!(status.hint.as_deref(), Some("3456"));
         assert!(status.has_key);
-        let short = status_of(Some(&record("https://a.example", Some("ab"))), Storage::File);
+        let short = status_of(
+            Some(&record("https://a.example", Some("ab"))),
+            Storage::File,
+        );
         assert_eq!(short.hint.as_deref(), Some("ab"));
         let none = status_of(None, Storage::Keychain);
         assert!(!none.saved && !none.has_key && none.hint.is_none());
@@ -673,7 +699,10 @@ mod tests {
         taken.sort_by(|x, y| x.0.cmp(&y.0));
         assert_eq!(
             taken,
-            vec![("profile-a".to_string(), Some(a)), ("profile-b".to_string(), None)]
+            vec![
+                ("profile-a".to_string(), Some(a)),
+                ("profile-b".to_string(), None)
+            ]
         );
         assert_eq!(staged.len(), 1);
         assert!(drain_window(&mut staged, "main").is_empty());
