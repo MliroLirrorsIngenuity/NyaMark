@@ -19,6 +19,7 @@ const OFFSET_PX = 10;
 const MARGIN_PX = 8;
 /** Shorter than this the menu is no use; it goes on past the edge instead. */
 const MIN_PX = 160;
+const ROOM = '--ny-slash-menu-room';
 
 type Span = { top: number; bottom: number };
 
@@ -57,7 +58,13 @@ function fit(view: EditorView) {
     top: Math.max(box.top, barBottom),
     bottom: Math.min(box.bottom, window.innerHeight),
   });
-  holder.style.setProperty('--ny-slash-menu-room', `${Math.floor(room)}px`);
+  const menu =
+    holder.querySelector<HTMLElement>(':scope > .milkdown-slash-menu') ??
+    holder;
+  const value = `${Math.floor(room)}px`;
+  if (menu.style.getPropertyValue(ROOM) !== value) {
+    menu.style.setProperty(ROOM, value);
+  }
 }
 
 export const slashMenuRoom = $prose(
