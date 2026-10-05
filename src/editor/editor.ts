@@ -165,7 +165,19 @@ import { scrollIntoViewSettled } from './scroll-settled';
 import { type BlockSpan, blockSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
 
-import '@milkdown/crepe/theme/common/style.css';
+import './styles/prosemirror.css';
+import '@milkdown/crepe/theme/common/reset.css';
+import '@milkdown/crepe/theme/common/block-edit.css';
+import '@milkdown/crepe/theme/common/code-mirror.css';
+import './styles/crepe-cursor.css';
+import '@milkdown/crepe/theme/common/image-block.css';
+import '@milkdown/crepe/theme/common/link-tooltip.css';
+import '@milkdown/crepe/theme/common/list-item.css';
+import '@milkdown/crepe/theme/common/placeholder.css';
+import './styles/crepe-toolbar.css';
+import '@milkdown/crepe/theme/common/table.css';
+import '@milkdown/crepe/theme/common/latex.css';
+import '@milkdown/crepe/theme/common/top-bar.css';
 import '@milkdown/crepe/theme/frame.css';
 
 export type EditorAttachment = {

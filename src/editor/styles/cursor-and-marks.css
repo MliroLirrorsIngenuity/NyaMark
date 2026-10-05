@@ -6,8 +6,15 @@
  * Crepe CSS variable — so that both follow our editor text color in light/
  * dark mode without hand-writing selectors against ProseMirror internals.
  */
-.ny-editor-root .milkdown .ProseMirror-focused {
+.ny-editor-root .milkdown .ProseMirror {
   --prosemirror-virtual-cursor-color: var(--ny-editor-text-primary);
+}
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror:not(.ProseMirror-focused)
+  .prosemirror-virtual-cursor {
+  visibility: hidden;
 }
 
 /*

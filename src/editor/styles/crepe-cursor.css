@@ -1,0 +1,63 @@
+@import "@milkdown/kit/prose/gapcursor/style/gapcursor.css";
+
+.ProseMirror.virtual-cursor-enabled {
+  caret-color: transparent;
+}
+
+.ProseMirror .prosemirror-virtual-cursor {
+  position: absolute;
+  cursor: text;
+  pointer-events: none;
+  transform: translate(-1px);
+  user-select: none;
+  -webkit-user-select: none;
+  border-left: 2px solid var(--prosemirror-virtual-cursor-color);
+}
+
+.ProseMirror .prosemirror-virtual-cursor-left {
+  width: 1ch;
+  transform: translate(calc(-1ch + -1px));
+  border-bottom: 2px solid var(--prosemirror-virtual-cursor-color);
+  border-right: 2px solid var(--prosemirror-virtual-cursor-color);
+  border-left: none;
+}
+
+.ProseMirror .prosemirror-virtual-cursor-right {
+  width: 1ch;
+  border-bottom: 2px solid var(--prosemirror-virtual-cursor-color);
+  border-left: 2px solid var(--prosemirror-virtual-cursor-color);
+  border-right: none;
+}
+
+.ProseMirror-focused .prosemirror-virtual-cursor-animation {
+  animation: prosemirror-virtual-cursor-blink 1s linear infinite;
+  animation-delay: 0.5s;
+}
+
+@keyframes prosemirror-virtual-cursor-blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.milkdown .crepe-drop-cursor {
+  background-color: color-mix(
+    in srgb,
+    var(--crepe-color-outline),
+    transparent 50%
+  );
+  opacity: 0.5;
+  transition: all 0.2s;
+  pointer-events: none;
+}
+
+.milkdown .ProseMirror-gapcursor:after {
+  box-sizing: border-box;
+  border-top: 1px solid var(--crepe-color-on-background);
+}
