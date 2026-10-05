@@ -365,6 +365,7 @@ export class NyaEditor {
     // matter, on the first line of the text.
     const view = this.getView();
     view?.dispatch(pastFrontMatter(view.state.tr));
+    view?.dom.style.setProperty('outline-style', 'none');
     this.imageMetaPanel.attach();
     keepFloatingOffEdge(this.root);
     restHiddenBlockHandle(this.root);
