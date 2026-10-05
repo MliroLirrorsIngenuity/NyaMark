@@ -52,6 +52,7 @@ import {
   aiProposals,
   proposalState,
 } from './plugins/ai-proposals';
+import { aiSuggest } from './plugins/ai-suggest';
 import { bareLinkInput } from './plugins/bare-link-input';
 import { bareLinkParse, keepBareLinks } from './plugins/bare-links';
 import { blockArrows } from './plugins/block-arrows';
@@ -245,6 +246,9 @@ export class NyaEditor {
     crepe.editor.config(keepPastedTasks);
     crepe.editor.config(freeHeadingEdges);
     crepe.editor.config(handleBlocksOnly);
+    // First, so its keys come before Tab's and Mod-→'s own while a
+    // suggestion shows.
+    crepe.editor.use(aiSuggest);
     crepe.editor.use(caretScroll);
     crepe.editor.use(typeOverBlocks);
     crepe.editor.use(markdownOutput);

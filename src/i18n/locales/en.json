@@ -435,6 +435,16 @@
         "untitled": "Untitled",
         "prompt": "What it asks the AI",
         "promptPlaceholder": "e.g. Turn the text into a bulleted list."
+      },
+      "completeModel": "Suggestions while writing",
+      "sameAsQuick": "Same as the selection commands",
+      "complete": {
+        "title": "Suggestions while writing",
+        "enabled": "Suggest the next words while writing",
+        "note": "When you stop typing, the model suggests how the text goes on, in grey after the caret. Tab takes it, Cmd/Ctrl+→ takes the next word and Esc lets it go. Each suggestion sends the text around the caret to the service.",
+        "delay": "Pause before suggesting",
+        "seconds": "{{value}} s",
+        "atEndOnly": "Only at the end of a paragraph"
       }
     }
   },

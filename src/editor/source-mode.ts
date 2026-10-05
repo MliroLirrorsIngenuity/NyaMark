@@ -48,6 +48,7 @@ import { docPosition, sourceOffset } from './source-caret';
 import { applyChanges, rewriteBlocks } from './source-follow';
 import { continueMarkup } from './source-list-exit';
 import { sourceSearch } from './source-search';
+import { sourceSuggest } from './source-suggest';
 
 const SYNC_DELAY_MS = 180;
 
@@ -560,6 +561,7 @@ export class SourceModeController {
           // pane, and what was typed next went there and was lost at the
           // next sync.
           keymap.of([indentWithTab]),
+          sourceSuggest(),
           Prec.high(keymap.of([{ key: 'Enter', run: continueMarkup }])),
           // GitHub's Markdown, as the file is read and written: struck text,
           // tables and task boxes were plain text here, the tildes and boxes

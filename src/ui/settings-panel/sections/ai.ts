@@ -34,6 +34,7 @@ import {
 } from '../../../state/ai-settings';
 import { ensureStyle } from '../../../style/register';
 import { type SelectOption, renderSelect } from '../select';
+import { renderCompleteSection } from './ai-complete';
 import {
   button,
   el,
@@ -481,6 +482,10 @@ export function renderAiSection(
     </div>
     <div class="ny-settings__row">
       <label class="ny-settings__field">
+        <span data-i18n="settings.ai.completeModel">Suggestions while writing</span>
+        <div class="ny-settings__select" data-key="completeModel"></div>
+      </label>
+      <label class="ny-settings__field">
         <span data-i18n="settings.ai.editMode">The assistant’s edits</span>
         <div class="ny-settings__select" data-key="editMode"></div>
       </label>
@@ -533,13 +538,22 @@ export function renderAiSection(
 
   const mcp = renderMcpSection({ state, emit, track });
   const quick = renderQuickSection({ state, emit });
+  const complete = renderCompleteSection({ state, emit });
 
-  root.append(services, defaults, quick, network, mcp.element, instructions);
+  root.append(
+    services,
+    defaults,
+    quick,
+    complete,
+    network,
+    mcp.element,
+    instructions
+  );
 
   const renderDefaults = () => {
     const { refs, options: choices } = modelChoices(state.providers);
     const pick = (
-      key: 'chatModel' | 'quickModel',
+      key: 'chatModel' | 'quickModel' | 'completeModel',
       empty: SelectOption,
       set: (ref: AiModelRef | null) => void,
       ref: AiModelRef | null
@@ -576,6 +590,18 @@ export function renderAiSection(
       },
       state.quickModel
     );
+    pick(
+      'completeModel',
+      {
+        value: 'none',
+        label: 'Same as the selection commands',
+        i18n: 'settings.ai.sameAsQuick',
+      },
+      (ref) => {
+        state.completeModel = ref;
+      },
+      state.completeModel
+    );
     translateDOM(defaults);
   };
 
@@ -590,6 +616,7 @@ export function renderAiSection(
       );
     if (!has(state.chatModel)) state.chatModel = null;
     if (!has(state.quickModel)) state.quickModel = null;
+    if (!has(state.completeModel)) state.completeModel = null;
     // The first model added is the one the assistant starts with.
     if (!state.chatModel) {
       const provider = state.providers.find((entry) => entry.models.length);

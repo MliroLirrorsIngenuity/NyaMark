@@ -123,12 +123,26 @@ export function defaultQuickActions(): AiQuickAction[] {
   return BUILTIN_QUICK_ACTIONS.map((id) => ({ id, name: '', prompt: '' }));
 }
 
+/** The pauses in typing a suggestion can wait for, in milliseconds. */
+export const COMPLETE_DELAYS = [300, 500, 700, 1000, 1500, 2000] as const;
+
+export type AiCompleteSettings = {
+  /** Suggest the next words while the user writes. */
+  enabled: boolean;
+  /** How long typing stops before a suggestion is asked for, one of `COMPLETE_DELAYS`. */
+  delay: number;
+  /** Only with nothing but white space after the caret in its paragraph. */
+  atEndOnly: boolean;
+};
+
 export type AiSettings = {
   providers: AiProvider[];
   /** The model the assistant panel talks to. */
   chatModel: AiModelRef | null;
   /** For the selection and slash commands; `null` uses the chat model. */
   quickModel: AiModelRef | null;
+  /** For the suggestions while writing; `null` uses the quick model. */
+  completeModel: AiModelRef | null;
   proxy: ProxySetting;
   /** What the user wants the assistant always to keep in mind. */
   instructions: string;
@@ -136,18 +150,21 @@ export type AiSettings = {
   search: AiSearchSettings;
   mcpServers: AiMcpServer[];
   quickActions: AiQuickAction[];
+  complete: AiCompleteSettings;
 };
 
 export const defaultAiSettings: AiSettings = {
   providers: [],
   chatModel: null,
   quickModel: null,
+  completeModel: null,
   proxy: { mode: 'system' },
   instructions: '',
   editMode: 'review',
   search: { engine: 'auto', searxngUrl: '', native: false },
   mcpServers: [],
   quickActions: defaultQuickActions(),
+  complete: { enabled: false, delay: 700, atEndOnly: true },
 };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -299,6 +316,23 @@ function sanitizeQuickActions(value: unknown): AiQuickAction[] {
   return actions;
 }
 
+function sanitizeComplete(value: unknown): AiCompleteSettings {
+  const complete = isRecord(value) ? value : {};
+  const asked = complete.delay;
+  // The pause offered nearest to the one saved.
+  let delay = 700;
+  if (typeof asked === 'number' && Number.isFinite(asked)) {
+    for (const option of COMPLETE_DELAYS) {
+      if (Math.abs(option - asked) < Math.abs(delay - asked)) delay = option;
+    }
+  }
+  return {
+    enabled: bool(complete.enabled, false),
+    delay,
+    atEndOnly: bool(complete.atEndOnly, true),
+  };
+}
+
 export function sanitizeAiSettings(value: unknown): AiSettings {
   const ai = isRecord(value) ? value : {};
   const providers: AiProvider[] = [];
@@ -320,12 +354,14 @@ export function sanitizeAiSettings(value: unknown): AiSettings {
     providers,
     chatModel: sanitizeModelRef(ai.chatModel, providers),
     quickModel: sanitizeModelRef(ai.quickModel, providers),
+    completeModel: sanitizeModelRef(ai.completeModel, providers),
     proxy: sanitizeProxy(ai.proxy),
     instructions: text(ai.instructions, 20_000),
     editMode: ai.editMode === 'auto' ? 'auto' : 'review',
     search: sanitizeSearch(ai.search),
     mcpServers,
     quickActions: sanitizeQuickActions(ai.quickActions),
+    complete: sanitizeComplete(ai.complete),
   };
 }
 

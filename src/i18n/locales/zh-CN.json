@@ -431,6 +431,16 @@
         "untitled": "未命名",
         "prompt": "给 AI 的指令",
         "promptPlaceholder": "例如：把这段文字整理成列表。"
+      },
+      "completeModel": "边写边补全",
+      "sameAsQuick": "与选区和斜杠命令相同",
+      "complete": {
+        "title": "边写边补全",
+        "enabled": "写作时补全后文",
+        "note": "停下打字时，模型会在光标后用灰字给出接下来的内容。按 Tab 全部采纳，Cmd/Ctrl+→ 采纳一个词，Esc 取消。每次补全都会把光标前后的文字发给所选服务。",
+        "delay": "停顿多久后补全",
+        "seconds": "{{value}} 秒",
+        "atEndOnly": "只在段落末尾补全"
       }
     }
   },

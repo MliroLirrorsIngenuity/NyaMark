@@ -13,8 +13,10 @@ import {
 } from './bridge/ipc/updates';
 import { isPrimaryWindow } from './bridge/ipc/windows';
 import { NyaEditor } from './editor/editor';
+import { afterFirstFrame } from './editor/open-in-parts';
 import { type AiAskMode, setAiAskHandler } from './editor/plugins/ai-entry';
 import { SourceModeController } from './editor/source-mode';
+import { type SuggestDriver, setSuggestDriver } from './editor/suggest';
 import { AttachmentController } from './features/attachment-controller';
 import { bindAutoSave } from './features/auto-save';
 import { CloseGuard } from './features/close-guard';
@@ -32,6 +34,7 @@ import {
   getSettings,
   hydrateSettings,
   reapplyWindowEffects,
+  subscribeSettings,
   takeUnreadableSettingsBackup,
 } from './state/settings';
 import { store } from './state/store';
@@ -49,6 +52,7 @@ export class App {
   private editor: NyaEditor | null = null;
   private outline: OutlinePanel | null = null;
   private aiPanel: Promise<AiPanel> | null = null;
+  private suggestions: Promise<SuggestDriver> | null = null;
   private attachments: AttachmentController | null = null;
   private sourceMode: SourceModeController | null = null;
   private suppressDirtyTracking = false;
@@ -238,6 +242,8 @@ export class App {
     });
     shortcutController.bind();
     setAiAskHandler((mode) => this.askAi(mode));
+    void afterFirstFrame().then(() => this.syncSuggestions());
+    subscribeSettings(() => this.syncSuggestions());
 
     this.refreshStatsSoon();
     this.scheduleUpdateCheck();
@@ -278,6 +284,31 @@ export class App {
       .catch((error) => {
         this.aiPanel = null;
         console.error('[ai] The assistant failed to load', error);
+      });
+  }
+
+  /**
+   * Suggestions while writing load with the assistant once they are turned
+   * on, never before the window has drawn, and stop when turned off.
+   */
+  private syncSuggestions() {
+    if (!getSettings().ai.complete.enabled) {
+      setSuggestDriver(null);
+      return;
+    }
+    this.suggestions ??= import('./ai/complete/driver').then(
+      ({ CompletionDriver }) =>
+        new CompletionDriver({
+          documentPath: () => store.getState().filePath,
+        })
+    );
+    void this.suggestions
+      .then((driver) => {
+        if (getSettings().ai.complete.enabled) setSuggestDriver(driver);
+      })
+      .catch((error) => {
+        this.suggestions = null;
+        console.error('[ai] Suggestions failed to load', error);
       });
   }
 

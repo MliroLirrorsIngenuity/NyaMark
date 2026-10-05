@@ -59,12 +59,14 @@ describe('AI settings', () => {
       providers: [],
       chatModel: null,
       quickModel: null,
+      completeModel: null,
       proxy: { mode: 'system' },
       instructions: '',
       editMode: 'review',
       search: { engine: 'auto', searxngUrl: '', native: false },
       mcpServers: [],
       quickActions: defaultQuickActions(),
+      complete: { enabled: false, delay: 700, atEndOnly: true },
     });
   });
 
