@@ -253,6 +253,40 @@
   border-color: var(--ny-editor-table-line);
 }
 
+.ny-editor-root .milkdown .ProseMirror :is(td, th) {
+  position: static;
+}
+
+.ny-editor-root .milkdown .ProseMirror :is(td, th).selectedCell {
+  position: relative;
+}
+
+.ny-editor-root .milkdown .milkdown-table-block .handle {
+  display: none;
+}
+
+.ny-editor-root .milkdown .milkdown-table-block .line-handle {
+  transition: opacity ease-in-out 0.2s, display 0.2s allow-discrete;
+}
+
+@starting-style {
+  .ny-editor-root .milkdown .milkdown-table-block .line-handle {
+    opacity: 0;
+  }
+}
+
+.ny-editor-root .milkdown .milkdown-table-block:hover .handle,
+.ny-editor-root
+  .milkdown
+  .milkdown-table-block:has(.handle[data-show="true"])
+  .handle {
+  display: block;
+}
+
+.ny-editor-root .milkdown .milkdown-table-block.readonly .handle {
+  display: none;
+}
+
 /* paragraph gap: a cell holds one paragraph; the cell padding is the gap. */
 .ny-editor-root .milkdown .editor :is(th, td) > p {
   padding: 0 !important;
