@@ -46,6 +46,13 @@ export async function listenWindowFileDrop(
   return await getCurrentWindow().onDragDropEvent(handler);
 }
 
+/** The element under files dragged over the window; null once they left. */
+export function dragDropTarget(payload: DragDropEvent): Element | null {
+  if (payload.type === 'leave') return null;
+  const { x, y } = payload.position.toLogical(window.devicePixelRatio);
+  return document.elementFromPoint(x, y);
+}
+
 /** Windows: the DWM backdrop behind the transparent webview. */
 export async function setNativeWindowBackdrop(enabled: boolean): Promise<void> {
   await invoke('set_windows_backdrop', { enabled });

@@ -29,4 +29,7 @@ export const ICONS = {
     '<circle cx="8" cy="8" r="5.75" /><path d="M8 5v3.25" /><path d="M8 10.9v.1" />'
   ),
   dash: svg('<path d="M4.75 8h6.5" />'),
+  image: svg(
+    '<rect x="2.25" y="3" width="11.5" height="10" rx="1.5" /><circle cx="5.75" cy="6.25" r="1.1" /><path d="m2.75 11.75 3.5-3.5 2.5 2.5 1.75-1.75 2.75 2.75" />'
+  ),
 };

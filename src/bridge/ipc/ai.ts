@@ -213,3 +213,14 @@ export async function webFetch(request: {
 }): Promise<WebPage> {
   return await invoke<WebPage>('web_fetch', { request });
 }
+
+/**
+ * Reads an image for the assistant: in the window's folders of notes, or a
+ * file the user opened, picked or dropped. A relative path is taken from
+ * the document's folder.
+ */
+export async function readImageForAi(path: string): Promise<Uint8Array> {
+  return new Uint8Array(
+    await invoke<ArrayBuffer>('read_image_for_ai', { path })
+  );
+}

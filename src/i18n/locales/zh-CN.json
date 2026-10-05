@@ -454,7 +454,10 @@
       "fetchedPage": "读了 {{site}}",
       "fetchedTitledPage": "读了「{{title}}」· {{site}}",
       "pageDenied": "没有打开 {{site}}",
-      "pageFailed": "打不开 {{site}}"
+      "pageFailed": "打不开 {{site}}",
+      "viewingImage": "正在查看 {{image}}",
+      "viewedImage": "看了 {{image}}",
+      "imageFailed": "打不开 {{image}}"
     },
     "edit": {
       "accept": "接受",
@@ -496,6 +499,22 @@
       "stepLimit": "已达到单次回复的步骤上限。发送「继续」可接着做。",
       "length": "回复达到了模型的长度上限。",
       "filtered": "服务方过滤了这条回复。"
+    },
+    "image": {
+      "attach": "添加图片",
+      "remove": "移除 {{name}}",
+      "limit": "一条消息最多带 {{count}} 张图片。",
+      "failed": "无法添加 {{name}}：{{reason}}。",
+      "reason": {
+        "tooLarge": "图片太大",
+        "notImage": "NyaMark 读不出这张图片",
+        "forbidden": "NyaMark 无权读取该位置",
+        "notFound": "文件已不在原处",
+        "other": "读取失败"
+      },
+      "noVision": "{{model}} 未标注支持图片，服务可能拒收。若它能看图，请在 AI 设置里为它勾选“图片”。",
+      "pasted": "粘贴的图片",
+      "embedded": "内嵌图片"
     }
   }
 }

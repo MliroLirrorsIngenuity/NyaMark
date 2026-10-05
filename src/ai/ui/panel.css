@@ -944,6 +944,120 @@
   color: var(--ny-text-muted);
 }
 
+.ny-ai__attach {
+  width: 24px;
+  height: 24px;
+  margin-left: -4px;
+}
+
+/* The images going with the next message. */
+.ny-ai__tray {
+  margin-bottom: 6px;
+}
+
+.ny-ai__tray[hidden],
+.ny-ai__tray-list[hidden],
+.ny-ai__tray-notice[hidden] {
+  display: none;
+}
+
+.ny-ai__tray-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ny-ai__tray-item {
+  position: relative;
+  flex: none;
+}
+
+.ny-ai__tray-item .ny-ai-thumb {
+  width: 52px;
+  height: 52px;
+}
+
+.ny-ai__tray-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--ny-border-strong);
+  border-radius: 50%;
+  background: var(--ny-surface-elevated);
+  color: var(--ny-text-secondary);
+  opacity: 0;
+  cursor: default;
+}
+
+.ny-ai__tray-remove svg {
+  width: 10px;
+  height: 10px;
+}
+
+.ny-ai__tray-item:hover .ny-ai__tray-remove,
+.ny-ai__tray-remove:focus-visible {
+  opacity: 1;
+}
+
+.ny-ai__tray-notice {
+  margin-top: 4px;
+  color: var(--ny-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ny-ai__tray-list:not([hidden]) + .ny-ai__tray-notice {
+  margin-top: 6px;
+}
+
+.ny-ai.is-drop-target .ny-ai__composer {
+  border-color: var(--ny-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ny-accent), transparent 80%);
+}
+
+.ny-ai-thumb {
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  border: 1px solid var(--ny-border-strong);
+  border-radius: 8px;
+  background: var(--ny-surface-elevated);
+  object-fit: cover;
+}
+
+.ny-ai-msg__images {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ny-ai-msg__images .ny-ai-thumb {
+  width: 72px;
+  height: 72px;
+}
+
+.ny-ai-msg__images:not(:last-child) {
+  margin-bottom: 6px;
+}
+
+.ny-ai-tool__image {
+  flex: 1 0 100%;
+  padding-left: 20px;
+}
+
+.ny-ai-tool__image .ny-ai-thumb {
+  max-height: 120px;
+  width: auto;
+  object-fit: contain;
+}
+
 .ny-ai__composer-bar {
   display: flex;
   align-items: center;

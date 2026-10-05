@@ -22,6 +22,19 @@ export async function openImageFileDialog(
   return result as string | null;
 }
 
+/** Images to pick, several at once; the app may read each once picked. */
+export async function openImageFilesDialog(
+  filterName: string,
+  extensions: readonly string[]
+): Promise<string[]> {
+  const result = await open({
+    filters: [{ name: filterName, extensions: [...extensions] }],
+    multiple: true,
+  });
+  if (result == null) return [];
+  return Array.isArray(result) ? result : [result];
+}
+
 export async function saveFileDialog(): Promise<string | null> {
   const result = await save({
     filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],

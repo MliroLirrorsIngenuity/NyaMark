@@ -27,6 +27,8 @@ export type InstructionContext = {
   notices?: string | null;
   /** The folders of notes the file tools reach, the document's first. */
   folders?: readonly string[];
+  /** Whether the model sees images; left out, nothing is said of them. */
+  vision?: boolean;
   today?: Date;
 };
 
@@ -101,6 +103,12 @@ function documentContext(snapshot: DocumentSnapshot): string {
   return parts.join('\n\n');
 }
 
+const IMAGES = {
+  seen: 'You can see images. The user may send some with their message; to look at one the document shows, or a file they name, open it with view_image, giving its path as the document has it. Look before you describe an image or write its alt text.',
+  unseen:
+    "The model you run on cannot see images. Work from an image's alt text, caption and file name, and say so when the user asks about what one shows.",
+};
+
 function foldersText(folders: readonly string[]): string {
   if (folders.length === 0) {
     return 'No folder of notes is open to you, as the document is not saved in one. When the user wants other notes read or written, ask for a folder with request_folder.';
@@ -118,6 +126,9 @@ export function buildInstructions(context: InstructionContext): string {
   );
   sections.push(EDIT_MODE[context.editMode ?? 'review']);
   if (context.folders) sections.push(foldersText(context.folders));
+  if (context.vision != null) {
+    sections.push(context.vision ? IMAGES.seen : IMAGES.unseen);
+  }
   if (context.notices) sections.push(context.notices);
   if (context.document) sections.push(documentContext(context.document));
   const custom = context.custom.trim();

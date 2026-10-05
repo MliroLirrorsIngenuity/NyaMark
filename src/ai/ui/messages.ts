@@ -11,10 +11,13 @@ import {
   type UserEntry,
   replyText,
 } from '../agent/session';
+import type { ViewImageOutput } from '../agent/tools/image';
 import type { EditOutcome } from '../edit/controller';
+import type { ChatImage } from '../images/image';
 import { isOpenableLink, renderChatMarkdown } from '../render/markdown';
 import { copyText } from './clipboard';
 import { ICONS } from './icons';
+import { imageUrl } from './image-tray';
 import { proposedEdit, searchSources, toolLabel } from './tool-labels';
 
 /** Within this of the end, the list keeps following a reply as it grows. */
@@ -76,6 +79,8 @@ type PartView = {
   approval?: { request: ApprovalRequest; card: HTMLElement };
   /** The pages a web search found, under its line. */
   sources?: HTMLElement;
+  /** The image a tool opened, under its line. */
+  image?: HTMLElement;
 };
 
 type EntryView = {
@@ -164,6 +169,8 @@ export class MessageList {
   private readonly roots = new Map<number, HTMLElement>();
   private readonly views = new Map<number, EntryView>();
   private readonly dirty = new Set<AssistantEntry>();
+  /** The thumbnails' addresses, by entry id, to revoke with the entry. */
+  private readonly urls = new Map<number, string[]>();
   private timer: number | null = null;
   private lastRender = 0;
   /** Whether the list scrolls with a reply as it grows. */
@@ -194,6 +201,7 @@ export class MessageList {
     this.dirty.clear();
     this.views.clear();
     this.roots.clear();
+    this.revoke();
     this.element.replaceChildren();
     for (const entry of entries) this.add(entry);
     this.following = true;
@@ -231,6 +239,7 @@ export class MessageList {
     this.roots.get(entry.id)?.remove();
     this.roots.delete(entry.id);
     this.views.delete(entry.id);
+    this.revoke(entry.id);
     if (entry.role === 'assistant') this.dirty.delete(entry);
   }
 
@@ -266,6 +275,28 @@ export class MessageList {
   destroy() {
     if (this.timer != null) window.clearTimeout(this.timer);
     this.scroller.removeEventListener('scroll', this.onScroll);
+    this.revoke();
+  }
+
+  /** Lets go of the thumbnails of one entry, or of all of them. */
+  private revoke(id?: number) {
+    const ids = id == null ? [...this.urls.keys()] : [id];
+    for (const key of ids) {
+      for (const url of this.urls.get(key) ?? []) URL.revokeObjectURL(url);
+      this.urls.delete(key);
+    }
+  }
+
+  private thumbnail(id: number, image: ChatImage) {
+    const url = imageUrl(image);
+    const urls = this.urls.get(id) ?? [];
+    urls.push(url);
+    this.urls.set(id, urls);
+    const thumb = el('img', 'ny-ai-thumb');
+    thumb.src = url;
+    thumb.alt = image.name;
+    thumb.title = `${image.name} · ${image.width}×${image.height}`;
+    return thumb;
   }
 
   private schedule() {
@@ -312,7 +343,16 @@ export class MessageList {
   };
 
   private userView(entry: UserEntry) {
-    return el('div', 'ny-ai-msg ny-ai-msg--user', entry.text);
+    const root = el('div', 'ny-ai-msg ny-ai-msg--user');
+    if (entry.images.length > 0) {
+      const images = el('div', 'ny-ai-msg__images');
+      for (const image of entry.images) {
+        images.append(this.thumbnail(entry.id, image));
+      }
+      root.append(images);
+    }
+    if (entry.text) root.append(el('div', 'ny-ai-msg__text', entry.text));
+    return root;
   }
 
   private assistantView(): EntryView {
@@ -343,7 +383,7 @@ export class MessageList {
         view.parts[index] = shown;
       }
       if (part.type === 'tool') {
-        this.drawTool(part, shown);
+        this.drawTool(part, shown, entry.id);
         return;
       }
       if (shown.summary) {
@@ -415,7 +455,7 @@ export class MessageList {
     return { type, root, body, summary, shown: '\u0000' };
   }
 
-  private drawTool(part: ToolPart, view: PartView) {
+  private drawTool(part: ToolPart, view: PartView, entryId: number) {
     const label = toolLabel(part);
     const key = [part.state, label, part.error ?? ''].join('\u0000');
     if (view.shown === key) return;
@@ -426,6 +466,7 @@ export class MessageList {
     view.toolId = part.id;
     this.drawApproval(view);
     this.drawSources(view, part);
+    this.drawImage(view, part, entryId);
     if (view.summary) view.summary.innerHTML = TOOL_ICONS[part.state];
     const edit = this.actions.edits ? proposedEdit(part) : null;
     if (edit !== (view.edit?.id ?? null)) {
@@ -534,6 +575,19 @@ export class MessageList {
   }
 
   /** The pages a finished web search found, folded under its line. */
+  /** The image a tool opened, as the model was shown it. */
+  private drawImage(view: PartView, part: ToolPart, entryId: number) {
+    if (view.image || part.state !== 'done' || part.name !== 'view_image') {
+      return;
+    }
+    const image = (part.output as ViewImageOutput | undefined)?.image;
+    if (!image) return;
+    const row = el('div', 'ny-ai-tool__image');
+    row.append(this.thumbnail(entryId, image));
+    view.root.insertBefore(row, view.edit?.row ?? view.approval?.card ?? null);
+    view.image = row;
+  }
+
   private drawSources(view: PartView, part: ToolPart) {
     view.sources?.remove();
     view.sources = undefined;

@@ -1,0 +1,148 @@
+/**
+ * The tool the assistant looks at images with: one the document shows, or
+ * a file on this computer. The app reads the file, only from where the
+ * document's own links may reach, and brings it within what the services
+ * take. Tool results carry only text through some services' APIs, so the
+ * image itself reaches the model in a message from the app after the step.
+ */
+
+import { tool } from 'ai';
+import { z } from 'zod';
+import { type ChatImage, ImageError, MAX_IMAGES } from '../../images/image';
+
+export type ImageHost = {
+  /** The file an image reference names, or null when it names none here. */
+  resolve(src: string): Promise<string | null>;
+  read(path: string): Promise<Uint8Array>;
+  prepare(source: Blob | Uint8Array, name: string): Promise<ChatImage>;
+  /** Has the model see the images before its next step. */
+  show(caption: string, images: ChatImage[]): void;
+};
+
+export type ViewImageOutput = {
+  text: string;
+  src: string;
+  /** The image as it was sent, for the panel to show. */
+  image?: ChatImage;
+};
+
+/** What the app's error codes mean, for the assistant. */
+const EXPLAINED: Record<string, string> = {
+  remote:
+    'The image is on the web. view_image opens images saved on this computer; work from its alt text, or ask the user to save it beside the document.',
+  unsupported: 'That address names no image file. Give a path or a data URL.',
+  'no-file':
+    'A relative path needs the document to be saved first. Give a full path, or ask the user to save the document.',
+  forbidden:
+    "The image is outside the folders the app may read: the document's folder, folders the user added, and files the user opened. Ask the user to open or drop it.",
+  'not-found': 'There is no file at that path.',
+  'too-large': 'The image is too large to send.',
+  'not-an-image': 'The file is no image the app can read.',
+  'too-many': `You have opened ${MAX_IMAGES} images this turn; that is the most one turn may open. Work from those, or ask the user to send the one you need.`,
+};
+
+function failure(code: string, detail = ''): Error {
+  const explained = EXPLAINED[code] ?? '';
+  return new Error(
+    `${code}: ${explained}${detail ? ` (${detail.slice(0, 300)})` : ''}`
+  );
+}
+
+/** An error told so the assistant can act; the app's codes come bare. */
+function explain(error: unknown): Error {
+  if (error instanceof ImageError) return failure(error.code);
+  const raw = error instanceof Error ? error.message : String(error);
+  if (EXPLAINED[raw.trim()]) return failure(raw.trim());
+  return error instanceof Error ? error : new Error(raw);
+}
+
+/** A data URL's bytes, typed as it says. */
+export function dataUrlBlob(src: string): Blob | null {
+  const match = /^data:([^,;]*)((?:;[^,;]*)*?)(;base64)?,(.*)$/is.exec(src);
+  if (!match) return null;
+  const [, type, , base64, payload] = match;
+  try {
+    if (base64) {
+      const binary = atob(payload.replace(/\s+/g, ''));
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index++) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      return new Blob([bytes], { type });
+    }
+    return new Blob([decodeURIComponent(payload)], { type });
+  } catch {
+    return null;
+  }
+}
+
+function fileName(path: string) {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+export function imageTools(host: ImageHost) {
+  // Each image goes into every step after it, so a turn opens only so many.
+  const opened = new Set<string>();
+
+  const load = async (src: string) => {
+    if (/^data:/i.test(src)) {
+      const blob = dataUrlBlob(src);
+      if (!blob) throw failure('not-an-image');
+      return { key: src, image: await host.prepare(blob, 'image') };
+    }
+    if (/^https?:/i.test(src)) throw failure('remote', src);
+    // A Windows drive letter starts a path; any other scheme names no file.
+    const scheme = /^[a-z][a-z0-9+.-]*:/i.test(src);
+    if (scheme && !/^file:/i.test(src) && !/^[a-z]:[\\/]/i.test(src)) {
+      throw failure('unsupported', src);
+    }
+    const path = await host.resolve(src);
+    if (!path) throw failure('no-file', src);
+    if (opened.has(path)) return { key: path, image: null };
+    const bytes = await host.read(path);
+    return { key: path, image: await host.prepare(bytes, fileName(path)) };
+  };
+
+  return {
+    view_image: tool({
+      description:
+        "Look at an image: one the document shows, or a file on this computer. A relative path is taken from the document's folder, as the document's own image links are. Images on the web cannot be opened.",
+      inputSchema: z.object({
+        src: z
+          .string()
+          .min(1)
+          .describe(
+            'The image as the document gives it: the path or data URL in ![alt](…) or <img src="…">, or a full path on this computer.'
+          ),
+      }),
+      execute: async ({ src }): Promise<ViewImageOutput> => {
+        const trimmed = src.trim();
+        if (opened.size >= MAX_IMAGES) throw failure('too-many');
+        let loaded: Awaited<ReturnType<typeof load>>;
+        try {
+          loaded = await load(trimmed);
+        } catch (error) {
+          throw explain(error);
+        }
+        const { key, image } = loaded;
+        if (!image) {
+          return {
+            text: `You opened ${trimmed} earlier this turn; the image is in the messages above.`,
+            src: trimmed,
+          };
+        }
+        opened.add(key);
+        host.show(
+          `The image view_image opened from ${trimmed}. This message is from the app, not the user.`,
+          [image]
+        );
+        return {
+          text: `Opened ${trimmed} (${image.width}×${image.height}). The image follows in a message from the app.`,
+          src: trimmed,
+          image,
+        };
+      },
+      toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
+    }),
+  };
+}

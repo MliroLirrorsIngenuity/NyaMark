@@ -15,6 +15,7 @@ import {
   stepCountIs,
   streamText,
 } from 'ai';
+import { type ChatImage, userMessage } from '../images/image';
 
 /** What a turn is sent with, read again for each turn and each retry. */
 export type TurnSetup = {
@@ -66,7 +67,12 @@ export type ChatFailure = {
 
 export type ChatUsage = { input: number; output: number };
 
-export type UserEntry = { id: number; role: 'user'; text: string };
+export type UserEntry = {
+  id: number;
+  role: 'user';
+  text: string;
+  images: ChatImage[];
+};
 
 export type AssistantEntry = {
   id: number;
@@ -167,6 +173,30 @@ export function describeFailure(error: unknown): ChatFailure {
   return { code: 'other', message };
 }
 
+/** A message put into a turn's messages after the response message `at`. */
+export type Inserted = { at: number; message: ModelMessage };
+
+/**
+ * A turn's response messages with what was put among them on the way, each
+ * after the messages that came before it.
+ */
+export function withInserted(
+  response: readonly ModelMessage[],
+  inserted: readonly Inserted[]
+): ModelMessage[] {
+  const messages: ModelMessage[] = [];
+  let next = 0;
+  const ordered = [...inserted].sort((a, b) => a.at - b.at);
+  for (let index = 0; index <= response.length; index++) {
+    while (next < ordered.length && ordered[next].at <= index) {
+      messages.push(ordered[next++].message);
+    }
+    if (index < response.length) messages.push(response[index]);
+  }
+  for (; next < ordered.length; next++) messages.push(ordered[next].message);
+  return messages;
+}
+
 function addUsage(
   total: ChatUsage | undefined,
   usage: LanguageModelUsage
@@ -190,6 +220,8 @@ export class ChatSession {
   readonly entries: ChatEntry[] = [];
   private history: ModelMessage[] = [];
   private running: AbortController | null = null;
+  /** Images a tool opened, for the model to see before its next step. */
+  private shown: ModelMessage[] = [];
   private nextId = 1;
   private readonly listeners = new Set<(change: SessionChange) => void>();
 
@@ -210,14 +242,30 @@ export class ChatSession {
   }
 
   /** Resolves once the reply is done, stopped or failed. */
-  async send(text: string): Promise<void> {
+  async send(text: string, images: readonly ChatImage[] = []): Promise<void> {
     const trimmed = text.trim();
-    if (!trimmed || this.busy) return;
-    const entry: UserEntry = { id: this.nextId++, role: 'user', text: trimmed };
+    if ((!trimmed && images.length === 0) || this.busy) return;
+    const entry: UserEntry = {
+      id: this.nextId++,
+      role: 'user',
+      text: trimmed,
+      images: [...images],
+    };
     this.entries.push(entry);
-    this.history.push({ role: 'user', content: trimmed });
+    this.history.push(userMessage(trimmed, images));
     this.emit({ kind: 'added', entry });
     await this.run();
+  }
+
+  /**
+   * Has the model see images a tool opened. Tool results carry only text
+   * through some services' APIs, so the images go as the user's message,
+   * before the model's next step.
+   */
+  showModel(caption: string, images: readonly ChatImage[]) {
+    if (!this.running || images.length === 0) return;
+    const message = userMessage(caption, images);
+    this.shown.push(message);
   }
 
   /** Asks again in place of the last reply, which failed or was stopped. */
@@ -265,6 +313,15 @@ export class ChatSession {
     // The messages of the steps that finished, and the text of the one
     // under way: kept when the turn is stopped or fails part way.
     const finished: ModelMessage[] = [];
+    // The images tools opened, and where among the steps they went.
+    const inserted: Inserted[] = [];
+    this.shown = [];
+    const takeShown = (at: number) => {
+      for (const message of this.shown) inserted.push({ at, message });
+      const shown = this.shown;
+      this.shown = [];
+      return shown;
+    };
     let stepText = '';
     let failure: unknown = null;
     let stopped = false;
@@ -283,6 +340,15 @@ export class ChatSession {
         tools: setup.tools,
         stopWhen: stepCountIs(MAX_STEPS),
         abortSignal: controller.signal,
+        prepareStep: ({ messages, responseMessages }) => {
+          if (this.running !== controller || this.shown.length === 0) {
+            return undefined;
+          }
+          // Kept for the steps after this one too.
+          return {
+            messages: [...messages, ...takeShown(responseMessages.length)],
+          };
+        },
         onStepFinish: (step) => {
           finished.push(...step.response.messages);
         },
@@ -348,7 +414,9 @@ export class ChatSession {
       if (!stopped && !failure) {
         const messages = await result.responseMessages;
         if (this.running !== controller) return;
-        this.history.push(...messages);
+        // Images opened in the last step go after it, for the next turn.
+        takeShown(messages.length);
+        this.history.push(...withInserted(messages, inserted));
         entry.status = 'done';
       }
     } catch (error) {
@@ -367,7 +435,8 @@ export class ChatSession {
     if (entry.status !== 'done') {
       // What the model said before it stopped is kept, so a follow-up
       // can refer to it; a retry drops it again.
-      this.history.push(...finished);
+      takeShown(finished.length);
+      this.history.push(...withInserted(finished, inserted));
       if (stepText) this.history.push({ role: 'assistant', content: stepText });
       // Stopping can surface as an error of its own; it is still a stop.
       if (controller.signal.aborted || (stopped && failure == null)) {

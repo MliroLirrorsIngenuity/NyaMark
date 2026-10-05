@@ -194,6 +194,20 @@ LABELS.fetch_url = (part) => {
     : i18next.t('ai.tool.fetchedPage', { site });
 };
 
+LABELS.view_image = (part) => {
+  const src = field<string>(part.input, 'src') ?? '';
+  const image = /^data:/i.test(src)
+    ? i18next.t('ai.image.embedded')
+    : fileName(src);
+  if (part.state === 'error') {
+    return i18next.t('ai.tool.imageFailed', { image });
+  }
+  if (part.state !== 'done') {
+    return i18next.t('ai.tool.viewingImage', { image });
+  }
+  return i18next.t('ai.tool.viewedImage', { image });
+};
+
 /** The edit a tool call proposed, while it is the user's to accept. */
 export function proposedEdit(part: ToolPart): string | null {
   if (part.state !== 'done' || !LABELS[part.name]) return null;

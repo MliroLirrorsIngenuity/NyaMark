@@ -454,7 +454,10 @@
       "fetchedPage": "讀了 {{site}}",
       "fetchedTitledPage": "讀了「{{title}}」· {{site}}",
       "pageDenied": "沒有開啟 {{site}}",
-      "pageFailed": "無法開啟 {{site}}"
+      "pageFailed": "無法開啟 {{site}}",
+      "viewingImage": "正在檢視 {{image}}",
+      "viewedImage": "看了 {{image}}",
+      "imageFailed": "無法開啟 {{image}}"
     },
     "edit": {
       "accept": "接受",
@@ -496,6 +499,22 @@
       "stepLimit": "已達到單次回覆的步驟上限。傳送「繼續」可接著做。",
       "length": "回覆達到了模型的長度上限。",
       "filtered": "服務方過濾了這則回覆。"
+    },
+    "image": {
+      "attach": "加入圖片",
+      "remove": "移除 {{name}}",
+      "limit": "一則訊息最多附 {{count}} 張圖片。",
+      "failed": "無法加入 {{name}}：{{reason}}。",
+      "reason": {
+        "tooLarge": "圖片太大",
+        "notImage": "NyaMark 讀不出這張圖片",
+        "forbidden": "NyaMark 無權讀取該位置",
+        "notFound": "檔案已不在原處",
+        "other": "讀取失敗"
+      },
+      "noVision": "{{model}} 未標示支援圖片，服務可能拒收。若它能看圖，請在 AI 設定裡為它勾選「圖片」。",
+      "pasted": "貼上的圖片",
+      "embedded": "內嵌圖片"
     }
   }
 }

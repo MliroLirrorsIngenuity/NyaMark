@@ -15,7 +15,7 @@ import {
   openImageFileDialog,
   openMarkdownInNewWindow,
 } from '../bridge/ipc/files';
-import { listenWindowFileDrop } from '../bridge/ipc/windows';
+import { dragDropTarget, listenWindowFileDrop } from '../bridge/ipc/windows';
 import type { EditorAttachment } from '../editor/editor';
 import { i18next } from '../i18n';
 import type {
@@ -164,6 +164,8 @@ export class AttachmentController {
       // Dropped on a dialog, it went into the document behind it, and the
       // focus left the dialog for the editor.
       if (event.payload.type !== 'drop' || isModalOpen()) return;
+      // Dropped on the assistant, it goes to the assistant.
+      if (dragDropTarget(event.payload)?.closest('.ny-ai')) return;
       void this.handleDroppedPaths(event.payload.paths);
     });
   }

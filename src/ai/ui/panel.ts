@@ -8,6 +8,7 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import {
   listWorkspace,
   pickWorkspaceRoot,
+  readImageForAi,
   readWorkspaceFile,
   searchWorkspace,
   webFetch,
@@ -15,7 +16,11 @@ import {
   workspaceRoots,
   writeWorkspaceFile,
 } from '../../bridge/ipc/ai';
+import { resolveDocumentAssetPath } from '../../bridge/ipc/attachments';
+import { openImageFilesDialog } from '../../bridge/ipc/files';
+import { dragDropTarget, listenWindowFileDrop } from '../../bridge/ipc/windows';
 import type { NyaEditor } from '../../editor/editor';
+import { IMAGE_EXTENSIONS } from '../../features/attachment-policy';
 import { i18next } from '../../i18n';
 import { translateDOM } from '../../i18n/dom';
 import type { AiEditMode, AiSettings } from '../../state/ai-settings';
@@ -25,6 +30,7 @@ import {
   updateSettings,
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
+import { isModalOpen } from '../../ui/modal';
 import { keepReadingPosition } from '../../ui/reading-position';
 import { Approvals } from '../agent/approvals';
 import { buildInstructions } from '../agent/instructions';
@@ -36,10 +42,12 @@ import {
 } from '../agent/session';
 import { documentTools } from '../agent/tools/document';
 import { editTools } from '../agent/tools/edit';
+import { imageTools } from '../agent/tools/image';
 import { type WebApi, webTools } from '../agent/tools/web';
 import { type WorkspaceApi, workspaceTools } from '../agent/tools/workspace';
 import { EditController } from '../edit/controller';
 import proposalStyles from '../edit/proposals.css?inline';
+import { prepareImage } from '../images/prepare';
 import { connectModel } from '../providers/connect';
 import { nativeSearchTool } from '../providers/native-search';
 import { Composer } from './composer';
@@ -92,6 +100,17 @@ function hasModels(ai: AiSettings): boolean {
   return ai.providers.some((provider) => provider.models.length > 0);
 }
 
+/** The chat model and what is known of it. */
+function chatModel(ai: AiSettings) {
+  const ref = ai.chatModel;
+  const provider = ref && ai.providers.find((p) => p.id === ref.provider);
+  if (!ref || !provider) return null;
+  const model = provider.models.find((m) => m.id === ref.model);
+  return { ref, provider, vision: model?.vision ?? false };
+}
+
+const fileName = (path: string) => path.split(/[\\/]/).pop() || path;
+
 const MODE_TEXT: Record<AiEditMode, { key: string; title: string }> = {
   review: { key: 'ai.edit.modeReview', title: 'ai.edit.modeReviewTitle' },
   auto: { key: 'ai.edit.modeAuto', title: 'ai.edit.modeAutoTitle' },
@@ -137,6 +156,7 @@ export class AiPanel {
   private readonly newChat: HTMLButtonElement;
   private ai: AiSettings = getSettings().ai;
   private visible = false;
+  private destroyed = false;
   private readonly cleanups: Array<() => void> = [];
 
   constructor(private readonly host: AiPanelHost) {
@@ -235,9 +255,11 @@ export class AiPanel {
     this.scroller.append(this.setup, this.empty, this.list.element, jump);
 
     this.composer = new Composer({
-      send: (text) => void this.session.send(text),
+      send: (text, images) => void this.session.send(text, images),
       stop: () => this.session.stop(),
       leave: () => this.host.editor.focus(),
+      attach: () => void this.pickImages(),
+      paste: (files) => void this.attachImages(files),
     });
 
     this.reviewCount = document.createElement('span');
@@ -269,6 +291,8 @@ export class AiPanel {
     };
     i18next.on('languageChanged', onLanguage);
     this.cleanups.push(() => i18next.off('languageChanged', onLanguage));
+    this.drawVision();
+    void this.bindDrop();
   }
 
   get isVisible(): boolean {
@@ -316,6 +340,8 @@ export class AiPanel {
   }
 
   destroy() {
+    this.destroyed = true;
+    this.composer.images.clear();
     this.approvals.reset();
     this.session.clear();
     this.hide();
@@ -361,13 +387,87 @@ export class AiPanel {
     return card;
   }
 
+  /** Files dropped on the panel go with the next message. */
+  private async bindDrop() {
+    const unlisten = await listenWindowFileDrop((event) => {
+      const { payload } = event;
+      const over =
+        this.visible &&
+        !isModalOpen() &&
+        dragDropTarget(payload)?.closest('.ny-ai') === this.root;
+      this.root.classList.toggle(
+        'is-drop-target',
+        over && payload.type !== 'drop'
+      );
+      if (over && payload.type === 'drop') {
+        void this.attachImages(
+          payload.paths.map((path) => ({ path, name: fileName(path) }))
+        );
+      }
+    }).catch((error) => {
+      console.error('Failed to listen for dropped images:', error);
+      return null;
+    });
+    if (!unlisten) return;
+    if (this.destroyed) unlisten();
+    else this.cleanups.push(unlisten);
+  }
+
+  private async pickImages() {
+    let paths: string[];
+    try {
+      paths = await openImageFilesDialog(
+        i18next.t('dialog.imageFilter'),
+        IMAGE_EXTENSIONS
+      );
+    } catch (error) {
+      console.error('Failed to choose images:', error);
+      return;
+    }
+    await this.attachImages(
+      paths.map((path) => ({ path, name: fileName(path) }))
+    );
+    this.composer.focus();
+  }
+
+  /** Reads the images and brings them within what services take, in turn. */
+  private async attachImages(
+    sources: Array<File | { path: string; name: string }>
+  ) {
+    const tray = this.composer.images;
+    for (const source of sources) {
+      if (this.destroyed) return;
+      if (tray.room <= 0) {
+        tray.full();
+        return;
+      }
+      const name = source.name || i18next.t('ai.image.pasted');
+      try {
+        const bytes =
+          source instanceof File ? source : await readImageForAi(source.path);
+        tray.add(await prepareImage(bytes, name));
+      } catch (error) {
+        console.error('Failed to attach image:', error);
+        tray.failed(name, error);
+      }
+    }
+  }
+
+  /** Warns when the images may not reach the model chosen. */
+  private drawVision() {
+    const model = chatModel(this.ai);
+    this.composer.images.setBlind(
+      model && !model.vision ? model.ref.model : null
+    );
+  }
+
   private async prepareTurn(): Promise<TurnSetup> {
     const ai = getSettings().ai;
-    const ref = ai.chatModel;
-    const provider = ref && ai.providers.find((p) => p.id === ref.provider);
-    if (!ref || !provider) {
+    const chosen = chatModel(ai);
+    if (!chosen) {
       throw new ChatFailureError({ code: 'no-model', message: '' });
     }
+    const { ref, provider, vision } = chosen;
     // What became of the earlier edits goes before the text it changed.
     const notices = await this.edits.notices();
     const document = await this.edits.read();
@@ -384,6 +484,7 @@ export class AiPanel {
         editMode: ai.editMode,
         notices,
         folders,
+        vision,
       }),
       tools: {
         ...documentTools(read, () => this.edits.notices()),
@@ -402,6 +503,16 @@ export class AiPanel {
         }),
         // The service's own search, where the user prefers it and it has one.
         ...(native ? { web_search: native } : {}),
+        ...(vision
+          ? imageTools({
+              resolve: (src) =>
+                resolveDocumentAssetPath(this.host.documentPath(), src),
+              read: readImageForAi,
+              prepare: prepareImage,
+              show: (caption, images) =>
+                this.session.showModel(caption, images),
+            })
+          : {}),
       },
     };
   }
@@ -430,6 +541,7 @@ export class AiPanel {
     this.picker.update(ai);
     this.drawMode();
     this.drawState();
+    this.drawVision();
   }
 
   private editsChanged() {

@@ -55,6 +55,8 @@ const bridge = {
   stored: [] as string[],
   pastedImageChoice: null as PastedImagePolicyChoice | null,
   drop: null as DropHandler | null,
+  /** What the files were dropped on. */
+  dropTarget: null as Element | null,
 };
 
 mock.module('../src/bridge/ipc/attachments', () => ({
@@ -104,6 +106,7 @@ mock.module('../src/bridge/ipc/windows', () => ({
     bridge.drop = handler;
     return () => {};
   },
+  dragDropTarget: () => bridge.dropTarget,
 }));
 
 mock.module('../src/ui/image-policy-dialog', () => ({
@@ -186,6 +189,7 @@ beforeEach(() => {
   bridge.stored = [];
   bridge.pastedImageChoice = null;
   bridge.drop = null;
+  bridge.dropTarget = null;
 });
 
 afterEach(() => {
@@ -230,6 +234,17 @@ describe('inserting files', () => {
     expect(bridge.errors).toEqual([
       '"locked.pdf" could not be inserted: permission denied',
     ]);
+  });
+
+  test('files dropped on the assistant are left to it', async () => {
+    const { drop, inserted } = await setup();
+    bridge.dropTarget = {
+      closest: (selector: string) => (selector === '.ny-ai' ? {} : null),
+    } as unknown as Element;
+
+    await drop(['/inbox/chart.png']);
+
+    expect(inserted).toEqual([]);
   });
 
   test('an image too large for Base64 is refused with a reason', async () => {

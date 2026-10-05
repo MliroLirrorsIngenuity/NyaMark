@@ -464,7 +464,10 @@
       "fetchedPage": "Read {{site}}",
       "fetchedTitledPage": "Read “{{title}}” · {{site}}",
       "pageDenied": "Did not open {{site}}",
-      "pageFailed": "Could not open {{site}}"
+      "pageFailed": "Could not open {{site}}",
+      "viewingImage": "Opening {{image}}",
+      "viewedImage": "Looked at {{image}}",
+      "imageFailed": "Could not open {{image}}"
     },
     "edit": {
       "accept": "Accept",
@@ -513,6 +516,23 @@
       "stepLimit": "Stopped after the most steps one reply may take. Send “continue” to carry on.",
       "length": "The reply reached the model’s length limit.",
       "filtered": "The service filtered this reply."
+    },
+    "image": {
+      "attach": "Add images",
+      "remove": "Remove {{name}}",
+      "limit_one": "A message can carry {{count}} image.",
+      "limit_other": "A message can carry up to {{count}} images.",
+      "failed": "Could not add {{name}}: {{reason}}.",
+      "reason": {
+        "tooLarge": "it is too large",
+        "notImage": "NyaMark cannot read it as an image",
+        "forbidden": "NyaMark may not read that location",
+        "notFound": "the file is gone",
+        "other": "it could not be read"
+      },
+      "noVision": "{{model}} is not marked as seeing images, so the service may refuse them. Tick Images for it in the AI settings if it can.",
+      "pasted": "Pasted image",
+      "embedded": "an embedded image"
     }
   }
 }
