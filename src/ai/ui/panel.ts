@@ -5,6 +5,14 @@
  */
 
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
+import {
+  listWorkspace,
+  pickWorkspaceRoot,
+  readWorkspaceFile,
+  searchWorkspace,
+  workspaceRoots,
+  writeWorkspaceFile,
+} from '../../bridge/ipc/ai';
 import type { NyaEditor } from '../../editor/editor';
 import { i18next } from '../../i18n';
 import { translateDOM } from '../../i18n/dom';
@@ -16,6 +24,7 @@ import {
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
 import { keepReadingPosition } from '../../ui/reading-position';
+import { Approvals } from '../agent/approvals';
 import { buildInstructions } from '../agent/instructions';
 import {
   ChatFailureError,
@@ -25,6 +34,7 @@ import {
 } from '../agent/session';
 import { documentTools } from '../agent/tools/document';
 import { editTools } from '../agent/tools/edit';
+import { type WorkspaceApi, workspaceTools } from '../agent/tools/workspace';
 import { EditController } from '../edit/controller';
 import proposalStyles from '../edit/proposals.css?inline';
 import { connectModel } from '../providers/connect';
@@ -83,6 +93,15 @@ const MODE_TEXT: Record<AiEditMode, { key: string; title: string }> = {
   auto: { key: 'ai.edit.modeAuto', title: 'ai.edit.modeAutoTitle' },
 };
 
+const WORKSPACE: WorkspaceApi = {
+  roots: workspaceRoots,
+  pickRoot: pickWorkspaceRoot,
+  list: listWorkspace,
+  read: readWorkspaceFile,
+  search: searchWorkspace,
+  write: writeWorkspaceFile,
+};
+
 function iconButton(icon: string, key: string, fallback: string) {
   const button = document.createElement('button');
   button.type = 'button';
@@ -105,6 +124,7 @@ export class AiPanel {
   private readonly composer: Composer;
   private readonly session: ChatSession;
   private readonly edits: EditController;
+  private readonly approvals = new Approvals();
   private readonly review: HTMLElement;
   private readonly reviewCount: HTMLElement;
   private readonly mode: HTMLButtonElement;
@@ -151,6 +171,7 @@ export class AiPanel {
     this.newChat.addEventListener('click', () => {
       this.session.clear();
       this.edits.reset();
+      this.approvals.reset();
       this.composer.focus();
     });
     this.mode = document.createElement('button');
@@ -200,6 +221,10 @@ export class AiPanel {
         reject: (edit) => this.edits.rejectEdit(edit),
         reveal: (edit) => this.edits.revealEdit(edit),
       },
+      approvals: {
+        request: (id) => this.approvals.request(id),
+        answer: (id, answer) => this.approvals.answer(id, answer),
+      },
     });
     this.scroller.append(this.setup, this.empty, this.list.element, jump);
 
@@ -226,7 +251,8 @@ export class AiPanel {
     this.cleanups.push(
       this.session.subscribe((change) => this.sessionChanged(change)),
       subscribeSettings((settings) => this.settingsChanged(settings.ai)),
-      this.edits.subscribe(() => this.editsChanged())
+      this.edits.subscribe(() => this.editsChanged()),
+      this.approvals.subscribe(() => this.list.refreshCards())
     );
     const onLanguage = () => {
       this.picker.update(this.ai);
@@ -284,6 +310,7 @@ export class AiPanel {
   }
 
   destroy() {
+    this.approvals.reset();
     this.session.clear();
     this.hide();
     for (const cleanup of this.cleanups) cleanup();
@@ -339,6 +366,7 @@ export class AiPanel {
     const notices = await this.edits.notices();
     const document = await this.edits.read();
     const read = () => this.edits.read();
+    const folders = await workspaceRoots().catch(() => []);
     return {
       model: connectModel(provider, ref.model, () => getSettings().ai.proxy),
       modelLabel: ref.model,
@@ -348,10 +376,18 @@ export class AiPanel {
         document,
         editMode: ai.editMode,
         notices,
+        folders,
       }),
       tools: {
         ...documentTools(read, () => this.edits.notices()),
         ...editTools(this.edits),
+        ...workspaceTools({
+          api: WORKSPACE,
+          approvals: this.approvals,
+          documentPath: this.host.documentPath,
+          readDocument: read,
+          edits: this.edits,
+        }),
       },
     };
   }
@@ -383,7 +419,7 @@ export class AiPanel {
   }
 
   private editsChanged() {
-    this.list.refreshEdits();
+    this.list.refreshCards();
     this.drawReview();
   }
 

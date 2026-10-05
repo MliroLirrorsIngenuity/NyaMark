@@ -22,7 +22,8 @@ export type EditToolOutput = EditReport;
 const SHOWN =
   'The change is shown to the user in the document to accept or reject, unless they chose to have edits applied right away; until they decide, the document you read has it in. The result gives the changed lines as the document now has them.';
 
-async function run(
+/** Makes an edit to the open document, as the edit tools give it back. */
+export async function editOpenDocument(
   controller: EditController,
   make: (text: string) => TextEdit
 ): Promise<EditToolOutput> {
@@ -57,7 +58,7 @@ export function editTools(controller: EditController) {
           .describe('Replace every place old_string is found. Off by default.'),
       }),
       execute: ({ old_string, new_string, replace_all }) =>
-        run(controller, (text) =>
+        editOpenDocument(controller, (text) =>
           replaceText(text, old_string, new_string, replace_all)
         ),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
@@ -76,7 +77,7 @@ export function editTools(controller: EditController) {
         text: z.string().min(1).describe('The Markdown to put in.'),
       }),
       execute: ({ after_line, text }) =>
-        run(controller, (current) =>
+        editOpenDocument(controller, (current) =>
           insertAfterLine(current, after_line, text)
         ),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
@@ -88,7 +89,7 @@ export function editTools(controller: EditController) {
         text: z.string().describe('The whole document, as Markdown.'),
       }),
       execute: ({ text }) =>
-        run(controller, (current) => rewriteText(current, text)),
+        editOpenDocument(controller, (current) => rewriteText(current, text)),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
     }),
   };

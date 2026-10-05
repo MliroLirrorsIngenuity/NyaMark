@@ -1,5 +1,7 @@
 import { openExternalUrl } from '../../bridge/ipc/attachments';
 import { i18next } from '../../i18n';
+import type { ApprovalAnswer, ApprovalRequest } from '../agent/approvals';
+import type { DiffRow } from '../agent/line-diff';
 import {
   type AssistantEntry,
   type ChatEntry,
@@ -69,6 +71,9 @@ type PartView = {
   shown: string;
   /** The edit a tool part proposed, and its row of what became of it. */
   edit?: { id: string; row: HTMLElement; shown: string };
+  /** A tool part's call id, and the question it waits on the user for. */
+  toolId?: string;
+  approval?: { request: ApprovalRequest; card: HTMLElement };
 };
 
 type EntryView = {
@@ -94,6 +99,17 @@ export type MessageListActions = {
   retry: () => void;
   openSettings: () => void;
   edits?: EditCardActions;
+  approvals?: {
+    request(id: string): ApprovalRequest | null;
+    answer(id: string, answer: ApprovalAnswer): void;
+  };
+};
+
+const DIFF_MARKS: Record<DiffRow['kind'], string> = {
+  same: ' ',
+  removed: '-',
+  added: '+',
+  gap: '',
 };
 
 /** What became of an edit, when none of it is pending. */
@@ -216,11 +232,15 @@ export class MessageList {
     if (entry.role === 'assistant') this.dirty.delete(entry);
   }
 
-  /** Draws again what became of each edit, as after one was accepted. */
-  refreshEdits() {
+  /**
+   * Draws again what became of each edit and what each tool asks, as after
+   * one was accepted or answered.
+   */
+  refreshCards() {
     for (const view of this.views.values()) {
       for (const part of view.parts) {
         if (part.edit) this.drawEdit(part);
+        if (part.toolId) this.drawApproval(part);
       }
     }
   }
@@ -234,6 +254,8 @@ export class MessageList {
       for (const part of view.parts) {
         part.shown = '\u0000';
         if (part.edit) part.edit.shown = '';
+        part.approval?.card.remove();
+        part.approval = undefined;
       }
       this.draw(entry, view);
     }
@@ -398,7 +420,9 @@ export class MessageList {
     view.shown = key;
     view.root.dataset.state = part.state;
     view.body.textContent = label;
-    view.root.title = part.error ? `${label}\n${part.error}` : label;
+    view.body.title = part.error ? `${label}\n${part.error}` : label;
+    view.toolId = part.id;
+    this.drawApproval(view);
     if (view.summary) view.summary.innerHTML = TOOL_ICONS[part.state];
     const edit = this.actions.edits ? proposedEdit(part) : null;
     if (edit !== (view.edit?.id ?? null)) {
@@ -412,6 +436,82 @@ export class MessageList {
       }
     }
     if (view.edit) this.drawEdit(view);
+  }
+
+  /** The question a tool waits on the user for, under its line. */
+  private drawApproval(view: PartView) {
+    const id = view.toolId;
+    const request = id ? (this.actions.approvals?.request(id) ?? null) : null;
+    if (request === (view.approval?.request ?? null)) return;
+    view.approval?.card.remove();
+    view.approval = undefined;
+    if (!id || !request) return;
+    const card = el('div', 'ny-ai-approval');
+    card.dataset.approval = id;
+    const button = (answer: ApprovalAnswer, key: string, primary = false) => {
+      const element = el(
+        'button',
+        `ny-ai__button ny-ai__button--small${primary ? ' ny-ai__button--primary' : ''}`,
+        i18next.t(key)
+      );
+      element.type = 'button';
+      element.dataset.approvalAnswer = answer;
+      return element;
+    };
+    const actions = el('div', 'ny-ai-approval__actions');
+    if (request.kind === 'folder') {
+      card.append(
+        el('div', 'ny-ai-approval__title', i18next.t('ai.approval.folder')),
+        el('div', 'ny-ai-approval__reason', request.reason)
+      );
+      actions.append(
+        button('allow', 'ai.approval.chooseFolder', true),
+        button('deny', 'ai.approval.notNow')
+      );
+    } else {
+      const title = el(
+        'div',
+        'ny-ai-approval__title',
+        i18next.t(
+          request.created ? 'ai.approval.create' : 'ai.approval.change',
+          { file: request.path.split(/[\\/]/).pop() || request.path }
+        )
+      );
+      const path = el('div', 'ny-ai-approval__path', request.path);
+      path.title = request.path;
+      const { diff } = request;
+      const counts = el('div', 'ny-ai-approval__counts');
+      counts.append(
+        el('span', 'is-added', `+${diff.added}`),
+        el('span', 'is-removed', `−${diff.removed}`)
+      );
+      const rows = el('div', 'ny-ai-diff');
+      for (const row of diff.rows) {
+        rows.append(
+          el(
+            'div',
+            `ny-ai-diff__row is-${row.kind}`,
+            row.kind === 'gap'
+              ? i18next.t('ai.approval.gap', { count: Number(row.text) })
+              : `${DIFF_MARKS[row.kind]} ${row.text}`
+          )
+        );
+      }
+      if (diff.truncated) {
+        rows.append(
+          el('div', 'ny-ai-diff__row is-gap', i18next.t('ai.approval.more'))
+        );
+      }
+      card.append(title, path, counts, rows);
+      actions.append(
+        button('allow', 'ai.approval.allow', true),
+        button('always', 'ai.approval.always'),
+        button('deny', 'ai.approval.deny')
+      );
+    }
+    card.append(actions);
+    view.root.append(card);
+    view.approval = { request, card };
   }
 
   /**
@@ -552,6 +652,16 @@ export class MessageList {
 
   private onClick = (event: MouseEvent) => {
     const target = event.target as Element;
+    const answer = target.closest<HTMLElement>('[data-approval-answer]');
+    const asked =
+      answer?.closest<HTMLElement>('[data-approval]')?.dataset.approval;
+    if (answer && asked && this.actions.approvals) {
+      this.actions.approvals.answer(
+        asked,
+        answer.dataset.approvalAnswer as ApprovalAnswer
+      );
+      return;
+    }
     const action = target.closest<HTMLElement>('[data-edit-action]');
     const edit = action?.closest<HTMLElement>('[data-edit]')?.dataset.edit;
     if (action && edit && this.actions.edits) {

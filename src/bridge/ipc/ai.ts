@@ -94,3 +94,78 @@ export async function commitAiSecrets(): Promise<void> {
 export async function discardAiSecrets(): Promise<void> {
   await invoke('ai_secrets_discard');
 }
+
+/** A note in the window's workspace. */
+export type WorkspaceFile = {
+  path: string;
+  /** From the folder it was found in, with `/` between parts. */
+  relative: string;
+  size: number;
+  /** Milliseconds since the epoch. */
+  modified: number | null;
+};
+
+export type WorkspaceList = { files: WorkspaceFile[]; truncated: boolean };
+
+export type WorkspaceText = { path: string; text: string; version: string };
+
+export type WorkspaceMatch = {
+  path: string;
+  relative: string;
+  /** Counted from 1. */
+  line: number;
+  text: string;
+};
+
+export type WorkspaceMatches = {
+  matches: WorkspaceMatch[];
+  truncated: boolean;
+};
+
+export type WorkspaceWritten = { path: string; version: string };
+
+/**
+ * The folders the assistant may read and write notes in: the document's
+ * folder first, then those the user picked for this window.
+ */
+export async function workspaceRoots(): Promise<string[]> {
+  return await invoke<string[]>('workspace_roots');
+}
+
+/** Asks the user for another folder; null when they chose none. */
+export async function pickWorkspaceRoot(): Promise<string | null> {
+  return await invoke<string | null>('workspace_pick_root');
+}
+
+export async function listWorkspace(options: {
+  glob?: string;
+  limit?: number;
+}): Promise<WorkspaceList> {
+  return await invoke<WorkspaceList>('workspace_list', options);
+}
+
+export async function readWorkspaceFile(path: string): Promise<WorkspaceText> {
+  return await invoke<WorkspaceText>('workspace_read', { path });
+}
+
+export async function searchWorkspace(options: {
+  query: string;
+  regex?: boolean;
+  caseSensitive?: boolean;
+  limit?: number;
+}): Promise<WorkspaceMatches> {
+  return await invoke<WorkspaceMatches>('workspace_search', options);
+}
+
+/**
+ * Writes a note: a new one with `create`, else one last read at
+ * `expectedVersion`, left alone when it changed since.
+ */
+export async function writeWorkspaceFile(options: {
+  path: string;
+  text: string;
+  expectedVersion?: string;
+  create?: boolean;
+}): Promise<WorkspaceWritten> {
+  return await invoke<WorkspaceWritten>('workspace_write', options);
+}

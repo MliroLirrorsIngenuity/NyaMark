@@ -244,6 +244,20 @@ describe('buildInstructions with the document', () => {
     );
   });
 
+  test('names the folders of notes it may use, or how to ask for one', () => {
+    const base = { documentPath: null, custom: '', today };
+    expect(buildInstructions(base)).not.toContain('request_folder');
+    expect(buildInstructions({ ...base, folders: [] })).toContain(
+      'ask for a folder with request_folder'
+    );
+    const text = buildInstructions({
+      ...base,
+      folders: ['/notes', '/drafts'],
+    });
+    expect(text).toContain('- /notes\n- /drafts\nFor notes elsewhere');
+    expect(text).toContain('list_files, read_file');
+  });
+
   test('quotes the selection', () => {
     const text = buildInstructions({
       documentPath: null,

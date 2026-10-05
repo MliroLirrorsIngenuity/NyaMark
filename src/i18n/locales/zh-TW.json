@@ -421,7 +421,23 @@
       "proposed": "提出了 {{count}} 處修改",
       "applied": "做了 {{count}} 處修改",
       "withdrew": "收回了先前提出的修改",
-      "editFailed": "修改沒能完成"
+      "editFailed": "修改沒能完成",
+      "listFiles": "列出筆記",
+      "listedFiles": "列出了 {{count}} 篇筆記",
+      "readingFile": "讀取 {{file}}",
+      "readFile": "讀取了 {{file}}",
+      "searchFiles": "在筆記中搜尋「{{query}}」",
+      "searchedFiles": "在筆記中搜尋「{{query}}」· {{count}} 行",
+      "changingFile": "修改 {{file}}",
+      "changedFile": "修改了 {{file}}",
+      "writingFile": "寫入 {{file}}",
+      "createdFile": "新增了 {{file}}",
+      "replacedFile": "重寫了 {{file}}",
+      "fileDenied": "{{file}} 維持原樣",
+      "fileFailed": "沒能寫入 {{file}}",
+      "askingFolder": "請求一個資料夾",
+      "gotFolder": "取得了資料夾 {{folder}}",
+      "noFolder": "沒有取得資料夾"
     },
     "edit": {
       "accept": "接受",
@@ -443,6 +459,18 @@
       "modeReviewTitle": "修改先等你接受或拒絕。按一下改為直接套用。",
       "modeAuto": "自動",
       "modeAutoTitle": "修改直接寫入文件。按一下改為先審閱。"
+    },
+    "approval": {
+      "create": "新增 {{file}}？",
+      "change": "修改 {{file}}？",
+      "gap": "… {{count}} 行未變更",
+      "more": "… 還有更多變更",
+      "allow": "允許",
+      "always": "本次對話都允許",
+      "deny": "拒絕",
+      "folder": "助理請求存取一個筆記資料夾",
+      "chooseFolder": "選擇資料夾…",
+      "notNow": "暫不"
     },
     "ending": {
       "stepLimit": "已達到單次回覆的步驟上限。傳送「繼續」可接著做。",

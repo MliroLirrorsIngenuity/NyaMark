@@ -447,6 +447,91 @@
   font-size: 12px;
 }
 
+/* A question a tool waits on: a write to a note, or another folder. */
+.ny-ai-approval {
+  display: flex;
+  flex: 1 0 100%;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--ny-border-strong);
+  border-radius: 10px;
+  background: var(--ny-surface-elevated);
+  color: var(--ny-text-primary);
+}
+
+.ny-ai-approval__title {
+  font-weight: 600;
+}
+
+.ny-ai-approval__path {
+  overflow: hidden;
+  color: var(--ny-text-secondary);
+  font-family: var(--ny-font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ny-ai-approval__reason {
+  color: var(--ny-text-secondary);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ny-ai-approval__counts {
+  display: flex;
+  gap: 8px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ny-ai-approval__counts .is-added {
+  color: var(--ny-ai-ins, #3f9b5b);
+}
+
+.ny-ai-approval__counts .is-removed {
+  color: var(--ny-ai-del, #c55f5f);
+}
+
+.ny-ai-diff {
+  max-height: 240px;
+  overflow: auto;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ny-text-primary), transparent 96%);
+  font-family: var(--ny-font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.ny-ai-diff__row {
+  padding: 0 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ny-ai-diff__row.is-added {
+  background: color-mix(in srgb, var(--ny-ai-ins, #3f9b5b) 16%, transparent);
+}
+
+.ny-ai-diff__row.is-removed {
+  background: color-mix(in srgb, var(--ny-ai-del, #c55f5f) 14%, transparent);
+}
+
+.ny-ai-diff__row.is-gap {
+  color: var(--ny-text-muted);
+  font-family: inherit;
+  font-style: italic;
+}
+
+.ny-ai-approval__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 @keyframes ny-ai-spin {
   to {
     transform: rotate(360deg);

@@ -421,7 +421,23 @@
       "proposed": "提出了 {{count}} 处修改",
       "applied": "做了 {{count}} 处修改",
       "withdrew": "收回了之前提出的修改",
-      "editFailed": "修改没能完成"
+      "editFailed": "修改没能完成",
+      "listFiles": "列出笔记",
+      "listedFiles": "列出了 {{count}} 篇笔记",
+      "readingFile": "读取 {{file}}",
+      "readFile": "读取了 {{file}}",
+      "searchFiles": "在笔记中搜索「{{query}}」",
+      "searchedFiles": "在笔记中搜索「{{query}}」· {{count}} 行",
+      "changingFile": "修改 {{file}}",
+      "changedFile": "修改了 {{file}}",
+      "writingFile": "写入 {{file}}",
+      "createdFile": "新建了 {{file}}",
+      "replacedFile": "重写了 {{file}}",
+      "fileDenied": "{{file}} 保持原样",
+      "fileFailed": "没能写入 {{file}}",
+      "askingFolder": "请求一个文件夹",
+      "gotFolder": "获得了文件夹 {{folder}}",
+      "noFolder": "没有获得文件夹"
     },
     "edit": {
       "accept": "接受",
@@ -443,6 +459,18 @@
       "modeReviewTitle": "修改先等你接受或拒绝。点击改为直接应用。",
       "modeAuto": "自动",
       "modeAutoTitle": "修改直接写入文档。点击改为先审阅。"
+    },
+    "approval": {
+      "create": "新建 {{file}}？",
+      "change": "修改 {{file}}？",
+      "gap": "… {{count}} 行未改动",
+      "more": "… 还有更多改动",
+      "allow": "允许",
+      "always": "本次对话都允许",
+      "deny": "拒绝",
+      "folder": "助手请求访问一个笔记文件夹",
+      "chooseFolder": "选择文件夹…",
+      "notNow": "暂不"
     },
     "ending": {
       "stepLimit": "已达到单次回复的步骤上限。发送「继续」可接着做。",

@@ -427,7 +427,25 @@
       "applied_one": "Made {{count}} change",
       "applied_other": "Made {{count}} changes",
       "withdrew": "Took back its proposed changes",
-      "editFailed": "Could not make the edit"
+      "editFailed": "Could not make the edit",
+      "listFiles": "Listing notes",
+      "listedFiles_one": "Listed {{count}} note",
+      "listedFiles_other": "Listed {{count}} notes",
+      "readingFile": "Reading {{file}}",
+      "readFile": "Read {{file}}",
+      "searchFiles": "Searching notes for “{{query}}”",
+      "searchedFiles_one": "Searched notes for “{{query}}” · {{count}} line",
+      "searchedFiles_other": "Searched notes for “{{query}}” · {{count}} lines",
+      "changingFile": "Changing {{file}}",
+      "changedFile": "Changed {{file}}",
+      "writingFile": "Writing {{file}}",
+      "createdFile": "Created {{file}}",
+      "replacedFile": "Rewrote {{file}}",
+      "fileDenied": "Left {{file}} as it was",
+      "fileFailed": "Could not write {{file}}",
+      "askingFolder": "Asking for a folder",
+      "gotFolder": "Given the folder {{folder}}",
+      "noFolder": "No folder given"
     },
     "edit": {
       "accept": "Accept",
@@ -455,6 +473,19 @@
       "modeReviewTitle": "Edits wait for you to accept or reject them. Click to apply them right away.",
       "modeAuto": "Auto",
       "modeAutoTitle": "Edits go into the document right away. Click to review them first."
+    },
+    "approval": {
+      "create": "Create {{file}}?",
+      "change": "Change {{file}}?",
+      "gap_one": "… {{count}} line unchanged",
+      "gap_other": "… {{count}} lines unchanged",
+      "more": "… more changes",
+      "allow": "Allow",
+      "always": "Allow for this chat",
+      "deny": "Deny",
+      "folder": "The assistant asks for a folder of notes",
+      "chooseFolder": "Choose a folder…",
+      "notNow": "Not now"
     },
     "ending": {
       "stepLimit": "Stopped after the most steps one reply may take. Send “continue” to carry on.",

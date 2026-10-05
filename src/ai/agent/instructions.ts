@@ -25,6 +25,8 @@ export type InstructionContext = {
   editMode?: AiEditMode;
   /** What became of earlier edits, and where the text changed since. */
   notices?: string | null;
+  /** The folders of notes the file tools reach, the document's first. */
+  folders?: readonly string[];
   today?: Date;
 };
 
@@ -94,6 +96,13 @@ function documentContext(snapshot: DocumentSnapshot): string {
   return parts.join('\n\n');
 }
 
+function foldersText(folders: readonly string[]): string {
+  if (folders.length === 0) {
+    return 'No folder of notes is open to you, as the document is not saved in one. When the user wants other notes read or written, ask for a folder with request_folder.';
+  }
+  return `You can read the Markdown and text notes in these folders, and write them once the user allows it (list_files, read_file, search_files, edit_file, write_file):\n${folders.map((folder) => `- ${folder}`).join('\n')}\nFor notes elsewhere, ask for their folder with request_folder.`;
+}
+
 export function buildInstructions(context: InstructionContext): string {
   const sections = [ROLE];
   const document = context.documentPath
@@ -103,6 +112,7 @@ export function buildInstructions(context: InstructionContext): string {
     `${document}\nToday is ${isoDate(context.today ?? new Date())}.`
   );
   sections.push(EDIT_MODE[context.editMode ?? 'review']);
+  if (context.folders) sections.push(foldersText(context.folders));
   if (context.notices) sections.push(context.notices);
   if (context.document) sections.push(documentContext(context.document));
   const custom = context.custom.trim();
