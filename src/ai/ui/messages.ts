@@ -9,10 +9,11 @@ import {
   type UserEntry,
   replyText,
 } from '../agent/session';
+import type { EditOutcome } from '../edit/controller';
 import { isOpenableLink, renderChatMarkdown } from '../render/markdown';
 import { copyText } from './clipboard';
 import { ICONS } from './icons';
-import { toolLabel } from './tool-labels';
+import { proposedEdit, toolLabel } from './tool-labels';
 
 /** Within this of the end, the list keeps following a reply as it grows. */
 const NEAR_END_PX = 32;
@@ -66,6 +67,8 @@ type PartView = {
   /** A reasoning part's summary line, or a tool part's state icon. */
   summary: HTMLElement | null;
   shown: string;
+  /** The edit a tool part proposed, and its row of what became of it. */
+  edit?: { id: string; row: HTMLElement; shown: string };
 };
 
 type EntryView = {
@@ -79,10 +82,36 @@ type EntryView = {
   shownState: string;
 };
 
+/** What the cards of the assistant's edits show and do. */
+export type EditCardActions = {
+  outcome(edit: string): EditOutcome | null;
+  accept(edit: string): void;
+  reject(edit: string): void;
+  reveal(edit: string): void;
+};
+
 export type MessageListActions = {
   retry: () => void;
   openSettings: () => void;
+  edits?: EditCardActions;
 };
+
+/** What became of an edit, when none of it is pending. */
+function outcomeText(outcome: EditOutcome): string {
+  const { total, accepted, rejected, dropped, replaced } = outcome;
+  if (accepted === total) return i18next.t('ai.edit.accepted');
+  if (rejected === total) return i18next.t('ai.edit.rejected');
+  const parts: string[] = [];
+  if (accepted)
+    parts.push(i18next.t('ai.edit.someAccepted', { count: accepted }));
+  if (rejected)
+    parts.push(i18next.t('ai.edit.someRejected', { count: rejected }));
+  if (dropped) parts.push(i18next.t('ai.edit.someDropped', { count: dropped }));
+  if (replaced) {
+    parts.push(i18next.t('ai.edit.someReplaced', { count: replaced }));
+  }
+  return parts.join(' · ');
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -187,13 +216,25 @@ export class MessageList {
     if (entry.role === 'assistant') this.dirty.delete(entry);
   }
 
+  /** Draws again what became of each edit, as after one was accepted. */
+  refreshEdits() {
+    for (const view of this.views.values()) {
+      for (const part of view.parts) {
+        if (part.edit) this.drawEdit(part);
+      }
+    }
+  }
+
   /** Draws every reply again, as after the language changed. */
   redraw(entries: readonly ChatEntry[]) {
     for (const entry of entries) {
       const view = this.views.get(entry.id);
       if (entry.role !== 'assistant' || !view) continue;
       view.shownState = '';
-      for (const part of view.parts) part.shown = '\u0000';
+      for (const part of view.parts) {
+        part.shown = '\u0000';
+        if (part.edit) part.edit.shown = '';
+      }
       this.draw(entry, view);
     }
   }
@@ -359,6 +400,57 @@ export class MessageList {
     view.body.textContent = label;
     view.root.title = part.error ? `${label}\n${part.error}` : label;
     if (view.summary) view.summary.innerHTML = TOOL_ICONS[part.state];
+    const edit = this.actions.edits ? proposedEdit(part) : null;
+    if (edit !== (view.edit?.id ?? null)) {
+      view.edit?.row.remove();
+      view.edit = undefined;
+      if (edit) {
+        const row = el('div', 'ny-ai-tool__edit');
+        row.dataset.edit = edit;
+        view.root.append(row);
+        view.edit = { id: edit, row, shown: '' };
+      }
+    }
+    if (view.edit) this.drawEdit(view);
+  }
+
+  /**
+   * The row under an edit's line: buttons for its changes while any are
+   * pending, then what became of them.
+   */
+  private drawEdit(view: PartView) {
+    const edit = view.edit;
+    const outcome = edit && this.actions.edits?.outcome(edit.id);
+    if (!edit) return;
+    const key = outcome ? `${JSON.stringify(outcome)}${i18next.language}` : '';
+    if (edit.shown === key) return;
+    edit.shown = key;
+    edit.row.replaceChildren();
+    if (!outcome) return;
+    if (outcome.pending === 0) {
+      edit.row.append(el('span', 'ny-ai-tool__outcome', outcomeText(outcome)));
+      return;
+    }
+    const button = (action: string, key: string) => {
+      const element = el(
+        'button',
+        'ny-ai__button ny-ai__button--small',
+        i18next.t(key)
+      );
+      element.type = 'button';
+      element.dataset.editAction = action;
+      return element;
+    };
+    edit.row.append(
+      el(
+        'span',
+        'ny-ai-tool__outcome',
+        i18next.t('ai.edit.pending', { count: outcome.pending })
+      ),
+      button('accept', 'ai.edit.acceptAll'),
+      button('reject', 'ai.edit.rejectAll'),
+      button('reveal', 'ai.edit.show')
+    );
   }
 
   private addCodeCopyButtons(body: HTMLElement) {
@@ -460,6 +552,15 @@ export class MessageList {
 
   private onClick = (event: MouseEvent) => {
     const target = event.target as Element;
+    const action = target.closest<HTMLElement>('[data-edit-action]');
+    const edit = action?.closest<HTMLElement>('[data-edit]')?.dataset.edit;
+    if (action && edit && this.actions.edits) {
+      const edits = this.actions.edits;
+      if (action.dataset.editAction === 'accept') edits.accept(edit);
+      else if (action.dataset.editAction === 'reject') edits.reject(edit);
+      else edits.reveal(edit);
+      return;
+    }
     const copy = target.closest<HTMLElement>('.ny-ai-md__copy');
     if (copy) {
       const code = copy.closest('pre')?.querySelector('code');

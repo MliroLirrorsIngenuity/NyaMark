@@ -4,10 +4,11 @@
  * nothing of it is on the way to the first frame.
  */
 
+import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import type { NyaEditor } from '../../editor/editor';
 import { i18next } from '../../i18n';
 import { translateDOM } from '../../i18n/dom';
-import type { AiSettings } from '../../state/ai-settings';
+import type { AiEditMode, AiSettings } from '../../state/ai-settings';
 import {
   getSettings,
   subscribeSettings,
@@ -16,14 +17,16 @@ import {
 import { ensureStyle } from '../../style/register';
 import { keepReadingPosition } from '../../ui/reading-position';
 import { buildInstructions } from '../agent/instructions';
-import { liveDocument } from '../agent/live-document';
 import {
   ChatFailureError,
   ChatSession,
   type SessionChange,
   type TurnSetup,
 } from '../agent/session';
-import { type DocumentReader, documentTools } from '../agent/tools/document';
+import { documentTools } from '../agent/tools/document';
+import { editTools } from '../agent/tools/edit';
+import { EditController } from '../edit/controller';
+import proposalStyles from '../edit/proposals.css?inline';
 import { connectModel } from '../providers/connect';
 import { Composer } from './composer';
 import { ICONS } from './icons';
@@ -35,6 +38,10 @@ export type AiPanelHost = {
   editor: NyaEditor;
   /** The source pane's selection in the editor's document, null outside it. */
   sourceSelection: () => { from: number; to: number } | null;
+  /** Pushes the source pane's edits into the editor; nothing outside it. */
+  flushSource: () => void;
+  /** Has the source pane follow a change made to the editor from `before`. */
+  followSource: (before: ProseNode) => void;
   /** The open document's path, `null` while it is unsaved. */
   documentPath: () => string | null;
   /** Opens the AI section of the settings. */
@@ -71,6 +78,11 @@ function hasModels(ai: AiSettings): boolean {
   return ai.providers.some((provider) => provider.models.length > 0);
 }
 
+const MODE_TEXT: Record<AiEditMode, { key: string; title: string }> = {
+  review: { key: 'ai.edit.modeReview', title: 'ai.edit.modeReviewTitle' },
+  auto: { key: 'ai.edit.modeAuto', title: 'ai.edit.modeAutoTitle' },
+};
+
 function iconButton(icon: string, key: string, fallback: string) {
   const button = document.createElement('button');
   button.type = 'button';
@@ -92,7 +104,10 @@ export class AiPanel {
   private readonly list: MessageList;
   private readonly composer: Composer;
   private readonly session: ChatSession;
-  private readonly readDocument: DocumentReader;
+  private readonly edits: EditController;
+  private readonly review: HTMLElement;
+  private readonly reviewCount: HTMLElement;
+  private readonly mode: HTMLButtonElement;
   private readonly newChat: HTMLButtonElement;
   private ai: AiSettings = getSettings().ai;
   private visible = false;
@@ -100,9 +115,16 @@ export class AiPanel {
 
   constructor(private readonly host: AiPanelHost) {
     ensureStyle('ai-panel', panelStyles);
+    ensureStyle('ai-proposals', proposalStyles);
     applyWidth(storedWidth());
 
-    this.readDocument = liveDocument(host.editor, host.sourceSelection);
+    this.edits = new EditController({
+      editor: host.editor,
+      sourceSelection: host.sourceSelection,
+      flushSource: host.flushSource,
+      followSource: host.followSource,
+      editMode: () => getSettings().ai.editMode,
+    });
     this.session = new ChatSession(() => this.prepareTurn());
 
     this.root = document.createElement('aside');
@@ -128,11 +150,19 @@ export class AiPanel {
     this.newChat = iconButton(ICONS.newChat, 'ai.newChat', 'New chat');
     this.newChat.addEventListener('click', () => {
       this.session.clear();
+      this.edits.reset();
       this.composer.focus();
+    });
+    this.mode = document.createElement('button');
+    this.mode.type = 'button';
+    this.mode.className = 'ny-ai__mode';
+    this.mode.addEventListener('click', () => {
+      const editMode = this.ai.editMode === 'auto' ? 'review' : 'auto';
+      void updateSettings({ ai: { editMode } }).catch(console.error);
     });
     const close = iconButton(ICONS.close, 'ai.close', 'Close');
     close.addEventListener('click', () => this.hide());
-    header.append(this.picker.element, this.newChat, close);
+    header.append(this.picker.element, this.mode, this.newChat, close);
 
     this.scroller = document.createElement('div');
     this.scroller.className = 'ny-ai__body';
@@ -164,6 +194,12 @@ export class AiPanel {
     this.list = new MessageList(this.scroller, jump, {
       retry: () => void this.session.retry(),
       openSettings: () => this.host.openSettings(),
+      edits: {
+        outcome: (edit) => this.edits.outcome(edit),
+        accept: (edit) => this.edits.acceptEdit(edit),
+        reject: (edit) => this.edits.rejectEdit(edit),
+        reveal: (edit) => this.edits.revealEdit(edit),
+      },
     });
     this.scroller.append(this.setup, this.empty, this.list.element, jump);
 
@@ -173,18 +209,31 @@ export class AiPanel {
       leave: () => this.host.editor.focus(),
     });
 
-    this.root.append(resize, header, this.scroller, this.composer.element);
+    this.reviewCount = document.createElement('span');
+    this.reviewCount.className = 'ny-ai__review-count';
+    this.review = this.reviewBar();
+
+    this.root.append(
+      resize,
+      header,
+      this.scroller,
+      this.review,
+      this.composer.element
+    );
     document.body.append(this.root);
     translateDOM(this.root);
 
     this.cleanups.push(
       this.session.subscribe((change) => this.sessionChanged(change)),
-      subscribeSettings((settings) => this.settingsChanged(settings.ai))
+      subscribeSettings((settings) => this.settingsChanged(settings.ai)),
+      this.edits.subscribe(() => this.editsChanged())
     );
     const onLanguage = () => {
       this.picker.update(this.ai);
       this.list.redraw(this.session.entries);
       this.composer.redraw();
+      this.drawMode();
+      this.drawReview();
     };
     i18next.on('languageChanged', onLanguage);
     this.cleanups.push(() => i18next.off('languageChanged', onLanguage));
@@ -238,6 +287,7 @@ export class AiPanel {
     this.session.clear();
     this.hide();
     for (const cleanup of this.cleanups) cleanup();
+    this.edits.destroy();
     this.list.destroy();
     this.root.remove();
   }
@@ -285,7 +335,10 @@ export class AiPanel {
     if (!ref || !provider) {
       throw new ChatFailureError({ code: 'no-model', message: '' });
     }
-    const document = await this.readDocument();
+    // What became of the earlier edits goes before the text it changed.
+    const notices = await this.edits.notices();
+    const document = await this.edits.read();
+    const read = () => this.edits.read();
     return {
       model: connectModel(provider, ref.model, () => getSettings().ai.proxy),
       modelLabel: ref.model,
@@ -293,8 +346,13 @@ export class AiPanel {
         documentPath: this.host.documentPath(),
         custom: ai.instructions,
         document,
+        editMode: ai.editMode,
+        notices,
       }),
-      tools: documentTools(this.readDocument),
+      tools: {
+        ...documentTools(read, () => this.edits.notices()),
+        ...editTools(this.edits),
+      },
     };
   }
 
@@ -320,7 +378,55 @@ export class AiPanel {
   private settingsChanged(ai: AiSettings) {
     this.ai = ai;
     this.picker.update(ai);
+    this.drawMode();
     this.drawState();
+  }
+
+  private editsChanged() {
+    this.list.refreshEdits();
+    this.drawReview();
+  }
+
+  /** The bar over the composer for the changes still waiting. */
+  private reviewBar() {
+    const bar = document.createElement('div');
+    bar.className = 'ny-ai__review';
+    bar.hidden = true;
+    const prev = iconButton(ICONS.chevronUp, 'ai.edit.prev', 'Previous change');
+    prev.addEventListener('click', () => this.edits.step(-1));
+    const next = iconButton(ICONS.chevron, 'ai.edit.next', 'Next change');
+    next.addEventListener('click', () => this.edits.step(1));
+    const button = (key: string, fallback: string, primary = false) => {
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.className = `ny-ai__button ny-ai__button--small${primary ? ' ny-ai__button--primary' : ''}`;
+      element.textContent = fallback;
+      element.setAttribute('data-i18n', key);
+      return element;
+    };
+    const reject = button('ai.edit.rejectAll', 'Reject all');
+    reject.addEventListener('click', () => this.edits.reject());
+    const accept = button('ai.edit.acceptAll', 'Accept all', true);
+    accept.addEventListener('click', () => this.edits.accept());
+    bar.append(this.reviewCount, prev, next, reject, accept);
+    return bar;
+  }
+
+  private drawReview() {
+    const count = this.edits.pending().length;
+    this.review.hidden = count === 0;
+    if (count === 0) return;
+    const at = this.edits.position();
+    this.reviewCount.textContent = at
+      ? i18next.t('ai.edit.pendingAt', { count, at })
+      : i18next.t('ai.edit.pending', { count });
+  }
+
+  private drawMode() {
+    const text = MODE_TEXT[this.ai.editMode];
+    this.mode.textContent = i18next.t(text.key);
+    this.mode.title = i18next.t(text.title);
+    this.mode.dataset.mode = this.ai.editMode;
   }
 
   /** Setting up, an empty conversation, or the conversation. */

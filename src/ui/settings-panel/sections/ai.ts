@@ -526,6 +526,12 @@ export function renderAiSection(
         <div class="ny-settings__select" data-key="quickModel"></div>
       </label>
     </div>
+    <div class="ny-settings__row">
+      <label class="ny-settings__field">
+        <span data-i18n="settings.ai.editMode">The assistant’s edits</span>
+        <div class="ny-settings__select" data-key="editMode"></div>
+      </label>
+    </div>
   `;
 
   // Network.
@@ -1170,6 +1176,32 @@ export function renderAiSection(
     setProxy();
     emit();
   });
+
+  const editModeHost = defaults.querySelector<HTMLElement>(
+    '[data-key="editMode"]'
+  );
+  if (editModeHost) {
+    renderSelect(
+      editModeHost,
+      [
+        {
+          value: 'review',
+          label: 'Show them to accept or reject',
+          i18n: 'settings.ai.editReview',
+        },
+        {
+          value: 'auto',
+          label: 'Apply them right away',
+          i18n: 'settings.ai.editAuto',
+        },
+      ],
+      state.editMode,
+      (value) => {
+        state.editMode = value === 'auto' ? 'auto' : 'review';
+        emit();
+      }
+    );
+  }
 
   const textarea = instructions.querySelector<HTMLTextAreaElement>(
     '[data-key="instructions"]'

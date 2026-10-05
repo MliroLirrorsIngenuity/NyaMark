@@ -1,8 +1,10 @@
 /**
  * The system prompt: who the assistant is, the document the user has open,
- * and the instructions the user keeps in the settings.
+ * how its edits reach it, and the instructions the user keeps in the
+ * settings.
  */
 
+import type { AiEditMode } from '../../state/ai-settings';
 import {
   type DocumentSnapshot,
   documentLines,
@@ -19,6 +21,10 @@ export type InstructionContext = {
   custom: string;
   /** The document as the turn begins. */
   document?: DocumentSnapshot;
+  /** Whether the assistant's edits wait for the user or go in at once. */
+  editMode?: AiEditMode;
+  /** What became of earlier edits, and where the text changed since. */
+  notices?: string | null;
   today?: Date;
 };
 
@@ -34,7 +40,18 @@ const ROLE = `You are the writing assistant built into NyaMark, a Markdown edito
 - Reply in the language the user writes to you in, unless they ask for another.
 - Format replies as Markdown (GitHub flavoured). Write math as $…$ inline and $$…$$ on lines of its own.
 - Be direct and concrete. When you suggest wording, give the wording itself.
-- When you need a part of the document you have not been shown, read it with the tools rather than guess. When the user says "this", "here" or "the selection", they most likely mean what they have selected.`;
+- When you need a part of the document you have not been shown, read it with the tools rather than guess. When the user says "this", "here" or "the selection", they most likely mean what they have selected.
+
+Changing the document:
+- When the user asks you to change, write or add to the document, make the change with the edit tools; say in a sentence or two what you changed rather than repeating the text in your reply. When they only ask for suggestions or a look, reply without editing.
+- Prefer edit_document with the smallest old_string that is unique, and several small edits over one large one. Use insert_text to add text at a line, and write_document only to write the whole document anew.
+- Copy old_string exactly from the latest text you read, without the line numbers. After an edit, take later old_strings from the lines its result shows.`;
+
+const EDIT_MODE: Record<AiEditMode, string> = {
+  review:
+    'Your edits are proposed in the document for the user to accept or reject, change by change. Until they do, the text you read and edit has your proposed changes in it.',
+  auto: 'Your edits go into the document right away; the user can undo them.',
+};
 
 function isoDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -85,6 +102,8 @@ export function buildInstructions(context: InstructionContext): string {
   sections.push(
     `${document}\nToday is ${isoDate(context.today ?? new Date())}.`
   );
+  sections.push(EDIT_MODE[context.editMode ?? 'review']);
+  if (context.notices) sections.push(context.notices);
   if (context.document) sections.push(documentContext(context.document));
   const custom = context.custom.trim();
   if (custom) {

@@ -228,6 +228,22 @@ describe('buildInstructions with the document', () => {
     expect(text).toContain('## Part (line 5)');
   });
 
+  test('says how edits reach the document, and what became of earlier ones', () => {
+    const base = { documentPath: null, custom: '', today };
+    expect(buildInstructions(base)).toContain('accept or reject');
+    const auto = buildInstructions({ ...base, editMode: 'auto' });
+    expect(auto).toContain('go into the document right away');
+    expect(auto).not.toContain('accept or reject, change by change');
+    const told = buildInstructions({
+      ...base,
+      notices: 'Since you last looked at the document:\n- something',
+      document: { text: 'one\n', selection: null },
+    });
+    expect(told.indexOf('Since you last looked')).toBeLessThan(
+      told.indexOf('<document>')
+    );
+  });
+
   test('quotes the selection', () => {
     const text = buildInstructions({
       documentPath: null,

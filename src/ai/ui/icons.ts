@@ -12,6 +12,7 @@ export const ICONS = {
   ),
   close: svg('<path d="M4 4l8 8M12 4l-8 8" />'),
   chevron: svg('<path d="M4.5 6.25 8 9.75l3.5-3.5" />'),
+  chevronUp: svg('<path d="M4.5 9.75 8 6.25l3.5 3.5" />'),
   send: svg('<path d="M8 13V3.5M3.75 7.5 8 3.25l4.25 4.25" />'),
   stop: svg(
     '<rect x="4.5" y="4.5" width="7" height="7" rx="1.25" fill="currentColor" stroke="none" />'

@@ -40,9 +40,18 @@ import { $prose } from '@milkdown/kit/utils';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
-import { replaceChangedRange, settleParsed } from './doc-diff';
+import {
+  replaceChangedRange,
+  replaceChangedRuns,
+  settleParsed,
+} from './doc-diff';
 import { anchorIndex, headingId, headingLabel, pageId } from './heading-anchor';
 import { afterFirstFrame, openingOf } from './open-in-parts';
+import {
+  ORIGIN_META,
+  aiProposals,
+  proposalState,
+} from './plugins/ai-proposals';
 import { bareLinkInput } from './plugins/bare-link-input';
 import { bareLinkParse, keepBareLinks } from './plugins/bare-links';
 import { blockArrows } from './plugins/block-arrows';
@@ -317,6 +326,7 @@ export class NyaEditor {
     crepe.editor.use(tableCells);
     crepe.editor.use(tabFocus);
     crepe.editor.use(searchPlugin);
+    crepe.editor.use(aiProposals);
     crepe.editor.use(this.docChangedPlugin());
 
     crepe.on((api) => {
@@ -391,7 +401,7 @@ export class NyaEditor {
   }
 
   /** The address the webview loads the image at `src` from. */
-  private imageSource(src: string) {
+  imageSource(src: string) {
     const resolver = this.options.proxyDomURL;
     return resolver ? resolver(src) : src;
   }
@@ -440,48 +450,69 @@ export class NyaEditor {
   }
 
   /**
-   * Replace the whole document. Content the user did not type (a reload
-   * after the file changed on disk) passes `addToHistory: false` so Cmd+Z
-   * cannot resurrect the pre-reload text and mark it dirty; the history
-   * plugin maps the existing undo stack through the replacement instead.
+   * `markdown` as the editor would hold it: parsed, each heading given its
+   * id and the trailing paragraph added (see `settleParsed`). Null when the
+   * editor is not up yet.
    */
+  parseMarkdown(markdown: string): ProseNode | null {
+    if (!this.crepe) return null;
+    return this.crepe.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const parsed = ctx.get(parserCtx)(markdown);
+      if (!parsed) return null;
+      const { shouldAppend, getNode } = ctx.get(trailingConfig.key);
+      return settleParsed(parsed, ctx.get(headingIdGenerator.key), (last) =>
+        shouldAppend(last, view.state) ? getNode(view.state) : undefined
+      );
+    });
+  }
+
+  /** `doc` written as Markdown, as a save would write it. */
+  serializeDoc(doc: ProseNode): string {
+    if (!this.crepe) return '';
+    return this.crepe.editor.ctx.get(serializerCtx)(doc);
+  }
+
   /**
    * Replaces only the part of the document that differs, so the source pane's
    * debounced syncs become small undo steps (which ProseMirror's history then
-   * groups) and the selection outside the edit stays put.
+   * groups) and the selection outside the edit stays put. Content the user
+   * did not type (a reload after the file changed on disk) passes
+   * `addToHistory: false` so Cmd+Z cannot resurrect the pre-reload text and
+   * mark it dirty; the history plugin maps the existing undo stack through
+   * the replacement instead. `origin` tells the assistant's proposals what
+   * changed the text under them.
    */
-  setMarkdown(markdown: string, options: { addToHistory?: boolean } = {}) {
-    if (!this.crepe) return;
-    this.crepe.editor.action((ctx) => {
-      const view = ctx.get(editorViewCtx);
-      const parsed = ctx.get(parserCtx)(markdown);
-      if (!parsed) return;
-      const { shouldAppend, getNode } = ctx.get(trailingConfig.key);
-      const doc = settleParsed(
-        parsed,
-        ctx.get(headingIdGenerator.key),
-        (last) =>
-          shouldAppend(last, view.state) ? getNode(view.state) : undefined
+  setMarkdown(
+    markdown: string,
+    options: { addToHistory?: boolean; origin?: 'source' | 'reload' } = {}
+  ) {
+    const view = this.getView();
+    const doc = this.parseMarkdown(markdown);
+    if (!view || !doc) return;
+    const addToHistory = options.addToHistory ?? true;
+    const start = view.state.doc.content.findDiffStart(doc.content);
+    if (start == null) return;
+    // Undone, a change puts the caret back where it was before it. The
+    // source pane's edits left that wherever the preview last had it, the
+    // top of the document most often, and Cmd+Z back in the editor jumped
+    // there: the caret goes to the change first.
+    if (addToHistory) {
+      view.dispatch(
+        view.state.tr.setSelection(
+          Selection.near(view.state.doc.resolve(start))
+        )
       );
-      const addToHistory = options.addToHistory ?? true;
-      const start = view.state.doc.content.findDiffStart(doc.content);
-      if (start == null) return;
-      // Undone, a change puts the caret back where it was before it. The
-      // source pane's edits left that wherever the preview last had it, the
-      // top of the document most often, and Cmd+Z back in the editor jumped
-      // there: the caret goes to the change first.
-      if (addToHistory) {
-        view.dispatch(
-          view.state.tr.setSelection(
-            Selection.near(view.state.doc.resolve(start))
-          )
-        );
-      }
-      const tr = replaceChangedRange(view.state.tr, doc);
-      if (!tr.docChanged) return;
-      if (!addToHistory) tr.setMeta('addToHistory', false);
-      view.dispatch(tr);
-    });
+    }
+    // With proposals pending, the blocks between two changes are left as
+    // they are, and the proposals in them with them.
+    const tr = proposalState(view.state)?.hunks.length
+      ? replaceChangedRuns(view.state.tr, doc)
+      : replaceChangedRange(view.state.tr, doc);
+    if (!tr.docChanged) return;
+    if (!addToHistory) tr.setMeta('addToHistory', false);
+    if (options.origin) tr.setMeta(ORIGIN_META, options.origin);
+    view.dispatch(tr);
   }
 
   setReadonly(readonly: boolean) {

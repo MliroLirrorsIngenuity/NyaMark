@@ -1,0 +1,111 @@
+/**
+ * A proposed hunk as it is drawn in the document: what it puts in, after
+ * the text it takes out, and its accept and reject buttons. The text is
+ * drawn as the editor's schema writes it to the DOM, with links that go
+ * nowhere and no image fetched from the web: a page the assistant read
+ * could otherwise have it propose an image whose address carries the
+ * document off before the user has said yes to anything.
+ */
+
+import { DOMSerializer } from '@milkdown/kit/prose/model';
+import type { EditorView } from '@milkdown/kit/prose/view';
+import type { Hunk } from '../../editor/plugins/ai-proposals';
+import { i18next } from '../../i18n';
+import { ICONS } from '../ui/icons';
+
+export type HunkActions = {
+  accept(id: number): void;
+  reject(id: number): void;
+  /** The address the webview loads a document's image from. */
+  imageSource(src: string): string | Promise<string>;
+};
+
+/** An address on another computer: a scheme with `//`, or `//` alone. */
+const REMOTE = /^(?:[a-z][a-z0-9+.-]*:)?\/\//i;
+
+function tame(root: HTMLElement, actions: HunkActions) {
+  for (const link of root.querySelectorAll('a')) {
+    const href = link.getAttribute('href');
+    link.removeAttribute('href');
+    if (href) link.title = href;
+  }
+  for (const image of root.querySelectorAll('img')) {
+    const src = image.getAttribute('src') ?? '';
+    if (!src || REMOTE.test(src)) {
+      const stand = document.createElement('span');
+      stand.className = 'ny-ai-ins__image';
+      stand.textContent = image.alt || src || '…';
+      stand.title = src;
+      image.replaceWith(stand);
+      continue;
+    }
+    image.loading = 'lazy';
+    const resolved = actions.imageSource(src);
+    if (typeof resolved === 'string') image.src = resolved;
+    else {
+      // Left blank until the file's address is known.
+      image.removeAttribute('src');
+      resolved.then(
+        (url) => {
+          image.src = url;
+        },
+        () => undefined
+      );
+    }
+  }
+}
+
+function button(
+  kind: 'accept' | 'reject',
+  hunk: Hunk,
+  run: (id: number) => void
+) {
+  const element = document.createElement('button');
+  element.type = 'button';
+  element.className = `ny-ai-hunk__${kind}`;
+  element.innerHTML = kind === 'accept' ? ICONS.check : ICONS.close;
+  const label = i18next.t(
+    kind === 'accept' ? 'ai.edit.accept' : 'ai.edit.reject'
+  );
+  element.title = label;
+  element.setAttribute('aria-label', label);
+  // The caret stays where it is in the document.
+  element.addEventListener('mousedown', (event) => event.preventDefault());
+  element.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    run(hunk.id);
+  });
+  return element;
+}
+
+export function renderHunk(
+  view: EditorView,
+  hunk: Hunk,
+  actions: HunkActions
+): HTMLElement {
+  const block = hunk.kind === 'block';
+  const root = document.createElement(block ? 'div' : 'span');
+  root.className = `ny-ai-hunk ny-ai-hunk--${hunk.kind}`;
+  root.contentEditable = 'false';
+  if (hunk.insert.content.size > 0) {
+    const content = document.createElement(block ? 'div' : 'ins');
+    content.className = block ? 'ny-ai-ins-block' : 'ny-ai-ins';
+    content.append(
+      DOMSerializer.fromSchema(view.state.schema).serializeFragment(
+        hunk.insert.content,
+        { document }
+      )
+    );
+    tame(content, actions);
+    root.append(content);
+  }
+  const bar = document.createElement('span');
+  bar.className = 'ny-ai-hunk__actions';
+  bar.append(
+    button('accept', hunk, actions.accept),
+    button('reject', hunk, actions.reject)
+  );
+  root.append(bar);
+  return root;
+}

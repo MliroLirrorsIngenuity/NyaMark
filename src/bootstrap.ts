@@ -275,6 +275,8 @@ export class App {
         new AiPanel({
           editor,
           sourceSelection: () => this.sourceMode?.selectionInDocument() ?? null,
+          flushSource: () => this.sourceMode?.flush(),
+          followSource: (before) => this.sourceMode?.followEditor(before),
           documentPath: () => store.getState().filePath,
           openSettings: () => this.settingsPanel.open('ai'),
         })
@@ -338,7 +340,10 @@ export class App {
     if (savedContent !== this.editor.getMarkdown()) {
       this.suppressDirtyTracking = true;
       try {
-        this.editor.setMarkdown(savedContent, { addToHistory: false });
+        this.editor.setMarkdown(savedContent, {
+          addToHistory: false,
+          origin: 'reload',
+        });
       } finally {
         this.suppressDirtyTracking = false;
       }

@@ -61,6 +61,7 @@ describe('AI settings', () => {
       quickModel: null,
       proxy: { mode: 'system' },
       instructions: '',
+      editMode: 'review',
     });
   });
 
@@ -137,6 +138,15 @@ describe('AI settings', () => {
     });
     expect(proxy({ mode: 'none' })).toEqual({ mode: 'none' });
     expect(proxy('direct')).toEqual({ mode: 'system' });
+  });
+
+  test('show edits for review unless told to apply them', () => {
+    const mode = (value: unknown) =>
+      normalizeSettings({ ai: { editMode: value } } as never).ai.editMode;
+    expect(mode('auto')).toBe('auto');
+    expect(mode('review')).toBe('review');
+    expect(mode('yolo')).toBe('review');
+    expect(mode(undefined)).toBe('review');
   });
 
   test('cap the custom instructions', () => {

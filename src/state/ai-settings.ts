@@ -43,6 +43,9 @@ export type AiProvider = {
 
 export type AiModelRef = { provider: string; model: string };
 
+/** The assistant's edits: shown to accept or reject, or applied right away. */
+export type AiEditMode = 'review' | 'auto';
+
 export type AiSettings = {
   providers: AiProvider[];
   /** The model the assistant panel talks to. */
@@ -52,6 +55,7 @@ export type AiSettings = {
   proxy: ProxySetting;
   /** What the user wants the assistant always to keep in mind. */
   instructions: string;
+  editMode: AiEditMode;
 };
 
 export const defaultAiSettings: AiSettings = {
@@ -60,6 +64,7 @@ export const defaultAiSettings: AiSettings = {
   quickModel: null,
   proxy: { mode: 'system' },
   instructions: '',
+  editMode: 'review',
 };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -156,6 +161,7 @@ export function sanitizeAiSettings(value: unknown): AiSettings {
     quickModel: sanitizeModelRef(ai.quickModel, providers),
     proxy: sanitizeProxy(ai.proxy),
     instructions: text(ai.instructions, 20_000),
+    editMode: ai.editMode === 'auto' ? 'auto' : 'review',
   };
 }
 

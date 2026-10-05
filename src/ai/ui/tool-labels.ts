@@ -36,6 +36,34 @@ const LABELS: Record<string, Labeller> = {
   },
 };
 
+/** An edit tool's line: what it is doing, or what it did. */
+function editLabel(running: string): Labeller {
+  return (part) => {
+    if (part.state === 'error') return i18next.t('ai.tool.editFailed');
+    if (part.state !== 'done') return i18next.t(running);
+    const count = field<number>(part.output, 'changes') ?? 0;
+    if (count === 0) return i18next.t('ai.tool.withdrew');
+    return i18next.t(
+      field<string>(part.output, 'status') === 'applied'
+        ? 'ai.tool.applied'
+        : 'ai.tool.proposed',
+      { count }
+    );
+  };
+}
+
+LABELS.edit_document = editLabel('ai.tool.editing');
+LABELS.insert_text = editLabel('ai.tool.inserting');
+LABELS.write_document = editLabel('ai.tool.writing');
+
+/** The edit a tool call proposed, while it is the user's to accept. */
+export function proposedEdit(part: ToolPart): string | null {
+  if (part.state !== 'done' || !LABELS[part.name]) return null;
+  if (field<string>(part.output, 'status') !== 'proposed') return null;
+  if (!field<number>(part.output, 'changes')) return null;
+  return field<string>(part.output, 'edit') ?? null;
+}
+
 /** What a tool call did, in a line of the reply. */
 export function toolLabel(part: ToolPart): string {
   const label = LABELS[part.name];

@@ -16,7 +16,7 @@
  */
 
 import { autocompletion } from '@codemirror/autocomplete';
-import { indentWithTab } from '@codemirror/commands';
+import { indentWithTab, isolateHistory } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import {
   HighlightStyle,
@@ -34,6 +34,7 @@ import {
 import { oneDarkTheme } from '@codemirror/theme-one-dark';
 import { keymap } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
+import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { EditorView, basicSetup } from 'codemirror';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
@@ -44,6 +45,7 @@ import { textChange } from './doc-diff';
 import type { NyaEditor } from './editor';
 import { normalizeHeadingText, syncedScrollTop } from './scroll-sync';
 import { docPosition, sourceOffset } from './source-caret';
+import { applyChanges, rewriteBlocks } from './source-follow';
 import { continueMarkup } from './source-list-exit';
 import { sourceSearch } from './source-search';
 
@@ -399,7 +401,53 @@ export class SourceModeController {
     const text = this.cmView.state.doc.toString();
     if (text === this.lastSyncedText) return;
     this.lastSyncedText = text;
-    this.editor.setMarkdown(text);
+    this.editor.setMarkdown(text, { origin: 'source' });
+    this.invalidateAnchors();
+  }
+
+  /**
+   * The editor's document changed from outside the source pane by a change
+   * of its own (the assistant's edits accepted), from `before`, which the
+   * pane's text read as. The pane follows in one undo step of its own: the
+   * blocks that changed are written anew and the rest left as typed, unless
+   * that would not read back the same, when the whole text follows.
+   */
+  followEditor(before: ProseNode) {
+    const cm = this.cmView;
+    const view = this.previewView;
+    if (!cm || !view) return;
+    if (this.syncTimer != null) {
+      window.clearTimeout(this.syncTimer);
+      this.syncTimer = null;
+    }
+    const current = cm.state.doc.toString();
+    const after = view.state.doc;
+    let changes =
+      current === this.lastSyncedText
+        ? rewriteBlocks(
+            current,
+            this.editor.blockSpans(current),
+            before,
+            after,
+            (doc) => this.editor.serializeDoc(doc)
+          )
+        : null;
+    let next = changes ? applyChanges(current, changes) : '';
+    if (!changes || !this.editor.parseMarkdown(next)?.eq(after)) {
+      next = this.editor.getMarkdown();
+      changes = [textChange(current, next)];
+    }
+    this.lastSyncedText = next;
+    if (next === current) return;
+    this.applyingEditorText = true;
+    try {
+      cm.dispatch({
+        changes,
+        annotations: isolateHistory.of('full'),
+      });
+    } finally {
+      this.applyingEditorText = false;
+    }
     this.invalidateAnchors();
   }
 

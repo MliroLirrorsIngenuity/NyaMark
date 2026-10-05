@@ -3,6 +3,7 @@ import { type Node, Schema } from '@milkdown/kit/prose/model';
 import { EditorState } from '@milkdown/kit/prose/state';
 import {
   replaceChangedRange,
+  replaceChangedRuns,
   settleParsed,
   textChange,
 } from '../src/editor/doc-diff';
@@ -63,6 +64,76 @@ describe('replaceChangedRange', () => {
     apply(doc(quote(p('a'), p('b'))), doc(p('a'), p('b')));
     apply(doc(p('one'), p('two'), p('three')), doc(p('one'), p('three')));
     apply(doc(p('x')), doc(p('')));
+  });
+});
+
+/** Where the text `text` starts in `node`. */
+function textAt(node: Node, text: string) {
+  let at = -1;
+  node.descendants((child, pos) => {
+    if (at < 0 && child.isText && child.text === text) at = pos;
+    return at < 0;
+  });
+  return at;
+}
+
+describe('replaceChangedRuns', () => {
+  function runs(from: Node, to: Node) {
+    const tr = replaceChangedRuns(EditorState.create({ doc: from }).tr, to);
+    expect(tr.doc.eq(to)).toBe(true);
+    return tr;
+  }
+
+  test('leaves equal documents alone', () => {
+    expect(runs(doc(p('a'), p('b')), doc(p('a'), p('b'))).docChanged).toBe(
+      false
+    );
+  });
+
+  test('keeps the blocks between two changes', () => {
+    const from = doc(p('one'), p('two'), p('three'), p('four'));
+    const tr = runs(from, doc(p('ONE'), p('two'), p('three'), p('FOUR')));
+    expect(tr.steps).toHaveLength(2);
+    for (const text of ['two', 'three']) {
+      const at = textAt(from, text);
+      expect(tr.mapping.mapResult(at, 1).deleted).toBe(false);
+      expect(tr.mapping.mapResult(at + text.length, -1).deleted).toBe(false);
+    }
+  });
+
+  test('keeps them across blocks added and taken away', () => {
+    const from = doc(p('one'), p('two'), rule(), p('three'), p('four'));
+    const to = doc(h('new'), p('one'), p('two'), p('three'), p('FOUR'));
+    const tr = runs(from, to);
+    for (const text of ['one', 'two', 'three']) {
+      const at = textAt(from, text);
+      expect(tr.mapping.mapResult(at, 1).deleted).toBe(false);
+      expect(tr.mapping.mapResult(at + text.length, -1).deleted).toBe(false);
+    }
+  });
+
+  test('turns any document into any other', () => {
+    let seed = 5;
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    const blocks = [
+      () => p('a'),
+      () => p('b'),
+      () => p('ab'),
+      () => h('a'),
+      () => rule(),
+      () => quote(p('a')),
+      () => quote(p('b'), p('a')),
+    ];
+    const pick = () =>
+      doc(
+        ...Array.from({ length: 1 + Math.floor(next() * 6) }, () =>
+          blocks[Math.floor(next() * blocks.length)]()
+        )
+      );
+    for (let round = 0; round < 300; round++) runs(pick(), pick());
   });
 });
 

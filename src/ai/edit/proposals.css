@@ -1,0 +1,135 @@
+/* The assistant's proposed changes, drawn in the document. */
+
+:root {
+  --ny-ai-ins: #3f9b5b;
+  --ny-ai-del: #c55f5f;
+}
+
+.ny-ai-del {
+  color: color-mix(in srgb, currentColor 70%, var(--ny-ai-del));
+  text-decoration: line-through;
+  text-decoration-color: var(--ny-ai-del);
+  background: color-mix(in srgb, var(--ny-ai-del) 12%, transparent);
+  border-radius: 2px;
+}
+
+.ny-ai-del-block {
+  opacity: 0.62;
+  text-decoration: line-through;
+  text-decoration-color: var(--ny-ai-del);
+  background: color-mix(in srgb, var(--ny-ai-del) 8%, transparent);
+  box-shadow: inset 3px 0 0 var(--ny-ai-del);
+  border-radius: 2px;
+}
+
+.ny-ai-hunk {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ny-ai-ins {
+  color: inherit;
+  text-decoration: none;
+  background: color-mix(in srgb, var(--ny-ai-ins) 18%, transparent);
+  border-radius: 2px;
+}
+
+.ny-ai-hunk--block {
+  position: relative;
+  display: block;
+  margin: 0.4em 0;
+}
+
+.ny-ai-ins-block {
+  padding: 0.1em 0 0.1em 0.9em;
+  background: color-mix(in srgb, var(--ny-ai-ins) 9%, transparent);
+  box-shadow: inset 3px 0 0 var(--ny-ai-ins);
+  border-radius: 2px;
+}
+
+.ny-ai-ins-block > :first-child {
+  margin-top: 0;
+}
+
+.ny-ai-ins-block > :last-child {
+  margin-bottom: 0;
+}
+
+.ny-ai-ins__image {
+  padding: 0 0.3em;
+  font-size: 0.9em;
+  border: 1px dashed currentColor;
+  border-radius: 3px;
+}
+
+.ny-ai-hunk__actions {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 3px;
+  vertical-align: 0.1em;
+  line-height: 1;
+}
+
+.ny-ai-hunk--block > .ny-ai-hunk__actions {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  margin: 0;
+}
+
+.ny-ai-hunk__actions button {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--ny-text-secondary);
+  background: var(--ny-surface-elevated);
+  border: 1px solid var(--ny-border-strong);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ny-ai-hunk__actions svg {
+  width: 12px;
+  height: 12px;
+}
+
+.ny-ai-hunk__actions .ny-ai-hunk__accept:hover {
+  color: #fff;
+  background: var(--ny-ai-ins);
+  border-color: var(--ny-ai-ins);
+}
+
+.ny-ai-hunk__actions .ny-ai-hunk__reject:hover {
+  color: #fff;
+  background: var(--ny-ai-del);
+  border-color: var(--ny-ai-del);
+}
+
+.ny-ai-hunk.is-current,
+.is-current.ny-ai-del,
+.is-current.ny-ai-del-block {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 30%);
+  outline-offset: 1px;
+}
+
+/* The source pane's preview takes no clicks: the panel accepts there. */
+.is-source-mode .ny-ai-hunk__actions {
+  display: none;
+}
+
+@media print {
+  .ny-ai-hunk {
+    display: none !important;
+  }
+
+  .ny-ai-del,
+  .ny-ai-del-block {
+    color: inherit;
+    opacity: 1;
+    text-decoration: none;
+    background: none;
+    box-shadow: none;
+  }
+}

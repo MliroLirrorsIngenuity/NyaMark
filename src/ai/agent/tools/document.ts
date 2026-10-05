@@ -18,11 +18,25 @@ import {
 } from '../document-text';
 
 export type DocumentReader = () => Promise<DocumentSnapshot>;
+/** What the assistant has yet to be told of the document; null for nothing. */
+export type DocumentNotices = () => Promise<string | null>;
 
 const LINE_NOTE =
   'Each line is given as its number, a tab, then the line; the number and the tab are not part of the text.';
 
-export function documentTools(read: DocumentReader) {
+export function documentTools(
+  read: DocumentReader,
+  notices: DocumentNotices = async () => null
+) {
+  /** What `result` gives, the notices before its text. */
+  const told = async <T extends { text: string }>(
+    result: (snapshot: DocumentSnapshot) => T
+  ) => {
+    // Told first: the read is then the assistant's last look.
+    const note = await notices();
+    const value = result(await read());
+    return note ? { ...value, text: `${note}\n\n${value.text}` } : value;
+  };
   return {
     read_document: tool({
       description: `Read the open document as Markdown, whole or from a line on. ${LINE_NOTE} A long document is returned in parts; the end of each part says where to read on.`,
@@ -43,10 +57,8 @@ export function documentTools(read: DocumentReader) {
           .optional()
           .describe(`The most lines to return, at most ${MAX_READ_LINES}.`),
       }),
-      execute: async ({ offset, limit }) => {
-        const { text } = await read();
-        return readLines(text, offset, limit);
-      },
+      execute: ({ offset, limit }) =>
+        told(({ text }) => readLines(text, offset, limit)),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
     }),
 
@@ -54,10 +66,11 @@ export function documentTools(read: DocumentReader) {
       description:
         'List the headings of the open document, each with its level and line number.',
       inputSchema: z.object({}),
-      execute: async () => {
-        const list = headings((await read()).text);
-        return { text: outlineText(list), count: list.length };
-      },
+      execute: () =>
+        told(({ text }) => {
+          const list = headings(text);
+          return { text: outlineText(list), count: list.length };
+        }),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
     }),
 
@@ -76,25 +89,24 @@ export function documentTools(read: DocumentReader) {
             "The heading's line number, to pick one of several headings with the same words."
           ),
       }),
-      execute: async ({ heading, line }) =>
-        readSection((await read()).text, heading, line),
+      execute: ({ heading, line }) =>
+        told(({ text }) => readSection(text, heading, line)),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
     }),
 
     read_selection: tool({
       description: `Read what the user has selected in the document: the lines it is on, numbered, and the selected text exactly. ${LINE_NOTE}`,
       inputSchema: z.object({}),
-      execute: async () => {
-        const selection = readSelection(await read());
-        return (
-          selection ?? {
-            text: 'Nothing is selected in the document.',
-            from: 0,
-            to: 0,
-            selected: '',
-          }
-        );
-      },
+      execute: () =>
+        told(
+          (snapshot) =>
+            readSelection(snapshot) ?? {
+              text: 'Nothing is selected in the document.',
+              from: 0,
+              to: 0,
+              selected: '',
+            }
+        ),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
     }),
 
@@ -111,8 +123,8 @@ export function documentTools(read: DocumentReader) {
           .optional()
           .describe('Match upper and lower case exactly. Off by default.'),
       }),
-      execute: async ({ query, regex, caseSensitive }) =>
-        searchLines((await read()).text, query, { regex, caseSensitive }),
+      execute: ({ query, regex, caseSensitive }) =>
+        told(({ text }) => searchLines(text, query, { regex, caseSensitive })),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
     }),
   };
