@@ -17,6 +17,10 @@
   visibility: hidden;
 }
 
+.ny-editor-root .milkdown .ProseMirror .prosemirror-virtual-cursor {
+  z-index: 1;
+}
+
 /*
  * The caret blinks on and off as the Mac's does, with a short fade between.
  * The plugin's own blink faded it out and in over the whole second, and it
