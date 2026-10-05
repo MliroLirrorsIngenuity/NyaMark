@@ -11,6 +11,11 @@
 import type { NyaEditor } from '../editor/editor';
 import { translateDOM } from '../i18n/dom';
 import { ensureStyle } from '../style/register';
+import {
+  READING_LINE_PX,
+  keepReadingPosition,
+  scrollHostOf,
+} from './reading-position';
 
 const outlineStyles = `
 :root {
@@ -118,26 +123,12 @@ const outlineStyles = `
 
 /** Pause after the last document change before the list is refreshed. */
 const RENDER_DELAY_MS = 150;
-/**
- * A heading is the one being read once its top is less than this far below
- * the top of the page. `scrollToHeading` leaves a heading 72px down, under
- * the sticky top bar.
- */
-const READING_LINE_PX = 96;
 /** Room kept above and below the marked heading when the list follows it. */
 const REVEAL_MARGIN_PX = 28;
 /** Deeper headings share the indent of the fifth level. */
 const MAX_DEPTH = 4;
 
 type Heading = { id: string; level: number; text: string };
-
-/** The element the document scrolls in: the preview pane in source mode. */
-function scrollHostOf(el: Element): Element | null {
-  return (
-    el.closest('#ny-editor-container.is-source-mode > .milkdown') ??
-    el.closest('.ny-shell__body')
-  );
-}
 
 export class OutlinePanel {
   private readonly elPanel: HTMLElement;
@@ -201,7 +192,7 @@ export class OutlinePanel {
   show() {
     if (this.isVisible) return;
     this.isVisible = true;
-    this.keepReadingPosition(() => {
+    keepReadingPosition(this.editor.getView(), () => {
       this.elPanel.hidden = false;
       document.documentElement.classList.add('ny-outline-open');
     });
@@ -223,7 +214,7 @@ export class OutlinePanel {
   hide() {
     if (!this.isVisible) return;
     this.isVisible = false;
-    this.keepReadingPosition(() => {
+    keepReadingPosition(this.editor.getView(), () => {
       this.elPanel.hidden = true;
       document.documentElement.classList.remove('ny-outline-open');
     });
@@ -241,29 +232,6 @@ export class OutlinePanel {
     document
       .getElementById('tb-outline')
       ?.setAttribute('aria-pressed', String(pressed));
-  }
-
-  /**
-   * The document reflows when the outline opens or closes. The line at the
-   * top of the page is put back where it was, or the reader lost their place.
-   */
-  private keepReadingPosition(change: () => void) {
-    const view = this.editor.getView();
-    const host = view && scrollHostOf(view.dom);
-    if (!view || !host || host.scrollTop === 0) {
-      change();
-      return;
-    }
-    const box = view.dom.getBoundingClientRect();
-    const hit = view.posAtCoords({
-      left: box.left + box.width / 2,
-      top: host.getBoundingClientRect().top + READING_LINE_PX,
-    });
-    const before = hit && view.coordsAtPos(hit.pos).top;
-    change();
-    if (hit && before != null) {
-      host.scrollTop += view.coordsAtPos(hit.pos).top - before;
-    }
   }
 
   /** A burst of keystrokes is rendered once, after it ends. */

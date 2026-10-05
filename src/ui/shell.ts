@@ -63,6 +63,7 @@ export function renderAppShell(host: HTMLElement) {
   const saveAsShortcutHint = isMac ? '⌘⇧S' : 'Ctrl+Shift+S';
   const exportPdfShortcutHint = isMac ? '⌘P' : 'Ctrl+P';
   const outlineShortcutHint = isMac ? '⌘⇧O' : 'Ctrl+Shift+O';
+  const aiShortcutHint = isMac ? '⌘⇧L' : 'Ctrl+Shift+L';
   const settingsShortcutHint = 'Ctrl+,';
   // Tauri's drag region moves the window on macOS. On Windows and Linux,
   // `Titlebar` moves it and takes the double-click.
@@ -142,6 +143,12 @@ export function renderAppShell(host: HTMLElement) {
             <button id="tb-outline" class="ny-shell__shortcut-button ny-shell__icon-button" type="button" title="Toggle outline" aria-label="Toggle outline" data-i18n-title="shell.outline" data-i18n-aria-label="shell.outline" data-shortcut="${outlineShortcutHint}">
               <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
                 <path d="M2.75 4h10.5M4.75 8h8.5M6.75 12h6.5" />
+              </svg>
+            </button>
+            <button id="tb-ai" class="ny-shell__shortcut-button ny-shell__icon-button" type="button" title="AI assistant" aria-label="AI assistant" aria-pressed="false" data-i18n-title="shell.ai" data-i18n-aria-label="shell.ai" data-shortcut="${aiShortcutHint}">
+              <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+                <path d="M7.25 2c.42 3.05 1.43 4.06 4.5 4.5-3.07.44-4.08 1.45-4.5 4.5-.42-3.05-1.43-4.06-4.5-4.5 3.07-.44 4.08-1.45 4.5-4.5Z" />
+                <path d="M12.25 10.5c.17 1.2.57 1.6 1.75 1.75-1.18.15-1.58.55-1.75 1.75-.17-1.2-.57-1.6-1.75-1.75 1.18-.15 1.58-.55 1.75-1.75Z" />
               </svg>
             </button>
           </div>

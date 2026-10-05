@@ -1,0 +1,332 @@
+/**
+ * One conversation with the assistant: what the panel shows, and the
+ * messages the model is sent. A turn streams through the AI SDK's
+ * `streamText`; the panel is told of each change and draws it.
+ */
+
+import {
+  APICallError,
+  type LanguageModel,
+  type LanguageModelUsage,
+  type ModelMessage,
+  RetryError,
+  type ToolSet,
+  stepCountIs,
+  streamText,
+} from 'ai';
+
+/** What a turn is sent with, read again for each turn and each retry. */
+export type TurnSetup = {
+  model: LanguageModel;
+  /** The model's name as the reply shows it. */
+  modelLabel: string;
+  instructions: string;
+  tools?: ToolSet;
+};
+
+export type ChatPart =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string };
+
+export type ChatFailureCode =
+  /** No model is chosen. */
+  | 'no-model'
+  /** The service has no key in the keychain. */
+  | 'not-connected'
+  /** The service's address changed since its key was entered. */
+  | 'key-needed'
+  /** The service refused the key. */
+  | 'unauthorized'
+  /** Too many requests, or the quota is spent. */
+  | 'rate-limited'
+  /** The service could not be reached. */
+  | 'network'
+  | 'other';
+
+export type ChatFailure = {
+  code: ChatFailureCode;
+  message: string;
+  status?: number;
+};
+
+export type ChatUsage = { input: number; output: number };
+
+export type UserEntry = { id: number; role: 'user'; text: string };
+
+export type AssistantEntry = {
+  id: number;
+  role: 'assistant';
+  parts: ChatPart[];
+  status: 'streaming' | 'done' | 'stopped' | 'error';
+  model: string;
+  error?: ChatFailure;
+  usage?: ChatUsage;
+  /** Where its messages begin in what the model is sent. */
+  historyStart: number;
+};
+
+export type ChatEntry = UserEntry | AssistantEntry;
+
+export type SessionChange =
+  | { kind: 'reset' }
+  | { kind: 'added'; entry: ChatEntry }
+  | { kind: 'updated'; entry: ChatEntry }
+  | { kind: 'removed'; entry: ChatEntry };
+
+/** Model steps a turn may take before it is cut off. */
+const MAX_STEPS = 40;
+
+export class ChatFailureError extends Error {
+  constructor(readonly failure: ChatFailure) {
+    super(failure.message);
+  }
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+/** The service's own words from an error body, when it gave any. */
+function serviceMessage(error: APICallError): string {
+  const data = error.data as { error?: { message?: unknown } } | undefined;
+  const fromData = data?.error?.message;
+  if (typeof fromData === 'string' && fromData) return fromData;
+  if (error.responseBody) {
+    try {
+      const body = JSON.parse(error.responseBody) as {
+        error?: { message?: unknown } | string;
+        message?: unknown;
+      };
+      const nested =
+        typeof body.error === 'string' ? body.error : body.error?.message;
+      const message = nested ?? body.message;
+      if (typeof message === 'string' && message) return message;
+    } catch {
+      // Not JSON: the body itself, if short enough to read.
+      const text = error.responseBody.trim();
+      if (text && text.length <= 300) return text;
+    }
+  }
+  return error.message;
+}
+
+/** Sorts a failed turn's error into what the panel can say about it. */
+export function describeFailure(error: unknown): ChatFailure {
+  if (error instanceof ChatFailureError) return error.failure;
+  const cause =
+    RetryError.isInstance(error) && error.lastError != null
+      ? error.lastError
+      : error;
+  if (APICallError.isInstance(cause)) {
+    const status = cause.statusCode;
+    const message = serviceMessage(cause);
+    if (status === 401 || status === 403) {
+      return { code: 'unauthorized', message, status };
+    }
+    if (status === 429) return { code: 'rate-limited', message, status };
+    if (status == null) return { code: 'network', message };
+    return { code: 'other', message, status };
+  }
+  const message = errorMessage(cause);
+  if (/\bnot-connected\b/.test(message)) {
+    return { code: 'not-connected', message };
+  }
+  if (/\bkey-needed\b/.test(message)) return { code: 'key-needed', message };
+  if (cause instanceof TypeError) return { code: 'network', message };
+  return { code: 'other', message };
+}
+
+function addUsage(
+  total: ChatUsage | undefined,
+  usage: LanguageModelUsage
+): ChatUsage {
+  return {
+    input: (total?.input ?? 0) + (usage.inputTokens ?? 0),
+    output: (total?.output ?? 0) + (usage.outputTokens ?? 0),
+  };
+}
+
+/** The text a reply shows, without its reasoning. */
+export function replyText(entry: AssistantEntry): string {
+  return entry.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('');
+}
+
+export class ChatSession {
+  readonly entries: ChatEntry[] = [];
+  private history: ModelMessage[] = [];
+  private running: AbortController | null = null;
+  private nextId = 1;
+  private readonly listeners = new Set<(change: SessionChange) => void>();
+
+  constructor(private readonly prepare: () => TurnSetup | Promise<TurnSetup>) {}
+
+  get busy(): boolean {
+    return this.running != null;
+  }
+
+  /** What the model is sent next, before the next message. */
+  get messages(): readonly ModelMessage[] {
+    return this.history;
+  }
+
+  subscribe(listener: (change: SessionChange) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /** Resolves once the reply is done, stopped or failed. */
+  async send(text: string): Promise<void> {
+    const trimmed = text.trim();
+    if (!trimmed || this.busy) return;
+    const entry: UserEntry = { id: this.nextId++, role: 'user', text: trimmed };
+    this.entries.push(entry);
+    this.history.push({ role: 'user', content: trimmed });
+    this.emit({ kind: 'added', entry });
+    await this.run();
+  }
+
+  /** Asks again in place of the last reply, which failed or was stopped. */
+  async retry(): Promise<void> {
+    if (this.busy) return;
+    const last = this.entries[this.entries.length - 1];
+    if (last?.role !== 'assistant' || last.status === 'done') return;
+    this.entries.pop();
+    this.history.length = last.historyStart;
+    this.emit({ kind: 'removed', entry: last });
+    await this.run();
+  }
+
+  stop() {
+    this.running?.abort();
+  }
+
+  /** Starts over; a reply on its way is stopped and dropped. */
+  clear() {
+    this.stop();
+    this.running = null;
+    this.entries.length = 0;
+    this.history = [];
+    this.emit({ kind: 'reset' });
+  }
+
+  private emit(change: SessionChange) {
+    for (const listener of this.listeners) listener(change);
+  }
+
+  private async run() {
+    const controller = new AbortController();
+    this.running = controller;
+    const entry: AssistantEntry = {
+      id: this.nextId++,
+      role: 'assistant',
+      parts: [],
+      status: 'streaming',
+      model: '',
+      historyStart: this.history.length,
+    };
+    this.entries.push(entry);
+    this.emit({ kind: 'added', entry });
+
+    // The messages of the steps that finished, and the text of the one
+    // under way: kept when the turn is stopped or fails part way.
+    const finished: ModelMessage[] = [];
+    let stepText = '';
+    let failure: unknown = null;
+    let stopped = false;
+    const update = () => {
+      if (this.running === controller) this.emit({ kind: 'updated', entry });
+    };
+
+    try {
+      const setup = await this.prepare();
+      if (controller.signal.aborted) throw controller.signal.reason;
+      entry.model = setup.modelLabel;
+      const result = streamText({
+        model: setup.model,
+        instructions: setup.instructions,
+        messages: [...this.history],
+        tools: setup.tools,
+        stopWhen: stepCountIs(MAX_STEPS),
+        abortSignal: controller.signal,
+        onStepFinish: (step) => {
+          finished.push(...step.response.messages);
+        },
+        // Shown in the panel; the console would only repeat it.
+        onError: () => {},
+      });
+
+      for await (const part of result.stream) {
+        switch (part.type) {
+          case 'start-step':
+            stepText = '';
+            break;
+          case 'text-delta':
+            this.append(entry, 'text', part.text);
+            stepText += part.text;
+            update();
+            break;
+          case 'reasoning-delta':
+            this.append(entry, 'reasoning', part.text);
+            update();
+            break;
+          case 'finish-step':
+            stepText = '';
+            entry.usage = addUsage(entry.usage, part.usage);
+            update();
+            break;
+          case 'error':
+            failure ??= part.error;
+            break;
+          case 'abort':
+            stopped = true;
+            break;
+          default:
+            break;
+        }
+      }
+      if (!stopped && !failure) {
+        const messages = await result.responseMessages;
+        if (this.running !== controller) return;
+        this.history.push(...messages);
+        entry.status = 'done';
+      }
+    } catch (error) {
+      if (controller.signal.aborted) stopped = true;
+      else failure ??= error;
+    }
+
+    // Cleared while it ran: the entry is gone already.
+    if (this.running !== controller) return;
+    this.running = null;
+    if (entry.status !== 'done') {
+      // What the model said before it stopped is kept, so a follow-up
+      // can refer to it; a retry drops it again.
+      this.history.push(...finished);
+      if (stepText) this.history.push({ role: 'assistant', content: stepText });
+      // Stopping can surface as an error of its own; it is still a stop.
+      if (controller.signal.aborted || (stopped && failure == null)) {
+        entry.status = 'stopped';
+      } else {
+        entry.status = 'error';
+        entry.error = describeFailure(failure);
+      }
+    }
+    this.emit({ kind: 'updated', entry });
+  }
+
+  private append(entry: AssistantEntry, type: ChatPart['type'], text: string) {
+    if (!text) return;
+    const last = entry.parts[entry.parts.length - 1];
+    if (last?.type === type) last.text += text;
+    else entry.parts.push({ type, text });
+  }
+}

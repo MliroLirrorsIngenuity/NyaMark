@@ -10,6 +10,7 @@ type ShortcutHandlers = {
   find: () => void;
   findAgain: (back: boolean) => void;
   toggleOutline: () => void;
+  toggleAi: () => void;
   openSettings: () => void;
 };
 
@@ -50,6 +51,7 @@ export class ShortcutController {
     // Captured: a code block's CodeMirror binds Mod-F itself and would act
     // before the event bubbled up here.
     window.addEventListener('keydown', (event) => this.find(event), true);
+    window.addEventListener('keydown', (event) => this.ai(event), true);
     window.addEventListener('keydown', (event) => this.dispatch(event));
   }
 
@@ -75,6 +77,20 @@ export class ShortcutController {
     event.stopPropagation();
     if (again) this.handlers.findAgain(event.shiftKey);
     else if (!event.repeat) this.handlers.find();
+  }
+
+  /**
+   * Mod-Shift-L opens the assistant, or goes back to the document from it.
+   * Captured: a code block's CodeMirror selects the selection's matches on
+   * the same keys.
+   */
+  private ai(event: KeyboardEvent) {
+    if (!hasPrimaryModifier(event) || event.altKey || !event.shiftKey) return;
+    if (shortcutKey(event) !== 'KeyL' || event.isComposing) return;
+    if (isModalOpen()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.repeat) this.handlers.toggleAi();
   }
 
   private dispatch(event: KeyboardEvent) {

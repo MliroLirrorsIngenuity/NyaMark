@@ -36,6 +36,7 @@
     "exportPdf": "匯出為 PDF",
     "settings": "設定",
     "outline": "大綱",
+    "ai": "AI 助理",
     "minimize": "最小化",
     "maximize": "最大化",
     "restore": "還原",
@@ -360,6 +361,46 @@
       "proxyManual": "手動設定",
       "instructions": "自訂指示",
       "instructionsNote": "每次請求都會附上：你的寫作習慣、回答使用的語言、哪些內容不要更動。"
+    }
+  },
+  "ai": {
+    "title": "AI 助理",
+    "chooseModel": "選擇模型",
+    "manageServices": "管理 AI 服務…",
+    "newChat": "新對話",
+    "close": "關閉",
+    "resize": "拖曳調整寬度，按兩下恢復預設",
+    "jump": "捲動到底部",
+    "setup": {
+      "title": "連接 AI 服務",
+      "body": "在設定中加入服務和模型後即可開始。金鑰儲存在系統鑰匙圈裡。",
+      "action": "開啟 AI 設定"
+    },
+    "empty": {
+      "title": "想寫點什麼？",
+      "body": "可以問這份文件的問題，也可以請它起草、改寫、出主意。"
+    },
+    "placeholder": "傳訊息給助理",
+    "hint": "Enter 傳送 · Shift+Enter 換行",
+    "send": "傳送",
+    "stop": "停止",
+    "waiting": "等待回覆",
+    "thinking": "思考過程",
+    "thinkingNow": "思考中…",
+    "copy": "複製",
+    "copied": "已複製",
+    "retry": "重試",
+    "stopped": "已停止",
+    "openSettings": "開啟設定",
+    "usage": "輸入 {{input}} · 輸出 {{output}}",
+    "error": {
+      "noModel": "請先在 AI 設定中選擇模型。",
+      "notConnected": "這個服務尚未儲存金鑰，請在 AI 設定中填寫。",
+      "keyNeeded": "填寫金鑰後服務位址已變更，請在 AI 設定中重新填寫金鑰。",
+      "unauthorized": "服務拒絕了這個金鑰（{{status}}）。",
+      "rateLimited": "請求過多或額度已用完，請稍後再試。",
+      "network": "無法連線到這個服務。",
+      "other": "服務傳回了錯誤。"
     }
   }
 }

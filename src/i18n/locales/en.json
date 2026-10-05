@@ -36,6 +36,7 @@
     "exportPdf": "Export as PDF",
     "settings": "Settings",
     "outline": "Outline",
+    "ai": "AI assistant",
     "minimize": "Minimize",
     "maximize": "Maximize",
     "restore": "Restore",
@@ -363,6 +364,46 @@
       "proxyManual": "Manual",
       "instructions": "Custom instructions",
       "instructionsNote": "Sent with every request: how you write, the language to answer in, what to leave alone."
+    }
+  },
+  "ai": {
+    "title": "AI assistant",
+    "chooseModel": "Choose a model",
+    "manageServices": "Manage AI services…",
+    "newChat": "New chat",
+    "close": "Close",
+    "resize": "Drag to resize, double-click to reset",
+    "jump": "Scroll to the end",
+    "setup": {
+      "title": "Connect an AI service",
+      "body": "Add a service and a model in Settings to start. Your key stays in the system keychain.",
+      "action": "Open AI settings"
+    },
+    "empty": {
+      "title": "What shall we write?",
+      "body": "Ask about this document, or ask for a draft, a rewrite or ideas."
+    },
+    "placeholder": "Message the assistant",
+    "hint": "Enter to send · Shift+Enter for a new line",
+    "send": "Send",
+    "stop": "Stop",
+    "waiting": "Waiting for the reply",
+    "thinking": "Thoughts",
+    "thinkingNow": "Thinking…",
+    "copy": "Copy",
+    "copied": "Copied",
+    "retry": "Retry",
+    "stopped": "Stopped",
+    "openSettings": "Open settings",
+    "usage": "{{input}} in · {{output}} out",
+    "error": {
+      "noModel": "Choose a model in the AI settings first.",
+      "notConnected": "This service has no key saved yet. Add it in the AI settings.",
+      "keyNeeded": "The service’s address changed since its key was entered. Enter the key again in the AI settings.",
+      "unauthorized": "The service refused the key ({{status}}).",
+      "rateLimited": "Too many requests, or the quota is used up. Try again in a moment.",
+      "network": "The service could not be reached.",
+      "other": "The service returned an error."
     }
   }
 }

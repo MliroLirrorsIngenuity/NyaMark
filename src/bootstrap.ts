@@ -4,6 +4,7 @@
  */
 
 import type { Node } from '@milkdown/kit/prose/model';
+import type { AiPanel } from './ai/ui/panel';
 import { errorDialog, warningDialog } from './bridge/ipc/files';
 import {
   checkForUpdate,
@@ -46,6 +47,7 @@ import { UpdateDialog } from './ui/update-dialog';
 export class App {
   private editor: NyaEditor | null = null;
   private outline: OutlinePanel | null = null;
+  private aiPanel: Promise<AiPanel> | null = null;
   private attachments: AttachmentController | null = null;
   private sourceMode: SourceModeController | null = null;
   private suppressDirtyTracking = false;
@@ -191,6 +193,7 @@ export class App {
       onSaveFileAs: () => fileController.saveFileAs(),
       onExportPdf: () => this.pdfExporter.open(),
       onToggleOutline: () => this.toggleOutline(),
+      onToggleAi: () => this.toggleAi(false),
       onOpenSettings: () => this.settingsPanel.open(),
     });
 
@@ -227,6 +230,7 @@ export class App {
         if (!store.getState().sourceMode) searchPanel.findAgain(back);
       },
       toggleOutline: () => this.toggleOutline(),
+      toggleAi: () => this.toggleAi(true),
       openSettings: () => this.settingsPanel.open(),
     });
     shortcutController.bind();
@@ -244,6 +248,37 @@ export class App {
       if (!this.sourceMode?.revealHeading(id)) editor.scrollToHeading(id);
     });
     this.outline.toggle();
+  }
+
+  /**
+   * The button opens and closes the assistant. The shortcut opens it, takes
+   * the caret to it when it is open elsewhere, and closes it from inside.
+   */
+  private toggleAi(fromShortcut: boolean) {
+    void this.loadAiPanel()
+      .then((panel) => {
+        if (!panel.isVisible) panel.show();
+        else if (fromShortcut && !panel.hasFocus) panel.focus();
+        else panel.hide();
+      })
+      .catch((error) => {
+        this.aiPanel = null;
+        console.error('[ai] The assistant failed to load', error);
+      });
+  }
+
+  private loadAiPanel(): Promise<AiPanel> {
+    const editor = this.editor;
+    if (!editor) return Promise.reject(new Error('No editor yet'));
+    this.aiPanel ??= import('./ai/ui/panel').then(
+      ({ AiPanel }) =>
+        new AiPanel({
+          editor,
+          documentPath: () => store.getState().filePath,
+          openSettings: () => this.settingsPanel.open('ai'),
+        })
+    );
+    return this.aiPanel;
   }
 
   private scheduleUpdateCheck() {

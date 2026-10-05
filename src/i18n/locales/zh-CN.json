@@ -36,6 +36,7 @@
     "exportPdf": "导出为 PDF",
     "settings": "设置",
     "outline": "大纲",
+    "ai": "AI 助手",
     "minimize": "最小化",
     "maximize": "最大化",
     "restore": "还原",
@@ -360,6 +361,46 @@
       "proxyManual": "手动设置",
       "instructions": "自定义指令",
       "instructionsNote": "每次请求都会带上：你的写作习惯、回答用的语言、哪些内容不要动。"
+    }
+  },
+  "ai": {
+    "title": "AI 助手",
+    "chooseModel": "选择模型",
+    "manageServices": "管理 AI 服务…",
+    "newChat": "新对话",
+    "close": "关闭",
+    "resize": "拖动调整宽度，双击恢复默认",
+    "jump": "滚动到底部",
+    "setup": {
+      "title": "连接 AI 服务",
+      "body": "在设置里添加服务和模型后即可开始。密钥保存在系统钥匙串里。",
+      "action": "打开 AI 设置"
+    },
+    "empty": {
+      "title": "想写点什么？",
+      "body": "可以问这篇文档的问题，也可以让它起草、改写、出主意。"
+    },
+    "placeholder": "给助手发消息",
+    "hint": "Enter 发送 · Shift+Enter 换行",
+    "send": "发送",
+    "stop": "停止",
+    "waiting": "等待回复",
+    "thinking": "思考过程",
+    "thinkingNow": "思考中…",
+    "copy": "复制",
+    "copied": "已复制",
+    "retry": "重试",
+    "stopped": "已停止",
+    "openSettings": "打开设置",
+    "usage": "输入 {{input}} · 输出 {{output}}",
+    "error": {
+      "noModel": "请先在 AI 设置里选择模型。",
+      "notConnected": "这个服务还没保存密钥，请在 AI 设置里填写。",
+      "keyNeeded": "服务地址在填写密钥后改过了，请在 AI 设置里重新填写密钥。",
+      "unauthorized": "服务拒绝了这个密钥（{{status}}）。",
+      "rateLimited": "请求太多或额度已用完，请稍后再试。",
+      "network": "连不上这个服务。",
+      "other": "服务返回了错误。"
     }
   }
 }

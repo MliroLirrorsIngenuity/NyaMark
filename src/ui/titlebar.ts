@@ -22,6 +22,7 @@ type TitlebarActions = {
   onSaveFileAs: () => unknown;
   onExportPdf: () => unknown;
   onToggleOutline: () => unknown;
+  onToggleAi: () => unknown;
   onOpenSettings: () => void;
 };
 
@@ -52,6 +53,7 @@ export class Titlebar {
     this.bindMaximizeState();
     this.bindFileMenu();
     this.bindAction('tb-outline', this.actions.onToggleOutline);
+    this.bindAction('tb-ai', this.actions.onToggleAi);
     this.bindClick('tb-settings', () => this.actions.onOpenSettings());
     this.bindClick(
       'tb-minimize',

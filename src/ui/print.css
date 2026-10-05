@@ -39,6 +39,7 @@
   :root.ny-exporting-pdf .ny-image-policy-overlay,
   :root.ny-exporting-pdf .ny-search,
   :root.ny-exporting-pdf .ny-outline,
+  :root.ny-exporting-pdf .ny-ai,
   :root.ny-exporting-pdf .ny-export-pdf-overlay,
   :root.ny-exporting-pdf .ny-shell__body > .ny-shell__overlay,
   :root.ny-exporting-pdf .ny-shell__body [data-tauri-drag-region] {

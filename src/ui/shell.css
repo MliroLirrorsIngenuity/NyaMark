@@ -773,6 +773,7 @@ body {
   :root.ny-exporting-pdf .ny-shell__file-menu,
   :root.ny-exporting-pdf .ny-search,
   :root.ny-exporting-pdf .ny-outline,
+  :root.ny-exporting-pdf .ny-ai,
   :root.ny-exporting-pdf .milkdown .toolbar {
     display: none !important;
   }
