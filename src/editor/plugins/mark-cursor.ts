@@ -290,6 +290,8 @@ export function caretBox(view: EditorView): Rect | null {
   };
 }
 
+const BLINK_AGAIN = 'ny-caret-blink-again';
+
 /** Draws the caret; the middle of its height in the editor, if drawn. */
 function drawCursor(
   view: EditorView,
@@ -313,10 +315,8 @@ function drawCursor(
     const inside = typedMarks(state, $pos).some((mark) => mark.type.spec.code);
     x = codeCaretX(view, $pos.pos, edge, inside) ?? x;
   }
-  cursor.className = 'prosemirror-virtual-cursor';
-  cursor.classList.remove('prosemirror-virtual-cursor-animation');
-  void cursor.offsetWidth;
-  cursor.classList.add('prosemirror-virtual-cursor-animation');
+  const again = cursor.classList.contains(BLINK_AGAIN) ? '' : ` ${BLINK_AGAIN}`;
+  cursor.className = `prosemirror-virtual-cursor prosemirror-virtual-cursor-animation${again}`;
   cursor.style.height = `${rect.bottom - rect.top}px`;
   cursor.style.left = `${x - box.left}px`;
   cursor.style.top = `${rect.top - box.top}px`;

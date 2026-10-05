@@ -43,3 +43,24 @@
     opacity: 1;
   }
 }
+
+.ny-editor-root
+  .milkdown
+  .ProseMirror-focused
+  .prosemirror-virtual-cursor-animation.ny-caret-blink-again {
+  animation-name: ny-caret-blink-again;
+}
+
+@keyframes ny-caret-blink-again {
+  0%,
+  44% {
+    opacity: 1;
+  }
+  52%,
+  92% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
