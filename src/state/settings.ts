@@ -6,6 +6,11 @@ import {
 import { setNativeWindowBackdrop, setWindowBlur } from '../bridge/ipc/windows';
 import { getPlatform } from '../platform/detect';
 import {
+  type AiSettings,
+  defaultAiSettings,
+  sanitizeAiSettings,
+} from './ai-settings';
+import {
   type ImageInsertPolicy,
   type ImageSettings,
   defaultImageSettings,
@@ -36,6 +41,7 @@ export type Settings = {
   appearance: AppearanceSettings;
   save: SaveSettings;
   attachments: ImageSettings;
+  ai: AiSettings;
 };
 
 const SETTINGS_EVENT = 'nyamark:settingschange';
@@ -56,6 +62,7 @@ export const defaultSettings: Settings = {
     autoSaveIntervalMs: 60_000,
   },
   attachments: defaultImageSettings,
+  ai: defaultAiSettings,
 };
 
 let cached: Settings = structuredClone(defaultSettings);
@@ -265,6 +272,7 @@ export function normalizeSettings(
     appearance: sanitizeAppearanceSettings(parsed?.appearance),
     save: sanitizeSaveSettings(parsed?.save),
     attachments: sanitizeAttachmentSettings(parsed?.attachments),
+    ai: sanitizeAiSettings(parsed?.ai),
   };
 }
 
@@ -368,6 +376,7 @@ export async function updateSettings(partial: SettingsPatch) {
     appearance: { ...current.appearance, ...(partial.appearance ?? {}) },
     save: { ...current.save, ...(partial.save ?? {}) },
     attachments: { ...current.attachments, ...(partial.attachments ?? {}) },
+    ai: { ...current.ai, ...(partial.ai ?? {}) },
   };
   await saveSettings(merged);
 }
@@ -384,6 +393,10 @@ export function subscribeSettings(
   return () => window.removeEventListener(SETTINGS_EVENT, handler);
 }
 
+/** The AI services stay: their keys are in the keychain, out of reach. */
 export async function resetSettings() {
-  await saveSettings(structuredClone(defaultSettings));
+  await saveSettings({
+    ...structuredClone(defaultSettings),
+    ai: getSettings().ai,
+  });
 }

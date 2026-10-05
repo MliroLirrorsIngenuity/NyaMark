@@ -291,6 +291,78 @@
           "description": "Embed the image in the document as Base64."
         }
       }
+    },
+    "tabs": {
+      "general": "General",
+      "ai": "AI assistant"
+    },
+    "ai": {
+      "services": "AI services",
+      "servicesNote": "Connect the services you use. Keys stay in the system keychain and only go to the address they were entered for.",
+      "fileStorage": "This system has no keychain to use, so keys are kept unencrypted in a file only your account can read.",
+      "add": "Add a service",
+      "custom": "Other service",
+      "edit": "Edit",
+      "done": "Done",
+      "remove": "Remove",
+      "modelCount_one": "{{count}} model",
+      "modelCount_other": "{{count}} models",
+      "status": {
+        "saved": "Key saved ••••{{hint}}",
+        "local": "Ready",
+        "noKey": "No key",
+        "keyNeeded": "Key needed again",
+        "notConnected": "Not set up"
+      },
+      "name": "Name",
+      "kind": "API",
+      "kinds": {
+        "openai": "OpenAI (Responses)",
+        "openai-compatible": "OpenAI-compatible (Chat Completions)",
+        "anthropic": "Anthropic",
+        "google": "Google Gemini",
+        "deepseek": "DeepSeek"
+      },
+      "baseUrl": "Address",
+      "badUrl": "Enter an address that starts with https:// or http://.",
+      "plainHttp": "This address uses plain http, so the key crosses the internet unencrypted. Use https if the service offers it.",
+      "keyNeeded": "The address now points to another site. Enter the key again to use it there.",
+      "key": "API key",
+      "keyPlaceholder": "Paste the key",
+      "keyOptional": "Optional",
+      "keySaved": "Saved ••••{{hint}} — paste a new key to replace it",
+      "getKey": "Get a key",
+      "fetchModels": "Fetch models",
+      "check": "Test connection",
+      "fetching": "Fetching models…",
+      "checking": "Connecting…",
+      "connected": "Connected · {{count}} models available",
+      "answered": "Connected · {{model}} answered",
+      "failed": "Could not connect: {{message}}",
+      "notConnected": "this service has no key or address saved yet",
+      "models": "Models",
+      "noModels": "No models yet. Fetch them from the service, or add one by its ID.",
+      "vision": "Images",
+      "tools": "Tools",
+      "reasoning": "Reasoning",
+      "context": "Context",
+      "removeModel": "Remove model",
+      "modelIdPlaceholder": "Model ID, such as gpt-5-mini",
+      "addModel": "Add",
+      "filterModels": "Filter {{count}} models",
+      "defaults": "Models to use",
+      "chatModel": "Assistant",
+      "quickModel": "Selection and slash commands",
+      "noModel": "None",
+      "sameAsChat": "Same as the assistant",
+      "network": "Network",
+      "proxy": "Proxy",
+      "proxyUrl": "Proxy address",
+      "proxySystem": "System proxy",
+      "proxyNone": "Direct connection",
+      "proxyManual": "Manual",
+      "instructions": "Custom instructions",
+      "instructionsNote": "Sent with every request: how you write, the language to answer in, what to leave alone."
     }
   }
 }

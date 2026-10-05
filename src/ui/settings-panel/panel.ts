@@ -1,3 +1,4 @@
+import { commitAiSecrets, discardAiSecrets } from '../../bridge/ipc/ai';
 import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
 import { translateDOM } from '../../i18n/dom';
 import { isMacOS } from '../../platform/detect';
@@ -13,6 +14,7 @@ import { ensureStyle } from '../../style/register';
 import { forInputMethod } from '../ime';
 import { animationsSettled, isModalOpen, openModal } from '../modal';
 import { requireElement } from '../require-element';
+import type { AiSection } from './sections/ai';
 import { renderAppearanceSection } from './sections/appearance';
 import { renderAttachmentsSection } from './sections/attachments';
 import { renderGeneralSection } from './sections/general';
@@ -78,6 +80,42 @@ const styles = `
   margin: 0 0 12px;
   color: var(--ny-text-secondary);
   font-size: 13px;
+}
+
+.ny-settings-tabs {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0 0 10px;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 30%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ny-surface-elevated), var(--ny-text-primary) 4%);
+}
+
+.ny-settings-tabs__tab {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ny-text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: default;
+}
+
+.ny-settings-tabs__tab[aria-selected="true"] {
+  background: var(--ny-surface-elevated);
+  color: var(--ny-text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.ny-settings-tabs__tab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline-offset: 1px;
+}
+
+.ny-settings-dialog__pane[hidden] {
+  display: none;
 }
 
 /* The padding keeps focus rings clear of the scroll edge; the margin takes it
@@ -554,6 +592,10 @@ type SettingsPanelActions = {
   checkForUpdates: () => Promise<void>;
 };
 
+export type SettingsTab = 'general' | 'ai';
+
+const TABS: readonly SettingsTab[] = ['general', 'ai'];
+
 export class SettingsPanel {
   private overlay: HTMLDivElement | null = null;
 
@@ -561,7 +603,7 @@ export class SettingsPanel {
     ensureStyle('ny-settings-panel', styles);
   }
 
-  open() {
+  open(tab: SettingsTab = 'general') {
     // Over another dialog, from the menu or the title bar's gear, it opened
     // beneath that one and took its focus.
     if (this.overlay || isModalOpen()) {
@@ -576,6 +618,7 @@ export class SettingsPanel {
     const opened = structuredClone(getSettings());
     let working: Settings = structuredClone(opened);
     let previewTimer: number | null = null;
+    let closing = false;
 
     const dialog = document.createElement('div');
     dialog.className = 'ny-settings-dialog';
@@ -583,6 +626,10 @@ export class SettingsPanel {
       <header>
         <h3 data-i18n="settings.title">Settings</h3>
         <p class="ny-settings-dialog__subtitle" data-i18n="settings.subtitle">Adjust how the editor looks and behaves.</p>
+        <div class="ny-settings-tabs" role="tablist">
+          <button type="button" role="tab" class="ny-settings-tabs__tab" id="ny-settings-tab-general" aria-controls="ny-settings-pane-general" data-tab="general" data-i18n="settings.tabs.general">General</button>
+          <button type="button" role="tab" class="ny-settings-tabs__tab" id="ny-settings-tab-ai" aria-controls="ny-settings-pane-ai" data-tab="ai" data-i18n="settings.tabs.ai">AI assistant</button>
+        </div>
       </header>
     `;
 
@@ -633,8 +680,76 @@ export class SettingsPanel {
       { pickDirectory: () => openDirectoryDialog() }
     );
 
-    body.append(general, appearance, save, attachments);
+    const panes = new Map<SettingsTab, HTMLElement>();
+    for (const name of TABS) {
+      const pane = document.createElement('div');
+      pane.className = 'ny-settings-dialog__pane';
+      pane.id = `ny-settings-pane-${name}`;
+      pane.setAttribute('role', 'tabpanel');
+      pane.setAttribute('aria-labelledby', `ny-settings-tab-${name}`);
+      panes.set(name, pane);
+      body.append(pane);
+    }
+    panes.get('general')?.append(general, appearance, save, attachments);
     dialog.appendChild(body);
+
+    // The AI tab loads with its first showing: the services it talks to
+    // stay out of the start-up code.
+    let aiLoaded: Promise<void> | null = null;
+    let aiSection: AiSection | null = null;
+    /** Keys typed in the AI tab, held until OK keeps them or the dialog goes. */
+    let secretsSettled = false;
+    const settleSecrets = async (keep: boolean) => {
+      if (!aiLoaded || secretsSettled) return;
+      secretsSettled = true;
+      await aiLoaded.catch(() => undefined);
+      await aiSection?.settled();
+      await (keep ? commitAiSecrets() : discardAiSecrets());
+    };
+    const loadAi = () => {
+      aiLoaded ??= import('./sections/ai').then(({ renderAiSection }) => {
+        if (closing) return;
+        aiSection = renderAiSection(
+          working.ai,
+          (next) => {
+            working = { ...working, ai: next };
+          },
+          { proxy: () => working.ai.proxy }
+        );
+        panes.get('ai')?.append(aiSection.element);
+      });
+      aiLoaded.catch((error) => {
+        console.error('Failed to load the AI settings:', error);
+      });
+    };
+
+    const tabs = Array.from(
+      dialog.querySelectorAll<HTMLButtonElement>('.ny-settings-tabs__tab')
+    );
+    const showTab = (name: SettingsTab, focus = false) => {
+      for (const button of tabs) {
+        const selected = button.dataset.tab === name;
+        button.setAttribute('aria-selected', String(selected));
+        button.tabIndex = selected ? 0 : -1;
+        if (selected && focus) button.focus();
+      }
+      for (const [key, pane] of panes) pane.hidden = key !== name;
+      body.scrollTop = 0;
+      if (name === 'ai') loadAi();
+    };
+    for (const button of tabs) {
+      button.addEventListener('click', () => {
+        showTab(button.dataset.tab as SettingsTab);
+      });
+      button.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        const index = TABS.indexOf(button.dataset.tab as SettingsTab);
+        const step = event.key === 'ArrowRight' ? 1 : -1;
+        showTab(TABS[(index + step + TABS.length) % TABS.length], true);
+      });
+    }
+    showTab(tab);
 
     const actions = document.createElement('div');
     actions.className = 'ny-settings-dialog__actions';
@@ -670,11 +785,10 @@ export class SettingsPanel {
 
     translateDOM(overlay);
 
-    let closing = false;
-
     const close = async () => {
       if (closing) return;
       closing = true;
+      void settleSecrets(false).catch(console.error);
       // Handing the focus back blurs a field still being typed in, and its
       // change event previews that value: a font size typed and then
       // cancelled with Escape stayed on the page.
@@ -720,6 +834,9 @@ export class SettingsPanel {
       // never let a slow or failed save trap the dialog open. Only what was
       // changed here is written, over what other windows changed meanwhile.
       void updateSettings(changedSettings(opened, working)).catch((error) => {
+        void errorDialog(String(error));
+      });
+      void settleSecrets(true).catch((error) => {
         void errorDialog(String(error));
       });
       await close();

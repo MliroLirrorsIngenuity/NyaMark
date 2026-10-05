@@ -289,6 +289,77 @@
           "description": "将图片以 Base64 形式嵌入文档。"
         }
       }
+    },
+    "tabs": {
+      "general": "通用",
+      "ai": "AI 助手"
+    },
+    "ai": {
+      "services": "AI 服务",
+      "servicesNote": "接入你在用的服务。密钥保存在系统钥匙串里，只会发往填写时对应的地址。",
+      "fileStorage": "这台系统没有可用的钥匙串，密钥以未加密的形式存在只有你的账户能读的文件里。",
+      "add": "添加服务",
+      "custom": "其他服务",
+      "edit": "编辑",
+      "done": "完成",
+      "remove": "移除",
+      "modelCount": "{{count}} 个模型",
+      "status": {
+        "saved": "已保存密钥 ••••{{hint}}",
+        "local": "可用",
+        "noKey": "未填密钥",
+        "keyNeeded": "需重新填写密钥",
+        "notConnected": "未设置"
+      },
+      "name": "名称",
+      "kind": "接口类型",
+      "kinds": {
+        "openai": "OpenAI（Responses）",
+        "openai-compatible": "OpenAI 兼容（Chat Completions）",
+        "anthropic": "Anthropic",
+        "google": "Google Gemini",
+        "deepseek": "DeepSeek"
+      },
+      "baseUrl": "地址",
+      "badUrl": "请填写以 https:// 或 http:// 开头的地址。",
+      "plainHttp": "这个地址用的是明文 http，密钥会不加密地经过互联网。服务支持 https 时请改用 https。",
+      "keyNeeded": "地址已换到另一个站点，请重新填写密钥后再用。",
+      "key": "API 密钥",
+      "keyPlaceholder": "粘贴密钥",
+      "keyOptional": "可不填",
+      "keySaved": "已保存 ••••{{hint}}，粘贴新密钥即可替换",
+      "getKey": "获取密钥",
+      "fetchModels": "拉取模型",
+      "check": "测试连接",
+      "fetching": "正在拉取模型…",
+      "checking": "正在连接…",
+      "connected": "已连接 · 共 {{count}} 个模型可用",
+      "answered": "已连接 · {{model}} 已回应",
+      "failed": "连接失败：{{message}}",
+      "notConnected": "这个服务还没保存密钥或地址",
+      "models": "模型",
+      "noModels": "还没有模型。可以从服务拉取，也可以按 ID 手动添加。",
+      "vision": "图片",
+      "tools": "工具",
+      "reasoning": "推理",
+      "context": "上下文",
+      "removeModel": "移除模型",
+      "modelIdPlaceholder": "模型 ID，例如 deepseek-chat",
+      "addModel": "添加",
+      "filterModels": "在 {{count}} 个模型中筛选",
+      "defaults": "使用的模型",
+      "chatModel": "对话助手",
+      "quickModel": "选区与斜杠命令",
+      "noModel": "未选择",
+      "sameAsChat": "与对话助手相同",
+      "network": "网络",
+      "proxy": "代理",
+      "proxyUrl": "代理地址",
+      "proxySystem": "系统代理",
+      "proxyNone": "直接连接",
+      "proxyManual": "手动设置",
+      "instructions": "自定义指令",
+      "instructionsNote": "每次请求都会带上：你的写作习惯、回答用的语言、哪些内容不要动。"
     }
   }
 }

@@ -1,0 +1,408 @@
+import { describe, expect, test } from 'bun:test';
+import {
+  guessCapabilities,
+  isChatModel,
+} from '../src/ai/providers/capabilities';
+import { checkProvider } from '../src/ai/providers/check';
+import {
+  ModelListError,
+  listModels,
+  parseAnthropicModels,
+  parseGoogleModels,
+  parseOpenAiModels,
+} from '../src/ai/providers/models';
+import {
+  AI_PRESETS,
+  authSchemeOf,
+  isPlainRemoteAddress,
+} from '../src/ai/providers/presets';
+import type { AiProvider } from '../src/state/ai-settings';
+import { normalizeSettings } from '../src/state/settings';
+
+function provider(overrides: Partial<AiProvider> = {}): AiProvider {
+  return {
+    id: 'p-test',
+    name: 'Test',
+    preset: 'custom',
+    kind: 'openai-compatible',
+    baseUrl: 'https://api.example.com/v1',
+    models: [],
+    ...overrides,
+  };
+}
+
+/** Answers each request from `routes` by its path and query. */
+function fakeFetch(
+  routes: Record<string, () => Response>,
+  seen: string[] = []
+): typeof fetch {
+  return (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    const key = `${url.pathname}${url.search}`;
+    seen.push(key);
+    const route = routes[key] ?? routes[url.pathname];
+    return route ? route() : new Response('{}', { status: 404 });
+  }) as typeof fetch;
+}
+
+const json =
+  (value: unknown, status = 200) =>
+  () =>
+    new Response(JSON.stringify(value), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+
+describe('AI settings', () => {
+  test('start empty, with the system proxy', () => {
+    expect(normalizeSettings(undefined).ai).toEqual({
+      providers: [],
+      chatModel: null,
+      quickModel: null,
+      proxy: { mode: 'system' },
+      instructions: '',
+    });
+  });
+
+  test('keep only well-formed providers and models', () => {
+    const { ai } = normalizeSettings({
+      ai: {
+        providers: [
+          {
+            id: 'p-1',
+            name: '  ',
+            kind: 'openai',
+            baseUrl: ' https://api.openai.com/v1 ',
+            models: [
+              { id: 'gpt-5', vision: true, contextWindow: 1e12 },
+              { id: 'gpt-5', vision: false },
+              { id: '' },
+              { id: 'tiny', contextWindow: 12 },
+            ],
+          },
+          { id: 'p-1', name: 'Again', kind: 'openai' },
+          { id: '../escape', kind: 'openai' },
+          { id: 'p-2', kind: 'mystery' },
+        ],
+      },
+    } as never);
+    expect(ai.providers).toEqual([
+      {
+        id: 'p-1',
+        name: 'p-1',
+        preset: 'custom',
+        kind: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        models: [
+          {
+            id: 'gpt-5',
+            vision: true,
+            tools: true,
+            reasoning: false,
+            contextWindow: 10_000_000,
+          },
+          {
+            id: 'tiny',
+            vision: false,
+            tools: true,
+            reasoning: false,
+            contextWindow: 128_000,
+          },
+        ],
+      },
+    ]);
+  });
+
+  test('drop a chosen model its service no longer has', () => {
+    const { ai } = normalizeSettings({
+      ai: {
+        providers: [
+          { id: 'p-1', kind: 'deepseek', models: [{ id: 'deepseek-chat' }] },
+        ],
+        chatModel: { provider: 'p-1', model: 'deepseek-chat' },
+        quickModel: { provider: 'p-1', model: 'gone' },
+      },
+    } as never);
+    expect(ai.chatModel).toEqual({ provider: 'p-1', model: 'deepseek-chat' });
+    expect(ai.quickModel).toBeNull();
+  });
+
+  test('use the system proxy until a manual one has an address', () => {
+    const proxy = (value: unknown) =>
+      normalizeSettings({ ai: { proxy: value } } as never).ai.proxy;
+    expect(proxy({ mode: 'manual', url: ' ' })).toEqual({ mode: 'system' });
+    expect(proxy({ mode: 'manual', url: 'socks5://127.0.0.1:7890' })).toEqual({
+      mode: 'manual',
+      url: 'socks5://127.0.0.1:7890',
+    });
+    expect(proxy({ mode: 'none' })).toEqual({ mode: 'none' });
+    expect(proxy('direct')).toEqual({ mode: 'system' });
+  });
+
+  test('cap the custom instructions', () => {
+    const { ai } = normalizeSettings({
+      ai: { instructions: 'x'.repeat(30_000) },
+    } as never);
+    expect(ai.instructions.length).toBe(20_000);
+  });
+});
+
+describe('presets', () => {
+  test('have unique ids and https addresses off this computer', () => {
+    const ids = AI_PRESETS.map((preset) => preset.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const preset of AI_PRESETS) {
+      if (!preset.baseUrl) continue;
+      expect(preset.baseUrl.startsWith('https://')).toBe(!preset.local);
+    }
+  });
+
+  test('put the key where each API reads it', () => {
+    expect(authSchemeOf('anthropic')).toBe('x-api-key');
+    expect(authSchemeOf('google')).toBe('x-goog-api-key');
+    expect(authSchemeOf('openai')).toBe('bearer');
+    expect(authSchemeOf('openai-compatible')).toBe('bearer');
+    expect(authSchemeOf('deepseek')).toBe('bearer');
+  });
+
+  test.each([
+    ['http://api.example.com/v1', true],
+    ['http://8.8.8.8:8080', true],
+    ['http://[2001:db8::1]/v1', true],
+    ['http://fcc.example.com', true],
+    ['https://api.example.com/v1', false],
+    ['http://127.0.0.1:11434/v1', false],
+    ['http://localhost:1234', false],
+    ['http://192.168.1.20:8000', false],
+    ['http://10.0.0.5', false],
+    ['http://172.20.0.1', false],
+    ['http://100.100.1.1', false],
+    ['http://nas.local:8080', false],
+    ['http://[::1]:1234', false],
+    ['http://[fd12::1]', false],
+    ['not a url', false],
+  ])('%s crosses the internet in the clear: %p', (url, plain) => {
+    expect(isPlainRemoteAddress(url)).toBe(plain);
+  });
+});
+
+describe('capabilities', () => {
+  test('leave out models a chat cannot use', () => {
+    for (const id of [
+      'text-embedding-3-large',
+      'whisper-1',
+      'tts-1',
+      'dall-e-3',
+      'gpt-image-1',
+      'omni-moderation-latest',
+      'gpt-4o-realtime-preview',
+    ]) {
+      expect(isChatModel(id)).toBe(false);
+    }
+    for (const id of ['gpt-5', 'claude-sonnet-4-5', 'qwen-max', 'glm-4.6']) {
+      expect(isChatModel(id)).toBe(true);
+    }
+  });
+
+  test('guess from the model id', () => {
+    expect(guessCapabilities('claude-sonnet-4-5', { local: false })).toEqual({
+      id: 'claude-sonnet-4-5',
+      vision: true,
+      tools: true,
+      reasoning: true,
+      contextWindow: 200_000,
+    });
+    expect(guessCapabilities('gemini-2.5-pro', { local: false })).toMatchObject(
+      { vision: true, reasoning: true, contextWindow: 1_000_000 }
+    );
+    expect(guessCapabilities('deepseek-chat', { local: false })).toMatchObject({
+      vision: false,
+      reasoning: false,
+      contextWindow: 128_000,
+    });
+    expect(
+      guessCapabilities('deepseek-reasoner', { local: false }).reasoning
+    ).toBe(true);
+    expect(guessCapabilities('qwen2.5-vl-7b', { local: true })).toMatchObject({
+      vision: true,
+      contextWindow: 32_768,
+    });
+  });
+
+  test('take the window the service gives over the guess', () => {
+    expect(
+      guessCapabilities('claude-opus-4-1', {
+        local: false,
+        contextWindow: 1_000_000,
+      }).contextWindow
+    ).toBe(1_000_000);
+  });
+});
+
+describe('model lists', () => {
+  test('read OpenRouter details from an OpenAI-style list', () => {
+    expect(
+      parseOpenAiModels({
+        data: [
+          {
+            id: 'anthropic/claude-sonnet-4.5',
+            name: 'Claude Sonnet 4.5',
+            context_length: 1_000_000,
+            architecture: { input_modalities: ['text', 'image'] },
+            supported_parameters: ['tools', 'reasoning'],
+          },
+          { id: 'gpt-5-mini', object: 'model' },
+          { object: 'model' },
+        ],
+      })
+    ).toEqual([
+      {
+        id: 'anthropic/claude-sonnet-4.5',
+        name: 'Claude Sonnet 4.5',
+        contextWindow: 1_000_000,
+        vision: true,
+        tools: true,
+        reasoning: true,
+      },
+      {
+        id: 'gpt-5-mini',
+        name: undefined,
+        contextWindow: undefined,
+        vision: undefined,
+        tools: undefined,
+        reasoning: undefined,
+      },
+    ]);
+  });
+
+  test('read Anthropic and Gemini lists', () => {
+    expect(
+      parseAnthropicModels({
+        data: [
+          {
+            id: 'claude-opus-4-1',
+            display_name: 'Claude Opus 4.1',
+            max_input_tokens: 200_000,
+          },
+        ],
+      })
+    ).toEqual([
+      {
+        id: 'claude-opus-4-1',
+        name: 'Claude Opus 4.1',
+        contextWindow: 200_000,
+      },
+    ]);
+    expect(
+      parseGoogleModels({
+        models: [
+          {
+            name: 'models/gemini-2.5-flash',
+            displayName: 'Gemini 2.5 Flash',
+            inputTokenLimit: 1_048_576,
+            supportedGenerationMethods: ['generateContent', 'countTokens'],
+            thinking: true,
+          },
+          {
+            name: 'models/text-embedding-004',
+            supportedGenerationMethods: ['embedContent'],
+          },
+        ],
+      })
+    ).toEqual([
+      {
+        id: 'gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
+        contextWindow: 1_048_576,
+        reasoning: true,
+      },
+    ]);
+  });
+
+  test('follow Anthropic pages', async () => {
+    const seen: string[] = [];
+    const models = await listModels(
+      provider({ kind: 'anthropic', baseUrl: 'https://api.anthropic.com/v1/' }),
+      fakeFetch(
+        {
+          '/v1/models?limit=1000': json({
+            data: [{ id: 'a' }],
+            has_more: true,
+            last_id: 'a',
+          }),
+          '/v1/models?limit=1000&after_id=a': json({
+            data: [{ id: 'b' }],
+            has_more: false,
+          }),
+        },
+        seen
+      )
+    );
+    expect(models.map((model) => model.id)).toEqual(['a', 'b']);
+    expect(seen).toEqual([
+      '/v1/models?limit=1000',
+      '/v1/models?limit=1000&after_id=a',
+    ]);
+  });
+
+  test('report the service’s own error', async () => {
+    const failing = listModels(
+      provider(),
+      fakeFetch({
+        '/v1/models': json(
+          { error: { message: 'Incorrect API key provided' } },
+          401
+        ),
+      })
+    );
+    const error = await failing.catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(ModelListError);
+    expect((error as ModelListError).status).toBe(401);
+    expect((error as ModelListError).message).toContain(
+      'Incorrect API key provided'
+    );
+  });
+});
+
+describe('checkProvider', () => {
+  test('lists the models when the service can', async () => {
+    const result = await checkProvider(
+      provider(),
+      fakeFetch({ '/v1/models': json({ data: [{ id: 'm' }] }) })
+    );
+    expect(result).toMatchObject({ kind: 'models', models: [{ id: 'm' }] });
+  });
+
+  test('asks the first model when the service lists none', async () => {
+    const result = await checkProvider(
+      provider({
+        models: [guessCapabilities('local-model', { local: true })],
+      }),
+      fakeFetch({
+        '/v1/chat/completions': json({
+          id: 'c',
+          object: 'chat.completion',
+          created: 0,
+          model: 'local-model',
+          choices: [
+            {
+              index: 0,
+              message: { role: 'assistant', content: 'OK' },
+              finish_reason: 'stop',
+            },
+          ],
+        }),
+      })
+    );
+    expect(result).toEqual({ kind: 'answered', model: 'local-model' });
+  });
+
+  test('passes on a refused key', async () => {
+    await expect(
+      checkProvider(
+        provider({ models: [guessCapabilities('m', { local: false })] }),
+        fakeFetch({ '/v1/models': json({ error: 'nope' }, 401) })
+      )
+    ).rejects.toMatchObject({ status: 401 });
+  });
+});
