@@ -1,4 +1,3 @@
-import { commitAiSecrets, discardAiSecrets } from '../../bridge/ipc/ai';
 import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
 import { translateDOM } from '../../i18n/dom';
 import { isMacOS } from '../../platform/detect';
@@ -704,6 +703,10 @@ export class SettingsPanel {
       secretsSettled = true;
       await aiLoaded.catch(() => undefined);
       await aiSection?.settled();
+      // Loaded with the tab already; imported here to stay out of start-up.
+      const { commitAiSecrets, discardAiSecrets } = await import(
+        '../../bridge/ipc/ai'
+      );
       if (!keep) {
         await discardAiSecrets();
         return;
