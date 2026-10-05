@@ -212,6 +212,7 @@ pub fn run() {
         .manage(ai::http::HttpClients::default())
         .manage(ai::http::InFlight::default())
         .manage(ai::secrets::SecretCache::default())
+        .manage(ai::secrets::StagedSecrets::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -254,6 +255,7 @@ pub fn run() {
                 sessions::forget_window_file(app, window.label());
                 sessions::forget_window_dirty(app, window.label());
                 sessions::clear_last_focused_window(app, window.label());
+                ai::secrets::forget_window(app, window.label());
                 quit::continue_pending_quit(app);
             }
             _ => {}
@@ -280,6 +282,8 @@ pub fn run() {
             ai::secrets::ai_secret_set,
             ai::secrets::ai_secret_status,
             ai::secrets::ai_secret_delete,
+            ai::secrets::ai_secrets_commit,
+            ai::secrets::ai_secrets_discard,
             #[cfg(target_os = "macos")]
             menu::update_macos_menu,
         ])

@@ -24,7 +24,7 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime, Window};
 
 /// How a service expects its key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -81,6 +81,12 @@ pub trait SecretStore: Send + Sync {
 /// The keys read since launch, so a request does not start a process.
 #[derive(Default)]
 pub struct SecretCache(pub Mutex<HashMap<String, Option<SecretRecord>>>);
+
+/// Changes a settings dialog made and has not confirmed, by window and
+/// account: that window's requests use them, so a key can be tried before
+/// it is kept, and the store gets them only on confirming.
+#[derive(Default)]
+pub struct StagedSecrets(pub Mutex<Staged>);
 
 const PREFIX: &str = "nyamark-b64:";
 
@@ -334,32 +340,43 @@ fn store<R: Runtime>(app: &AppHandle<R>) -> Result<(Box<dyn SecretStore>, Storag
 }
 
 /// The record saved for a profile, read through the cache.
-pub fn record<R: Runtime>(app: &AppHandle<R>, profile: &str) -> Result<Option<SecretRecord>, String> {
-    let account = account_for(profile)?;
+fn saved_record<R: Runtime>(app: &AppHandle<R>, account: &str) -> Result<Option<SecretRecord>, String> {
     let cache = app.state::<SecretCache>();
-    if let Some(cached) = cache.0.lock().map_err(|e| e.to_string())?.get(&account) {
+    if let Some(cached) = cache.0.lock().map_err(|e| e.to_string())?.get(account) {
         return Ok(cached.clone());
     }
     let (store, _) = store(app)?;
     let record = store
-        .get(&account)?
+        .get(account)?
         .map(|stored| decode_record(&stored))
         .transpose()?;
     cache
         .0
         .lock()
         .map_err(|e| e.to_string())?
-        .insert(account, record.clone());
+        .insert(account.to_string(), record.clone());
     Ok(record)
 }
 
-fn forget_cached<R: Runtime>(app: &AppHandle<R>, account: &str) -> Result<(), String> {
-    app.state::<SecretCache>()
+/// The record a window's requests use for a profile: what its settings
+/// dialog changed, while that is open, or else what is saved.
+pub fn record<R: Runtime>(
+    app: &AppHandle<R>,
+    window: &str,
+    profile: &str,
+) -> Result<Option<SecretRecord>, String> {
+    let account = account_for(profile)?;
+    let staged = app
+        .state::<StagedSecrets>()
         .0
         .lock()
         .map_err(|e| e.to_string())?
-        .remove(account);
-    Ok(())
+        .get(&(window.to_string(), account.clone()))
+        .cloned();
+    match staged {
+        Some(staged) => Ok(staged),
+        None => saved_record(app, &account),
+    }
 }
 
 /// The record a save makes. A key left out keeps the one saved before, but
@@ -403,10 +420,26 @@ pub fn status_of(record: Option<&SecretRecord>, storage: Storage) -> SecretStatu
     }
 }
 
-/// Save where a profile's requests may go, and with which key.
+fn stage<R: Runtime>(
+    app: &AppHandle<R>,
+    window: &str,
+    account: String,
+    record: Option<SecretRecord>,
+) -> Result<(), String> {
+    app.state::<StagedSecrets>()
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .insert((window.to_string(), account), record);
+    Ok(())
+}
+
+/// Set where a profile's requests may go, and with which key, for the
+/// window's settings dialog until it is confirmed or cancelled.
 #[tauri::command(async)]
 pub fn ai_secret_set(
     app: AppHandle,
+    window: Window,
     profile: String,
     base_url: String,
     auth: AuthScheme,
@@ -415,26 +448,88 @@ pub fn ai_secret_set(
 ) -> Result<SecretStatus, String> {
     let account = account_for(&profile)?;
     let origin = origin_of(&base_url)?;
-    let previous = record(&app, &profile)?;
+    let previous = record(&app, window.label(), &profile)?;
     let next = next_record(previous.as_ref(), origin, auth, key, keep_key)?;
-    let (store, storage) = store(&app)?;
-    store.set(&account, &encode_record(&next)?)?;
-    forget_cached(&app, &account)?;
-    Ok(status_of(Some(&next), storage))
-}
-
-#[tauri::command(async)]
-pub fn ai_secret_status(app: AppHandle, profile: String) -> Result<SecretStatus, String> {
     let (_, storage) = store(&app)?;
-    Ok(status_of(record(&app, &profile)?.as_ref(), storage))
+    let status = status_of(Some(&next), storage);
+    stage(&app, window.label(), account, Some(next))?;
+    Ok(status)
 }
 
 #[tauri::command(async)]
-pub fn ai_secret_delete(app: AppHandle, profile: String) -> Result<(), String> {
+pub fn ai_secret_status(
+    app: AppHandle,
+    window: Window,
+    profile: String,
+) -> Result<SecretStatus, String> {
+    let (_, storage) = store(&app)?;
+    Ok(status_of(
+        record(&app, window.label(), &profile)?.as_ref(),
+        storage,
+    ))
+}
+
+/// Forget a profile's key, once the window's settings dialog is confirmed.
+#[tauri::command(async)]
+pub fn ai_secret_delete(app: AppHandle, window: Window, profile: String) -> Result<(), String> {
     let account = account_for(&profile)?;
+    stage(&app, window.label(), account, None)
+}
+
+type Staged = HashMap<(String, String), Option<SecretRecord>>;
+
+/// Takes out what one window staged, by account.
+fn drain_window(staged: &mut Staged, window: &str) -> Vec<(String, Option<SecretRecord>)> {
+    let keys: Vec<_> = staged
+        .keys()
+        .filter(|(label, _)| label == window)
+        .cloned()
+        .collect();
+    keys.into_iter()
+        .filter_map(|key| staged.remove(&key).map(|record| (key.1, record)))
+        .collect()
+}
+
+fn take_staged<R: Runtime>(
+    app: &AppHandle<R>,
+    window: &str,
+) -> Result<Vec<(String, Option<SecretRecord>)>, String> {
+    let state = app.state::<StagedSecrets>();
+    let mut staged = state.0.lock().map_err(|e| e.to_string())?;
+    Ok(drain_window(&mut staged, window))
+}
+
+/// Keep what the window's settings dialog changed.
+#[tauri::command(async)]
+pub fn ai_secrets_commit(app: AppHandle, window: Window) -> Result<(), String> {
     let (store, _) = store(&app)?;
-    store.delete(&account)?;
-    forget_cached(&app, &account)
+    let mut failed = None;
+    for (account, record) in take_staged(&app, window.label())? {
+        let written = match &record {
+            Some(record) => encode_record(record).and_then(|value| store.set(&account, &value)),
+            None => store.delete(&account),
+        };
+        app.state::<SecretCache>()
+            .0
+            .lock()
+            .map_err(|e| e.to_string())?
+            .remove(&account);
+        if let Err(error) = written {
+            failed.get_or_insert(error);
+        }
+    }
+    failed.map_or(Ok(()), Err)
+}
+
+/// Drop what the window's settings dialog changed.
+#[tauri::command(async)]
+pub fn ai_secrets_discard(app: AppHandle, window: Window) -> Result<(), String> {
+    take_staged(&app, window.label()).map(|_| ())
+}
+
+/// A closed window's dialog can no longer be confirmed.
+pub fn forget_window<R: Runtime>(app: &AppHandle<R>, window: &str) {
+    let _ = take_staged(app, window);
 }
 
 #[cfg(test)]
@@ -565,5 +660,22 @@ mod tests {
             line,
             "add-generic-password -U -s svc.ai -a profile-a -l svc.ai -X 6b20223122\n"
         );
+    }
+
+    #[test]
+    fn a_window_takes_out_only_what_it_staged() {
+        let mut staged = Staged::new();
+        let a = record("https://a.example", Some("k"));
+        staged.insert(("main".into(), "profile-a".into()), Some(a.clone()));
+        staged.insert(("main".into(), "profile-b".into()), None);
+        staged.insert(("editor-2".into(), "profile-a".into()), None);
+        let mut taken = drain_window(&mut staged, "main");
+        taken.sort_by(|x, y| x.0.cmp(&y.0));
+        assert_eq!(
+            taken,
+            vec![("profile-a".to_string(), Some(a)), ("profile-b".to_string(), None)]
+        );
+        assert_eq!(staged.len(), 1);
+        assert!(drain_window(&mut staged, "main").is_empty());
     }
 }

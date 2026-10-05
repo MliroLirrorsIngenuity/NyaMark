@@ -13,7 +13,7 @@
 use std::{collections::HashMap, sync::Mutex, time::Duration};
 
 use serde::{Deserialize, Serialize};
-use tauri::{ipc::Channel, AppHandle, Manager, Runtime};
+use tauri::{ipc::Channel, AppHandle, Manager, Runtime, Window};
 use tokio_util::sync::CancellationToken;
 
 use super::secrets::{self, AuthScheme, SecretRecord};
@@ -293,13 +293,15 @@ fn track<R: Runtime>(app: &AppHandle<R>, id: &str, token: Option<CancellationTok
 #[tauri::command]
 pub async fn ai_fetch(
     app: AppHandle,
+    window: Window,
     request: FetchRequest,
     on_event: Channel<FetchEvent>,
 ) -> Result<FetchHead, String> {
     let record = {
         let app = app.clone();
+        let label = window.label().to_string();
         let profile = request.profile.clone();
-        tauri::async_runtime::spawn_blocking(move || secrets::record(&app, &profile))
+        tauri::async_runtime::spawn_blocking(move || secrets::record(&app, &label, &profile))
             .await
             .map_err(|error| error.to_string())??
     };

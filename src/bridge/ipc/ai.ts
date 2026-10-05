@@ -58,9 +58,11 @@ export type AiSecretStatus = {
 };
 
 /**
- * Save where a profile's requests may go and with which key. With no key and
+ * Set where a profile's requests may go and with which key. With no key and
  * `keepKey`, the saved key stays, as long as the address keeps its host;
- * otherwise the call fails with `key-needed`.
+ * otherwise the call fails with `key-needed`. The change holds for this
+ * window's requests until `commitAiSecrets` keeps it or `discardAiSecrets`
+ * drops it.
  */
 export async function setAiSecret(options: {
   profile: string;
@@ -78,6 +80,17 @@ export async function getAiSecretStatus(
   return await invoke<AiSecretStatus>('ai_secret_status', { profile });
 }
 
+/** Forget a profile's key, once `commitAiSecrets` confirms it. */
 export async function deleteAiSecret(profile: string): Promise<void> {
   await invoke('ai_secret_delete', { profile });
+}
+
+/** Keep the key changes this window made. */
+export async function commitAiSecrets(): Promise<void> {
+  await invoke('ai_secrets_commit');
+}
+
+/** Drop the key changes this window made. */
+export async function discardAiSecrets(): Promise<void> {
+  await invoke('ai_secrets_discard');
 }
