@@ -49,6 +49,10 @@ function setup(
     pages?: Record<string, WebPage>;
     /** Hosts the app refuses until the user allows them. */
     privateHosts?: string[];
+    /** Where the app is sent on from an address. */
+    redirects?: Record<string, string>;
+    /** The app refuses private hosts even once they are allowed. */
+    refuseAllowed?: boolean;
     answer?: 'allow' | 'deny' | null;
     search?: AiSearchSettings;
   } = {}
@@ -66,11 +70,19 @@ function setup(
     },
     fetch: async (request) => {
       fetches.push(request);
-      const host = new URL(request.url).hostname;
-      if (options.privateHosts?.includes(host) && !request.allowPrivate) {
-        throw new WebError({ kind: 'private-address', host });
+      let at = request.url;
+      for (;;) {
+        const host = new URL(at).hostname;
+        const allowed =
+          !options.refuseAllowed && request.allowedHosts?.includes(host);
+        if (options.privateHosts?.includes(host) && !allowed) {
+          throw new WebError({ kind: 'private-address', host });
+        }
+        const next = options.redirects?.[at];
+        if (!next) break;
+        at = next;
       }
-      const found = options.pages?.[request.url];
+      const found = options.pages?.[at];
       if (!found) throw new WebError({ kind: 'timeout' });
       return found;
     },
@@ -197,7 +209,7 @@ describe('fetch_url', () => {
       title: 'A "Titled" <page>',
     });
     expect(fetches).toEqual([
-      { url, proxy: { mode: 'system' }, allowPrivate: false },
+      { url, proxy: { mode: 'system' }, allowedHosts: [] },
     ]);
   });
 
@@ -294,18 +306,50 @@ describe('pages on the local network', () => {
     const output = await run<FetchOutput>(tools.fetch_url, { url });
     expect(output.text).toContain('Router');
     expect(asked).toEqual([{ kind: 'page', url, host: '192.168.1.1' }]);
-    expect(fetches.map((request) => request.allowPrivate)).toEqual([
-      false,
-      true,
+    expect(fetches.map((request) => request.allowedHosts)).toEqual([
+      [],
+      ['192.168.1.1'],
     ]);
     expect(approvals.hostAllowed('192.168.1.1')).toBe(true);
 
     await run<FetchOutput>(tools.fetch_url, { url: other });
     expect(asked).toHaveLength(1);
-    expect(fetches.at(-1)?.allowPrivate).toBe(true);
+    expect(fetches.at(-1)?.allowedHosts).toEqual(['192.168.1.1']);
 
     approvals.reset();
     expect(approvals.hostAllowed('192.168.1.1')).toBe(false);
+  });
+
+  test('ask again for another private host a page redirects to', async () => {
+    const nas = 'http://nas.lan/files';
+    const { tools, asked, fetches } = setup({
+      privateHosts: ['192.168.1.1', 'nas.lan'],
+      redirects: { [url]: nas },
+      pages: { [nas]: page(nas, 'Files') },
+    });
+    const output = await run<FetchOutput>(tools.fetch_url, { url });
+    expect(output.text).toContain('Files');
+    expect(asked).toEqual([
+      { kind: 'page', url, host: '192.168.1.1' },
+      { kind: 'page', url, host: 'nas.lan' },
+    ]);
+    expect(fetches.map((request) => request.allowedHosts)).toEqual([
+      [],
+      ['192.168.1.1'],
+      ['192.168.1.1', 'nas.lan'],
+    ]);
+  });
+
+  test('fail when the app still refuses a host the user allowed', async () => {
+    const { tools, asked, fetches } = setup({
+      privateHosts: ['192.168.1.1'],
+      refuseAllowed: true,
+    });
+    await expect(run(tools.fetch_url, { url })).rejects.toThrow(
+      /^private-address: /
+    );
+    expect(asked).toHaveLength(1);
+    expect(fetches).toHaveLength(2);
   });
 
   test('stay closed when the user says no', async () => {

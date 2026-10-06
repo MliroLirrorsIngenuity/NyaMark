@@ -109,6 +109,11 @@ export class Approvals {
     return this.hostsAllowed.has(host.toLowerCase());
   }
 
+  /** The private hosts the user let the assistant open pages on. */
+  allowedHosts(): string[] {
+    return [...this.hostsAllowed];
+  }
+
   /** Whether the user let the MCP server's tool run without asking. */
   toolAllowed(server: string, tool: string): boolean {
     return this.toolsAllowed.has(toolKey(server, tool));

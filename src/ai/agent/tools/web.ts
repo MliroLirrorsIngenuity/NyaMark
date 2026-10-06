@@ -34,7 +34,7 @@ export type WebApi = {
   fetch(request: {
     url: string;
     proxy: ProxySetting;
-    allowPrivate?: boolean;
+    allowedHosts?: string[];
   }): Promise<WebPage>;
 };
 
@@ -158,34 +158,42 @@ export function webTools(host: WebHost) {
     }
   };
 
-  /** The page, asking the user first when it is on a private address. */
+  /**
+   * The page, asking the user first for each private host it is on or
+   * redirects to.
+   */
   const fetchPage = async (
     url: string,
     toolCallId: string,
     signal?: AbortSignal
   ) => {
     const { proxy } = host.settings();
-    const allowPrivate = approvals.hostAllowed(hostOf(url));
-    try {
-      return await api.fetch({ url, proxy, allowPrivate });
-    } catch (error) {
-      const refused =
-        error instanceof WebError && error.failure.kind === 'private-address';
-      if (!refused) throw failure(error);
-      const answer = await approvals.ask(
-        toolCallId,
-        { kind: 'page', url, host: error.failure.host },
-        signal
-      );
-      if (answer === 'deny') {
-        throw new Error(
-          `denied: The user did not allow opening ${url}, which is on this computer or their local network.`
-        );
-      }
+    for (;;) {
       try {
-        return await api.fetch({ url, proxy, allowPrivate: true });
-      } catch (again) {
-        throw failure(again);
+        return await api.fetch({
+          url,
+          proxy,
+          allowedHosts: approvals.allowedHosts(),
+        });
+      } catch (error) {
+        const refused =
+          error instanceof WebError && error.failure.kind === 'private-address'
+            ? error.failure.host
+            : null;
+        // A host already allowed and still refused would ask forever.
+        if (refused === null || approvals.hostAllowed(refused)) {
+          throw failure(error);
+        }
+        const answer = await approvals.ask(
+          toolCallId,
+          { kind: 'page', url, host: refused },
+          signal
+        );
+        if (answer === 'deny') {
+          throw new Error(
+            `denied: The user did not allow opening ${url}, which is on this computer or their local network.`
+          );
+        }
       }
     }
   };

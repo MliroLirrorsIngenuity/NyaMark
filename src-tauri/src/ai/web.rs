@@ -6,13 +6,14 @@
 //! the one that worked last.
 //!
 //! A fetch follows the address the model chose, so it keeps to the public
-//! internet unless the user allowed more: loopback, the local network and the
-//! like are refused, on the first request and on every redirect.
+//! internet: an address on this machine or the local network is refused, on
+//! the first request and on every redirect, unless the user allowed that
+//! host.
 
 use std::{
     collections::HashSet,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, PoisonError},
     time::Duration,
 };
 
@@ -711,9 +712,18 @@ pub struct PageRequest {
     pub url: String,
     #[serde(default)]
     pub proxy: ProxySetting,
-    /// Lets the fetch reach this machine and the local network.
+    /// Hosts on this machine or the local network the user let the fetch
+    /// reach, as a URL writes them (`[::1]` for IPv6).
     #[serde(default)]
-    pub allow_private: bool,
+    pub allowed_hosts: Vec<String>,
+}
+
+impl PageRequest {
+    fn allows(&self, host: &str) -> bool {
+        self.allowed_hosts
+            .iter()
+            .any(|allowed| allowed.eq_ignore_ascii_case(host))
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -742,13 +752,15 @@ async fn fetch(request: &PageRequest, limit: usize) -> Result<Page, WebError> {
     })?;
     ensure_web_scheme(&url)?;
     let guarded = Arc::new(Mutex::new(HashSet::new()));
-    let client = fetch_client(&request.proxy, request.allow_private, guarded.clone())?;
+    let client = fetch_client(&request.proxy, guarded.clone())?;
     for _ in 0..=MAX_REDIRECTS {
-        if !request.allow_private {
+        let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
+        if !request.allows(&host) {
             ensure_public_host(&url).await?;
-            if let Ok(mut guarded) = guarded.lock() {
-                guarded.insert(url.host_str().unwrap_or_default().to_ascii_lowercase());
-            }
+            guarded
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(host);
         }
         let response = client
             .get(url.clone())
@@ -815,23 +827,20 @@ fn ensure_web_scheme(url: &Url) -> Result<(), WebError> {
 /// checked before anything is sent to it.
 fn fetch_client(
     proxy: &ProxySetting,
-    allow_private: bool,
     guarded: Arc<Mutex<HashSet<String>>>,
 ) -> Result<reqwest::Client, WebError> {
     http::install_crypto_provider();
-    let mut builder = reqwest::Client::builder()
+    let builder = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(10))
-        .user_agent(BROWSER_USER_AGENT);
-    if !allow_private {
-        builder = builder.dns_resolver(PublicOnly { guarded });
-    }
+        .user_agent(BROWSER_USER_AGENT)
+        .dns_resolver(PublicOnly { guarded });
     Ok(http::finish_client(builder, proxy)?)
 }
 
-/// Resolves the hosts a fetch goes to and refuses private answers, so a name
+/// Resolves the hosts a fetch checked and refuses private answers, so a name
 /// cannot pass the check and then resolve somewhere else for the connection.
-/// Other names (a proxy's) resolve as usual.
+/// Other names (an allowed host's, a proxy's) resolve as usual.
 struct PublicOnly {
     guarded: Arc<Mutex<HashSet<String>>>,
 }
@@ -842,8 +851,8 @@ impl reqwest::dns::Resolve for PublicOnly {
         let guarded = self
             .guarded
             .lock()
-            .map(|guarded| guarded.contains(&host))
-            .unwrap_or(true);
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(&host);
         Box::pin(resolve(host, guarded))
     }
 }
@@ -872,125 +881,36 @@ impl std::fmt::Display for PrivateHost {
 impl std::error::Error for PrivateHost {}
 
 /// Refuses an address on this machine or the local network, on every hop
-/// and whether or not a proxy is set: first by the name alone, then by what
-/// it resolves to here. Behind a proxy the proxy resolves the name, so a
-/// name that does not resolve here is let through to it.
-///
-/// What is left behind a proxy: a public-looking name the proxy resolves to
-/// a private address (DNS rebinding, split DNS) still reaches it, since the
-/// answer the proxy gets is never seen here.
+/// and whether or not a proxy is set: an IP address as written, a name by
+/// every address it resolves to here. Behind a proxy the proxy resolves the
+/// name and picks where to connect, so a name that does not resolve here is
+/// let through to it.
 async fn ensure_public_host(url: &Url) -> Result<(), WebError> {
-    let refuse = |host: &str| {
-        Err(WebError::PrivateAddress {
-            host: host.to_string(),
-        })
-    };
-    match url.host() {
-        Some(url::Host::Ipv4(ip)) if !is_public(IpAddr::V4(ip)) => refuse(&ip.to_string()),
-        Some(url::Host::Ipv6(ip)) if !is_public(IpAddr::V6(ip)) => refuse(&ip.to_string()),
+    let private = match url.host() {
+        Some(url::Host::Ipv4(ip)) => !is_public(IpAddr::V4(ip)),
+        Some(url::Host::Ipv6(ip)) => !is_public(IpAddr::V6(ip)),
         Some(url::Host::Domain(name)) => {
-            let name = name.trim_end_matches('.').to_ascii_lowercase();
-            if is_private_name(&name) {
-                return refuse(&name);
-            }
             let port = url.port_or_known_default().unwrap_or(80);
-            if let Ok(mut addresses) = tokio::net::lookup_host((name.as_str(), port)).await {
-                if addresses.any(|address| !is_public(address.ip())) {
-                    return refuse(&name);
-                }
-            }
-            Ok(())
-        }
-        Some(_) => Ok(()),
-        None => Err(no_host()),
-    }
-}
-
-/// Names that only mean something on a local network, with what is under
-/// them.
-const PRIVATE_SUFFIXES: [&str; 9] = [
-    "localhost",
-    "local",
-    "lan",
-    "internal",
-    "intranet",
-    "corp",
-    "home",
-    "home.arpa",
-    "localdomain",
-];
-
-/// Whether a host name points into a local network by how it is written: a
-/// single label (resolved through the local search domains), a local-only
-/// suffix, or a private address spelled into it, as wildcard DNS services
-/// such as nip.io and sslip.io answer for (`127.0.0.1.nip.io`,
-/// `10-0-0-1.sslip.io`, `c0a80101.nip.io`, `--1.sslip.io`).
-fn is_private_name(name: &str) -> bool {
-    let name = name.trim_end_matches('.').to_ascii_lowercase();
-    if name.is_empty() || !name.contains('.') {
-        return true;
-    }
-    if PRIVATE_SUFFIXES.iter().any(|suffix| {
-        name == *suffix
-            || name
-                .strip_suffix(suffix)
-                .is_some_and(|rest| rest.ends_with('.'))
-    }) {
-        return true;
-    }
-    embedded_addresses(&name)
-        .into_iter()
-        .any(|address| !is_public(address))
-}
-
-/// The addresses spelled into a host name: four decimal labels in a row,
-/// four decimal parts of a label joined by `-`, a part of eight hex digits,
-/// or a label that reads as IPv6 with `-` for `:`.
-fn embedded_addresses(name: &str) -> Vec<IpAddr> {
-    let labels: Vec<&str> = name.split('.').collect();
-    let mut found: Vec<IpAddr> = labels
-        .windows(4)
-        .filter_map(octets)
-        .map(IpAddr::V4)
-        .collect();
-    for label in &labels {
-        let parts: Vec<&str> = label.split('-').collect();
-        found.extend(parts.windows(4).filter_map(octets).map(IpAddr::V4));
-        // Any eight hex digits read as an address, so hashed names would
-        // often look like multicast or reserved ones; those cannot be
-        // connected to anyway, so only the rest count.
-        found.extend(
-            parts
-                .iter()
-                .filter(|part| part.len() == 8 && part.bytes().all(|byte| byte.is_ascii_hexdigit()))
-                .filter_map(|part| u32::from_str_radix(part, 16).ok())
-                .map(Ipv4Addr::from)
-                .filter(|ip| ip.octets()[0] < 224)
-                .map(IpAddr::V4),
-        );
-        if label.contains("--") {
-            if let Ok(ip) = label.replace('-', ":").parse::<Ipv6Addr>() {
-                found.push(IpAddr::V6(ip));
+            match tokio::net::lookup_host((name, port)).await {
+                Ok(mut addresses) => addresses.any(|address| !is_public(address.ip())),
+                Err(_) => false,
             }
         }
+        None => return Err(no_host()),
+    };
+    if private {
+        return Err(WebError::PrivateAddress {
+            host: url.host_str().unwrap_or_default().into(),
+        });
     }
-    found
+    Ok(())
 }
 
-/// Four decimal octets, written plainly.
-fn octets(parts: &[&str]) -> Option<Ipv4Addr> {
-    let mut bytes = [0u8; 4];
-    for (byte, part) in bytes.iter_mut().zip(parts) {
-        if part.is_empty() || part.len() > 3 || !part.bytes().all(|byte| byte.is_ascii_digit()) {
-            return None;
-        }
-        *byte = part.parse().ok()?;
-    }
-    Some(Ipv4Addr::from(bytes))
-}
-
-/// Whether an address is on the public internet. 198.18.0.0/15 counts as
-/// public: proxies in fake-IP mode hand out names from it.
+/// Whether an address is on the public internet; the ranges that lead to
+/// this machine or a local network are the ones that are not. 198.18.0.0/15
+/// counts as public: proxies in fake-IP mode answer every name with an
+/// address from it and pick the real destination themselves, as for any
+/// proxied request.
 fn is_public(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(ip) => is_public_v4(ip),
@@ -1440,7 +1360,10 @@ mod tests {
 
     /// Serves each canned response on its own connection, in order.
     fn serve(responses: Vec<Vec<u8>>) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        serve_on(TcpListener::bind("127.0.0.1:0").unwrap(), responses)
+    }
+
+    fn serve_on(listener: TcpListener, responses: Vec<Vec<u8>>) -> String {
         let address = format!("http://{}", listener.local_addr().unwrap());
         thread::spawn(move || {
             for response in responses {
@@ -1460,13 +1383,15 @@ mod tests {
         address
     }
 
-    fn page_request(url: &str, allow_private: bool) -> PageRequest {
+    fn page_request(url: &str, allowed_hosts: &[&str]) -> PageRequest {
         PageRequest {
             url: url.into(),
             proxy: ProxySetting::None,
-            allow_private,
+            allowed_hosts: allowed_hosts.iter().map(|host| host.to_string()).collect(),
         }
     }
+
+    const LOCAL: &[&str] = &["127.0.0.1"];
 
     #[test]
     fn a_page_is_fetched_across_a_redirect_and_decoded() {
@@ -1480,7 +1405,7 @@ mod tests {
             page,
         ]);
         let page = tauri::async_runtime::block_on(fetch(
-            &page_request(&format!("{address}/start"), true),
+            &page_request(&format!("{address}/start"), LOCAL),
             MAX_PAGE_BYTES,
         ))
         .unwrap();
@@ -1497,7 +1422,8 @@ mod tests {
             b"HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\nconnection: close\r\ncontent-length: 10\r\n\r\n0123456789"
                 .to_vec(),
         ]);
-        let page = tauri::async_runtime::block_on(fetch(&page_request(&address, true), 4)).unwrap();
+        let page =
+            tauri::async_runtime::block_on(fetch(&page_request(&address, LOCAL), 4)).unwrap();
         assert_eq!(page.status, 404);
         assert_eq!(page.text, "0123");
         assert!(page.truncated);
@@ -1510,7 +1436,7 @@ mod tests {
                 .to_vec(),
         ]);
         let error =
-            tauri::async_runtime::block_on(fetch(&page_request(&address, true), 100)).unwrap_err();
+            tauri::async_runtime::block_on(fetch(&page_request(&address, LOCAL), 100)).unwrap_err();
         assert_eq!(
             error,
             WebError::UnsupportedContentType {
@@ -1523,22 +1449,23 @@ mod tests {
     fn this_machine_is_out_of_reach_unless_allowed() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = format!("http://{}", listener.local_addr().unwrap());
-        for url in [
-            address.as_str(),
-            "http://localhost:1/",
-            "http://[::1]:1/",
-            "http://[::ffff:7f00:1]:1/",
-            "http://0x7f.1:1/",
+        for (url, host) in [
+            (address.as_str(), "127.0.0.1"),
+            ("http://localhost:1/", "localhost"),
+            ("http://[::1]:1/", "[::1]"),
+            ("http://[::ffff:7f00:1]:1/", "[::ffff:7f00:1]"),
+            ("http://0x7f.1:1/", "127.0.0.1"),
         ] {
             let error =
-                tauri::async_runtime::block_on(fetch(&page_request(url, false), 100)).unwrap_err();
-            assert!(
-                matches!(error, WebError::PrivateAddress { .. }),
-                "{url}: {error:?}"
+                tauri::async_runtime::block_on(fetch(&page_request(url, &[]), 100)).unwrap_err();
+            assert_eq!(
+                error,
+                WebError::PrivateAddress { host: host.into() },
+                "{url}"
             );
         }
         let error =
-            tauri::async_runtime::block_on(fetch(&page_request("file:///etc/passwd", true), 100))
+            tauri::async_runtime::block_on(fetch(&page_request("file:///etc/passwd", &[]), 100))
                 .unwrap_err();
         assert_eq!(
             error,
@@ -1549,75 +1476,65 @@ mod tests {
     }
 
     #[test]
-    fn local_names_are_refused_by_how_they_are_written() {
-        for name in [
-            "intranet",
-            "router",
-            "localhost",
-            "app.localhost",
-            "printer.local",
-            "nas.lan",
-            "metadata.google.internal",
-            "wiki.intranet",
-            "git.corp",
-            "box.home",
-            "box.home.arpa",
-            "host.localdomain",
-            "127.0.0.1.nip.io",
-            "app.10.0.0.1.nip.io",
-            "10-0-0-1.sslip.io",
-            "app-192-168-1-1.sslip.io",
-            "192.168.1.1.example.com",
-            "169.254.169.254.nip.io",
-            "c0a80101.nip.io",
-            "app-7f000001.nip.io",
-            "--1.sslip.io",
-            "fe80--1.sslip.io",
-            "Example.LOCAL.",
+    fn a_local_address_is_refused_behind_a_proxy_too() {
+        // The proxy here leads nowhere; the address is refused before it is
+        // ever asked.
+        for (url, host) in [
+            ("http://localhost/", "localhost"),
+            ("http://127.0.0.1/", "127.0.0.1"),
+            (
+                "http://169.254.169.254/latest/meta-data/",
+                "169.254.169.254",
+            ),
         ] {
-            assert!(is_private_name(name), "{name}");
-        }
-        for name in [
-            "example.com",
-            "www.bing.com",
-            "localhost.example.com",
-            "mylocal.com",
-            "home.example",
-            "8.8.8.8.nip.io",
-            "1-1-1-1.sslip.io",
-            "08080808.nip.io",
-            "feedface.example.com",
-            "e3b0c442.example.com",
-            "xn--fiqs8s.cn",
-            "v1.2.3.example.com",
-            "a.300.0.0.1.example.com",
-        ] {
-            assert!(!is_private_name(name), "{name}");
+            let request = PageRequest {
+                proxy: ProxySetting::Manual {
+                    url: "http://127.0.0.1:1".into(),
+                },
+                ..page_request(url, &[])
+            };
+            let error = tauri::async_runtime::block_on(fetch(&request, 100)).unwrap_err();
+            assert_eq!(
+                error,
+                WebError::PrivateAddress { host: host.into() },
+                "{url}"
+            );
         }
     }
 
     #[test]
-    fn a_local_name_is_refused_behind_a_proxy_too() {
-        // The proxy here leads nowhere; the name is refused before it is
-        // ever asked.
-        for url in [
-            "http://169.254.169.254.nip.io/latest/meta-data/",
-            "http://intranet/",
-            "http://10-0-0-1.sslip.io/",
-        ] {
-            let request = PageRequest {
-                url: url.into(),
-                proxy: ProxySetting::Manual {
-                    url: "http://127.0.0.1:1".into(),
-                },
-                allow_private: false,
-            };
-            let error = tauri::async_runtime::block_on(fetch(&request, 100)).unwrap_err();
-            assert!(
-                matches!(error, WebError::PrivateAddress { .. }),
-                "{url}: {error:?}"
-            );
-        }
+    fn a_redirect_to_another_private_host_needs_that_host_allowed() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let redirect = format!(
+            "HTTP/1.1 302 Found\r\nlocation: http://localhost:{port}/final\r\nconnection: close\r\ncontent-length: 0\r\n\r\n"
+        )
+        .into_bytes();
+        let address = serve_on(
+            listener,
+            vec![
+                redirect.clone(),
+                redirect,
+                b"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\nconnection: close\r\ncontent-length: 2\r\n\r\nok"
+                    .to_vec(),
+            ],
+        );
+        let start = format!("{address}/start");
+        let error =
+            tauri::async_runtime::block_on(fetch(&page_request(&start, LOCAL), 100)).unwrap_err();
+        assert_eq!(
+            error,
+            WebError::PrivateAddress {
+                host: "localhost".into()
+            }
+        );
+        let page = tauri::async_runtime::block_on(fetch(
+            &page_request(&start, &["127.0.0.1", "LocalHost"]),
+            100,
+        ))
+        .unwrap();
+        assert_eq!(page.url, format!("http://localhost:{port}/final"));
+        assert_eq!(page.text, "ok");
     }
 
     #[test]
@@ -1633,7 +1550,7 @@ mod tests {
             }
         );
         let guarded = Arc::new(Mutex::new(HashSet::new()));
-        assert!(fetch_client(&ProxySetting::None, false, guarded).is_ok());
+        assert!(fetch_client(&ProxySetting::None, guarded).is_ok());
     }
 
     #[test]
@@ -1641,7 +1558,7 @@ mod tests {
         // A name that passed the check and then resolves to this machine
         // when connected to, as DNS rebinding would have it.
         let guarded = Arc::new(Mutex::new(HashSet::from(["localhost".to_string()])));
-        let client = fetch_client(&ProxySetting::None, false, guarded).unwrap();
+        let client = fetch_client(&ProxySetting::None, guarded).unwrap();
         let error =
             tauri::async_runtime::block_on(client.get("http://localhost:1/").send()).unwrap_err();
         assert_eq!(

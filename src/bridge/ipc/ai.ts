@@ -314,12 +314,13 @@ export type WebPage = {
 
 /**
  * Fetches a page as text. Addresses on this machine and the local network
- * are refused unless `allowPrivate` is set.
+ * are refused, on every redirect, unless their host is in `allowedHosts`
+ * as a URL's `hostname` writes it.
  */
 export async function webFetch(request: {
   url: string;
   proxy: ProxySetting;
-  allowPrivate?: boolean;
+  allowedHosts?: string[];
 }): Promise<WebPage> {
   return await webCommand<WebPage>('web_fetch', { request });
 }
