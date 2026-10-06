@@ -12,20 +12,21 @@
  * instead of sliding in from the one it last stood by.
  */
 
-const FADE_MS = 200;
-
 /** Call once the editor is created. Crepe adds the handle on its first update. */
 export function restHiddenBlockHandle(root: HTMLElement) {
-  let timer: number | undefined;
   new MutationObserver((records) => {
     for (const { target } of records) {
       if (!(target instanceof HTMLElement)) continue;
       if (!target.classList.contains('milkdown-block-handle')) continue;
-      window.clearTimeout(timer);
       if (target.dataset.show !== 'false') continue;
-      timer = window.setTimeout(() => {
-        if (target.dataset.show === 'false') target.removeAttribute('style');
-      }, FADE_MS);
+      // The fade is Crepe's transition: it runs out, or is cut short when the
+      // handle shows again. A later fade still running waits for itself.
+      const fading = target.getAnimations().map(({ finished }) => finished);
+      void Promise.allSettled(fading).then(() => {
+        if (target.dataset.show !== 'false') return;
+        if (target.getAnimations().length > 0) return;
+        target.removeAttribute('style');
+      });
     }
   }).observe(root, {
     subtree: true,
