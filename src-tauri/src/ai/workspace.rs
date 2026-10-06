@@ -17,8 +17,8 @@ use std::{
 };
 
 use ignore::WalkBuilder;
-use serde::Serialize;
-use tauri::{AppHandle, Manager, Runtime, Window};
+use serde::{Deserialize, Serialize};
+use tauri::{utils::config::FileAssociation, AppHandle, Manager, Runtime, Window};
 use tauri_plugin_dialog::DialogExt;
 
 use super::blocking;
@@ -182,17 +182,30 @@ pub fn forget_window<R: Runtime>(app: &AppHandle<R>, window: &str) {
     }
 }
 
+/// The part of `tauri.conf.json` that names the files the app opens.
+/// Only this part is read: the whole config reads `version` from a
+/// `package.json` found relative to the working directory, which an
+/// installed app does not run in.
+#[derive(Deserialize)]
+struct Manifest {
+    bundle: ManifestBundle,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ManifestBundle {
+    file_associations: Vec<FileAssociation>,
+}
+
 /// The extensions of a note: the Markdown file associations the app is
 /// built with, the list the system and the open dialog go by too.
 fn note_extensions() -> &'static [String] {
     static EXTENSIONS: OnceLock<Vec<String>> = OnceLock::new();
     EXTENSIONS.get_or_init(|| {
-        // The build parsed this file already, and a test reads it too.
-        serde_json::from_str::<tauri::Config>(include_str!("../../tauri.conf.json"))
-            .ok()
-            .and_then(|config| config.bundle.file_associations)
+        serde_json::from_str::<Manifest>(include_str!("../../tauri.conf.json"))
+            .map(|manifest| manifest.bundle.file_associations)
+            .unwrap_or_default()
             .into_iter()
-            .flatten()
             .flat_map(|association| association.ext)
             .map(|extension| extension.0)
             .collect()
@@ -1006,6 +1019,18 @@ mod tests {
         assert!(extensions.iter().any(|extension| extension == "markdown"));
         assert!(has_note_extension(Path::new("a/b.Markdown")));
         assert!(!has_note_extension(Path::new("a/b.txt")));
+    }
+
+    #[test]
+    fn the_extensions_do_not_need_the_package_version() {
+        let manifest = serde_json::from_str::<Manifest>(
+            r#"{
+                "version": "../no/such/package.json",
+                "bundle": { "fileAssociations": [{ "ext": ["md"], "name": "Markdown File" }] }
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(manifest.bundle.file_associations[0].ext[0].0, "md");
     }
 
     #[test]
