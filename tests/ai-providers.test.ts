@@ -240,6 +240,19 @@ describe('capabilities', () => {
     expect(
       guessCapabilities('deepseek-reasoner', { local: false }).reasoning
     ).toBe(true);
+    for (const [id, vision] of [
+      ['o1', true],
+      ['o3-2025-04-16', true],
+      ['o4-mini', true],
+      ['o1-mini', false],
+      ['o1-preview', false],
+      ['o3-mini-2025-01-31', false],
+    ] as const) {
+      expect(guessCapabilities(id, { local: false })).toMatchObject({
+        vision,
+        reasoning: true,
+      });
+    }
     expect(guessCapabilities('qwen2.5-vl-7b', { local: true })).toMatchObject({
       vision: true,
       contextWindow: 32_768,

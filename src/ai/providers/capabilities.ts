@@ -14,6 +14,9 @@ export function isChatModel(id: string): boolean {
 const VISION =
   /gpt-4o|gpt-4\.1|gpt-4\.5|gpt-5|chatgpt|\bo[134](-|$)|claude|gemini|gemma-3|vision|[-_.]vl\b|vl-|qwen.*-vl|qvq|glm-4(\.\d+)?v|pixtral|llava|minicpm-v|llama-?3\.2.*vision|llama-?4|grok-(2-vision|4)|kimi.*(vision|k2\.5|latest)|doubao.*(vision|seed)|mistral-(medium|small)-3/i;
 
+/** OpenAI reasoning models that read text only, unlike the rest of them. */
+const TEXT_ONLY = /\bo1-(mini|preview)|\bo3-mini/i;
+
 const REASONING =
   /\bo[134](-|$)|gpt-5|reason|thinking|\br1\b|-r1|deepseek-r|qwq|qwen3|claude-(opus|sonnet)-[45]|claude-3-7|gemini-(2\.5|3)|grok-(3-mini|4)|glm-4\.[5-9]|kimi-k2|magistral|seed.*thinking/i;
 
@@ -47,7 +50,7 @@ export function guessCapabilities(
     (options.local ? 32_768 : 128_000);
   return {
     id,
-    vision: VISION.test(id),
+    vision: VISION.test(id) && !TEXT_ONLY.test(id),
     tools: true,
     reasoning: REASONING.test(id),
     contextWindow: context,
