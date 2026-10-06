@@ -15,15 +15,35 @@
  *    at the top regardless of how long the rendered preview gets.
  */
 
-import { autocompletion } from '@codemirror/autocomplete';
-import { indentWithTab, isolateHistory } from '@codemirror/commands';
+import {
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+  completionKeymap,
+} from '@codemirror/autocomplete';
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+  isolateHistory,
+} from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import {
   HighlightStyle,
+  bracketMatching,
+  defaultHighlightStyle,
+  foldGutter,
+  foldKeymap,
+  indentOnInput,
   syntaxHighlighting,
   syntaxTree,
 } from '@codemirror/language';
-import { openSearchPanel } from '@codemirror/search';
+import {
+  highlightSelectionMatches,
+  openSearchPanel,
+  searchKeymap,
+} from '@codemirror/search';
 import {
   Compartment,
   EditorSelection,
@@ -32,13 +52,24 @@ import {
   Transaction,
 } from '@codemirror/state';
 import { oneDarkTheme } from '@codemirror/theme-one-dark';
-import { keymap } from '@codemirror/view';
+import {
+  EditorView,
+  crosshairCursor,
+  drawSelection,
+  dropCursor,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  highlightSpecialChars,
+  keymap,
+  lineNumbers,
+  rectangularSelection,
+} from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { TextSelection } from '@milkdown/kit/prose/state';
-import { EditorView, basicSetup } from 'codemirror';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
+import { i18next } from '../i18n';
 import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
 import { textChange } from './doc-diff';
@@ -52,6 +83,51 @@ import { sourceSuggest } from './source-suggest';
 
 /** A pause in typing this long brings the preview up to date. */
 const SYNC_DELAY_MS = 180;
+
+/** The arrow beside a line that folds, or that is folded. */
+function foldMarker(open: boolean) {
+  const marker = document.createElement('span');
+  marker.className = open ? 'ny-fold-open' : 'ny-fold-closed';
+  marker.textContent = open ? '⌄' : '›';
+  marker.title = i18next.t(
+    open ? 'editor.source.fold' : 'editor.source.unfold'
+  );
+  return marker;
+}
+
+/**
+ * CodeMirror's basic setup, written out as its docs advise once it is
+ * configured: the fold arrows are the app's, and completion waits to be
+ * asked for, as in the code blocks (see editor/config.ts), since a popup on
+ * every word of prose is pure interruption.
+ */
+const sourceSetup = () => [
+  lineNumbers(),
+  highlightActiveLineGutter(),
+  highlightSpecialChars(),
+  history(),
+  foldGutter({ markerDOM: foldMarker }),
+  drawSelection(),
+  dropCursor(),
+  EditorState.allowMultipleSelections.of(true),
+  indentOnInput(),
+  syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+  bracketMatching(),
+  closeBrackets(),
+  autocompletion({ activateOnTyping: false }),
+  rectangularSelection(),
+  crosshairCursor(),
+  highlightActiveLine(),
+  highlightSelectionMatches(),
+  keymap.of([
+    ...closeBracketsKeymap,
+    ...defaultKeymap,
+    ...searchKeymap,
+    ...historyKeymap,
+    ...foldKeymap,
+    ...completionKeymap,
+  ]),
+];
 
 type SourceAnchor = {
   from: number;
@@ -187,12 +263,12 @@ const css = `
  * gutter: one beside every heading, list, quote and fence crowded the line
  * numbers. A folded line keeps its arrow, to be opened again.
  */
-.ny-source-pane .cm-foldGutter span[title="Fold line"] {
+.ny-source-pane .cm-foldGutter .ny-fold-open {
   opacity: 0;
   transition: opacity 120ms ease;
 }
 
-.ny-source-pane .cm-gutters:hover .cm-foldGutter span[title="Fold line"] {
+.ny-source-pane .cm-gutters:hover .cm-foldGutter .ny-fold-open {
   opacity: 1;
 }
 
@@ -569,11 +645,7 @@ export class SourceModeController {
         doc: initialDoc,
         selection: range,
         extensions: [
-          basicSetup,
-          // Same call as the code blocks make (see editor/config.ts): basicSetup
-          // turns on autocompletion, and in Markdown prose a popup on every word
-          // is pure interruption. Still available on demand.
-          autocompletion({ activateOnTyping: false }),
+          sourceSetup(),
           // Tab indents. Unbound, it moved focus to the preview behind the
           // pane, and what was typed next went there and was lost at the
           // next sync.

@@ -123,6 +123,10 @@
       "aiContinue": "AI 续写",
       "aiWrite": "AI 按提示写作",
       "aiSummarize": "AI 总结上文"
+    },
+    "source": {
+      "fold": "折叠",
+      "unfold": "展开"
     }
   },
   "dialog": {

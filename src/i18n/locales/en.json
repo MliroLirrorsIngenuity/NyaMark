@@ -125,6 +125,10 @@
       "aiContinue": "AI continue writing",
       "aiWrite": "AI write from a prompt",
       "aiSummarize": "AI summarize above"
+    },
+    "source": {
+      "fold": "Fold line",
+      "unfold": "Unfold line"
     }
   },
   "dialog": {
