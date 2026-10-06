@@ -8,16 +8,18 @@ import {
 } from '@tauri-apps/plugin-fs';
 import { type Store, load } from '@tauri-apps/plugin-store';
 import type { Settings } from '../../state/settings';
+import names from './settings-store.json';
 
 /**
- * The plugin-store file, resolved under AppData. The pre-store backend (every
- * beta release) wrote raw settings to AppConfig/settings.json, and on macOS
- * and Windows AppData and AppConfig are the same folder, so the store keeps a
- * name of its own.
+ * The plugin-store file, resolved under AppData, and the key the settings are
+ * under: a window reads its look from them before its page loads. The
+ * pre-store backend (every beta release) wrote raw settings to
+ * AppConfig/settings.json, and on macOS and Windows AppData and AppConfig are
+ * the same folder, so the store keeps a name of its own.
  */
-const STORE_FILE = 'preferences.json';
+const STORE_FILE = names.file;
+const STORE_KEY = names.key;
 const LEGACY_SETTINGS_FILE = 'settings.json';
-const STORE_KEY = 'settings';
 const VERSION_KEY = 'version';
 /** Bump together with a migration in `openStore` when the stored shape changes. */
 const SCHEMA_VERSION = 1;

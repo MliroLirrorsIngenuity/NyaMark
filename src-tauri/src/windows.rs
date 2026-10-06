@@ -240,9 +240,27 @@ fn page_color() -> objc2::rc::Retained<objc2_app_kit::NSColor> {
     use objc2_foundation::NSArray;
     use std::ptr::NonNull;
 
-    let light = NSColor::colorWithSRGBRed_green_blue_alpha(1.0, 254.0 / 255.0, 251.0 / 255.0, 1.0);
-    let dark =
-        NSColor::colorWithSRGBRed_green_blue_alpha(16.0 / 255.0, 21.0 / 255.0, 27.0 / 255.0, 1.0);
+    #[derive(serde::Deserialize)]
+    struct PageColors {
+        light: [u8; 3],
+        dark: [u8; 3],
+    }
+
+    // tests/page-colors.test.ts holds these to the ones in `shell.css`.
+    let Ok(colors) =
+        serde_json::from_str::<PageColors>(include_str!("../../src/ui/page-colors.json"))
+    else {
+        return NSColor::windowBackgroundColor();
+    };
+    let srgb = |[red, green, blue]: [u8; 3]| {
+        NSColor::colorWithSRGBRed_green_blue_alpha(
+            f64::from(red) / 255.0,
+            f64::from(green) / 255.0,
+            f64::from(blue) / 255.0,
+            1.0,
+        )
+    };
+    let (light, dark) = (srgb(colors.light), srgb(colors.dark));
     let provider = block2::RcBlock::new(move |appearance: NonNull<NSAppearance>| {
         // SAFETY: AppKit hands the provider a live appearance, and the names
         // are its own constants.
@@ -270,15 +288,29 @@ fn page_color() -> objc2::rc::Retained<objc2_app_kit::NSColor> {
 #[cfg(target_os = "macos")]
 fn saved_look<R: Runtime>(app: &AppHandle<R>) -> (bool, Option<tauri::Theme>) {
     use serde_json::Value;
+    use tauri_plugin_store::StoreExt;
 
-    let appearance = app
-        .path()
-        .app_data_dir()
-        .ok()
-        .and_then(|dir| std::fs::read_to_string(dir.join("preferences.json")).ok())
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-        .and_then(|store| store.pointer("/settings/appearance").cloned())
-        .unwrap_or(Value::Null);
+    #[derive(serde::Deserialize)]
+    struct SettingsStore {
+        file: String,
+        key: String,
+    }
+
+    let appearance = serde_json::from_str::<SettingsStore>(include_str!(
+        "../../src/bridge/ipc/settings-store.json"
+    ))
+    .ok()
+    .and_then(|names| {
+        // Opened as the page opens it, which is then handed this one.
+        let store = app
+            .store_builder(names.file)
+            .disable_auto_save()
+            .build()
+            .ok()?;
+        store.get(names.key)
+    })
+    .and_then(|settings| settings.get("appearance").cloned())
+    .unwrap_or(Value::Null);
     let frosted = appearance["windowTransparency"].as_bool().unwrap_or(false);
     let theme = match appearance["theme"].as_str() {
         Some("light") => Some(tauri::Theme::Light),
