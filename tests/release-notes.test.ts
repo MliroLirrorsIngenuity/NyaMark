@@ -43,6 +43,17 @@ describe('release notes in the update dialog', () => {
     ]);
   });
 
+  test('keep what code holds as written', () => {
+    expect(
+      releaseNoteBlocks(
+        '### <!-- 1 -->Fixes\n- *(links)* Read `[x](y)` and `*a*`  @x'
+      )
+    ).toEqual([
+      { kind: 'heading', text: 'Fixes' },
+      { kind: 'item', scope: 'links', text: 'Read [x](y) and *a*' },
+    ]);
+  });
+
   test('join a line that goes on to the change or paragraph before it', () => {
     expect(
       releaseNoteBlocks('- First half\n  second half\n\nOne\ntwo')

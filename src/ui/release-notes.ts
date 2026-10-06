@@ -7,68 +7,55 @@
  * are left out. Built from text nodes alone: the notes come off the network.
  */
 
+import type { ListItem, Nodes } from 'mdast';
+import { fromMarkdown } from 'mdast-util-from-markdown';
+import { toString as words } from 'mdast-util-to-string';
+
 export type ReleaseNoteBlock =
   | { kind: 'heading'; text: string }
   | { kind: 'item'; scope: string | null; text: string }
   | { kind: 'text'; text: string };
 
-/** Emphasis, code and links read as their words. */
-function plain(text: string) {
-  return text
-    .replace(/<!--.*?-->/g, '')
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/(\*\*|\*|`)(\S(?:.*?\S)?)\1/g, '$2')
-    .replace(/\s+/g, ' ')
-    .trim();
+/** Emphasis, code and links read as their words, run together as on a page. */
+function plain(nodes: Nodes | Nodes[]) {
+  return words(nodes, { includeHtml: false }).replace(/\s+/g, ' ').trim();
 }
 
-/** A change's text with the scope it opens with and the authors after it. */
-function change(text: string) {
-  const scoped = /^\*\(([^)]+)\)\*\s*(.*)$/.exec(text.trim());
-  const rest = (scoped ? scoped[2] : text).replace(
-    /(?:\s+@[\w-]+(?:\[bot\])?)+\s*$/,
-    ''
-  );
-  return { scope: scoped ? plain(scoped[1]) : null, text: plain(rest) };
-}
+// The authors git-cliff writes after a change: GitHub user names, which are
+// letters, digits and hyphens, an app's ending in `[bot]`.
+const AUTHORS = /(?:\s+@[\w-]+(?:\[bot\])?)+$/;
 
-const VERSION_HEADING = /^#{1,2}\s+(?:v?\d+\.\d+|unreleased\b)/i;
+/** A change: the `*(scope)*` it opens with, and its words. */
+function change(item: ListItem) {
+  const [first, ...rest] = item.children;
+  const inline = first?.type === 'paragraph' ? [...first.children] : [];
+  const lead = inline[0]?.type === 'emphasis' ? plain(inline[0]) : '';
+  const scoped = lead.startsWith('(') && lead.endsWith(')');
+  if (scoped) inline.shift();
+  const blocks = first?.type === 'paragraph' ? rest : item.children;
+  const text = [plain(inline), ...blocks.map((block) => plain(block))]
+    .filter(Boolean)
+    .join(' ')
+    .replace(AUTHORS, '');
+  return { scope: scoped ? lead.slice(1, -1) : null, text };
+}
 
 export function releaseNoteBlocks(markdown: string): ReleaseNoteBlock[] {
   const blocks: ReleaseNoteBlock[] = [];
-  // The change or paragraph a line without a mark of its own goes on.
-  let open: Exclude<ReleaseNoteBlock, { kind: 'heading' }> | null = null;
-  for (const raw of markdown.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) {
-      open = null;
+  for (const node of fromMarkdown(markdown).children) {
+    if (node.type === 'list') {
+      for (const item of node.children) {
+        const next = change(item);
+        if (next.text || next.scope) blocks.push({ kind: 'item', ...next });
+      }
       continue;
     }
-    if (VERSION_HEADING.test(line)) {
-      open = null;
-      continue;
-    }
-    const heading = /^#{1,6}\s+(.*)$/.exec(line);
-    if (heading) {
-      const text = plain(heading[1]);
-      if (text) blocks.push({ kind: 'heading', text });
-      open = null;
-      continue;
-    }
-    const item = /^[-*+]\s+(.*)$/.exec(line);
-    if (item) {
-      const next = { kind: 'item' as const, ...change(item[1]) };
-      if (!next.text && !next.scope) continue;
-      blocks.push(next);
-      open = next;
-      continue;
-    }
-    if (open) {
-      open.text = `${open.text} ${plain(line)}`.trim();
-      continue;
-    }
-    open = { kind: 'text', text: plain(line) };
-    blocks.push(open);
+    // git-cliff writes the version as a heading over its groups', which the
+    // cards above give already.
+    if (node.type === 'heading' && node.depth <= 2) continue;
+    const text = plain(node);
+    const kind = node.type === 'heading' ? 'heading' : 'text';
+    if (text) blocks.push({ kind, text });
   }
   return blocks;
 }
