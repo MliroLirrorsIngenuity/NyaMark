@@ -2,8 +2,9 @@
  * The hunks that turn some blocks of the document into the blocks an edit
  * gives, each small enough to review alone. Blocks the two share are left
  * out; a paragraph or heading whose words changed gets a hunk for each run
- * of changed words, a quote or a list is gone through block by block, and
- * anything else (a table, a code block, an image) is replaced whole.
+ * of changed words, a block of blocks, a quote or a list, is gone through
+ * block by block, and anything else (a table, a code block, an image) is
+ * replaced whole.
  */
 
 import { Fragment, type Node as ProseNode } from '@milkdown/kit/prose/model';
@@ -19,15 +20,6 @@ export type HunkDraft = {
   insert: Fragment;
   kind: 'inline' | 'block';
 };
-
-/** Gone through child by child when the two have the same markup. */
-const NESTED = new Set([
-  'blockquote',
-  'bullet_list',
-  'ordered_list',
-  'list_item',
-  'footnote_definition',
-]);
 
 /** Past this, two runs of blocks are taken as wholly different. */
 const MAX_BLOCK_COST = 400;
@@ -132,7 +124,8 @@ function refine(x: ProseNode, pos: number, y: ProseNode): HunkDraft[] {
   if (x.isTextblock) {
     return x.type.spec.code ? whole : alignInline(x, pos + 1, y);
   }
-  if (!NESTED.has(x.type.name)) return whole;
+  // A table lays out its rows and cells, which take no block between them.
+  if (x.isLeaf || x.type.spec.tableRole) return whole;
   const hunks = alignBlocks(children(x), pos + 1, children(y));
   return fitsParent(x, pos + 1, hunks) ? hunks : whole;
 }

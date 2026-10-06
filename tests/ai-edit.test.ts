@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { type Node, Slice } from '@milkdown/kit/prose/model';
+import { type Node, Schema, Slice } from '@milkdown/kit/prose/model';
+import { tableNodes } from '@milkdown/kit/prose/tables';
 import {
   type HunkDraft,
   alignBlocks,
@@ -176,6 +177,46 @@ describe('alignBlocks', () => {
   test('a code block is replaced whole', () => {
     const drafts = align(doc(code('let a = 1;')), doc(code('let a = 2;')));
     expect(drafts).toEqual([expect.objectContaining({ kind: 'block' })]);
+  });
+
+  test('any block of blocks is gone through, and a table replaced whole', () => {
+    const wide = new Schema({
+      nodes: schema.spec.nodes
+        .addToEnd('details', { group: 'block', content: 'block+' })
+        .append(
+          tableNodes({
+            tableGroup: 'block',
+            cellContent: 'paragraph',
+            cellAttributes: {},
+          })
+        ),
+      marks: schema.spec.marks,
+    });
+    const para = (text: string) =>
+      wide.node('paragraph', null, wide.text(text));
+    const details = (text: string) =>
+      wide.node(
+        'doc',
+        null,
+        wide.node('details', null, [para('one'), para(text)])
+      );
+    const table = (text: string) =>
+      wide.node('doc', null, [
+        wide.node('table', null, [
+          wide.node('table_row', null, [
+            wide.node('table_cell', null, para('one')),
+            wide.node('table_cell', null, para(text)),
+          ]),
+        ]),
+      ]);
+    const kinds = (drafts: readonly HunkDraft[]) =>
+      drafts.map((draft) => [draft.kind, draft.from]);
+    expect(kinds(align(details('red apples'), details('ripe apples')))).toEqual(
+      [['inline', 7]]
+    );
+    expect(kinds(align(table('red apples'), table('ripe apples')))).toEqual([
+      ['block', 0],
+    ]);
   });
 
   test('a rewritten paragraph is one hunk', () => {
