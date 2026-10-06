@@ -25,10 +25,52 @@ import type { Root } from 'mdast';
 /** Characters of Markdown drawn at once, a few screens of text. */
 const OPENING_SIZE = 6000;
 
-/** A link or footnote defined on a line of its own. */
-const DEFINITION = /^ {0,3}\[[^\]\n]+\]:[ \t]*\S.*$/gm;
+/** A line that can start a link or footnote definition, `[label]:`. */
+const DEFINES = /^ {0,3}\[.*\]:/;
+
+/** A line holding nothing but spaces and tabs, which ends a paragraph. */
+const BLANK = /^[ \t\r]*$/;
 
 export type Parse = (markdown: string) => Root;
+
+/**
+ * The links and notes `rest` defines, each as written. The paragraphs with a
+ * line that can start one are read by `parse`, those in a row together,
+ * which takes the ones they define: a line under another of text is more of
+ * it, as in the whole text.
+ */
+function definitionsIn(rest: string, parse: Parse): string[] {
+  const found: string[] = [];
+  let group: string[] = [];
+  let paragraph: string[] = [];
+  const readGroup = () => {
+    const text = group.join('\n');
+    group = [];
+    if (!text) return;
+    for (const block of parse(text).children) {
+      if (block.type !== 'definition' && block.type !== 'footnoteDefinition') {
+        continue;
+      }
+      const { start, end } = block.position ?? {};
+      found.push(text.slice(start?.offset, end?.offset));
+    }
+  };
+  const endParagraph = () => {
+    if (paragraph.some((line) => DEFINES.test(line))) {
+      group.push(...(group.length ? [''] : []), ...paragraph);
+    } else if (paragraph.length) {
+      readGroup();
+    }
+    paragraph = [];
+  };
+  for (const line of rest.split('\n')) {
+    if (BLANK.test(line)) endParagraph();
+    else paragraph.push(line);
+  }
+  endParagraph();
+  readGroup();
+  return found;
+}
 
 /**
  * The opening of `markdown`, up to the first block that starts past `size`
@@ -38,9 +80,9 @@ export type Parse = (markdown: string) => Root;
  * read there are the ones the whole text starts with.
  *
  * The links and notes defined further down follow the opening, so that the
- * ones it uses read as they do in the whole text. Their lines are looked for
- * in the rest unread: one in a code block or over several lines reads
- * otherwise until the rest is drawn, which puts it right.
+ * ones it uses read as they do in the whole text. Each paragraph they can be
+ * in is read alone: one in a code block, a list or a quote reads otherwise
+ * until the rest is drawn, which puts it right.
  */
 export function openingOf(
   markdown: string,
@@ -59,8 +101,8 @@ export function openingOf(
     if (from !== undefined) {
       const start = markdown.lastIndexOf('\n', from - 1) + 1;
       const opening = markdown.slice(0, start);
-      const later = markdown.slice(start).match(DEFINITION);
-      return later ? `${opening}${later.join('\n')}\n` : opening;
+      const later = definitionsIn(markdown.slice(start), parse);
+      return later.length ? `${opening}\n${later.join('\n\n')}\n` : opening;
     }
     if (end === markdown.length) return null;
   }

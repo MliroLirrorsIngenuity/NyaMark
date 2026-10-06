@@ -157,6 +157,29 @@ describe('openingOf', () => {
     expectReadAlike(markdown, opening);
   });
 
+  test('brings along the definitions the whole text reads, and only those', () => {
+    const markdown = [
+      'See [a], [b] and [c].',
+      '',
+      paragraphs(40),
+      '',
+      '[a]:',
+      '  https://a.example',
+      '  "A"',
+      '',
+      'Text over',
+      '[b]: https://b.example',
+      '',
+      '    [c]: https://c.example',
+      '',
+    ].join('\n');
+    const opening = openingOf(markdown, 1000) ?? '';
+    expect(opening).toContain('[a]:\n  https://a.example\n  "A"');
+    expect(opening).not.toContain('b.example');
+    expect(opening).not.toContain('c.example');
+    expectReadAlike(markdown, opening);
+  });
+
   test('draws at once a text with no block to end on past its opening', () => {
     const markdown = [paragraphs(5), '', '```', 'x\n\n'.repeat(1000)].join(
       '\n'
