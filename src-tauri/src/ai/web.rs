@@ -339,9 +339,17 @@ fn is_ad(url: &str) -> bool {
     let Ok(url) = Url::parse(url) else {
         return false;
     };
-    let host = url.host_str().unwrap_or_default();
-    (host.ends_with("duckduckgo.com") && url.path() == "/y.js")
-        || (host.ends_with("bing.com") && url.path().starts_with("/aclick"))
+    (on_domain(&url, "duckduckgo.com") && url.path() == "/y.js")
+        || (on_domain(&url, "bing.com") && url.path().starts_with("/aclick"))
+}
+
+/// Whether the address is on `domain` or a name under it; a URL's domain
+/// is lowercase already.
+fn on_domain(url: &Url, domain: &str) -> bool {
+    url.domain().is_some_and(|host| {
+        let host = host.trim_end_matches('.');
+        host == domain || host.ends_with(&format!(".{domain}"))
+    })
 }
 
 fn looks_blocked(html: &str) -> bool {
@@ -458,11 +466,7 @@ fn unwrap_bing(href: &str) -> String {
     let Some(url) = absolute("https://www.bing.com/", href) else {
         return href.to_string();
     };
-    if url
-        .host_str()
-        .is_some_and(|host| host.ends_with("bing.com"))
-        && url.path() == "/ck/a"
-    {
+    if on_domain(&url, "bing.com") && url.path() == "/ck/a" {
         let target = url
             .query_pairs()
             .find(|(name, _)| name == "u")
@@ -502,11 +506,7 @@ fn unwrap_duckduckgo(href: &str) -> String {
     let Some(url) = absolute("https://duckduckgo.com/", href) else {
         return href.to_string();
     };
-    if url
-        .host_str()
-        .is_some_and(|host| host.ends_with("duckduckgo.com"))
-        && url.path() == "/l/"
-    {
+    if on_domain(&url, "duckduckgo.com") && url.path() == "/l/" {
         if let Some((_, target)) = url.query_pairs().find(|(name, _)| name == "uddg") {
             return target.into_owned();
         }
@@ -1198,12 +1198,16 @@ mod tests {
                 result("https://a.example"),
                 result("javascript:alert(1)"),
                 result("https://www.bing.com/aclick?ld=x"),
+                result("https://notbing.com/aclick?ld=x"),
                 result("https://b.example/"),
                 result("https://c.example/"),
             ],
             2,
         );
-        assert_eq!(urls(&results), ["https://a.example/", "https://b.example/"]);
+        assert_eq!(
+            urls(&results),
+            ["https://a.example/", "https://notbing.com/aclick?ld=x"]
+        );
     }
 
     #[test]
@@ -1221,6 +1225,10 @@ mod tests {
         assert_eq!(
             unwrap_duckduckgo("//duckduckgo.com/l/?uddg=https%3A%2F%2Ftauri.app%2F&rut=1"),
             "https://tauri.app/"
+        );
+        assert_eq!(
+            unwrap_duckduckgo("https://evilduckduckgo.com/l/?uddg=https%3A%2F%2Ftauri.app%2F"),
+            "https://evilduckduckgo.com/l/?uddg=https%3A%2F%2Ftauri.app%2F"
         );
     }
 
