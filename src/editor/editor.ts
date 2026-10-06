@@ -160,6 +160,7 @@ import { markCaretInCode } from './plugins/top-bar-heading-code';
 import { closeHeadingListOnKeys } from './plugins/top-bar-heading-list';
 import { typeOverBlocks } from './plugins/type-over-blocks';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
+import { typedBlocks } from './plugins/typed-blocks';
 import { typedMarksInput } from './plugins/typed-marks';
 import { undoByLine } from './plugins/undo-lines';
 import { scrollIntoViewSettled } from './scroll-settled';
@@ -279,6 +280,7 @@ export class NyaEditor {
     crepe.editor.use(ruleOnEnter);
     crepe.editor.use(quoteInput);
     crepe.editor.use(headingInput);
+    crepe.editor.use(typedBlocks);
     crepe.editor.use(dollarInput);
     // Removed before the editor is created, so at once.
     void crepe.editor.remove([
