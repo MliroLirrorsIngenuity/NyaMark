@@ -12,6 +12,7 @@
 import { InitReady, remarkPluginsCtx } from '@milkdown/kit/core';
 import type { MilkdownPlugin } from '@milkdown/kit/ctx';
 import type { RemarkPlugin } from '@milkdown/kit/transformer';
+import { normalizeIdentifier } from 'micromark-util-normalize-identifier';
 
 type MdNode = {
   type: string;
@@ -29,15 +30,8 @@ function walk(node: MdNode, visit: (node: MdNode) => void) {
   for (const child of node.children ?? []) walk(child, visit);
 }
 
-/** A label as references match it: case and spacing aside. */
-function identify(label: string): string {
-  return label
-    .replace(/[\t\n\r ]+/g, ' ')
-    .replace(/^ | $/g, '')
-    .toLowerCase()
-    .toUpperCase()
-    .toLowerCase();
-}
+/** A label as references match it, as remark reads it. */
+const identify = (label: string) => normalizeIdentifier(label).toLowerCase();
 
 /**
  * The label as written, its lines joined. The one remark reads has its
