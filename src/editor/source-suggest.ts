@@ -31,7 +31,14 @@ const clearSuggestion = StateEffect.define<null>();
 type TreeNode = ReturnType<ReturnType<typeof syntaxTree>['resolveInner']>;
 
 /** Where the source is code, and no prose goes. */
-const CODE = new Set(['FencedCode', 'CodeBlock', 'CodeText', 'HTMLBlock']);
+const CODE = new Set([
+  'FencedCode',
+  'CodeBlock',
+  'CodeText',
+  'HTMLBlock',
+  'BlockMath',
+  'FrontMatter',
+]);
 
 class Ghost extends WidgetType {
   constructor(readonly text: string) {

@@ -28,7 +28,6 @@ import {
   indentWithTab,
   isolateHistory,
 } from '@codemirror/commands';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import {
   HighlightStyle,
   bracketMatching,
@@ -80,6 +79,7 @@ import { applyChanges, rewriteBlocks } from './source-follow';
 import { continueMarkup } from './source-list-exit';
 import { sourceSearch } from './source-search';
 import { sourceSuggest } from './source-suggest';
+import { sourceMarkdown } from './source-syntax';
 
 /** A pause in typing this long brings the preview up to date. */
 const SYNC_DELAY_MS = 180;
@@ -654,12 +654,8 @@ export class SourceModeController {
           Prec.high(keymap.of([{ key: 'Enter', run: continueMarkup }])),
           // GitHub's Markdown, as the file is read and written: struck text,
           // tables and task boxes were plain text here, the tildes and boxes
-          // drawn like the words. Its sub- and superscripts are no part of
-          // it, and took the `^` of a formula for one.
-          markdown({
-            base: markdownLanguage,
-            extensions: { remove: ['Superscript', 'Subscript', 'Emoji'] },
-          }),
+          // drawn like the words.
+          sourceMarkdown(initialDoc),
           sourceSearch(),
           syntaxHighlighting(markdownHighlight),
           EditorView.lineWrapping,
