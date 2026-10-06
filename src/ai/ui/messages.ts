@@ -37,6 +37,7 @@ const ENDING_TEXT: Record<NonNullable<AssistantEntry['ending']>, string> = {
 const TOOL_ICONS: Record<ToolPart['state'], string> = {
   running: '',
   done: ICONS.check,
+  denied: ICONS.alert,
   error: ICONS.alert,
   stopped: ICONS.dash,
 };

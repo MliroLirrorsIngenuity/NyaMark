@@ -505,7 +505,9 @@ describe('MCP tools', () => {
 
   test('a denied call never reaches the server', async () => {
     const host = toolHost({ answer: 'deny' });
-    await expect(host.run('mcp__Files__read', {})).rejects.toThrow(/^denied:/);
+    expect(await host.run('mcp__Files__read', {})).toEqual({
+      denied: 'The user did not allow running read from Files.',
+    });
     expect(host.calls).toEqual([]);
   });
 
@@ -638,7 +640,7 @@ describe('the line for an MCP call in the reply', () => {
         output: { text: '', server: 'My Files', tool: 'read.file' },
       })
     ).toBe('Used read.file (My Files)');
-    expect(part({ state: 'error', error: 'denied: no' })).toBe(
+    expect(part({ state: 'denied', output: { denied: 'No.' } })).toBe(
       'Did not run read_file (My_Files)'
     );
     expect(part({ state: 'error', error: 'timeout: slow' })).toBe(

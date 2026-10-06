@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { APICallError, RetryError } from 'ai';
+import { APICallError, RetryError, tool } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
+import { z } from 'zod';
+import { type Denied, modelOutput } from '../src/ai/agent/approvals';
 import {
   type AssistantEntry,
   ChatFailureError,
   ChatSession,
   type SessionChange,
+  type ToolPart,
   describeFailure,
   replyText,
 } from '../src/ai/agent/session';
@@ -378,5 +381,56 @@ describe('describeFailure', () => {
       'other'
     );
     expect(describeFailure('key-needed').code).toBe('other');
+  });
+});
+
+describe('a tool call the user turns down', () => {
+  test('reaches the model as a denied call, and shows as one', async () => {
+    const model = scriptedModel(
+      [
+        {
+          type: 'tool-call',
+          toolCallId: 'c1',
+          toolName: 'write_note',
+          input: '{}',
+        },
+        {
+          type: 'finish',
+          usage: usage(1, 1),
+          finishReason: { unified: 'tool-calls', raw: 'tool-calls' },
+        },
+      ],
+      [...textParts('Fine.'), finish()]
+    );
+    const session = new ChatSession(() => ({
+      model,
+      modelLabel: 'mock-model',
+      instructions: '',
+      tools: {
+        write_note: tool({
+          inputSchema: z.object({}),
+          execute: async (): Promise<{ text: string } | Denied> => ({
+            denied: 'The user did not allow it.',
+          }),
+          toModelOutput: ({ output }) => modelOutput(output),
+        }),
+      },
+    }));
+    await session.send('Write it');
+
+    const call = lastReply(session).parts[0] as ToolPart;
+    expect(call).toMatchObject({ state: 'denied', id: 'c1' });
+    const second = model.doStreamCalls[1]?.prompt ?? [];
+    const result = second.find((message) => message.role === 'tool');
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'tool-result',
+        toolCallId: 'c1',
+        output: {
+          type: 'execution-denied',
+          reason: 'The user did not allow it.',
+        },
+      }),
+    ]);
   });
 });

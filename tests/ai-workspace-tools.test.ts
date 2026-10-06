@@ -272,13 +272,16 @@ describe('the assistant changing notes', () => {
 
   test('leaves the note alone when the user turns the change down', async () => {
     const { tools, run, writes, text } = setup({ answer: 'deny' });
-    await expect(
-      run(tools.edit_file, {
+    expect(
+      await run(tools.edit_file, {
         path: 'a.md',
         old_string: 'beta',
         new_string: 'BETA',
       })
-    ).rejects.toThrow(/^denied: The user did not allow this change to a\.md/);
+    ).toEqual({
+      denied:
+        'The user did not allow this change to a.md. Ask them what to do.',
+    });
     expect(writes).toEqual([]);
     expect(text('a.md')).toBe('alpha\nbeta\ngamma\n');
   });
@@ -346,7 +349,7 @@ describe('the assistant changing notes', () => {
     await Bun.sleep(0);
     expect(approvals.request('c1')).not.toBeNull();
     stop.abort();
-    await expect(pending).rejects.toThrow(/^denied: /);
+    expect(await pending).toMatchObject({ denied: expect.any(String) });
     expect(approvals.request('c1')).toBeNull();
     expect(writes).toEqual([]);
   });
@@ -426,16 +429,19 @@ describe('the assistant asking for a folder', () => {
 
   test('is told when the user declines or closes the picker', async () => {
     const declined = setup({ answer: 'deny' });
-    await expect(
-      declined.run(declined.tools.request_folder, { reason: 'Drafts.' })
-    ).rejects.toThrow(
-      /^denied: The user did not allow reaching another folder/
-    );
+    expect(
+      await declined.run(declined.tools.request_folder, { reason: 'Drafts.' })
+    ).toEqual({
+      denied:
+        'The user did not allow reaching another folder. Ask them what to do.',
+    });
     const closed = setup();
     closed.pick(null);
-    await expect(
-      closed.run(closed.tools.request_folder, { reason: 'Drafts.' })
-    ).rejects.toThrow(/^denied: The user closed the folder picker/);
+    expect(
+      await closed.run(closed.tools.request_folder, { reason: 'Drafts.' })
+    ).toEqual({
+      denied: 'The user closed the folder picker without choosing a folder.',
+    });
   });
 });
 

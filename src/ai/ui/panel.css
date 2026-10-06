@@ -507,7 +507,8 @@
   animation: ny-ai-spin 0.8s linear infinite;
 }
 
-.ny-ai-tool[data-state="error"] {
+.ny-ai-tool[data-state="error"],
+.ny-ai-tool[data-state="denied"] {
   color: var(--ny-ai-error);
 }
 

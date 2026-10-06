@@ -25,7 +25,12 @@ import {
 import type { EditController } from '../../edit/controller';
 import { changedLines } from '../../edit/report';
 import { EditError, replaceText } from '../../edit/text-edit';
-import type { ApprovalAnswer, Approvals } from '../approvals';
+import {
+  type ApprovalAnswer,
+  type Approvals,
+  type Denied,
+  modelOutput,
+} from '../approvals';
 import { MAX_READ_LINES, documentLines, readLines } from '../document-text';
 import { lineDiff } from '../line-diff';
 import type { DocumentReader } from './document';
@@ -180,8 +185,9 @@ function writtenLines(before: string, after: string) {
   return `Lines ${range.from}–${range.from + count - 1} now read:\n${readLines(after, range.from, count).text}`;
 }
 
-const denied = (what: string) =>
-  new Error(`denied: The user did not allow ${what}. Ask them what to do.`);
+const denied = (what: string): Denied => ({
+  denied: `The user did not allow ${what}. Ask them what to do.`,
+});
 
 const allowed = (answer: ApprovalAnswer) => answer !== 'deny';
 
@@ -359,7 +365,7 @@ export function workspaceTools(host: WorkspaceHost) {
       execute: async (
         { path, old_string, new_string, replace_all },
         { toolCallId, abortSignal }
-      ): Promise<FileToolOutput | EditToolOutput> => {
+      ): Promise<FileToolOutput | EditToolOutput | Denied> => {
         const roots = await attempt(() => api.roots());
         const file = await attempt(() => api.read(path));
         if (isOpenDocument(file.path, host.documentPath(), roots)) {
@@ -391,7 +397,7 @@ export function workspaceTools(host: WorkspaceHost) {
           },
           abortSignal
         );
-        if (!allowed(answer)) throw denied(`this change to ${path}`);
+        if (!allowed(answer)) return denied(`this change to ${path}`);
         const written = await attempt(() =>
           api.write({
             path: file.path,
@@ -405,7 +411,7 @@ export function workspaceTools(host: WorkspaceHost) {
           status: 'written',
         };
       },
-      toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
+      toModelOutput: ({ output }) => modelOutput(output),
     }),
 
     write_file: tool({
@@ -429,7 +435,7 @@ export function workspaceTools(host: WorkspaceHost) {
       execute: async (
         { path, text, version },
         { toolCallId, abortSignal }
-      ): Promise<FileToolOutput> => {
+      ): Promise<FileToolOutput | Denied> => {
         if (!isMarkdownPath(path)) throw explained({ kind: 'not-markdown' });
         const roots = await attempt(() => api.roots());
         if (roots.length === 0) throw explained({ kind: 'no-workspace' });
@@ -462,7 +468,7 @@ export function workspaceTools(host: WorkspaceHost) {
           abortSignal
         );
         if (!allowed(answer)) {
-          throw denied(current ? `replacing ${path}` : `creating ${path}`);
+          return denied(current ? `replacing ${path}` : `creating ${path}`);
         }
         const written = await attempt(() =>
           api.write(
@@ -477,7 +483,7 @@ export function workspaceTools(host: WorkspaceHost) {
           status: current ? 'written' : 'created',
         };
       },
-      toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
+      toModelOutput: ({ output }) => modelOutput(output),
     }),
 
     request_folder: tool({
@@ -492,25 +498,26 @@ export function workspaceTools(host: WorkspaceHost) {
       execute: async (
         { reason },
         { toolCallId, abortSignal }
-      ): Promise<FileToolOutput> => {
+      ): Promise<FileToolOutput | Denied> => {
         const answer = await approvals.ask(
           toolCallId,
           { kind: 'folder', reason },
           abortSignal
         );
-        if (!allowed(answer)) throw denied('reaching another folder');
+        if (!allowed(answer)) return denied('reaching another folder');
         const folder = await attempt(() => api.pickRoot());
         if (!folder) {
-          throw new Error(
-            'denied: The user closed the folder picker without choosing a folder.'
-          );
+          return {
+            denied:
+              'The user closed the folder picker without choosing a folder.',
+          };
         }
         return {
           text: `The user gave you ${folder}. The file tools reach its notes now.`,
           path: folder,
         };
       },
-      toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
+      toModelOutput: ({ output }) => modelOutput(output),
     }),
   };
 }

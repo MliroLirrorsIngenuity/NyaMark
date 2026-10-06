@@ -17,6 +17,7 @@ import {
 } from 'ai';
 import { AiFetchError } from '../../bridge/ipc/ai';
 import { type ChatImage, userMessage } from '../images/image';
+import { isDenied } from './approvals';
 
 /** What a turn is sent with, read again for each turn and each retry. */
 export type TurnSetup = {
@@ -35,7 +36,8 @@ export type ToolPart = {
   name: string;
   /** What the model called it with; undefined while it is still writing it. */
   input: unknown;
-  state: 'running' | 'done' | 'error' | 'stopped';
+  /** `denied`: the user turned it down, and the tool returned why. */
+  state: 'running' | 'done' | 'denied' | 'error' | 'stopped';
   output?: unknown;
   error?: string;
 };
@@ -425,7 +427,7 @@ export class ChatSession {
           case 'tool-result': {
             if (part.preliminary) break;
             const tool = this.tool(entry, part.toolCallId, part.toolName);
-            tool.state = 'done';
+            tool.state = isDenied(part.output) ? 'denied' : 'done';
             tool.output = part.output;
             update();
             break;

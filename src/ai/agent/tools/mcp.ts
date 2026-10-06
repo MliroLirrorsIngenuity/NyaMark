@@ -17,7 +17,7 @@ import {
 } from '../../../bridge/ipc/ai';
 import type { AiMcpServer } from '../../../state/ai-settings';
 import type { ChatImage } from '../../images/image';
-import type { Approvals } from '../approvals';
+import { type Approvals, type Denied, modelOutput } from '../approvals';
 import { dataUrlBlob } from './image';
 
 export type McpToolHost = {
@@ -284,9 +284,10 @@ export function mcpTools(host: McpToolHost): Record<string, Tool> {
             abortSignal
           );
           if (answer === 'deny') {
-            throw new Error(
-              `denied: The user did not allow running ${tool.name} from ${status.name}.`
-            );
+            const denied: Denied = {
+              denied: `The user did not allow running ${tool.name} from ${status.name}.`,
+            };
+            return denied;
           }
           if (answer === 'always') host.allowAlways(status.id, tool.name);
         }
@@ -341,10 +342,7 @@ export function mcpTools(host: McpToolHost): Record<string, Tool> {
         }
         return output;
       },
-      toModelOutput: ({ output }) => ({
-        type: 'text',
-        value: (output as McpOutput).text,
-      }),
+      toModelOutput: ({ output }) => modelOutput(output as McpOutput | Denied),
     });
   };
 

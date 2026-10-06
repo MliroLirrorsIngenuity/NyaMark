@@ -177,7 +177,7 @@ function putBack(
 }
 
 const ROLES = new Set(['system', 'user', 'assistant', 'tool']);
-const TOOL_STATES = new Set(['running', 'done', 'error', 'stopped']);
+const TOOL_STATES = new Set(['running', 'done', 'denied', 'error', 'stopped']);
 const STATUSES = new Set(['streaming', 'done', 'stopped', 'error']);
 
 function chatImage(value: unknown): ChatImage | null {

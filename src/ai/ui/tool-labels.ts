@@ -65,9 +65,6 @@ const fileOf = (part: ToolPart) => ({
   file: fileName(field<string>(part.input, 'path')),
 });
 
-const isDenied = (part: ToolPart) =>
-  part.state === 'error' && (part.error ?? '').startsWith('denied:');
-
 LABELS.list_files = (part) => {
   const count = field<number>(part.output, 'count');
   return part.state === 'done' && count != null
@@ -91,7 +88,8 @@ LABELS.edit_file = (part) => {
   if (field<string>(part.output, 'edit')) {
     return editLabel('ai.tool.editing')(part);
   }
-  if (isDenied(part)) return i18next.t('ai.tool.fileDenied', fileOf(part));
+  if (part.state === 'denied')
+    return i18next.t('ai.tool.fileDenied', fileOf(part));
   if (part.state === 'error') {
     return i18next.t('ai.tool.fileFailed', fileOf(part));
   }
@@ -101,7 +99,8 @@ LABELS.edit_file = (part) => {
   );
 };
 LABELS.write_file = (part) => {
-  if (isDenied(part)) return i18next.t('ai.tool.fileDenied', fileOf(part));
+  if (part.state === 'denied')
+    return i18next.t('ai.tool.fileDenied', fileOf(part));
   if (part.state === 'error') {
     return i18next.t('ai.tool.fileFailed', fileOf(part));
   }
@@ -116,7 +115,9 @@ LABELS.write_file = (part) => {
   );
 };
 LABELS.request_folder = (part) => {
-  if (part.state === 'error') return i18next.t('ai.tool.noFolder');
+  if (part.state === 'error' || part.state === 'denied') {
+    return i18next.t('ai.tool.noFolder');
+  }
   if (part.state !== 'done') return i18next.t('ai.tool.askingFolder');
   return i18next.t('ai.tool.gotFolder', {
     folder: fileName(field<string>(part.output, 'path')),
@@ -186,7 +187,7 @@ LABELS.fetch_url = (part) => {
   const site = siteOf(
     field<string>(part.output, 'url') ?? field<string>(part.input, 'url')
   );
-  if (isDenied(part)) return i18next.t('ai.tool.pageDenied', { site });
+  if (part.state === 'denied') return i18next.t('ai.tool.pageDenied', { site });
   if (part.state === 'error') return i18next.t('ai.tool.pageFailed', { site });
   if (part.state !== 'done') return i18next.t('ai.tool.fetchingPage', { site });
   const title = field<string>(part.output, 'title');
@@ -219,7 +220,7 @@ function mcpLabel(part: ToolPart): string {
     server: field<string>(part.output, 'server') ?? server,
     tool: field<string>(part.output, 'tool') ?? (rest.join('__') || part.name),
   };
-  if (isDenied(part)) return i18next.t('ai.tool.mcpDenied', names);
+  if (part.state === 'denied') return i18next.t('ai.tool.mcpDenied', names);
   if (part.state === 'error') return i18next.t('ai.tool.mcpFailed', names);
   if (part.state !== 'done') return i18next.t('ai.tool.mcpRunning', names);
   return i18next.t('ai.tool.mcpUsed', names);

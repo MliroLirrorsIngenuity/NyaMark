@@ -44,6 +44,22 @@ export type ApprovalRequest =
  */
 export type ApprovalAnswer = 'allow' | 'always' | 'deny';
 
+/**
+ * What a tool returns when the user turned it down, why in the model's
+ * terms. The model is told as the SDK tells it of a denied call; the panel
+ * shows the call as turned down.
+ */
+export type Denied = { denied: string };
+
+export const isDenied = (output: unknown): output is Denied =>
+  typeof (output as Partial<Denied> | null)?.denied === 'string';
+
+/** A tool's output as the model reads it: its text, or the denial. */
+export const modelOutput = (output: { text: string } | Denied) =>
+  isDenied(output)
+    ? { type: 'execution-denied' as const, reason: output.denied }
+    : { type: 'text' as const, value: output.text };
+
 const toolKey = (server: string, tool: string) => `${server}\u0000${tool}`;
 
 type Waiting = {

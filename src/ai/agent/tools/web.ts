@@ -20,7 +20,12 @@ import {
 } from '../../../bridge/ipc/ai';
 import type { AiSearchSettings } from '../../../state/ai-settings';
 import { type PageText, pageText } from '../../web/page';
-import type { Approvals } from '../approvals';
+import {
+  type Approvals,
+  type Denied,
+  isDenied,
+  modelOutput,
+} from '../approvals';
 
 /** The app's web commands, as the tools use them. */
 export type WebApi = {
@@ -190,9 +195,9 @@ export function webTools(host: WebHost) {
           signal
         );
         if (answer === 'deny') {
-          throw new Error(
-            `denied: The user did not allow opening ${url}, which is on this computer or their local network.`
-          );
+          return {
+            denied: `The user did not allow opening ${url}, which is on this computer or their local network.`,
+          };
         }
       }
     }
@@ -272,10 +277,11 @@ export function webTools(host: WebHost) {
       execute: async (
         { url, offset = 0 },
         { toolCallId, abortSignal }
-      ): Promise<FetchOutput> => {
+      ): Promise<FetchOutput | Denied> => {
         let page = kept.get(url);
         if (!page) {
           const fetched = await fetchPage(url, toolCallId, abortSignal);
+          if (isDenied(fetched)) return fetched;
           page = { ...fetched, ...read(fetched) };
           keep(url, page);
         }
@@ -314,7 +320,7 @@ export function webTools(host: WebHost) {
         ].join('\n\n');
         return { text, url: page.url, title: page.title };
       },
-      toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
+      toModelOutput: ({ output }) => modelOutput(output),
     }),
   };
 }

@@ -358,9 +358,9 @@ describe('pages on the local network', () => {
       pages: { [url]: page(url, 'Router') },
       answer: 'deny',
     });
-    await expect(run(tools.fetch_url, { url })).rejects.toThrow(
-      /^denied: The user did not allow opening http:\/\/192\.168\.1\.1\/status/
-    );
+    expect(await run(tools.fetch_url, { url })).toEqual({
+      denied: `The user did not allow opening ${url}, which is on this computer or their local network.`,
+    });
     await Bun.sleep(0);
     expect(fetches).toHaveLength(1);
   });
@@ -376,7 +376,7 @@ describe('pages on the local network', () => {
     await Bun.sleep(0);
     expect(asked).toHaveLength(1);
     stop.abort();
-    await expect(reading).rejects.toThrow(/^denied:/);
+    expect(await reading).toMatchObject({ denied: expect.any(String) });
   });
 });
 
