@@ -17,6 +17,7 @@ import {
 } from '../bridge/ipc/files';
 import { dragDropTarget, listenWindowFileDrop } from '../bridge/ipc/windows';
 import type { EditorAttachment } from '../editor/editor';
+import type { FrontMatter } from '../editor/plugins/front-matter';
 import { i18next } from '../i18n';
 import type {
   ImageInsertPolicy,
@@ -69,6 +70,7 @@ type AttachmentSource = {
 
 type AttachmentControllerOptions = {
   getMarkdown: () => string;
+  getFrontMatter: () => FrontMatter | null;
   getDocumentPath: () => string | null;
   saveDocumentAs: () => Promise<string | null>;
   insertAttachments: (attachments: EditorAttachment[]) => void;
@@ -432,7 +434,9 @@ export class AttachmentController {
    * in charge.
    */
   private async documentCopyRule(): Promise<InsertRule | null> {
-    const targetDir = getDocumentCopyTarget(this.options.getMarkdown());
+    const targetDir = await getDocumentCopyTarget(
+      this.options.getFrontMatter()
+    );
     if (!targetDir) return null;
     const documentPath = this.options.getDocumentPath();
     if (

@@ -135,10 +135,16 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const controllers: Array<InstanceType<typeof AttachmentController>> = [];
 
-async function setup({ markdown = '', documentPath = '/notes/doc.md' } = {}) {
+async function setup({
+  markdown = '',
+  frontMatter = '',
+  documentPath = '/notes/doc.md',
+} = {}) {
   const inserted: EditorAttachment[][] = [];
   const controller = new AttachmentController({
     getMarkdown: () => markdown,
+    getFrontMatter: () =>
+      frontMatter ? { kind: 'yaml', source: frontMatter } : null,
     getDocumentPath: () => documentPath,
     saveDocumentAs: async () => null,
     insertAttachments: (attachments) => inserted.push(attachments),
@@ -311,11 +317,10 @@ describe('inserting files', () => {
 });
 
 describe('front matter copy folder', () => {
-  const pointingAt = (folder: string) =>
-    `---\ntypora-copy-images-to: ${folder}\n---\n\n# Notes\n`;
+  const pointingAt = (folder: string) => `typora-copy-images-to: ${folder}`;
 
   test('a folder inside the document folder is used without asking', async () => {
-    const { drop } = await setup({ markdown: pointingAt('assets') });
+    const { drop } = await setup({ frontMatter: pointingAt('assets') });
 
     await drop(['/pictures/cat.png']);
 
@@ -326,7 +331,7 @@ describe('front matter copy folder', () => {
   });
 
   test('a folder elsewhere is used once the user allows it', async () => {
-    const { drop } = await setup({ markdown: pointingAt('../shared') });
+    const { drop } = await setup({ frontMatter: pointingAt('../shared') });
 
     await drop(['/pictures/cat.png']);
     await drop(['/pictures/dog.png']);
@@ -339,7 +344,7 @@ describe('front matter copy folder', () => {
   });
 
   test('a refused folder leaves the attachment settings in charge', async () => {
-    const { drop, inserted } = await setup({ markdown: pointingAt('/tmp') });
+    const { drop, inserted } = await setup({ frontMatter: pointingAt('/tmp') });
     bridge.allowCopyTarget = false;
 
     await drop(['/pictures/cat.png']);

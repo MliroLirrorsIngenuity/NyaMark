@@ -6,6 +6,7 @@ import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
 import {
+  frontMatterOf,
   frontMatterOnTop,
   pastFrontMatter,
 } from '../src/editor/plugins/front-matter';
@@ -65,5 +66,41 @@ describe('pastFrontMatter', () => {
   test('leaves it in a code block that opens the page', () => {
     expect(caret(code(''), p)).toEqual(['code_block', 0]);
     expect(caret(code('yaml'))).toEqual(['code_block', 0]);
+  });
+});
+
+describe('frontMatterOf', () => {
+  const schema = new Schema({
+    nodes: {
+      doc: { content: 'block+' },
+      paragraph: { group: 'block', content: 'text*' },
+      code_block: {
+        group: 'block',
+        content: 'text*',
+        code: true,
+        attrs: { frontMatter: { default: '' }, language: { default: '' } },
+      },
+      text: {},
+    },
+  });
+  const code = (frontMatter: string, language: string) =>
+    schema.node('code_block', { frontMatter, language }, [
+      schema.text('title: x'),
+    ]);
+  const p = schema.node('paragraph', null, [schema.text('正文')]);
+  const of = (...blocks: ReturnType<typeof code>[]) =>
+    frontMatterOf(schema.node('doc', null, blocks));
+
+  test('reads the front matter the file opens with', () => {
+    expect(of(code('yaml', 'yaml'), p)).toEqual({
+      kind: 'yaml',
+      source: 'title: x',
+    });
+  });
+
+  test('reads none from what is saved as a code block', () => {
+    expect(of(code('yaml', 'json'), p)).toBeNull();
+    expect(of(code('', 'yaml'), p)).toBeNull();
+    expect(of(p, code('yaml', 'yaml'))).toBeNull();
   });
 });

@@ -82,7 +82,9 @@ import { keepFloatingOffEdge } from './plugins/floating-gutter';
 import { footnoteInput } from './plugins/footnote-input';
 import { footnoteMark, footnoteNumber } from './plugins/footnote-mark';
 import {
+  type FrontMatter,
   frontMatterBlock,
+  frontMatterOf,
   frontMatterSyntax,
   pastFrontMatter,
 } from './plugins/front-matter';
@@ -435,6 +437,11 @@ export class NyaEditor {
 
   getMarkdown(): string {
     return this.crepe ? this.crepe.getMarkdown() : '';
+  }
+
+  frontMatter(): FrontMatter | null {
+    const view = this.getView();
+    return view ? frontMatterOf(view.state.doc) : null;
   }
 
   drawDiagramsForPrint(): Promise<void> {

@@ -11,6 +11,7 @@
  * saved as the code block it then is.
  */
 
+import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { Selection, type Transaction } from '@milkdown/kit/prose/state';
 import type { NodeSchema } from '@milkdown/kit/transformer';
 import { $remark } from '@milkdown/kit/utils';
@@ -21,6 +22,16 @@ const KINDS = ['yaml', 'toml'] as const;
 type Kind = (typeof KINDS)[number];
 
 const isKind = (type: unknown): type is Kind => KINDS.includes(type as Kind);
+
+export type FrontMatter = { kind: Kind; source: string };
+
+/** The front matter `doc` is saved with, as the file writes it. */
+export function frontMatterOf(doc: ProseNode): FrontMatter | null {
+  const first = doc.firstChild;
+  const kind = first?.attrs.frontMatter;
+  if (!first || !isKind(kind) || first.attrs.language !== kind) return null;
+  return { kind, source: first.textContent };
+}
 
 /** Parses front matter into `yaml` and `toml` nodes, and writes them back. */
 export const frontMatterSyntax = $remark(

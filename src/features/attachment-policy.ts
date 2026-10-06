@@ -1,4 +1,5 @@
 import tauriConfig from '../../src-tauri/tauri.conf.json';
+import type { FrontMatter } from '../editor/plugins/front-matter';
 import type {
   ImageInsertPolicy,
   PastedImagePolicy,
@@ -64,19 +65,19 @@ export function defaultPastedImageName(file: File) {
   return `image-${stamp}.${extension}`;
 }
 
-export function getDocumentCopyTarget(markdown: string) {
-  const frontmatter = markdown.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
-  if (!frontmatter) return null;
+const COPY_TARGET_KEYS = ['typora-copy-images-to', 'nyamark-copy-images-to'];
 
-  for (const key of ['typora-copy-images-to', 'nyamark-copy-images-to']) {
-    const match = frontmatter[1].match(
-      new RegExp(`^\\s*${key}\\s*:\\s*(.+?)\\s*$`, 'm')
-    );
-    if (match?.[1]) {
-      return match[1].trim().replace(/^['"]|['"]$/g, '');
-    }
+export async function getDocumentCopyTarget(frontMatter: FrontMatter | null) {
+  if (frontMatter?.kind !== 'yaml') return null;
+  const { parseDocument } = await import('yaml');
+  const document = parseDocument(frontMatter.source);
+  if (document.errors.length) return null;
+  const data: unknown = document.toJS();
+  if (!data || typeof data !== 'object') return null;
+  for (const key of COPY_TARGET_KEYS) {
+    const value = (data as Record<string, unknown>)[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
   }
-
   return null;
 }
 

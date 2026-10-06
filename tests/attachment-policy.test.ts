@@ -3,6 +3,7 @@ import {
   MARKDOWN_EXTENSIONS,
   classifyLinkTarget,
   extractClipboardFilePaths,
+  getDocumentCopyTarget,
   isMarkdownPath,
   relocateLocalReference,
 } from '../src/features/attachment-policy';
@@ -242,5 +243,37 @@ describe('extractClipboardFilePaths', () => {
         clipboard({ 'text/plain': 'See the log at\nfile:///tmp/log.txt' })
       )
     ).toEqual([]);
+  });
+});
+
+describe('getDocumentCopyTarget', () => {
+  const yaml = (source: string) =>
+    getDocumentCopyTarget({ kind: 'yaml', source });
+
+  test.each([
+    ['a plain value', 'typora-copy-images-to: assets', 'assets'],
+    ['a quoted value', 'typora-copy-images-to: "./my pics"', './my pics'],
+    ['a value with a comment', 'typora-copy-images-to: img # here', 'img'],
+    ['the NyaMark key', 'nyamark-copy-images-to: ../shared', '../shared'],
+    [
+      'a folded value',
+      'title: x\ntypora-copy-images-to: >-\n  long\n  name',
+      'long name',
+    ],
+    ['a key inside another', 'meta:\n  typora-copy-images-to: a', null],
+    ['a number', 'typora-copy-images-to: 2024', null],
+    ['YAML that does not parse', 'typora-copy-images-to: [a', null],
+  ])('reads %s', async (_label, source, expected) => {
+    expect(await yaml(source)).toBe(expected);
+  });
+
+  test('reads nothing from TOML or no front matter', async () => {
+    expect(
+      await getDocumentCopyTarget({
+        kind: 'toml',
+        source: 'typora-copy-images-to = "a"',
+      })
+    ).toBeNull();
+    expect(await getDocumentCopyTarget(null)).toBeNull();
   });
 });

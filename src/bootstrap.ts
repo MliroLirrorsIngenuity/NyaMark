@@ -139,6 +139,7 @@ export class App {
 
     this.attachments = new AttachmentController({
       getMarkdown: () => this.editor?.getMarkdown() ?? '',
+      getFrontMatter: () => this.editor?.frontMatter() ?? null,
       getDocumentPath: () => store.getState().filePath,
       saveDocumentAs: () => fileController.saveFileAs(),
       insertAttachments: (attachments) =>
