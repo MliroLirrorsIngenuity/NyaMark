@@ -774,13 +774,12 @@ async fn remote(
 /// stream may stay quiet for a long time.
 fn http_client(proxy: &ProxySetting) -> Result<reqwest::Client, String> {
     http::install_crypto_provider();
-    http::apply_proxy(
+    http::finish_client(
         reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(15))
             .redirect(http::same_origin_redirects()),
         proxy,
-    )?
-    .build()
+    )
     .map_err(|error| error.to_string())
 }
 

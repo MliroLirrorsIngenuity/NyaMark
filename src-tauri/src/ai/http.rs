@@ -10,7 +10,11 @@
 //! a request somewhere else would get an error, whatever it put in the
 //! request.
 
-use std::{collections::HashMap, sync::Mutex, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Mutex, PoisonError},
+    time::Duration,
+};
 
 use serde::{Deserialize, Serialize};
 use tauri::{ipc::Channel, AppHandle, Manager, Runtime, Window};
@@ -58,28 +62,24 @@ pub fn install_crypto_provider() {
 /// The client for requests that carry a key. It follows a redirect only
 /// within the origin the key was saved for; one elsewhere comes back to the
 /// page as it is.
-pub fn build_client(proxy: &ProxySetting) -> Result<reqwest::Client, String> {
+pub fn build_client(proxy: &ProxySetting) -> Result<reqwest::Client, ClientError> {
     install_crypto_provider();
     let builder = reqwest::Client::builder()
         .redirect(same_origin_redirects())
         .connect_timeout(Duration::from_secs(15))
         // A reasoning model may think for minutes before its first word.
         .read_timeout(Duration::from_secs(300));
-    apply_proxy(builder, proxy)?
-        .build()
-        .map_err(|error| error.to_string())
+    finish_client(builder, proxy)
 }
 
 /// The client for web search, which carries no key and follows redirects
 /// anywhere: a search engine may send a reader to its regional site.
-pub fn build_search_client(proxy: &ProxySetting) -> Result<reqwest::Client, String> {
+pub fn build_search_client(proxy: &ProxySetting) -> Result<reqwest::Client, ClientError> {
     install_crypto_provider();
     let builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(15))
         .read_timeout(Duration::from_secs(300));
-    apply_proxy(builder, proxy)?
-        .build()
-        .map_err(|error| error.to_string())
+    finish_client(builder, proxy)
 }
 
 /// Follows a redirect only to the scheme, host and port the redirecting
@@ -106,26 +106,56 @@ fn same_origin(a: &url::Url, b: &url::Url) -> bool {
         && a.port_or_known_default() == b.port_or_known_default()
 }
 
-/// Routes a client through the proxy setting, for clients built elsewhere
-/// with settings of their own.
-pub fn apply_proxy(
+/// Why a client could not be set up.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ClientError {
+    /// The manual proxy in the settings is not an address reqwest can use.
+    BadProxy {
+        message: String,
+    },
+    Build {
+        message: String,
+    },
+}
+
+impl std::fmt::Display for ClientError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BadProxy { message } => write!(f, "bad-proxy: {message}"),
+            Self::Build { message } => f.write_str(message),
+        }
+    }
+}
+
+/// Routes a client through the proxy setting and builds it, for clients
+/// built elsewhere with settings of their own.
+pub fn finish_client(
     builder: reqwest::ClientBuilder,
     proxy: &ProxySetting,
-) -> Result<reqwest::ClientBuilder, String> {
-    Ok(match proxy {
+) -> Result<reqwest::Client, ClientError> {
+    let builder = match proxy {
         ProxySetting::System => builder,
         ProxySetting::None => builder.no_proxy(),
-        ProxySetting::Manual { url } => builder
-            .proxy(reqwest::Proxy::all(url.trim()).map_err(|error| format!("{url}: {error}"))?),
+        ProxySetting::Manual { url } => {
+            let proxy = reqwest::Proxy::all(url.trim()).map_err(|error| ClientError::BadProxy {
+                message: format!("{url}: {error}"),
+            })?;
+            builder.proxy(proxy)
+        }
+    };
+    builder.build().map_err(|error| ClientError::Build {
+        message: describe(&error),
     })
 }
 
 fn cached(
     slot: &Mutex<Option<(ProxySetting, reqwest::Client)>>,
     proxy: &ProxySetting,
-    build: fn(&ProxySetting) -> Result<reqwest::Client, String>,
-) -> Result<reqwest::Client, String> {
-    let mut cached = slot.lock().map_err(|error| error.to_string())?;
+    build: fn(&ProxySetting) -> Result<reqwest::Client, ClientError>,
+) -> Result<reqwest::Client, ClientError> {
+    // Only a panic while the slot was held poisons it, and the slot is
+    // replaced whole, so what it holds is still sound.
+    let mut cached = slot.lock().unwrap_or_else(PoisonError::into_inner);
     if let Some((setting, client)) = cached.as_ref() {
         if setting == proxy {
             return Ok(client.clone());
@@ -140,7 +170,7 @@ fn cached(
 pub fn client<R: Runtime>(
     app: &AppHandle<R>,
     proxy: &ProxySetting,
-) -> Result<reqwest::Client, String> {
+) -> Result<reqwest::Client, ClientError> {
     cached(&app.state::<HttpClients>().keyed, proxy, build_client)
 }
 
@@ -148,7 +178,7 @@ pub fn client<R: Runtime>(
 pub fn search_client<R: Runtime>(
     app: &AppHandle<R>,
     proxy: &ProxySetting,
-) -> Result<reqwest::Client, String> {
+) -> Result<reqwest::Client, ClientError> {
     cached(
         &app.state::<HttpClients>().search,
         proxy,
@@ -384,7 +414,7 @@ pub async fn ai_fetch(
             .map_err(|error| error.to_string())??
     };
     let headers = authorize(&request.url, request.headers, record.as_ref())?;
-    let client = client(&app, &request.proxy)?;
+    let client = client(&app, &request.proxy).map_err(|error| error.to_string())?;
     let token = CancellationToken::new();
     track(&app, &request.id, Some(token.clone()));
     let sent = token

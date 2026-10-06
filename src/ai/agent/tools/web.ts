@@ -8,12 +8,15 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import type {
-  ProxySetting,
-  WebPage,
-  WebSearchEngine,
-  WebSearchResponse,
-  WebSearchResult,
+import {
+  type InvokeFailure,
+  type ProxySetting,
+  WebError,
+  type WebFailure,
+  type WebPage,
+  type WebSearchEngine,
+  type WebSearchResponse,
+  type WebSearchResult,
 } from '../../../bridge/ipc/ai';
 import type { AiSearchSettings } from '../../../state/ai-settings';
 import { type PageText, pageText } from '../../web/page';
@@ -70,33 +73,55 @@ const ENGINE_NAMES: Record<string, string> = {
   searxng: 'SearXNG',
 };
 
-/** What the app's error codes mean, for the assistant. */
-const EXPLAINED: Record<string, string> = {
+type Failure = WebFailure | InvokeFailure;
+
+/** What the app's failures mean, for the assistant. */
+const EXPLAINED: Record<Failure['kind'], string> = {
   'empty-query': 'Give some words to search for.',
+  'no-searxng-url':
+    'Web search is set to SearXNG with no address for it. Tell the user to enter their SearXNG address or choose another engine in the AI settings.',
   'all-engines-failed':
     'No search engine answered. Tell the user web search is not reachable right now; they can choose another engine or set a proxy in the AI settings.',
   'bad-url': 'That is not a web address. Give a full http or https address.',
   'unsupported-scheme': 'Only http and https pages can be read.',
+  'private-address': 'That address is on this computer or the local network.',
   'unsupported-content-type':
     'That is a file, not a page; only text, HTML and JSON can be read.',
   timeout: 'The page took too long to load.',
   'too-many-redirects': 'The page redirects too many times to follow.',
   'bad-redirect': 'The page redirects to an address that cannot be read.',
+  'bad-proxy':
+    'The proxy set in the AI settings is not a usable address. Tell the user to correct it.',
+  network: 'The connection failed.',
+  invoke: 'The app could not run the request.',
 };
 
-function message(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+function detailOf(failure: Failure): string {
+  switch (failure.kind) {
+    case 'all-engines-failed':
+      return failure.failures
+        .map(({ engine, reason }) => `${engine}: ${reason}`)
+        .join('; ');
+    case 'unsupported-scheme':
+      return failure.scheme;
+    case 'private-address':
+      return failure.host;
+    case 'unsupported-content-type':
+      return failure.contentType;
+    default:
+      return 'message' in failure ? failure.message : '';
+  }
 }
 
 /** An error from the app's web commands, told so the assistant can act. */
 function failure(error: unknown): Error {
-  const raw = message(error);
-  const code = raw.split(':', 1)[0];
-  const explained = EXPLAINED[code];
-  if (!explained) return new Error(raw);
-  const detail = raw.slice(code.length + 1).trim();
+  if (!(error instanceof WebError)) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+  const { kind } = error.failure;
+  const detail = detailOf(error.failure);
   return new Error(
-    `${code}: ${explained}${detail ? ` (${detail.slice(0, 500)})` : ''}`
+    `${kind}: ${EXPLAINED[kind]}${detail ? ` (${detail.slice(0, 500)})` : ''}`
   );
 }
 
@@ -144,12 +169,12 @@ export function webTools(host: WebHost) {
     try {
       return await api.fetch({ url, proxy, allowPrivate });
     } catch (error) {
-      const raw = message(error);
-      if (!raw.startsWith('private-address')) throw failure(error);
-      const privateHost = raw.split(':').slice(1).join(':').trim();
+      const refused =
+        error instanceof WebError && error.failure.kind === 'private-address';
+      if (!refused) throw failure(error);
       const answer = await approvals.ask(
         toolCallId,
-        { kind: 'page', url, host: privateHost || hostOf(url) },
+        { kind: 'page', url, host: error.failure.host },
         signal
       );
       if (answer === 'deny') {

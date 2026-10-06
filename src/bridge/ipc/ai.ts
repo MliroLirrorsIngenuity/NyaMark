@@ -237,6 +237,27 @@ export type WebSearchResponse = {
   results: WebSearchResult[];
 };
 
+export type WebFailure =
+  | {
+      kind: 'empty-query' | 'no-searxng-url' | 'too-many-redirects' | 'timeout';
+    }
+  | {
+      kind: 'all-engines-failed';
+      failures: { engine: string; reason: string }[];
+    }
+  | {
+      kind: 'bad-url' | 'bad-redirect' | 'bad-proxy' | 'network';
+      message: string;
+    }
+  | { kind: 'unsupported-scheme'; scheme: string }
+  | { kind: 'private-address'; host: string }
+  | { kind: 'unsupported-content-type'; contentType: string };
+
+/** Why a web search or a page fetch failed. */
+export class WebError extends AiCommandError<WebFailure> {}
+
+const webCommand = commands(WebError);
+
 /** Searches the web through the result pages the engines show a browser. */
 export async function webSearch(request: {
   query: string;
@@ -245,7 +266,7 @@ export async function webSearch(request: {
   proxy: ProxySetting;
   limit?: number;
 }): Promise<WebSearchResponse> {
-  return await invoke<WebSearchResponse>('web_search', { request });
+  return await webCommand<WebSearchResponse>('web_search', { request });
 }
 
 export type WebPage = {
@@ -267,7 +288,7 @@ export async function webFetch(request: {
   proxy: ProxySetting;
   allowPrivate?: boolean;
 }): Promise<WebPage> {
-  return await invoke<WebPage>('web_fetch', { request });
+  return await webCommand<WebPage>('web_fetch', { request });
 }
 
 export type ImageReadFailure =

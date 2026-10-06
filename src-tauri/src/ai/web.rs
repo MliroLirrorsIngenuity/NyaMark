@@ -87,6 +87,62 @@ pub struct SearchResponse {
     pub results: Vec<SearchResult>,
 }
 
+/// Why a search or a fetch failed, as the page reads it: `{ kind, … }`.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum WebError {
+    EmptyQuery,
+    /// Search is set to SearXNG with no address for it.
+    NoSearxngUrl,
+    AllEnginesFailed {
+        failures: Vec<EngineFailure>,
+    },
+    BadUrl {
+        message: String,
+    },
+    UnsupportedScheme {
+        scheme: String,
+    },
+    /// The address is on this machine or the local network.
+    PrivateAddress {
+        host: String,
+    },
+    BadRedirect {
+        message: String,
+    },
+    TooManyRedirects,
+    UnsupportedContentType {
+        content_type: String,
+    },
+    Timeout,
+    BadProxy {
+        message: String,
+    },
+    Network {
+        message: String,
+    },
+}
+
+/// One engine that did not answer, and why, in words for the reader.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub struct EngineFailure {
+    pub engine: &'static str,
+    pub reason: String,
+}
+
+impl From<http::ClientError> for WebError {
+    fn from(error: http::ClientError) -> Self {
+        match error {
+            http::ClientError::BadProxy { message } => Self::BadProxy { message },
+            http::ClientError::Build { message } => Self::Network { message },
+        }
+    }
+}
+
 /// One way of getting results; DuckDuckGo has two pages, and the second
 /// often still answers when the first sends a captcha.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,14 +183,18 @@ fn auto_order(last: Option<Backend>) -> Vec<Backend> {
 struct Query<'a> {
     text: &'a str,
     limit: usize,
-    searxng_url: Option<&'a str>,
+    /// Set whenever SearXNG is among the engines tried.
+    searxng_url: &'a str,
     accept_language: &'a str,
 }
 
 /// Search the web with the engine the user picked, or in auto mode with
 /// whichever answers.
 #[tauri::command]
-pub async fn web_search(app: AppHandle, request: SearchRequest) -> Result<SearchResponse, String> {
+pub async fn web_search(
+    app: AppHandle,
+    request: SearchRequest,
+) -> Result<SearchResponse, WebError> {
     let client = http::search_client(&app, &request.proxy)?;
     let last = app
         .state::<LastSearchEngine>()
@@ -163,15 +223,23 @@ async fn search(
     client: &reqwest::Client,
     request: &SearchRequest,
     backends: &[Backend],
-) -> Result<SearchResponse, String> {
+) -> Result<SearchResponse, WebError> {
     let text = request.query.trim();
     if text.is_empty() {
-        return Err("empty-query".into());
+        return Err(WebError::EmptyQuery);
+    }
+    let searxng_url = request
+        .searxng_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|url| !url.is_empty());
+    if searxng_url.is_none() && backends.contains(&Backend::Searxng) {
+        return Err(WebError::NoSearxngUrl);
     }
     let query = Query {
         text,
         limit: request.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT) as usize,
-        searxng_url: request.searxng_url.as_deref(),
+        searxng_url: searxng_url.unwrap_or_default(),
         accept_language: accept_language_header(),
     };
     let mut failures = Vec::new();
@@ -183,10 +251,13 @@ async fn search(
                     results,
                 })
             }
-            Err(reason) => failures.push(format!("{}: {reason}", backend.name())),
+            Err(reason) => failures.push(EngineFailure {
+                engine: backend.name(),
+                reason,
+            }),
         }
     }
-    Err(format!("all-engines-failed: {}", failures.join("; ")))
+    Err(WebError::AllEnginesFailed { failures })
 }
 
 async fn run(
@@ -473,12 +544,7 @@ fn parse_duckduckgo_lite(html: &str) -> Vec<SearchResult> {
 /// SearXNG answers JSON when the instance allows it; most public ones turn
 /// that off, so the HTML page is read instead.
 async fn searxng(client: &reqwest::Client, query: &Query<'_>) -> Result<Vec<SearchResult>, String> {
-    let base = query
-        .searxng_url
-        .map(str::trim)
-        .filter(|base| !base.is_empty())
-        .ok_or_else(|| "no-searxng-url".to_string())?;
-    let base = base.trim_end_matches('/');
+    let base = query.searxng_url.trim_end_matches('/');
     let base = base.strip_suffix("/search").unwrap_or(base);
     let page = Url::parse(&format!("{base}/search")).map_err(|error| format!("{base}: {error}"))?;
 
@@ -664,23 +730,24 @@ pub struct Page {
 
 /// Fetch a page as text.
 #[tauri::command]
-pub async fn web_fetch(request: PageRequest) -> Result<Page, String> {
+pub async fn web_fetch(request: PageRequest) -> Result<Page, WebError> {
     tokio::time::timeout(FETCH_TIMEOUT, fetch(&request, MAX_PAGE_BYTES))
         .await
-        .map_err(|_| "timeout".to_string())?
+        .map_err(|_| WebError::Timeout)?
 }
 
-async fn fetch(request: &PageRequest, limit: usize) -> Result<Page, String> {
-    let mut url = Url::parse(request.url.trim()).map_err(|error| format!("bad-url: {error}"))?;
+async fn fetch(request: &PageRequest, limit: usize) -> Result<Page, WebError> {
+    let mut url = Url::parse(request.url.trim()).map_err(|error| WebError::BadUrl {
+        message: error.to_string(),
+    })?;
     ensure_web_scheme(&url)?;
     let guarded = Arc::new(Mutex::new(HashSet::new()));
     let client = fetch_client(&request.proxy, request.allow_private, guarded.clone())?;
     for _ in 0..=MAX_REDIRECTS {
-        let host = url.host_str().unwrap_or_default().to_string();
         if !request.allow_private {
             ensure_public_host(&url).await?;
             if let Ok(mut guarded) = guarded.lock() {
-                guarded.insert(host.to_ascii_lowercase());
+                guarded.insert(url.host_str().unwrap_or_default().to_ascii_lowercase());
             }
         }
         let response = client
@@ -692,33 +759,55 @@ async fn fetch(request: &PageRequest, limit: usize) -> Result<Page, String> {
             .header(ACCEPT_LANGUAGE, accept_language_header())
             .send()
             .await
-            .map_err(|error| {
-                let message = http::describe(&error);
-                if message.contains("private-address: ") {
-                    format!("private-address: {host}")
-                } else {
-                    message
-                }
-            })?;
+            .map_err(|error| send_error(&error))?;
         if response.status().is_redirection() {
             if let Some(location) = header_text(&response, LOCATION) {
                 url = url
                     .join(location.trim())
-                    .map_err(|error| format!("bad-redirect: {error}"))?;
+                    .map_err(|error| WebError::BadRedirect {
+                        message: error.to_string(),
+                    })?;
                 ensure_web_scheme(&url)?;
                 continue;
             }
         }
         return read_page(url, response, limit).await;
     }
-    Err("too-many-redirects".into())
+    Err(WebError::TooManyRedirects)
 }
 
-fn ensure_web_scheme(url: &Url) -> Result<(), String> {
+/// A request that failed: refused by [`PublicOnly`] when that is among its
+/// causes, else as reqwest tells it.
+fn send_error(error: &reqwest::Error) -> WebError {
+    let mut source = std::error::Error::source(error);
+    while let Some(cause) = source {
+        if let Some(PrivateHost(host)) = cause.downcast_ref::<PrivateHost>() {
+            return WebError::PrivateAddress { host: host.clone() };
+        }
+        source = cause.source();
+    }
+    if error.is_timeout() {
+        WebError::Timeout
+    } else {
+        WebError::Network {
+            message: http::describe(error),
+        }
+    }
+}
+
+fn no_host() -> WebError {
+    WebError::BadUrl {
+        message: "no host".into(),
+    }
+}
+
+fn ensure_web_scheme(url: &Url) -> Result<(), WebError> {
     match url.scheme() {
         "http" | "https" if url.host_str().is_some() => Ok(()),
-        "http" | "https" => Err("bad-url: no host".into()),
-        scheme => Err(format!("unsupported-scheme: {scheme}")),
+        "http" | "https" => Err(no_host()),
+        scheme => Err(WebError::UnsupportedScheme {
+            scheme: scheme.into(),
+        }),
     }
 }
 
@@ -728,7 +817,7 @@ fn fetch_client(
     proxy: &ProxySetting,
     allow_private: bool,
     guarded: Arc<Mutex<HashSet<String>>>,
-) -> Result<reqwest::Client, String> {
+) -> Result<reqwest::Client, WebError> {
     http::install_crypto_provider();
     let mut builder = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -737,9 +826,7 @@ fn fetch_client(
     if !allow_private {
         builder = builder.dns_resolver(PublicOnly { guarded });
     }
-    http::apply_proxy(builder, proxy)?
-        .build()
-        .map_err(|error| error.to_string())
+    Ok(http::finish_client(builder, proxy)?)
 }
 
 /// Resolves the hosts a fetch goes to and refuses private answers, so a name
@@ -767,10 +854,22 @@ async fn resolve(
 ) -> Result<reqwest::dns::Addrs, Box<dyn std::error::Error + Send + Sync>> {
     let addresses: Vec<SocketAddr> = tokio::net::lookup_host((host.as_str(), 0)).await?.collect();
     if guarded && addresses.iter().any(|address| !is_public(address.ip())) {
-        return Err(format!("private-address: {host}").into());
+        return Err(Box::new(PrivateHost(host)));
     }
     Ok(Box::new(addresses.into_iter()))
 }
+
+/// What [`PublicOnly`] answers for a guarded host with a private address.
+#[derive(Debug)]
+struct PrivateHost(String);
+
+impl std::fmt::Display for PrivateHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} resolves to a private address", self.0)
+    }
+}
+
+impl std::error::Error for PrivateHost {}
 
 /// Refuses an address on this machine or the local network, on every hop
 /// and whether or not a proxy is set: first by the name alone, then by what
@@ -780,8 +879,12 @@ async fn resolve(
 /// What is left behind a proxy: a public-looking name the proxy resolves to
 /// a private address (DNS rebinding, split DNS) still reaches it, since the
 /// answer the proxy gets is never seen here.
-async fn ensure_public_host(url: &Url) -> Result<(), String> {
-    let refuse = |host: &str| Err(format!("private-address: {host}"));
+async fn ensure_public_host(url: &Url) -> Result<(), WebError> {
+    let refuse = |host: &str| {
+        Err(WebError::PrivateAddress {
+            host: host.to_string(),
+        })
+    };
     match url.host() {
         Some(url::Host::Ipv4(ip)) if !is_public(IpAddr::V4(ip)) => refuse(&ip.to_string()),
         Some(url::Host::Ipv6(ip)) if !is_public(IpAddr::V6(ip)) => refuse(&ip.to_string()),
@@ -799,7 +902,7 @@ async fn ensure_public_host(url: &Url) -> Result<(), String> {
             Ok(())
         }
         Some(_) => Ok(()),
-        None => Err("bad-url: no host".into()),
+        None => Err(no_host()),
     }
 }
 
@@ -938,12 +1041,12 @@ fn embedded_v4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
     (mapped || translated || compatible || nat64).then_some(pair(segments[6], segments[7]))
 }
 
-async fn read_page(url: Url, response: reqwest::Response, limit: usize) -> Result<Page, String> {
+async fn read_page(url: Url, response: reqwest::Response, limit: usize) -> Result<Page, WebError> {
     let status = response.status();
     let declared = header_text(&response, CONTENT_TYPE);
     let (bytes, truncated) = read_capped(response, limit)
         .await
-        .map_err(|error| http::describe(&error))?;
+        .map_err(|error| send_error(&error))?;
     let content_type = match &declared {
         Some(declared) => declared.clone(),
         // No type given: text unless it looks binary.
@@ -958,7 +1061,9 @@ async fn read_page(url: Url, response: reqwest::Response, limit: usize) -> Resul
         } else {
             content_type.as_str()
         };
-        return Err(format!("unsupported-content-type: {shown}"));
+        return Err(WebError::UnsupportedContentType {
+            content_type: shown.into(),
+        });
     } else {
         // An error page in a type that is not text: the status says enough.
         String::new()
@@ -1406,7 +1511,12 @@ mod tests {
         ]);
         let error =
             tauri::async_runtime::block_on(fetch(&page_request(&address, true), 100)).unwrap_err();
-        assert_eq!(error, "unsupported-content-type: application/pdf");
+        assert_eq!(
+            error,
+            WebError::UnsupportedContentType {
+                content_type: "application/pdf".into()
+            }
+        );
     }
 
     #[test]
@@ -1422,12 +1532,20 @@ mod tests {
         ] {
             let error =
                 tauri::async_runtime::block_on(fetch(&page_request(url, false), 100)).unwrap_err();
-            assert!(error.starts_with("private-address: "), "{url}: {error}");
+            assert!(
+                matches!(error, WebError::PrivateAddress { .. }),
+                "{url}: {error:?}"
+            );
         }
         let error =
             tauri::async_runtime::block_on(fetch(&page_request("file:///etc/passwd", true), 100))
                 .unwrap_err();
-        assert_eq!(error, "unsupported-scheme: file");
+        assert_eq!(
+            error,
+            WebError::UnsupportedScheme {
+                scheme: "file".into()
+            }
+        );
     }
 
     #[test]
@@ -1495,7 +1613,10 @@ mod tests {
                 allow_private: false,
             };
             let error = tauri::async_runtime::block_on(fetch(&request, 100)).unwrap_err();
-            assert!(error.starts_with("private-address: "), "{url}: {error}");
+            assert!(
+                matches!(error, WebError::PrivateAddress { .. }),
+                "{url}: {error:?}"
+            );
         }
     }
 
@@ -1505,9 +1626,57 @@ mod tests {
         // hop of a real redirect cannot be a local test server.
         let url = Url::parse("http://169.254.169.254/latest/meta-data/").unwrap();
         let error = tauri::async_runtime::block_on(ensure_public_host(&url)).unwrap_err();
-        assert_eq!(error, "private-address: 169.254.169.254");
+        assert_eq!(
+            error,
+            WebError::PrivateAddress {
+                host: "169.254.169.254".into()
+            }
+        );
         let guarded = Arc::new(Mutex::new(HashSet::new()));
         assert!(fetch_client(&ProxySetting::None, false, guarded).is_ok());
+    }
+
+    #[test]
+    fn a_name_that_resolves_privately_at_connection_is_refused() {
+        // A name that passed the check and then resolves to this machine
+        // when connected to, as DNS rebinding would have it.
+        let guarded = Arc::new(Mutex::new(HashSet::from(["localhost".to_string()])));
+        let client = fetch_client(&ProxySetting::None, false, guarded).unwrap();
+        let error =
+            tauri::async_runtime::block_on(client.get("http://localhost:1/").send()).unwrap_err();
+        assert_eq!(
+            send_error(&error),
+            WebError::PrivateAddress {
+                host: "localhost".into()
+            }
+        );
+    }
+
+    #[test]
+    fn a_failure_reaches_the_page_by_kind() {
+        let json = |error: WebError| serde_json::to_value(error).unwrap();
+        assert_eq!(
+            json(WebError::UnsupportedContentType {
+                content_type: "application/pdf".into()
+            }),
+            serde_json::json!({ "kind": "unsupported-content-type", "contentType": "application/pdf" })
+        );
+        assert_eq!(
+            json(WebError::AllEnginesFailed {
+                failures: vec![EngineFailure {
+                    engine: "bing",
+                    reason: "captcha".into()
+                }]
+            }),
+            serde_json::json!({
+                "kind": "all-engines-failed",
+                "failures": [{ "engine": "bing", "reason": "captcha" }]
+            })
+        );
+        assert_eq!(
+            json(WebError::TooManyRedirects),
+            serde_json::json!({ "kind": "too-many-redirects" })
+        );
     }
 
     #[test]
@@ -1554,7 +1723,12 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             error,
-            "all-engines-failed: searxng: HTTP 500 (JSON: blocked (HTTP 429))"
+            WebError::AllEnginesFailed {
+                failures: vec![EngineFailure {
+                    engine: "searxng",
+                    reason: "HTTP 500 (JSON: blocked (HTTP 429))".into()
+                }]
+            }
         );
         let request = SearchRequest {
             searxng_url: None,
@@ -1562,6 +1736,6 @@ mod tests {
         };
         let error = tauri::async_runtime::block_on(search(&client, &request, &[Backend::Searxng]))
             .unwrap_err();
-        assert_eq!(error, "all-engines-failed: searxng: no-searxng-url");
+        assert_eq!(error, WebError::NoSearxngUrl);
     }
 }

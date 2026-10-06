@@ -8,7 +8,12 @@ import {
   webTools,
 } from '../src/ai/agent/tools/web';
 import { searchSources } from '../src/ai/ui/tool-labels';
-import type { WebPage, WebSearchResult } from '../src/bridge/ipc/ai';
+import {
+  WebError,
+  type WebFailure,
+  type WebPage,
+  type WebSearchResult,
+} from '../src/bridge/ipc/ai';
 import type { AiSearchSettings } from '../src/state/ai-settings';
 
 type Tool = {
@@ -40,7 +45,7 @@ function setup(
   options: {
     results?: WebSearchResult[];
     engine?: string;
-    searchError?: string;
+    searchError?: Error;
     pages?: Record<string, WebPage>;
     /** Hosts the app refuses until the user allows them. */
     privateHosts?: string[];
@@ -63,10 +68,10 @@ function setup(
       fetches.push(request);
       const host = new URL(request.url).hostname;
       if (options.privateHosts?.includes(host) && !request.allowPrivate) {
-        throw `private-address: ${host}`;
+        throw new WebError({ kind: 'private-address', host });
       }
       const found = options.pages?.[request.url];
-      if (!found) throw 'timeout: no answer in 15 s';
+      if (!found) throw new WebError({ kind: 'timeout' });
       return found;
     },
   };
@@ -157,13 +162,26 @@ describe('web_search', () => {
   });
 
   test('explains what went wrong', async () => {
-    const failed = setup({ searchError: 'all-engines-failed: bing: captcha' });
+    const engines: WebFailure = {
+      kind: 'all-engines-failed',
+      failures: [
+        { engine: 'bing', reason: 'captcha' },
+        { engine: 'duckduckgo', reason: 'HTTP 500' },
+      ],
+    };
+    const failed = setup({ searchError: new WebError(engines) });
     await expect(run(failed.tools.web_search, { query: 'x' })).rejects.toThrow(
-      /^all-engines-failed: No search engine answered\..*\(bing: captcha\)$/
+      /^all-engines-failed: No search engine answered\..*\(bing: captcha; duckduckgo: HTTP 500\)$/
     );
-    const odd = setup({ searchError: 'something-else: detail' });
+    const proxy = setup({
+      searchError: new WebError({ kind: 'bad-proxy', message: 'http://:1' }),
+    });
+    await expect(run(proxy.tools.web_search, { query: 'x' })).rejects.toThrow(
+      /^bad-proxy: .*\(http:\/\/:1\)$/
+    );
+    const odd = setup({ searchError: new Error('something else') });
     await expect(run(odd.tools.web_search, { query: 'x' })).rejects.toThrow(
-      'something-else: detail'
+      'something else'
     );
   });
 });
@@ -242,9 +260,7 @@ describe('fetch_url', () => {
     const { tools } = setup();
     await expect(
       run(tools.fetch_url, { url: 'https://example.com/slow' })
-    ).rejects.toThrow(
-      'timeout: The page took too long to load. (no answer in 15 s)'
-    );
+    ).rejects.toThrow('timeout: The page took too long to load.');
   });
 
   test('reads text as it came by default', async () => {
