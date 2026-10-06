@@ -14,7 +14,10 @@
  * is loaded on its own; this keeps them in step with the document.
  */
 
-import { closeHistory } from '@milkdown/kit/prose/history';
+import {
+  closeHistory,
+  isHistoryTransaction,
+} from '@milkdown/kit/prose/history';
 import {
   type Fragment,
   Mark,
@@ -301,7 +304,7 @@ function applyTransaction(
   }
 
   if (tr.docChanged) {
-    const history = tr.getMeta('history$') != null;
+    const history = isHistoryTransaction(tr);
     const reload = tr.getMeta(ORIGIN_META) === 'reload';
     const acceptedIds =
       meta?.type === 'accepted' ? new Set(meta.ids) : new Set<number>();

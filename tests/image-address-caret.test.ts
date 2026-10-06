@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { history, redo, undo } from '@milkdown/kit/prose/history';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
-import { EditorState } from '@milkdown/kit/prose/state';
+import { EditorState, type Transaction } from '@milkdown/kit/prose/state';
 import {
   addressedImage,
   caretUnder,
@@ -48,10 +49,15 @@ describe('addressedImage', () => {
   });
 
   test('passes over an undo or a redo', () => {
-    const tr = trOn(doc(img()))
-      .setNodeAttribute(0, 'src', 'a.png')
-      .setMeta('history$', {});
-    expect(addressedImage(tr)).toBe(-1);
+    let state = EditorState.create({ doc: doc(img()), plugins: [history()] });
+    state = state.apply(state.tr.setNodeAttribute(0, 'src', 'a.png'));
+    undo(state, (tr) => {
+      state = state.apply(tr);
+    });
+    const redone: Transaction[] = [];
+    redo(state, (tr) => redone.push(tr));
+    expect(redone[0]?.steps).toHaveLength(1);
+    expect(addressedImage(redone[0])).toBe(-1);
   });
 });
 

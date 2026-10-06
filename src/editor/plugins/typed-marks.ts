@@ -1,4 +1,5 @@
 import { remarkCtx } from '@milkdown/kit/core';
+import { isHistoryTransaction } from '@milkdown/kit/prose/history';
 import type { Mark, Node as ProseNode } from '@milkdown/kit/prose/model';
 import {
   type EditorState,
@@ -303,7 +304,7 @@ export function typedMarks(
 
 function edited(tr: Transaction) {
   if (!tr.docChanged || tr.getMeta(typedMarksKey)) return false;
-  if (tr.getMeta('appendedTransaction') || tr.getMeta('history$')) {
+  if (tr.getMeta('appendedTransaction') || isHistoryTransaction(tr)) {
     return false;
   }
   if (tr.getMeta('addToHistory') === false) return false;

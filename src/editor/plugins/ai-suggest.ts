@@ -9,6 +9,7 @@
  * with the assistant once suggestions are on; this tells it of each change.
  */
 
+import { isHistoryTransaction } from '@milkdown/kit/prose/history';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import {
   type EditorState,
@@ -58,7 +59,7 @@ function typedBy(tr: Transaction) {
     !tr.getMeta(ORIGIN_META) &&
     tr.getMeta('addToHistory') !== false &&
     // Undo and redo, by the history plugin's key.
-    !tr.getMeta('history$') &&
+    !isHistoryTransaction(tr) &&
     !tr.getMeta(proposalKey)
   );
 }

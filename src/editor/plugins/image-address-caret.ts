@@ -5,6 +5,7 @@
  * next went nowhere until the text was clicked.
  */
 
+import { isHistoryTransaction } from '@milkdown/kit/prose/history';
 import {
   Plugin,
   PluginKey,
@@ -19,7 +20,7 @@ const key = new PluginKey<boolean>('nyamark/image-address-caret');
 
 /** Where `tr` gave an image block with no address one, or -1. */
 export function addressedImage(tr: Transaction): number {
-  if (tr.getMeta('history$') || tr.steps.length !== 1) return -1;
+  if (isHistoryTransaction(tr) || tr.steps.length !== 1) return -1;
   const [step] = tr.steps;
   if (!(step instanceof AttrStep) || step.attr !== 'src' || !step.value) {
     return -1;
