@@ -6,10 +6,18 @@
  */
 
 import { insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
-import type { StateCommand, Transaction } from '@codemirror/state';
+import { syntaxTree } from '@codemirror/language';
+import type { EditorState, StateCommand, Transaction } from '@codemirror/state';
 
-/** A line of a list marker alone, a task box after it or not, unindented. */
-const EMPTY_ITEM = /^(?:[-+*]|\d{1,9}[.)])(?: \[[ xX]\])?[ \t]*$/;
+/** Whether the line at `pos` begins an item of a list. */
+function beginsItem(state: EditorState, pos: number) {
+  let node = syntaxTree(state).resolveInner(pos, -1);
+  while (node.name !== 'ListItem') {
+    if (!node.parent) return false;
+    node = node.parent;
+  }
+  return node.from >= state.doc.lineAt(pos).from;
+}
 
 export const continueMarkup: StateCommand = ({ state, dispatch }) => {
   let continued = null as Transaction | null;
@@ -21,12 +29,14 @@ export const continueMarkup: StateCommand = ({ state, dispatch }) => {
   });
   if (!run || !continued) return run;
   const tr: Transaction = continued;
-  const line = state.doc.lineAt(state.selection.main.head);
+  const { head } = state.selection.main;
+  const line = state.doc.lineAt(head);
   const at = tr.state.selection.main.head;
   const now = tr.state.doc.lineAt(at);
+  // The item's marker taken off, and the caret left on the line it was on.
   const left =
     state.selection.ranges.length === 1 &&
-    EMPTY_ITEM.test(line.text) &&
+    beginsItem(state, head) &&
     now.number === line.number &&
     now.length === 0 &&
     now.number > 1 &&

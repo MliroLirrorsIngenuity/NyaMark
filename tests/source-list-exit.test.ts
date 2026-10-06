@@ -29,6 +29,7 @@ describe('continueMarkup', () => {
     expect(enter('- a\n- b\n- |')).toBe('- a\n- b\n\n|');
     expect(enter('- [x] a\n- [ ] b\n- [ ] |')).toBe('- [x] a\n- [ ] b\n\n|');
     expect(enter('1. a\n2. b\n3. |\n\nnext')).toBe('1. a\n2. b\n\n|\n\nnext');
+    expect(enter('  - a\n  - b\n  - |')).toBe('  - a\n  - b\n\n|');
   });
 
   test('continues an item as before', () => {
