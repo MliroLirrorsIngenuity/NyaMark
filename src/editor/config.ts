@@ -13,6 +13,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
+import { formulaBox, selectionToolbar, slashMenu } from './floating';
 import { intoAiSlash, intoAiToolbar } from './plugins/ai-entry';
 import { codeArrowsByRow } from './plugins/block-arrows';
 import { intoKeys } from './plugins/block-keys';
@@ -339,6 +340,7 @@ function localizedFeatureConfigs() {
     },
     [CrepeFeature.Toolbar]: {
       buildToolbar: intoAiToolbar,
+      tooltip: { floatingUIOptions: selectionToolbar },
     },
     [CrepeFeature.BlockEdit]: {
       buildMenu: (builder: Builder & Parameters<typeof intoAiSlash>[0]) => {
@@ -444,7 +446,9 @@ export function buildCrepeConfig(
           getPosition: handleRect,
           getPlacement: handlePlacement,
         },
+        slashMenu: { floatingUIOptions: slashMenu },
       },
+      [CrepeFeature.Latex]: { inlineEditTooltip: formulaBox },
       [CrepeFeature.CodeMirror]: {
         ...labels[CrepeFeature.CodeMirror],
         theme: [oneDarkTheme, syntaxHighlighting(codeHighlight)],

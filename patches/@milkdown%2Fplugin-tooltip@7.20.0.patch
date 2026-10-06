@@ -1,0 +1,47 @@
+diff --git a/lib/index.js b/lib/index.js
+index 328651e6ca40bdf2027825d4695e2b520408e187..5f25848aed91b6660b4da1fd03f29e42ce0d189b 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -4,6 +4,34 @@ import { Plugin, PluginKey, TextSelection } from "@milkdown/prose/state";
+ import { throttle } from "lodash-es";
+ import { $ctx, $prose } from "@milkdown/utils";
+ //#region src/tooltip-provider.ts
++// NyaMark: the boxes of the text selected, for inline() to place a tooltip by
++// a line of it. A block taken whole has a box as wide as the page, and a
++// selection from the end of a line an empty one there: neither is text
++// selected. Only the blocks at either end are measured, the lines inline()
++// reads; a long selection was measured whole on each scroll.
++function selectedTextRects(view, from, to) {
++	const blocks = [];
++	view.state.doc.nodesBetween(from, to, (node, pos) => {
++		if (node.isTextblock) blocks.push([]);
++		else if (node.isText) blocks[blocks.length - 1]?.push([Math.max(from, pos), Math.min(to, pos + node.nodeSize)]);
++	});
++	const range = document.createRange();
++	const measure = (spans) => spans.flatMap(([start, end]) => {
++		const head = view.domAtPos(start, 1);
++		const tail = view.domAtPos(end, -1);
++		range.setStart(head.node, head.offset);
++		range.setEnd(tail.node, tail.offset);
++		return Array.from(range.getClientRects()).filter((rect) => rect.width > 0);
++	});
++	let first = 0;
++	let rects = [];
++	while (first < blocks.length && !(rects = measure(blocks[first])).length) first++;
++	for (let last = blocks.length - 1; last > first; last--) {
++		const end = measure(blocks[last]);
++		if (end.length) return [...rects, ...end];
++	}
++	return rects.length ? rects : [posToDOMRect(view, from, to)];
++}
+ var TooltipProvider = class {
+ 	#debounce;
+ 	#shouldShow;
+@@ -95,6 +123,7 @@ var TooltipProvider = class {
+ 		}
+ 		const virtualEl = {
+ 			getBoundingClientRect: () => posToDOMRect(view, from, to),
++			getClientRects: () => selectedTextRects(view, from, to),
+ 			contextElement: view.dom
+ 		};
+ 		if (this.#shouldAutoUpdate(view)) this.#cleanupAutoUpdate = autoUpdate(virtualEl, this.element, () => this.#updatePosition(virtualEl));

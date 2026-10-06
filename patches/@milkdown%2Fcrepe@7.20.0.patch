@@ -1,5 +1,5 @@
 diff --git a/lib/cjs/feature/block-edit/index.js b/lib/cjs/feature/block-edit/index.js
-index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..09f11d56431294220b56dbe7acc2b217cfc6c550 100644
+index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..4f705b879ebfb22843c6e1f80d3a4ff3017fc917 100644
 --- a/lib/cjs/feature/block-edit/index.js
 +++ b/lib/cjs/feature/block-edit/index.js
 @@ -800,6 +800,14 @@ const Menu = vue.defineComponent({
@@ -42,13 +42,15 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..09f11d56431294220b56dbe7acc2b217
      };
      this.show = (pos) => {
        __privateSet$1(this, _programmaticallyPos, pos);
-@@ -985,10 +1007,14 @@ class MenuView {
+@@ -985,10 +1007,16 @@ class MenuView {
      app.mount(content);
      __privateSet$1(this, _content$1, content);
      const self = this;
 +    // NyaMark: the menu stands under the "/" it was opened with. It moved
 +    // along the line with each letter typed after it.
 +    let anchorShift = 0;
++    const anchor = { name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) };
++    const placing = config?.slashMenu?.floatingUIOptions;
      __privateSet$1(this, _slashProvider, new slash.SlashProvider({
        content: __privateGet$1(this, _content$1),
        debounce: 20,
@@ -57,7 +59,7 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..09f11d56431294220b56dbe7acc2b217
          if (isInCodeBlock(view2.state.selection) || isInList(view2.state.selection))
            return false;
          const currentText = this.getContent(
-@@ -999,8 +1025,13 @@ class MenuView {
+@@ -999,8 +1027,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
@@ -72,7 +74,7 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..09f11d56431294220b56dbe7acc2b217
          if (typeof pos === "number") {
            const maxSize = view2.state.doc.nodeSize - 2;
            const validPos = Math.min(pos, maxSize);
-@@ -1010,10 +1041,11 @@ class MenuView {
+@@ -1010,16 +1043,24 @@ class MenuView {
            }
            return true;
          }
@@ -82,12 +84,39 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..09f11d56431294220b56dbe7acc2b217
        },
 -      offset: 10
 +      offset: 10,
-+      middleware: [{ name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) }]
++      middleware: [anchor],
++      // NyaMark: where the options given place the menu, it moves along
++      // from there to stand under the "/".
++      floatingUIOptions: placing?.middleware ? { ...placing, middleware: [...placing.middleware, anchor] } : placing
      }));
      __privateGet$1(this, _slashProvider).onShow = () => {
        show.value = true;
+     };
+     __privateGet$1(this, _slashProvider).onHide = () => {
+       show.value = false;
++      // NyaMark: the height the menu was held to for the room it had comes
++      // off as it closes. Left on, the menu opened next that short where it
++      // had the room to stand taller (floating-ui's advice for size()).
++      content.style.removeProperty("max-height");
+     };
+     this.update(view);
+     ctx.set(menuAPI.key, {
+diff --git a/lib/cjs/feature/latex/index.js b/lib/cjs/feature/latex/index.js
+index 5a778f6ba74b0b238ce4b6f7c9b1f3591138bef6..b6588b0cf35082251cf9806f7cb63cb9b4d0e46f 100644
+--- a/lib/cjs/feature/latex/index.js
++++ b/lib/cjs/feature/latex/index.js
+@@ -330,7 +330,8 @@ class LatexInlineTooltip {
+       offset: 10,
+       floatingUIOptions: {
+         placement: "bottom"
+-      }
++      },
++      ...config?.inlineEditTooltip
+     }));
+     __privateGet(this, _provider).update(view$1);
+     __privateSet(this, _dom, document.createElement("div"));
 diff --git a/lib/cjs/feature/toolbar/index.js b/lib/cjs/feature/toolbar/index.js
-index c5069d95686d9c90e24a69366fdbe46402d91cea..d5cae1d2feffc19c3e7e0b8806a066e440c38308 100644
+index c5069d95686d9c90e24a69366fdbe46402d91cea..8640be1270c27d7f4ce8ae3de9965586b8df68f6 100644
 --- a/lib/cjs/feature/toolbar/index.js
 +++ b/lib/cjs/feature/toolbar/index.js
 @@ -443,7 +443,13 @@ class ToolbarView {
@@ -105,6 +134,14 @@ index c5069d95686d9c90e24a69366fdbe46402d91cea..d5cae1d2feffc19c3e7e0b8806a066e4
        __privateGet(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
+@@ -471,6 +477,7 @@ class ToolbarView {
+       content: __privateGet(this, _content),
+       debounce: 20,
+       offset: 10,
++      ...config?.tooltip,
+       shouldShow(view2) {
+         const { doc, selection } = view2.state;
+         const { empty, from, to } = selection;
 diff --git a/lib/cjs/feature/top-bar/index.js b/lib/cjs/feature/top-bar/index.js
 index 771177d0e3c09f3274aaeb63db0affd377c81115..a8edb705420a358672e9d901acb143e6d299b92a 100644
 --- a/lib/cjs/feature/top-bar/index.js
@@ -120,7 +157,7 @@ index 771177d0e3c09f3274aaeb63db0affd377c81115..a8edb705420a358672e9d901acb143e6
        return /* @__PURE__ */ vue.h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
 diff --git a/lib/cjs/index.js b/lib/cjs/index.js
-index 9726836fbea853e8be52f11df9b14b5589d457b3..798f2d1760598101c41d347d01297e18b771b399 100644
+index 9726836fbea853e8be52f11df9b14b5589d457b3..3e4963ffb4efbaa90cde8f3771cf34b42396916c 100644
 --- a/lib/cjs/index.js
 +++ b/lib/cjs/index.js
 @@ -1183,6 +1183,14 @@ const Menu = vue.defineComponent({
@@ -163,13 +200,15 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..798f2d1760598101c41d347d01297e18
      };
      this.show = (pos) => {
        __privateSet$5(this, _programmaticallyPos, pos);
-@@ -1368,10 +1390,14 @@ class MenuView {
+@@ -1368,10 +1390,16 @@ class MenuView {
      app.mount(content);
      __privateSet$5(this, _content$3, content);
      const self = this;
 +    // NyaMark: the menu stands under the "/" it was opened with. It moved
 +    // along the line with each letter typed after it.
 +    let anchorShift = 0;
++    const anchor = { name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) };
++    const placing = config?.slashMenu?.floatingUIOptions;
      __privateSet$5(this, _slashProvider, new slash.SlashProvider({
        content: __privateGet$5(this, _content$3),
        debounce: 20,
@@ -178,7 +217,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..798f2d1760598101c41d347d01297e18
          if (isInCodeBlock(view2.state.selection) || isInList(view2.state.selection))
            return false;
          const currentText = this.getContent(
-@@ -1382,8 +1408,13 @@ class MenuView {
+@@ -1382,8 +1410,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
@@ -193,7 +232,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..798f2d1760598101c41d347d01297e18
          if (typeof pos === "number") {
            const maxSize = view2.state.doc.nodeSize - 2;
            const validPos = Math.min(pos, maxSize);
-@@ -1393,10 +1424,11 @@ class MenuView {
+@@ -1393,16 +1426,24 @@ class MenuView {
            }
            return true;
          }
@@ -203,11 +242,34 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..798f2d1760598101c41d347d01297e18
        },
 -      offset: 10
 +      offset: 10,
-+      middleware: [{ name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) }]
++      middleware: [anchor],
++      // NyaMark: where the options given place the menu, it moves along
++      // from there to stand under the "/".
++      floatingUIOptions: placing?.middleware ? { ...placing, middleware: [...placing.middleware, anchor] } : placing
      }));
      __privateGet$5(this, _slashProvider).onShow = () => {
        show.value = true;
-@@ -2303,7 +2335,13 @@ class ToolbarView {
+     };
+     __privateGet$5(this, _slashProvider).onHide = () => {
+       show.value = false;
++      // NyaMark: the height the menu was held to for the room it had comes
++      // off as it closes. Left on, the menu opened next that short where it
++      // had the room to stand taller (floating-ui's advice for size()).
++      content.style.removeProperty("max-height");
+     };
+     this.update(view);
+     ctx.set(menuAPI.key, {
+@@ -1915,7 +1956,8 @@ class LatexInlineTooltip {
+       offset: 10,
+       floatingUIOptions: {
+         placement: "bottom"
+-      }
++      },
++      ...config?.inlineEditTooltip
+     }));
+     __privateGet$3(this, _provider).update(view);
+     __privateSet$3(this, _dom, document.createElement("div"));
+@@ -2303,7 +2345,13 @@ class ToolbarView {
      __privateAdd$2(this, _selection);
      __privateAdd$2(this, _show, vue.ref(false));
      this.update = (view, prevState) => {
@@ -222,7 +284,15 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..798f2d1760598101c41d347d01297e18
        __privateGet$2(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
-@@ -2706,6 +2744,9 @@ const TopBar = vue.defineComponent({
+@@ -2331,6 +2379,7 @@ class ToolbarView {
+       content: __privateGet$2(this, _content),
+       debounce: 20,
+       offset: 10,
++      ...config?.tooltip,
+       shouldShow(view2) {
+         const { doc, selection } = view2.state;
+         const { empty, from, to } = selection;
+@@ -2706,6 +2755,9 @@ const TopBar = vue.defineComponent({
      return () => {
        const view = isReady() ? ctx.get(core.editorViewCtx) : null;
        const isReadonly = view ? !view.editable : false;
@@ -233,7 +303,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..798f2d1760598101c41d347d01297e18
        return /* @__PURE__ */ vue.h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
 diff --git a/lib/esm/feature/block-edit/index.js b/lib/esm/feature/block-edit/index.js
-index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..2604d078ea23d7806273531f96594b6b3a6cc4af 100644
+index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..a987357971f34027698f5142f6606526df225423 100644
 --- a/lib/esm/feature/block-edit/index.js
 +++ b/lib/esm/feature/block-edit/index.js
 @@ -798,6 +798,14 @@ const Menu = defineComponent({
@@ -276,13 +346,15 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..2604d078ea23d7806273531f96594b6b
      };
      this.show = (pos) => {
        __privateSet$1(this, _programmaticallyPos, pos);
-@@ -983,10 +1005,14 @@ class MenuView {
+@@ -983,10 +1005,16 @@ class MenuView {
      app.mount(content);
      __privateSet$1(this, _content$1, content);
      const self = this;
 +    // NyaMark: the menu stands under the "/" it was opened with. It moved
 +    // along the line with each letter typed after it.
 +    let anchorShift = 0;
++    const anchor = { name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) };
++    const placing = config?.slashMenu?.floatingUIOptions;
      __privateSet$1(this, _slashProvider, new SlashProvider({
        content: __privateGet$1(this, _content$1),
        debounce: 20,
@@ -291,7 +363,7 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..2604d078ea23d7806273531f96594b6b
          if (isInCodeBlock(view2.state.selection) || isInList(view2.state.selection))
            return false;
          const currentText = this.getContent(
-@@ -997,8 +1023,13 @@ class MenuView {
+@@ -997,8 +1025,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
@@ -306,7 +378,7 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..2604d078ea23d7806273531f96594b6b
          if (typeof pos === "number") {
            const maxSize = view2.state.doc.nodeSize - 2;
            const validPos = Math.min(pos, maxSize);
-@@ -1008,10 +1039,11 @@ class MenuView {
+@@ -1008,16 +1041,24 @@ class MenuView {
            }
            return true;
          }
@@ -316,12 +388,39 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..2604d078ea23d7806273531f96594b6b
        },
 -      offset: 10
 +      offset: 10,
-+      middleware: [{ name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) }]
++      middleware: [anchor],
++      // NyaMark: where the options given place the menu, it moves along
++      // from there to stand under the "/".
++      floatingUIOptions: placing?.middleware ? { ...placing, middleware: [...placing.middleware, anchor] } : placing
      }));
      __privateGet$1(this, _slashProvider).onShow = () => {
        show.value = true;
+     };
+     __privateGet$1(this, _slashProvider).onHide = () => {
+       show.value = false;
++      // NyaMark: the height the menu was held to for the room it had comes
++      // off as it closes. Left on, the menu opened next that short where it
++      // had the room to stand taller (floating-ui's advice for size()).
++      content.style.removeProperty("max-height");
+     };
+     this.update(view);
+     ctx.set(menuAPI.key, {
+diff --git a/lib/esm/feature/latex/index.js b/lib/esm/feature/latex/index.js
+index f3db789ee13e883f723b3c24b457a55192104824..8cdd1c0a8a72a76eee1e87634658da9fa30e95bb 100644
+--- a/lib/esm/feature/latex/index.js
++++ b/lib/esm/feature/latex/index.js
+@@ -328,7 +328,8 @@ class LatexInlineTooltip {
+       offset: 10,
+       floatingUIOptions: {
+         placement: "bottom"
+-      }
++      },
++      ...config?.inlineEditTooltip
+     }));
+     __privateGet(this, _provider).update(view);
+     __privateSet(this, _dom, document.createElement("div"));
 diff --git a/lib/esm/feature/toolbar/index.js b/lib/esm/feature/toolbar/index.js
-index fb4d168a050811dc53bd55bcad0ce05c603233b4..08ac44738e60639bfcf294a9a32c601e6adb23e1 100644
+index fb4d168a050811dc53bd55bcad0ce05c603233b4..d416e8df40b6c475733118bb4096ad82f904be55 100644
 --- a/lib/esm/feature/toolbar/index.js
 +++ b/lib/esm/feature/toolbar/index.js
 @@ -441,7 +441,13 @@ class ToolbarView {
@@ -339,6 +438,14 @@ index fb4d168a050811dc53bd55bcad0ce05c603233b4..08ac44738e60639bfcf294a9a32c601e
        __privateGet(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
+@@ -469,6 +475,7 @@ class ToolbarView {
+       content: __privateGet(this, _content),
+       debounce: 20,
+       offset: 10,
++      ...config?.tooltip,
+       shouldShow(view2) {
+         const { doc, selection } = view2.state;
+         const { empty, from, to } = selection;
 diff --git a/lib/esm/feature/top-bar/index.js b/lib/esm/feature/top-bar/index.js
 index dc55498f949c44e7848b15398c96d55b54c81a87..b8fe19a2a7ac50cfd0f010782728d42d4a5c5537 100644
 --- a/lib/esm/feature/top-bar/index.js
@@ -354,7 +461,7 @@ index dc55498f949c44e7848b15398c96d55b54c81a87..b8fe19a2a7ac50cfd0f010782728d42d
        return /* @__PURE__ */ h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
 diff --git a/lib/esm/index.js b/lib/esm/index.js
-index ea68de6cfb124faa35d9f047d82788a1043d255c..c1d1452e4b87628b107645ac4e242d8436e412e9 100644
+index ea68de6cfb124faa35d9f047d82788a1043d255c..c27a4dabb783875c6978dd55dcdfafaa2a0fc266 100644
 --- a/lib/esm/index.js
 +++ b/lib/esm/index.js
 @@ -1181,6 +1181,14 @@ const Menu = defineComponent({
@@ -397,13 +504,15 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c1d1452e4b87628b107645ac4e242d84
      };
      this.show = (pos) => {
        __privateSet$5(this, _programmaticallyPos, pos);
-@@ -1366,10 +1388,14 @@ class MenuView {
+@@ -1366,10 +1388,16 @@ class MenuView {
      app.mount(content);
      __privateSet$5(this, _content$3, content);
      const self = this;
 +    // NyaMark: the menu stands under the "/" it was opened with. It moved
 +    // along the line with each letter typed after it.
 +    let anchorShift = 0;
++    const anchor = { name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) };
++    const placing = config?.slashMenu?.floatingUIOptions;
      __privateSet$5(this, _slashProvider, new SlashProvider({
        content: __privateGet$5(this, _content$3),
        debounce: 20,
@@ -412,7 +521,7 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c1d1452e4b87628b107645ac4e242d84
          if (isInCodeBlock(view2.state.selection) || isInList(view2.state.selection))
            return false;
          const currentText = this.getContent(
-@@ -1380,8 +1406,13 @@ class MenuView {
+@@ -1380,8 +1408,13 @@ class MenuView {
          if (!isSelectionAtEndOfNode(view2.state.selection)) {
            return false;
          }
@@ -427,7 +536,7 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c1d1452e4b87628b107645ac4e242d84
          if (typeof pos === "number") {
            const maxSize = view2.state.doc.nodeSize - 2;
            const validPos = Math.min(pos, maxSize);
-@@ -1391,10 +1422,11 @@ class MenuView {
+@@ -1391,16 +1424,24 @@ class MenuView {
            }
            return true;
          }
@@ -437,11 +546,34 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c1d1452e4b87628b107645ac4e242d84
        },
 -      offset: 10
 +      offset: 10,
-+      middleware: [{ name: "nyamarkSlashAnchor", fn: ({ x }) => ({ x: x + anchorShift }) }]
++      middleware: [anchor],
++      // NyaMark: where the options given place the menu, it moves along
++      // from there to stand under the "/".
++      floatingUIOptions: placing?.middleware ? { ...placing, middleware: [...placing.middleware, anchor] } : placing
      }));
      __privateGet$5(this, _slashProvider).onShow = () => {
        show.value = true;
-@@ -2301,7 +2333,13 @@ class ToolbarView {
+     };
+     __privateGet$5(this, _slashProvider).onHide = () => {
+       show.value = false;
++      // NyaMark: the height the menu was held to for the room it had comes
++      // off as it closes. Left on, the menu opened next that short where it
++      // had the room to stand taller (floating-ui's advice for size()).
++      content.style.removeProperty("max-height");
+     };
+     this.update(view);
+     ctx.set(menuAPI.key, {
+@@ -1913,7 +1954,8 @@ class LatexInlineTooltip {
+       offset: 10,
+       floatingUIOptions: {
+         placement: "bottom"
+-      }
++      },
++      ...config?.inlineEditTooltip
+     }));
+     __privateGet$3(this, _provider).update(view);
+     __privateSet$3(this, _dom, document.createElement("div"));
+@@ -2301,7 +2343,13 @@ class ToolbarView {
      __privateAdd$2(this, _selection);
      __privateAdd$2(this, _show, ref(false));
      this.update = (view, prevState) => {
@@ -456,7 +588,15 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c1d1452e4b87628b107645ac4e242d84
        __privateGet$2(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
-@@ -2704,6 +2742,9 @@ const TopBar = defineComponent({
+@@ -2329,6 +2377,7 @@ class ToolbarView {
+       content: __privateGet$2(this, _content),
+       debounce: 20,
+       offset: 10,
++      ...config?.tooltip,
+       shouldShow(view2) {
+         const { doc, selection } = view2.state;
+         const { empty, from, to } = selection;
+@@ -2704,6 +2753,9 @@ const TopBar = defineComponent({
      return () => {
        const view = isReady() ? ctx.get(editorViewCtx) : null;
        const isReadonly = view ? !view.editable : false;
@@ -466,3 +606,54 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c1d1452e4b87628b107645ac4e242d84
        if (isReadonly) return null;
        return /* @__PURE__ */ h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
+diff --git a/lib/types/feature/block-edit/index.d.ts b/lib/types/feature/block-edit/index.d.ts
+index e089f289eddf219db498a2d6406e93130fbd98ab..87d3fc6c6346a20bc49535ffa17f9d31d7ba9cb4 100644
+--- a/lib/types/feature/block-edit/index.d.ts
++++ b/lib/types/feature/block-edit/index.d.ts
+@@ -1,4 +1,5 @@
+ import { type BlockProviderOptions } from '@milkdown/kit/plugin/block';
++import type { SlashProviderOptions } from '@milkdown/kit/plugin/slash';
+ import type { DeepPartial } from '../../utils';
+ import type { GroupBuilder } from '../../utils/group-builder';
+ import type { DefineFeature } from '../shared';
+@@ -8,6 +9,8 @@ interface BlockEditConfig {
+     handleDragIcon: string;
+     buildMenu: (builder: GroupBuilder<SlashMenuItem>) => void;
+     blockHandle: Pick<BlockProviderOptions, 'shouldShow' | 'getOffset' | 'getPosition' | 'getPlacement' | 'middleware' | 'floatingUIOptions' | 'root'>;
++    /** Its middleware stands in for the menu's own; the menu then moves along to stand under the "/". */
++    slashMenu: Pick<SlashProviderOptions, 'floatingUIOptions'>;
+     textGroup: {
+         label: string;
+         text: {
+diff --git a/lib/types/feature/latex/index.d.ts b/lib/types/feature/latex/index.d.ts
+index f6eafe187d1aaf1d363ade1888b700f888574ee1..4cb41289755ec477330a0478cc8232646326709a 100644
+--- a/lib/types/feature/latex/index.d.ts
++++ b/lib/types/feature/latex/index.d.ts
+@@ -1,8 +1,10 @@
++import type { TooltipProviderOptions } from '@milkdown/kit/plugin/tooltip';
+ import type { KatexOptions } from 'katex';
+ import type { DefineFeature } from '../shared';
+ export interface LatexConfig {
+     katexOptions: KatexOptions;
+     inlineEditConfirm: string;
++    inlineEditTooltip: Pick<TooltipProviderOptions, 'offset' | 'shift' | 'middleware' | 'floatingUIOptions'>;
+ }
+ export type LatexFeatureConfig = Partial<LatexConfig>;
+ export declare const latex: DefineFeature<LatexFeatureConfig>;
+diff --git a/lib/types/feature/toolbar/index.d.ts b/lib/types/feature/toolbar/index.d.ts
+index db9a9f596bc8215b948f11a56685af28ebe53779..f53dc22682890a808c66b1c4693c775170db619b 100644
+--- a/lib/types/feature/toolbar/index.d.ts
++++ b/lib/types/feature/toolbar/index.d.ts
+@@ -1,3 +1,4 @@
++import type { TooltipProviderOptions } from '@milkdown/kit/plugin/tooltip';
+ import type { GroupBuilder } from '../../utils';
+ import type { DefineFeature } from '../shared';
+ import type { ToolbarItem } from './config';
+@@ -9,6 +10,7 @@ interface ToolbarConfig {
+     strikethroughIcon: string;
+     latexIcon: string;
+     buildToolbar: (builder: GroupBuilder<ToolbarItem>) => void;
++    tooltip: Pick<TooltipProviderOptions, 'offset' | 'shift' | 'middleware' | 'floatingUIOptions'>;
+ }
+ export type ToolbarFeatureConfig = Partial<ToolbarConfig>;
+ export declare const toolbar: DefineFeature<ToolbarFeatureConfig>;

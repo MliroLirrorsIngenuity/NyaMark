@@ -5,6 +5,7 @@
  */
 
 import { Crepe } from '@milkdown/crepe';
+import { linkTooltipConfig } from '@milkdown/kit/component/link-tooltip';
 import {
   editorViewCtx,
   editorViewOptionsCtx,
@@ -50,6 +51,7 @@ import {
   settleParsed,
 } from './doc-diff';
 import { type DocCounts, DocStats } from './doc-stats';
+import { linkBoxes } from './floating';
 import { anchorIndex, headingId, headingLabel, pageId } from './heading-anchor';
 import { afterFirstFrame, openingOf } from './open-in-parts';
 import {
@@ -78,7 +80,6 @@ import { compositionSettle } from './plugins/composition-settle';
 import { ctrlArrows } from './plugins/ctrl-arrows';
 import { installDragSelectGuard } from './plugins/drag-guard';
 import { fenceInput } from './plugins/fence-input';
-import { keepFloatingOffEdge } from './plugins/floating-gutter';
 import { footnoteInput } from './plugins/footnote-input';
 import { footnoteMark, footnoteNumber } from './plugins/footnote-mark';
 import {
@@ -154,7 +155,6 @@ import {
   searchKey,
   searchPlugin,
 } from './plugins/search';
-import { slashMenuRoom } from './plugins/slash-menu-room';
 import { tabFocus } from './plugins/tab-focus';
 import { keepCellAlignment, keepTableAlign } from './plugins/table-align';
 import { tableCells } from './plugins/table-cells';
@@ -254,6 +254,10 @@ export class NyaEditor {
       }));
       // A heading of a formula or an image alone gets an id on the page too.
       ctx.set(headingIdGenerator.key, headingId);
+      ctx.update(linkTooltipConfig.key, (config) => ({
+        ...config,
+        tooltip: { floatingUIOptions: linkBoxes },
+      }));
     });
     crepe.editor.config(keepImageAlt);
     crepe.editor.config(keepBareLinks);
@@ -325,7 +329,6 @@ export class NyaEditor {
     crepe.editor.use(linkKey);
     crepe.editor.use(codeKey);
     crepe.editor.use(blockKeys);
-    crepe.editor.use(slashMenuRoom);
     crepe.editor.use(plusLine);
     crepe.editor.use(fenceInput);
     crepe.editor.use(listEnter);
@@ -379,7 +382,6 @@ export class NyaEditor {
     view?.dispatch(pastFrontMatter(view.state.tr));
     view?.dom.style.setProperty('outline-style', 'none');
     this.imageMetaPanel.attach();
-    keepFloatingOffEdge(this.root);
     restHiddenBlockHandle(this.root);
     fitTopBar(this.root);
     keepFocusOffBar(this.root);

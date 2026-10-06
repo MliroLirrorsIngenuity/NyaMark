@@ -115,32 +115,10 @@ index 7654da3d3e9144874d79f827d411bdd3244e0c43..fc13ac71b2d5d08f8bc616f45268c1b3
          {
            src: currentLink.value,
 diff --git a/lib/link-tooltip/index.js b/lib/link-tooltip/index.js
-index 05e8d8e1fe3075df57f48b4bcbe8107e90530e12..2d4fb02139a25ff14141866e091b4397e6ba1cbf 100644
+index 05e8d8e1fe3075df57f48b4bcbe8107e90530e12..220c326b55eff80a65952a09c8018b7006e75487 100644
 --- a/lib/link-tooltip/index.js
 +++ b/lib/link-tooltip/index.js
-@@ -8,6 +8,21 @@ import DOMPurify from 'dompurify';
- import { h, defineComponent, ref, watch, createApp } from 'vue';
- import clsx from 'clsx';
- import { debounce } from 'lodash-es';
-+import { flip, shift } from '@floating-ui/dom';
-+
-+// NyaMark: a link's boxes go under the line where above it they would cover
-+// the format bar, on a line just under it. They lay over the bar's buttons.
-+const besideTopBar = {
-+  middleware: [
-+    flip(({ elements }) => {
-+      const bar = elements.floating.parentElement?.querySelector(":scope > .milkdown-top-bar");
-+      if (!bar) return {};
-+      const top = bar.getBoundingClientRect().bottom;
-+      return { boundary: { x: 0, y: top, width: window.innerWidth, height: Math.max(0, window.innerHeight - top) } };
-+    }),
-+    shift()
-+  ]
-+};
- 
- var __defProp$3 = Object.defineProperty;
- var __getOwnPropSymbols$3 = Object.getOwnPropertySymbols;
-@@ -295,6 +310,9 @@ class LinkEditTooltip {
+@@ -295,6 +295,9 @@ class LinkEditTooltip {
        requestAnimationFrame(() => {
          var _a;
          (_a = __privateGet$1(this, _content$1).querySelector("input")) == null ? void 0 : _a.focus();
@@ -150,26 +128,53 @@ index 05e8d8e1fe3075df57f48b4bcbe8107e90530e12..2d4fb02139a25ff14141866e091b4397
        });
      });
      this.update = (view) => {
-@@ -348,7 +366,8 @@ class LinkEditTooltip {
+@@ -348,7 +351,9 @@ class LinkEditTooltip {
      __privateSet$1(this, _provider$1, new TooltipProvider({
        content,
        debounce: 0,
 -      shouldShow: () => false
 +      shouldShow: () => false,
-+      floatingUIOptions: besideTopBar
++      // NyaMark: placed by the options given in the config.
++      ...ctx.get(linkTooltipConfig.key).tooltip
      }));
      __privateGet$1(this, _provider$1).onHide = () => {
        requestAnimationFrame(() => {
-@@ -581,7 +600,8 @@ class LinkPreviewTooltip {
+@@ -581,7 +586,9 @@ class LinkPreviewTooltip {
      __privateSet(this, _provider, new TooltipProvider({
        debounce: 0,
        content: __privateGet(this, _content),
 -      shouldShow: () => false
 +      shouldShow: () => false,
-+      floatingUIOptions: besideTopBar
++      // NyaMark: placed by the options given in the config.
++      ...ctx.get(linkTooltipConfig.key).tooltip
      }));
      __privateGet(this, _provider).update(view);
      __privateSet(this, _slice, ctx.use(linkTooltipState.key));
+diff --git a/lib/link-tooltip/slices.d.ts b/lib/link-tooltip/slices.d.ts
+index 21984786049349a22de664c68ce1fff7f11036dc..d37ba8814ec2e04cbbd0cfb5e01cad01bfbb2191 100644
+--- a/lib/link-tooltip/slices.d.ts
++++ b/lib/link-tooltip/slices.d.ts
+@@ -1,3 +1,4 @@
++import type { TooltipProviderOptions } from '@milkdown/plugin-tooltip';
+ import type { Mark } from '@milkdown/prose/model';
+ export interface LinkToolTipState {
+     mode: 'preview' | 'edit';
+@@ -22,6 +23,7 @@ export interface LinkTooltipConfig {
+     removeButton: string;
+     onCopyLink: (link: string) => void;
+     inputPlaceholder: string;
++    tooltip?: Pick<TooltipProviderOptions, 'offset' | 'shift' | 'middleware' | 'floatingUIOptions'>;
+ }
+ export declare const linkTooltipConfig: import("@milkdown/utils").$Ctx<{
+     linkIcon: string;
+@@ -30,5 +32,6 @@ export declare const linkTooltipConfig: import("@milkdown/utils").$Ctx<{
+     removeButton: string;
+     onCopyLink: (link: string) => void;
+     inputPlaceholder: string;
++    tooltip?: Pick<TooltipProviderOptions, 'offset' | 'shift' | 'middleware' | 'floatingUIOptions'>;
+ }, "linkTooltipConfigCtx">;
+ //# sourceMappingURL=slices.d.ts.map
+\ No newline at end of file
 diff --git a/lib/list-item-block/index.js b/lib/list-item-block/index.js
 index 8983b1a213a07338368eaa26e47196a9872e1800..ae631775efa0b96017613bd56991b0b9e59e43c7 100644
 --- a/lib/list-item-block/index.js
