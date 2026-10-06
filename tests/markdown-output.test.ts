@@ -12,7 +12,6 @@ import {
   joinInTightItem,
   normalizeOutput,
   writeEmphasis,
-  writeRoot,
   writeStrong,
   writeText,
   writeThematicBreak,
@@ -73,11 +72,13 @@ describe('normalizeOutput', () => {
     );
   });
 
-  test('still escapes brackets elsewhere', () => {
-    expect(roundTrip('> body\n>\n> [!NOTE] later\n')).toBe(
-      '> body\n>\n> \\[!NOTE] later\n'
-    );
-    expect(roundTrip('[!NOTE] outside\n')).toBe('\\[!NOTE] outside\n');
+  test('leaves a marker that starts no alert as text', () => {
+    for (const markdown of [
+      '> body\n>\n> [!NOTE] later\n',
+      '[!NOTE] outside\n',
+    ]) {
+      expect(roundTrip(markdown)).toBe(markdown);
+    }
   });
 
   test('drops empty lines at the end of the document', () => {
@@ -434,8 +435,9 @@ describe('writeText', () => {
       .use(remarkGfm)
       .use(remarkStringify, {
         bullet: '-',
-        handlers: { root: writeRoot, text: writeText },
+        handlers: { text: writeText },
       })
+      .use(normalizeOutput)
       .processSync(markdown)
       .toString();
 
@@ -443,12 +445,11 @@ describe('writeText', () => {
     const processor = unified()
       .use(remarkParse)
       .use(remarkMath)
-      .use(remarkStringify, {
-        handlers: { root: writeRoot, text: writeText },
-      });
+      .use(remarkStringify, { handlers: { text: writeText } })
+      .use(normalizeOutput);
     const markdown = '\\$\\[a\\$ 与 \\$\\$\\*b\\$\n';
     const written = processor.processSync(markdown).toString();
-    expect(written).toBe(markdown);
+    expect(written).toBe('\\$[a\\$ 与 \\$\\$*b$\n');
     expect(JSON.stringify(processor.parse(written))).not.toContain('Math');
   });
 
@@ -457,19 +458,32 @@ describe('writeText', () => {
     expect(write(markdown)).toBe(markdown);
   });
 
-  test('escapes a bracket that could start a link, footnote, task or alert', () => {
+  test('escapes a bracket that would start a link, footnote or task', () => {
     for (const markdown of [
-      '\\[ ] 任务\n',
       '- \\[x] 任务\n',
-      '\\[^1] 脚注\n',
-      '> \\[!NOTE] 提示\n',
-      'a \\[b]\\(c) 与 \\[d][e]\n',
-      '\\[g][链接](https://x.com)\n',
+      '> - \\[ ] 引用里的任务\n',
+      'a \\[b](c) 与 [d][e]\n',
+      '\\[d][e] 与 [f]\n\n[e]: https://x.com\n',
+      '\\[^1] 与 [^2]\n\n[^1]: 脚注\n',
       '\\[a]: b\n',
-      '\\[未闭合\n',
-      '[链接里的 \\[1\\]](https://x.com)\n',
     ]) {
       expect(write(markdown)).toBe(markdown);
+    }
+  });
+
+  test('writes a bracket that starts nothing there as typed', () => {
+    for (const [escaped, written] of [
+      ['\\[ ] 任务\n', '[ ] 任务\n'],
+      ['\\[^1] 脚注\n', '[^1] 脚注\n'],
+      ['> \\[!NOTE] 提示\n', '> [!NOTE] 提示\n'],
+      ['\\[g][链接](https://x.com)\n', '[g][链接](https://x.com)\n'],
+      ['\\[未闭合\n', '[未闭合\n'],
+      [
+        '[链接里的 \\[1\\]](https://x.com)\n',
+        '[链接里的 [1]](https://x.com)\n',
+      ],
+    ]) {
+      expect(write(escaped)).toBe(written);
     }
   });
 
@@ -495,7 +509,7 @@ describe('writeText', () => {
   });
 
   test('escapes underscores that could start emphasis', () => {
-    expect(write('\\_一\\_ 与 a \\_b\n')).toBe('\\_一\\_ 与 a \\_b\n');
+    expect(write('\\_一\\_ 与 a \\_b\n')).toBe('\\_一_ 与 a _b\n');
   });
 
   test('keeps a star or underscore between spaces', () => {
@@ -535,7 +549,7 @@ describe('writeText', () => {
       '\\- 不是列表 `x`\n',
       '1\\. 不是列表 `x`\n',
       '\\> 不是引用 `x`\n',
-      'a \\[b]\\(c) `x`\n',
+      'a \\[b](c) `x`\n',
     ]) {
       expect(write(markdown)).toBe(markdown);
     }

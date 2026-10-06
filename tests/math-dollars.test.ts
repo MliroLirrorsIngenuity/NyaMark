@@ -165,18 +165,29 @@ describe('dollars on save', () => {
   });
 
   test('keeps the escapes of dollars that would make math', () => {
-    for (const markdown of ['\\$x\\$ 不是公式\n', '公式 $x^2$ 和 \\$5\n']) {
+    for (const markdown of ['\\$x$ 不是公式\n', '公式 $x^2$ 和 $5\n']) {
       expect(roundTrip(markdown)).toBe(markdown);
     }
   });
 
-  test('keeps the escapes of dollars on either side of a mark edge', () => {
+  test('keeps the escape of a dollar that would pair across a mark edge', () => {
     for (const markdown of [
-      '**粗 \\$5** 和 \\$6\n',
-      '先 \\$1 *斜 \\$2* 了\n',
-      '[价 \\$1](https://a.com) 与 \\$2\n',
+      '**粗 \\$5** 和 $6\n',
+      '先 \\$1 *斜 $2* 了\n',
+      '[价 \\$1](https://a.com) 与 $2\n',
     ]) {
       expect(roundTrip(markdown)).toBe(markdown);
+    }
+  });
+
+  test('keeps a link or picture with a dollar in it whole', () => {
+    for (const markdown of [
+      '价格 \\$5 见 ![x$y](u.png)\n',
+      '价格 \\$5 见 [链接](https://x.com/?q=$y)\n',
+      '\\$5 和 [a $b$ c](u) $\n',
+    ]) {
+      expect(roundTrip(markdown)).toBe(markdown);
+      expect(roundTrip(roundTrip(markdown))).toBe(markdown);
     }
   });
 

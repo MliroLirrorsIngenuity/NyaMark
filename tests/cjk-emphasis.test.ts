@@ -6,7 +6,10 @@ import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
 import { strikethroughOptions } from '../src/editor/plugins/cjk-emphasis';
-import { writeRoot, writeText } from '../src/editor/plugins/markdown-output';
+import {
+  normalizeOutput,
+  writeText,
+} from '../src/editor/plugins/markdown-output';
 
 type Tree = { type: string; children?: Tree[] };
 
@@ -15,7 +18,8 @@ const processor = unified()
   .use(remarkGfm, { singleTilde: false })
   .use(remarkCjkFriendly)
   .use(remarkCjkFriendlyStrikethrough, strikethroughOptions)
-  .use(remarkStringify, { handlers: { root: writeRoot, text: writeText } });
+  .use(remarkStringify, { handlers: { text: writeText } })
+  .use(normalizeOutput);
 
 const inline = (markdown: string) =>
   ((processor.parse(markdown) as Tree).children?.[0].children ?? []).map(

@@ -8,7 +8,6 @@ import { unified } from 'unified';
 import { strikethroughOptions } from '../src/editor/plugins/cjk-emphasis';
 import {
   normalizeOutput,
-  relaxTildes,
   writeText,
 } from '../src/editor/plugins/markdown-output';
 import { typedMarksPlugin } from '../src/editor/plugins/typed-marks';
@@ -66,22 +65,6 @@ describe('typed tildes', () => {
   });
 });
 
-describe('relaxTildes', () => {
-  test('unescapes a tilde on its own', () => {
-    expect(relaxTildes('3\\~5 天')).toBe('3~5 天');
-  });
-
-  test('keeps the escapes of tildes next to one another', () => {
-    expect(relaxTildes('a\\~\\~b')).toBe('a\\~\\~b');
-    expect(relaxTildes('\\~a', '~')).toBe('\\~a');
-    expect(relaxTildes('a\\~', '', '~')).toBe('a\\~');
-  });
-
-  test('tells an escaped backslash from an escape', () => {
-    expect(relaxTildes('a\\\\\\~b')).toBe('a\\\\~b');
-  });
-});
-
 describe('tildes on save', () => {
   test('writes ranges and single tildes as typed', () => {
     for (const markdown of [
@@ -96,7 +79,7 @@ describe('tildes on save', () => {
 
   test('keeps the escapes of tildes that would strike text out', () => {
     expect(roundTrip('不是 \\~\\~删除\\~\\~ 线\n')).toBe(
-      '不是 \\~\\~删除\\~\\~ 线\n'
+      '不是 \\~~删除~~ 线\n'
     );
   });
 });

@@ -9,10 +9,9 @@
  * same to every nested list the user typed. The flags are turned back into
  * booleans, and a typed item only stays loose inside a loose list.
  *
- * Alerts: the `[!NOTE]` marker that opens a GFM alert was escaped to
- * `\[!NOTE]`, which GitHub then shows as plain text. It is written verbatim,
- * and a hard break typed after it becomes a plain line break: GitHub does not
- * accept `[!NOTE]\` as a marker line.
+ * Alerts: a hard break typed after the `[!NOTE]` marker that opens a GFM
+ * alert becomes a plain line break: GitHub does not accept `[!NOTE]\` as a
+ * marker line.
  *
  * Trailing empty paragraphs: the editor keeps an empty paragraph after a
  * closing quote, list or code block so the caret has somewhere to go, and
@@ -37,25 +36,6 @@
  * gaps after short cells. `displayWidth` counts wide characters as two, the
  * way Prettier does; it goes to remark-gfm as `stringLength`.
  *
- * Escapes: remark escapes every `_` in text and every `#` that starts a line,
- * so a saved file had `snake\_case` and `\#tag` in place of what was typed,
- * in every paragraph the file held, and `3 \* 4` for `3 * 4`. An underscore
- * between two letters or digits never opens or closes emphasis, nor does a
- * star or underscore between spaces, and hashes start a heading only when six
- * or fewer are followed by a space: `writeText` leaves those unescaped.
- * remark escaped `&` before any letter as well, `AT\&T` and `?a=1\&b=2` in a
- * link; `writeRoot` escapes it where it would start a character reference.
- *
- * Dollars: remark-math escapes every `$` in text, so `$5` was saved as `\$5`.
- * A paragraph whose dollars all come back as text when the file is opened
- * (see `math-dollars`) has them written as typed. One that has math in it,
- * two dollars around something that would be read as math, or two either
- * side of the edge of bold or a link, keeps them escaped.
- *
- * Tildes: every `~` was escaped, so a range was saved as `3\~5 天`. One tilde
- * starts no strikethrough, and is written as typed unless another is next to
- * it.
- *
  * Blocks in an item of a tight list: remark writes them line after line, and
  * opened again some ran into the next. Text under a table read as another
  * row, text under a quote, a nested list or an HTML block went on in it, and
@@ -73,17 +53,16 @@ import { remarkStringifyOptionsCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
 import { $remark } from '@milkdown/kit/utils';
 import {
-  type ConstructName,
   type Handle,
   type Join,
   type State,
+  type Unsafe,
   defaultHandlers,
 } from 'mdast-util-to-markdown';
 import { cjkFriendlyToMarkdown } from 'mdast-util-to-markdown-cjk-friendly';
 import type { Processor } from 'unified';
 import { noteFollowing, writeLink } from './bare-links';
 import { frontMatterOnTop } from './front-matter';
-import { isDollarText } from './math-dollars';
 
 type MdNode = {
   type: string;
@@ -91,6 +70,7 @@ type MdNode = {
   spread?: unknown;
   /** A list item's task box: `null` when it has none. */
   checked?: boolean | null;
+  depth?: number;
   children?: MdNode[];
 };
 
@@ -111,22 +91,14 @@ function normalizeList(list: MdNode) {
   }
 }
 
-function unescapeAlertMarker(blockquote: MdNode) {
+function plainBreakAfterAlert(blockquote: MdNode) {
   const paragraph = blockquote.children?.[0];
-  if (paragraph?.type !== 'paragraph') return;
-  const text = paragraph.children?.[0];
-  if (text?.type !== 'text' || !text.value) return;
-  const marker = text.value.match(ALERT_MARKER)?.[0];
-  if (!marker || !paragraph.children) return;
-  // An html node is written out as is, so the brackets stay unescaped.
-  const rest = text.value.slice(marker.length);
-  const hardBreak = !rest && paragraph.children[1]?.type === 'break';
-  paragraph.children.splice(
-    0,
-    hardBreak ? 2 : 1,
-    { type: 'html', value: hardBreak ? `${marker}\n` : marker },
-    ...(rest ? [{ type: 'text', value: rest }] : [])
-  );
+  if (paragraph?.type !== 'paragraph' || !paragraph.children) return;
+  const [text, next] = paragraph.children;
+  if (text?.type !== 'text' || next?.type !== 'break') return;
+  const marker = text.value?.match(ALERT_MARKER)?.[0];
+  if (!marker || marker !== text.value) return;
+  paragraph.children.splice(0, 2, { type: 'html', value: `${marker}\n` });
 }
 
 function trimLeadingSpace(block: MdNode) {
@@ -357,152 +329,8 @@ function clearEmptyCell(cell: MdNode) {
   }
 }
 
-const INTRAWORD_UNDERSCORE = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
-// A star or underscore with spaces on both sides opens and closes nothing;
-// one that starts a line would begin a list item.
-const SPACED_MARKER = /(?<=\S[ \t]+)\\([*_])(?=[ \t\n])/g;
-const ESCAPED_HASHES = /(^|\n)([ \t]*)\\(#+)(.?)/g;
-// Equals signs underline the line above as a heading only when the line
-// holds nothing else: `==高亮==` at the start of one needs no escape.
-const ESCAPED_EQUALS = /(^|\n)([ \t]*)\\(=[^\n]*)/g;
-
-/** `markdown`, written by remark, without the escapes it needs none of. */
-export function relaxEscapes(markdown: string): string {
-  return markdown
-    .replace(INTRAWORD_UNDERSCORE, '_')
-    .replace(SPACED_MARKER, '$1')
-    .replace(ESCAPED_HASHES, (escaped, line, indent, hashes, next) =>
-      hashes.length > 6 || (next !== '' && !/[ \t]/.test(next))
-        ? `${line}${indent}${hashes}${next}`
-        : escaped
-    )
-    .replace(ESCAPED_EQUALS, (escaped, line, indent, rest: string) =>
-      /[^=\s]/.test(rest) ? `${line}${indent}${rest}` : escaped
-    );
-}
-
-/**
- * A label as references match it, case and spacing aside, and its escapes
- * too: remark relaxes some after the brackets are looked at.
- */
-function labelKey(label: string): string {
-  return label
-    .replace(/\\([!-/:-@[-`{-~])/g, '$1')
-    .replace(/[\t\n\r ]+/g, ' ')
-    .replace(/^ | $/g, '')
-    .toLowerCase()
-    .toUpperCase();
-}
-
-// A kept definition is a line of raw HTML (see link-definitions).
-const DEFINITION = /^ {0,3}\[((?:[^\\[\]]|\\[\s\S])+)\]:/gm;
-
-/** The labels of the definitions `tree` keeps, as `labelKey` gives them. */
-function definedLabels(tree: MdNode): Set<string> {
-  const labels = new Set<string>();
-  const visit = (node: MdNode) => {
-    if (node.type === 'html') {
-      for (const match of (node.value ?? '').matchAll(DEFINITION)) {
-        labels.add(labelKey(match[1]));
-      }
-    }
-    for (const child of node.children ?? []) visit(child);
-  };
-  visit(tree);
-  return labels;
-}
-
-/** The labels of the definitions in the document each writer writes. */
-const definedBy = new WeakMap<State, Set<string>>();
-
-/**
- * Where the bracket escaped at `open` in written `text` closes, or -1. An
- * escaped closing bracket closes nothing.
- */
-function closingBracket(text: string, open: number): number {
-  let depth = 0;
-  for (let index = open; index < text.length; index++) {
-    const char = text[index];
-    if (char === '\\') {
-      if (text[index + 1] === '[') depth += 1;
-      index += 1;
-    } else if (char === ']') {
-      depth -= 1;
-      if (depth === 0) return index;
-    } else if (char === '[') {
-      depth += 1;
-    }
-  }
-  return -1;
-}
-
-/**
- * `text`, written by remark, with an opening bracket unescaped where it
- * starts nothing: `[1]`, `a[0]`, `[注]`. Kept escaped are a bracket left
- * open, one that looks like a footnote (`[^`), an alert (`[!`), an image
- * (`![`) or a task box at the start of a line, and one whose closing
- * bracket is followed by `(`, `[` or `:`, in the text or as `after`, the
- * character written next, and one whose label `defined` holds: a
- * definition the document keeps (see link-definitions) turned `[1]` into
- * its link when the file was opened again.
- */
-export function relaxBrackets(
-  text: string,
-  after = '',
-  defined: ReadonlySet<string> = new Set()
-): string {
-  return text.replace(/\\\[/g, (escaped, offset: number) => {
-    const close = closingBracket(text, offset);
-    if (close < 0) return escaped;
-    const next = text.slice(close + 1).replace(/^\\/, '')[0] ?? after;
-    if (/^[([:]/.test(next)) return escaped;
-    if (defined.has(labelKey(text.slice(offset + 2, close)))) return escaped;
-    if (/[!^]/.test(text[offset + 2] ?? '') || text[offset - 1] === '!') {
-      return escaped;
-    }
-    const atLineStart = offset === 0 || text[offset - 1] === '\n';
-    if (atLineStart && /^\\\[[ xX]\]/.test(text.slice(offset))) return escaped;
-    return '[';
-  });
-}
-
-/** Text whose dollars are written as typed (see `markDollarText`). */
-const dollarText = new WeakSet<object>();
-
-/**
- * `text`, written by remark, with a tilde unescaped where it stands alone:
- * a strikethrough takes two (see `cjk-emphasis`). `before` and `after` are the
- * characters written around it.
- */
-export function relaxTildes(text: string, before = '', after = ''): string {
-  return text.replace(/\\~/g, (escaped, offset: number) => {
-    const previous = offset > 0 ? text[offset - 1] : before;
-    const rest = text.slice(offset + 2);
-    const next = rest ? rest.replace(/^\\(?=~)/, '')[0] : after;
-    return previous === '~' || next === '~' ? escaped : '~';
-  });
-}
-
-/**
- * Whether `node` begins with the `:` that makes the footnote mark before it,
- * at the start of a line, read as the footnote's own text: `[^1]: …` took
- * the rest of the paragraph out of it as that footnote.
- */
-function followsLineMark(node: MdNode, parent: MdNode | undefined) {
-  const children = parent?.type === 'paragraph' ? (parent.children ?? []) : [];
-  const index = children.indexOf(node);
-  if (index < 1 || !node.value?.startsWith(':')) return false;
-  if (children[index - 1].type !== 'footnoteReference') return false;
-  const before = children[index - 2];
-  return (
-    !before ||
-    before.type === 'break' ||
-    (before.type === 'text' && /\n[ \t]*$/.test(before.value ?? ''))
-  );
-}
-
-/** Milkdown's handler for text, its escapes relaxed. */
-export const writeText: Handle = (node, parent, state, info) => {
+/** Milkdown's handler for text. */
+export const writeText: Handle = (node, _parent, state, info) => {
   // The spaces a text ends in are written as they are: remark encodes one
   // at the end of a line as `&#x20;`. Milkdown wrote all of such a text as
   // it was, and a backtick, hash or bracket in it went out unescaped.
@@ -510,101 +338,7 @@ export const writeText: Handle = (node, parent, state, info) => {
     node.value
   ) as RegExpExecArray;
   const after = spaces[0] ?? info.after;
-  const text = relaxEscapes(
-    state.safe(value, { ...info, after, encode: [] }) + spaces
-  );
-  // Brackets in a link's own text stay as remark wrote them.
-  const bracketed =
-    state.stack.includes('label') || state.stack.includes('reference')
-      ? text
-      : relaxBrackets(text, info.after, definedBy.get(state));
-  const relaxed = relaxTildes(bracketed, info.before, info.after);
-  const written = dollarText.has(node)
-    ? relaxed.replace(/\\\$/g, '$')
-    : relaxed;
-  return followsLineMark(node, parent) ? `\\${written}` : written;
-};
-
-/** Stand-ins for where emphasis, a link and the like open and close. */
-const OPENS = '\u0002';
-const CLOSES = '\u0003';
-
-/**
- * `node`'s inline content as a parser sees its dollars: text as it is, and a
- * stand-in for the rest, or null when a dollar outside text is in the way.
- */
-function dollarSource(node: MdNode): string | null {
-  if (node.type === 'text') return node.value ?? '';
-  if (node.type === 'break') return '\n';
-  if (node.type === 'inlineMath') return null;
-  // Code and HTML are written as they are, with any dollar in them.
-  if (node.type === 'inlineCode' || node.type === 'html') {
-    return node.value?.includes('$') ? null : '`';
-  }
-  if (!node.children) return '!';
-  let source = '';
-  for (const child of node.children) {
-    const part = dollarSource(child);
-    if (part === null) return null;
-    source += part;
-  }
-  // Emphasis, links and the like: their markers are no spaces.
-  return `${OPENS}${source}${CLOSES}`;
-}
-
-/**
- * Whether what lies between two dollars holds whole marks only. Math takes
- * in the stars or brackets of a mark it holds one end of, and the mark was
- * gone when the file was opened again: `**粗 $5** 和 $6`.
- */
-function holdsWholeMarks(between: string) {
-  let depth = 0;
-  for (const char of between) {
-    if (char === OPENS) depth += 1;
-    else if (char === CLOSES && --depth < 0) return false;
-  }
-  return depth === 0;
-}
-
-/** What a parser keeps of the text between two dollars as math. */
-function mathValue(between: string) {
-  const padded = /^[ \n]/.test(between) && /[ \n]$/.test(between);
-  return padded && /[^ \n]/.test(between) ? between.slice(1, -1) : between;
-}
-
-/** Whether every dollar in `source`, unescaped, would be read as text. */
-export function dollarsStayText(source: string): boolean {
-  if (source.includes('$$')) return false;
-  let open = source.indexOf('$');
-  while (open !== -1) {
-    const close = source.indexOf('$', open + 1);
-    if (close === -1) return true;
-    const between = source.slice(open + 1, close);
-    if (!holdsWholeMarks(between) || !isDollarText(mathValue(between))) {
-      return false;
-    }
-    open = source.indexOf('$', close + 1);
-  }
-  return true;
-}
-
-/** The text of a paragraph, heading or cell, its dollars written as typed. */
-function markDollarText(block: MdNode) {
-  const source = dollarSource(block);
-  if (!source?.includes('$') || !dollarsStayText(source)) return;
-  const mark = (node: MdNode) => {
-    if (node.type === 'text') dollarText.add(node);
-    for (const child of node.children ?? []) mark(child);
-  };
-  mark(block);
-}
-
-// An ampersand starts a character reference only as `&amp;`, `&#38;` or
-// `&#x26;`, the semicolon and all.
-const REFERENCE_AMPERSAND = {
-  character: '&',
-  after: '(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9A-Fa-f]+);',
-  inConstruct: 'phrasing' as ConstructName,
+  return state.safe(value, { ...info, after, encode: [] }) + spaces;
 };
 
 /**
@@ -664,29 +398,6 @@ export const writeEmphasis = writeAttention('emphasis');
 export const writeStrong = writeAttention('strong');
 
 /**
- * remark's handler for the whole document, `&` escaped only where needed.
- *
- * remark-math gives its dollar an `after` of undefined, and remark took the
- * key for a condition on the character after it: a dollar before a bracket,
- * star or other escaped character went out unescaped, and `$[a$` came back
- * as math when the file was opened again.
- */
-export const writeRoot: Handle = (node, parent, state, info) => {
-  definedBy.set(state, definedLabels(node as MdNode));
-  state.unsafe = state.unsafe.map((pattern) => {
-    if (pattern.character === '&' && pattern.after === '[#A-Za-z]') {
-      return REFERENCE_AMPERSAND;
-    }
-    if ('after' in pattern && pattern.after === undefined) {
-      const { after: _after, ...always } = pattern;
-      return always;
-    }
-    return pattern;
-  });
-  return defaultHandlers.root(node, parent, state, info);
-};
-
-/**
  * A block in a list item that takes in the line written right under it. A
  * footnote's text does too: in a quote, a list item's line after a footnote
  * went into the footnote.
@@ -731,18 +442,11 @@ export function normalizeForOutput<T extends MdNode>(tree: T): T {
       normalizeList(node);
       clearEmptyItems(node);
     }
-    if (node.type === 'blockquote') unescapeAlertMarker(node);
+    if (node.type === 'blockquote') plainBreakAfterAlert(node);
     if (node.type === 'tableCell') clearEmptyCell(node);
     if (node.type === 'listItem') markListsUnderText(node);
     if (node.type === 'paragraph' || node.type === 'heading') {
       trimLeadingSpace(node);
-    }
-    if (
-      node.type === 'paragraph' ||
-      node.type === 'heading' ||
-      node.type === 'tableCell'
-    ) {
-      markDollarText(node);
     }
     for (const child of node.children ?? []) visit(child);
   };
@@ -758,8 +462,169 @@ export function normalizeForOutput<T extends MdNode>(tree: T): T {
   return tree;
 }
 
+type Read = (markdown: string) => unknown;
+
+const ESCAPE = /\\[!-/:-@[-`{-~]/g;
+const SETTLED_KEPT = 20000;
+
+const UNSAFE: Unsafe[] = [
+  { character: '$', inConstruct: 'phrasing' },
+  { character: ':', before: '\\]', inConstruct: 'phrasing' },
+];
+
+function joinTexts(children: MdNode[]): MdNode[] {
+  const joined: MdNode[] = [];
+  for (const child of children) {
+    const last = joined[joined.length - 1];
+    if (last?.type === 'text' && child.type === 'text') {
+      joined[joined.length - 1] = {
+        type: 'text',
+        value: `${last.value ?? ''}${child.value ?? ''}`,
+      };
+    } else {
+      joined.push(child);
+    }
+  }
+  return joined;
+}
+
+const shapeOf = (tree: unknown) =>
+  JSON.stringify(tree, (key, value) => {
+    if (key === 'position') return undefined;
+    return key === 'children' ? joinTexts(value) : value;
+  });
+
+type Frame = (text: string) => string | null;
+
+function frameOf(node: MdNode, parent: MdNode | undefined): Frame | null {
+  if (node.type === 'tableCell' || parent?.type === 'tableCell') {
+    return (text) => `| ${text} |\n| - |`;
+  }
+  if (node.type === 'heading') {
+    const marks = '#'.repeat(node.depth ?? 1);
+    return (text) => (text.includes('\n') ? null : `${marks} ${text}`);
+  }
+  if (node.type !== 'paragraph') return null;
+  const first = parent?.children?.[0] === node;
+  if (first && parent?.type === 'listItem') {
+    const bullet = parent.checked == null ? '- ' : '- [ ] ';
+    return (text) => `${bullet}${text.split('\n').join('\n  ')}`;
+  }
+  if (first && parent?.type === 'blockquote') {
+    return (text) => `> ${text.split('\n').join('\n> ')}`;
+  }
+  return (text) => text;
+}
+
+function fewestEscapes(
+  written: string,
+  frame: Frame,
+  shape: (markdown: string) => string
+): string {
+  const escapes = Array.from(written.matchAll(ESCAPE), (match) => match.index);
+  if (escapes.length === 0) return written;
+  const framed = frame(written);
+  if (framed === null) return written;
+  const expected = shape(framed);
+  const same = (text: string) => {
+    const candidate = frame(text);
+    return candidate !== null && shape(candidate) === expected;
+  };
+  const without = (text: string, at: number) =>
+    text.slice(0, at) + text.slice(at + 1);
+  const bare = escapes.reduceRight(without, written);
+  if (same(bare)) return bare;
+  return escapes.reduceRight((text, at) => {
+    const next = without(text, at);
+    return same(next) ? next : text;
+  }, written);
+}
+
+type Settled = {
+  plain: Map<string, string>;
+  notes: string;
+  noted: Map<string, string>;
+};
+
+const settled = new WeakMap<Read, Settled>();
+
+function settledFor(read: Read, notes: string): Settled {
+  const kept = settled.get(read) ?? {
+    plain: new Map(),
+    notes,
+    noted: new Map(),
+  };
+  settled.set(read, kept);
+  if (kept.notes !== notes) {
+    kept.notes = notes;
+    kept.noted = new Map();
+  }
+  return kept;
+}
+
+function writeRoot(read: Read): Handle {
+  const shape = (markdown: string) => shapeOf(read(markdown));
+  return (node, parent, state, info) => {
+    const parents = new WeakMap<MdNode, MdNode>();
+    const notes: string[] = [];
+    const visit = (child: MdNode, above: MdNode) => {
+      parents.set(child, above);
+      if (child.type === 'definition') {
+        notes.push(state.handle(child as never, above as never, state, info));
+      } else if (child.type === 'footnoteDefinition') {
+        const stub = { ...child, children: [] };
+        notes.push(state.handle(stub as never, above as never, state, info));
+      } else if (
+        child.type === 'html' &&
+        above.type === 'paragraph' &&
+        above.children?.length === 1 &&
+        child.value?.trimStart().startsWith('[')
+      ) {
+        notes.push(child.value);
+      }
+      for (const below of child.children ?? []) visit(below, child);
+    };
+    for (const child of (node as MdNode).children ?? []) {
+      visit(child, node as MdNode);
+    }
+    const noted = notes.join('\n\n');
+    const kept = settledFor(read, noted);
+    const phrasing = state.containerPhrasing;
+    state.containerPhrasing = (container, phrasingInfo) => {
+      const written = phrasing.call(state, container, phrasingInfo);
+      if (!written.includes('\\')) return written;
+      const box = container as MdNode;
+      const frame = frameOf(box, parents.get(box));
+      const key = frame?.(written);
+      if (!frame || key == null) return written;
+      const noting = noted !== '' && written.includes('[');
+      const results = noting ? kept.noted : kept.plain;
+      const known = results.get(key);
+      if (known !== undefined) return known;
+      const framing: Frame = noting
+        ? (text) => {
+            const framed = frame(text);
+            return framed === null ? null : `${framed}\n\n${noted}`;
+          }
+        : frame;
+      const fewest = fewestEscapes(written, framing, shape);
+      if (results.size >= SETTLED_KEPT) results.clear();
+      results.set(key, fewest);
+      return fewest;
+    };
+    return defaultHandlers.root(node, parent, state, info);
+  };
+}
+
 /** Unified plugin: runs `normalizeForOutput` on every tree it stringifies. */
 export function normalizeOutput(this: Processor) {
+  const read: Read = (markdown) => this.runSync(this.parse(markdown), markdown);
+  const data = this.data();
+  data.toMarkdownExtensions ??= [];
+  data.toMarkdownExtensions.push({
+    unsafe: UNSAFE,
+    handlers: { root: writeRoot(read) },
+  });
   const compile = this.compiler;
   if (!compile) return;
   this.compiler = (tree, file) =>
@@ -785,7 +650,6 @@ export function writeAsNotes(ctx: Ctx) {
     rule: '-' as const,
     handlers: {
       ...options.handlers,
-      root: writeRoot,
       text: writeText,
       link: writeLink,
       emphasis: writeEmphasis,
