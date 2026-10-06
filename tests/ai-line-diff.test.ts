@@ -31,6 +31,17 @@ describe('the lines a write changes', () => {
     });
   });
 
+  test('reads lines ended by CRLF as a read of the note does', () => {
+    const before = 'one\r\ntwo\r\nthree\r\n';
+    const after = 'one\r\nTWO\r\nthree\r\n';
+    expect(lineDiff(before, after).rows).toEqual([
+      same('one'),
+      { kind: 'removed', text: 'two' },
+      { kind: 'added', text: 'TWO' },
+      same('three'),
+    ]);
+  });
+
   test('keeps a short run of kept lines between two changes whole', () => {
     const before = lines(8);
     const after = [...before];

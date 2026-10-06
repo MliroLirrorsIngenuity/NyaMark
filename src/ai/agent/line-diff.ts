@@ -5,6 +5,7 @@
  */
 
 import { matchPairs } from '../../editor/myers';
+import { documentLines } from './document-text';
 
 export type DiffRow = {
   kind: 'same' | 'removed' | 'added' | 'gap';
@@ -27,16 +28,9 @@ const MAX_ROWS = 120;
 /** Past this many changed lines, the middle is taken as all new. */
 const MAX_COST = 2000;
 
-function linesOf(text: string): string[] {
-  if (text === '') return [];
-  const lines = text.split('\n');
-  if (lines[lines.length - 1] === '') lines.pop();
-  return lines;
-}
-
 export function lineDiff(before: string, after: string): LineDiff {
-  const a = linesOf(before);
-  const b = linesOf(after);
+  const a = documentLines(before);
+  const b = documentLines(after);
   const pairs = matchPairs(a, b, (x, y) => x === y, MAX_COST) ?? [];
   const all: DiffRow[] = [];
   let added = 0;

@@ -40,7 +40,11 @@ export type SearchRead = { text: string; count: number };
 
 export type MarkdownTree = (markdown: string) => Root;
 
-/** The document's lines; the newline that ends the last is no line of its own. */
+/**
+ * The lines of a document or note, each line ending taken off; the one that
+ * ends the last line is no line of its own. Read as Rust's `str::lines`
+ * reads them, which numbers the lines search_files finds.
+ */
 export function documentLines(text: string): string[] {
   if (!text) return [];
   const lines = text.split(/\r?\n/);
