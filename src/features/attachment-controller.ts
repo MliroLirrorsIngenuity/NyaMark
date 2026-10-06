@@ -169,7 +169,8 @@ export class AttachmentController {
       if (event.payload.type !== 'drop' || isModalOpen()) return;
       // Dropped on the assistant, it goes to the assistant.
       if (dragDropTarget(event.payload)?.closest('.ny-ai')) return;
-      void this.handleDroppedPaths(event.payload.paths);
+      // Returned so whoever delivered the drop can wait for it to land.
+      return this.handleDroppedPaths(event.payload.paths);
     });
   }
 

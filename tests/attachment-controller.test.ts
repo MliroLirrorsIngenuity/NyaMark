@@ -43,7 +43,7 @@ if (!hadFileReader) {
 
 type DropHandler = (event: {
   payload: { type: string; paths: string[] };
-}) => void;
+}) => Promise<void> | undefined;
 
 // The controller reaches the disk and the user only through the bridge and
 // the image policy dialog; these stand in for both.
@@ -178,9 +178,10 @@ async function setup({
     } as unknown as ClipboardEvent);
     await settle();
   };
+  // Waits for the drop's work itself: reading the front matter loads its
+  // parser, which can take longer than a turn of the event loop.
   const drop = async (paths: string[]) => {
-    bridge.drop?.({ payload: { type: 'drop', paths } });
-    await settle();
+    await bridge.drop?.({ payload: { type: 'drop', paths } });
   };
 
   return { controller, inserted, paste, drop };
