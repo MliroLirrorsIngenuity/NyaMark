@@ -1,0 +1,13 @@
+[
+  [["zh-Hant-TW"], "zh-TW"],
+  [["zh-HK"], "zh-TW"],
+  [["zh-MO"], "zh-TW"],
+  [["zh-Hant-MO"], "zh-TW"],
+  [["zh-Hant"], "zh-TW"],
+  [["zh-Hans-CN"], "zh-CN"],
+  [["zh-SG"], "zh-CN"],
+  [["zh"], "zh-CN"],
+  [["en-GB"], "en"],
+  [["ja-JP", "en-US"], "en"],
+  [["fr-FR"], null]
+]

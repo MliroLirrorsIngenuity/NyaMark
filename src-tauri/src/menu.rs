@@ -1,5 +1,6 @@
 #![cfg(target_os = "macos")]
 
+use icu_locale::{LanguageIdentifier, LocaleExpander};
 use serde::Deserialize;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
@@ -68,7 +69,7 @@ struct LocaleFile {
 }
 
 /// The menu shown before the webview reports the user's language: the first
-/// supported system language, as `resolveLanguage` in `src/i18n` picks it.
+/// supported system language, as `systemLanguage` in `src/i18n` picks it.
 fn startup_translations() -> MenuTranslations {
     let preferred: Vec<String> = objc2_foundation::NSLocale::preferredLanguages()
         .iter()
@@ -78,21 +79,21 @@ fn startup_translations() -> MenuTranslations {
     bundled_translations(locale)
 }
 
+/// The first of `languages` a bundled locale is in: the one of the same
+/// language and script once CLDR's likely subtags fill in what a tag leaves
+/// out, so `zh-MO` reads as Traditional Chinese.
 fn match_language<'a>(languages: impl IntoIterator<Item = &'a str>) -> Option<&'static str> {
-    languages.into_iter().find_map(|tag| {
-        let tag = tag.to_ascii_lowercase();
-        if ["zh-tw", "zh-hk", "zh-hant"]
+    let expander = LocaleExpander::new_extended();
+    let likely = |tag: &str| {
+        let mut language = LanguageIdentifier::try_from_str(tag).ok()?;
+        expander.maximize(&mut language);
+        Some((language.language, language.script))
+    };
+    languages.into_iter().filter_map(likely).find_map(|wanted| {
+        LOCALES
             .iter()
-            .any(|prefix| tag.starts_with(prefix))
-        {
-            Some("zh-TW")
-        } else if tag.starts_with("zh") {
-            Some("zh-CN")
-        } else if tag.starts_with("en") {
-            Some("en")
-        } else {
-            None
-        }
+            .map(|(locale, _)| *locale)
+            .find(|locale| likely(locale) == Some(wanted))
     })
 }
 
@@ -292,11 +293,17 @@ mod tests {
     }
 
     #[test]
-    fn system_languages_map_like_the_frontend() {
-        assert_eq!(match_language(["zh-Hant-TW"]), Some("zh-TW"));
-        assert_eq!(match_language(["zh-HK"]), Some("zh-TW"));
-        assert_eq!(match_language(["zh-Hans-CN"]), Some("zh-CN"));
-        assert_eq!(match_language(["ja-JP", "en-US"]), Some("en"));
-        assert_eq!(match_language(["fr-FR"]), None);
+    fn system_languages_map_like_the_frontend() -> Result<(), serde_json::Error> {
+        // The cases the frontend's `systemLanguage` is tested with too.
+        let cases: Vec<(Vec<String>, Option<String>)> =
+            serde_json::from_str(include_str!("../../tests/system-languages.json"))?;
+        for (languages, locale) in cases {
+            assert_eq!(
+                match_language(languages.iter().map(String::as_str)),
+                locale.as_deref(),
+                "{languages:?}"
+            );
+        }
+        Ok(())
     }
 }

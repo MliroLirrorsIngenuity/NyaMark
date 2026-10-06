@@ -77,6 +77,8 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 block2 = "0.6"
 # The system's preferred languages pick the menu language before the webview loads.
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSLocale", "NSString"] }
+# Reads them by CLDR's likely subtags, as the webview's `Intl.Locale` does.
+icu_locale = "2.2"
 
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]
 # AI service keys go to the Windows credential manager or the Secret Service.
