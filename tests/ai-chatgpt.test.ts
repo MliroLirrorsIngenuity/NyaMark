@@ -2,13 +2,20 @@ import { describe, expect, test } from 'bun:test';
 import { APICallError, RetryError, jsonSchema, streamText, tool } from 'ai';
 import { describeFailure } from '../src/ai/agent/session';
 import {
+  CODEX_MODELS,
+  CODEX_VERSION,
+  NOT_INCLUDED,
   ReplyCutOffError,
   USAGE_LIMIT,
   planErrorCode,
   stopsPlan,
 } from '../src/ai/providers/chatgpt';
 import { languageModel } from '../src/ai/providers/factory';
-import { listModels, parseChatGptModels } from '../src/ai/providers/models';
+import {
+  ModelListError,
+  listModels,
+  parseChatGptModels,
+} from '../src/ai/providers/models';
 import { AiFetchError } from '../src/bridge/ipc/ai';
 import { type AiProvider, CHATGPT_BASE_URL } from '../src/state/ai-settings';
 
@@ -104,23 +111,22 @@ describe('requests on a ChatGPT plan', () => {
     });
     expect(await result.text).toBe('Hello.');
     const [body] = bodies;
-    expect(body).toMatchObject({ stream: true, store: false });
+    expect(body).toMatchObject({
+      stream: true,
+      store: false,
+      include: ['reasoning.encrypted_content'],
+    });
+    expect(body.instructions).toBeUndefined();
     expect(body.temperature).toBeUndefined();
     expect(body.top_p).toBeUndefined();
     expect(body.max_output_tokens).toBeUndefined();
     expect(body.input[0]).toMatchObject({ role: 'developer' });
     expect(body.tools).toEqual([
-      expect.objectContaining({
-        type: 'namespace',
-        name: 'nyamark',
-        tools: [
-          expect.objectContaining({ type: 'function', name: 'read_document' }),
-        ],
-      }),
+      expect.objectContaining({ type: 'function', name: 'read_document' }),
     ]);
   });
 
-  test('send earlier tool calls in the namespace', async () => {
+  test('send earlier reasoning and tool calls back whole', async () => {
     const bodies: Body[] = [];
     const result = streamText({
       model: languageModel(
@@ -133,6 +139,13 @@ describe('requests on a ChatGPT plan', () => {
         {
           role: 'assistant',
           content: [
+            {
+              type: 'reasoning',
+              text: '',
+              providerOptions: {
+                openai: { itemId: 'rs-1', reasoningEncryptedContent: 'sealed' },
+              },
+            },
             {
               type: 'tool-call',
               toolCallId: 'call-1',
@@ -155,12 +168,20 @@ describe('requests on a ChatGPT plan', () => {
       ],
     });
     await result.text;
-    expect(bodies[0].input).toContainEqual(
-      expect.objectContaining({
-        type: 'function_call',
-        call_id: 'call-1',
-        namespace: 'nyamark',
-      })
+    const { input } = bodies[0];
+    expect(input).toContainEqual({
+      type: 'reasoning',
+      id: 'rs-1',
+      encrypted_content: 'sealed',
+      summary: [],
+    });
+    const call = input.find(
+      (item) => (item as { type?: string }).type === 'function_call'
+    );
+    expect(call).toMatchObject({ call_id: 'call-1', name: 'read_document' });
+    expect(call).not.toHaveProperty('namespace');
+    expect(input).not.toContainEqual(
+      expect.objectContaining({ type: 'item_reference' })
     );
   });
 
@@ -180,7 +201,12 @@ describe('requests on a ChatGPT plan', () => {
       () =>
         new Response(
           JSON.stringify({
-            error: { code: USAGE_LIMIT, message: 'Usage limit reached.' },
+            error: {
+              type: USAGE_LIMIT,
+              message: 'The usage limit has been reached',
+              plan_type: 'plus',
+              resets_at: 1_790_000_000,
+            },
           }),
           { status: 429, headers: { 'content-type': 'application/json' } }
         )
@@ -197,19 +223,25 @@ describe('requests on a ChatGPT plan', () => {
     expect(planErrorCode(errors[0])).toBe(USAGE_LIMIT);
     expect(describeFailure(errors[0])).toEqual({
       code: 'usage-limit',
-      message: `Usage limit reached. (${USAGE_LIMIT})`,
+      message: `The usage limit has been reached (${USAGE_LIMIT})`,
       status: 429,
     });
   });
 
-  test('read the limit from a stream that sent nothing else', async () => {
+  test('read a refusal from a stream that sent nothing else', async () => {
     let calls = 0;
+    // In a stream, Codex reads the error's code.
     const streamed = events([
       {
-        type: 'error',
+        type: 'response.failed',
         sequence_number: 0,
-        code: USAGE_LIMIT,
-        message: 'Usage limit reached.',
+        response: {
+          id: 'r-1',
+          error: {
+            code: NOT_INCLUDED,
+            message: 'Your plan does not include Codex.',
+          },
+        },
       },
     ]);
     const { errors } = await reply(
@@ -219,60 +251,56 @@ describe('requests on a ChatGPT plan', () => {
       })
     );
     expect(calls).toBe(1);
-    expect(describeFailure(errors[0]).code).toBe('usage-limit');
+    expect(describeFailure(errors[0]).code).toBe('plan-unavailable');
   });
 });
 
 describe('plan errors', () => {
-  const apiError = (code: string, status: number) =>
+  const apiError = (fields: object, status: number) =>
     new APICallError({
       message: 'refused',
       url: `${CHATGPT_BASE_URL}/responses`,
       requestBodyValues: {},
       statusCode: status,
-      data: { error: { code } },
+      data: { error: fields },
     });
 
-  test('stop, or wait and pass, as OpenAI says', () => {
-    expect(stopsPlan(apiError(USAGE_LIMIT, 429))).toBe(true);
-    expect(
-      stopsPlan(apiError('subscription_sharing_user_not_eligible', 403))
-    ).toBe(true);
-    expect(
-      stopsPlan(apiError('subscription_sharing_usage_unavailable', 503))
-    ).toBe(false);
-    expect(
-      stopsPlan(apiError('subscription_sharing_user_unavailable', 503))
-    ).toBe(false);
-    expect(stopsPlan(apiError('rate_limit_exceeded', 429))).toBe(false);
+  test('stop where Codex stops, and pass the rest to retry', () => {
+    expect(stopsPlan(apiError({ type: USAGE_LIMIT }, 429))).toBe(true);
+    expect(stopsPlan(apiError({ type: NOT_INCLUDED }, 403))).toBe(true);
+    expect(stopsPlan(apiError({ code: 'insufficient_quota' }, 429))).toBe(true);
+    expect(stopsPlan(apiError({ type: 'server_is_overloaded' }, 503))).toBe(
+      false
+    );
+    expect(stopsPlan(apiError({ code: 'rate_limit_exceeded' }, 429))).toBe(
+      false
+    );
     const retried = new RetryError({
       message: 'Failed after 3 attempts',
       reason: 'maxRetriesExceeded',
-      errors: [apiError(USAGE_LIMIT, 429)],
+      errors: [apiError({ type: USAGE_LIMIT }, 429)],
     });
     expect(planErrorCode(retried)).toBe(USAGE_LIMIT);
   });
 
   test('read as what the user can do about them', () => {
-    expect(
-      describeFailure(apiError('subscription_sharing_user_not_eligible', 403))
-        .code
-    ).toBe('plan-unavailable');
-    expect(
-      describeFailure(apiError('subscription_sharing_invalid_user', 401)).code
-    ).toBe('signed-out');
-    expect(describeFailure(apiError('chatpass_v2_unknown', 400))).toEqual({
-      code: 'other',
-      message: 'refused (chatpass_v2_unknown)',
-      status: 400,
+    expect(describeFailure(apiError({ type: NOT_INCLUDED }, 403))).toEqual({
+      code: 'plan-unavailable',
+      message: `refused (${NOT_INCLUDED})`,
+      status: 403,
     });
+    expect(
+      describeFailure(apiError({ code: 'credit_balance_exhausted' }, 429)).code
+    ).toBe('usage-limit');
+    expect(describeFailure(apiError({ type: 'invalid_request' }, 400))).toEqual(
+      { code: 'other', message: 'refused', status: 400 }
+    );
   });
 
   test('a sign-in the app could not use says so', () => {
     const failed = (failure: ConstructorParameters<typeof AiFetchError>[0]) =>
       describeFailure(new AiFetchError(failure));
     expect(failed({ kind: 'signed-out' }).code).toBe('signed-out');
-    expect(failed({ kind: 'plan-disabled' }).code).toBe('plan-disabled');
     expect(
       failed({ kind: 'sign-in-failed', code: 'invalid_grant', message: null })
     ).toEqual({ code: 'renew-failed', message: 'invalid_grant' });
@@ -280,39 +308,81 @@ describe('plan errors', () => {
 });
 
 describe('ChatGPT models', () => {
-  test('keep the listed ones in the order given, with their names', () => {
+  test('keep the listed ones by priority, with what Codex says of them', () => {
     expect(
       parseChatGptModels({
         models: [
-          { slug: 'gpt-5.5', display_name: 'GPT-5.5', visibility: 'list' },
+          {
+            slug: 'gpt-5.5',
+            display_name: 'GPT-5.5',
+            visibility: 'list',
+            priority: 13,
+            context_window: 272000,
+            input_modalities: ['text', 'image'],
+          },
           { slug: 'gpt-hidden', display_name: 'Hidden', visibility: 'hide' },
-          { slug: 'gpt-5.5-mini', visibility: 'list' },
+          { slug: 'gpt-6-sol', visibility: 'list', priority: 3 },
           { display_name: 'No slug', visibility: 'list' },
         ],
       })
     ).toEqual([
-      { id: 'gpt-5.5', name: 'GPT-5.5' },
-      { id: 'gpt-5.5-mini', name: undefined },
+      {
+        id: 'gpt-6-sol',
+        name: undefined,
+        contextWindow: undefined,
+        vision: undefined,
+        tools: true,
+        reasoning: true,
+      },
+      {
+        id: 'gpt-5.5',
+        name: 'GPT-5.5',
+        contextWindow: 272000,
+        vision: true,
+        tools: true,
+        reasoning: true,
+      },
     ]);
     expect(parseChatGptModels({ data: [{ id: 'gpt-5' }] })).toEqual([]);
   });
 
-  test('come from the plan’s own list', async () => {
-    const seen: string[] = [];
-    const fetch = (async (input: RequestInfo | URL) => {
+  /** Answers the model list with `status` and `body`, keeping the addresses. */
+  const answering = (status: number, body: object, seen: string[]) =>
+    (async (input: RequestInfo | URL) => {
       seen.push(String(input));
-      return new Response(
-        JSON.stringify({
-          models: [
-            { slug: 'gpt-5.5', display_name: 'GPT-5.5', visibility: 'list' },
-          ],
-        }),
-        { headers: { 'content-type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
     }) as typeof globalThis.fetch;
-    expect(await listModels(chatgpt, fetch)).toEqual([
+
+  test('come from Codex’s list for the account', async () => {
+    const seen: string[] = [];
+    const fetch = answering(
+      200,
+      {
+        models: [
+          { slug: 'gpt-5.5', display_name: 'GPT-5.5', visibility: 'list' },
+        ],
+      },
+      seen
+    );
+    expect(await listModels(chatgpt, fetch)).toMatchObject([
       { id: 'gpt-5.5', name: 'GPT-5.5' },
     ]);
-    expect(seen).toEqual([`${CHATGPT_BASE_URL}/models`]);
+    expect(seen).toEqual([
+      `${CHATGPT_BASE_URL}/models?client_version=${CODEX_VERSION}`,
+    ]);
+  });
+
+  test('fall back to the ones Codex ships with, unless signed out', async () => {
+    const error = { detail: 'unavailable' };
+    expect(await listModels(chatgpt, answering(503, error, []))).toEqual(
+      CODEX_MODELS
+    );
+    expect(CODEX_MODELS[0]).toMatchObject({ id: 'gpt-6.1-sol', vision: true });
+    await expect(
+      listModels(chatgpt, answering(401, error, []))
+    ).rejects.toBeInstanceOf(ModelListError);
   });
 });

@@ -34,7 +34,7 @@ export const AI_PRESETS: readonly AiPreset[] = [
     keyPage: 'https://platform.openai.com/api-keys',
   },
   {
-    // OpenAI's API, paid for with the user's ChatGPT plan.
+    // OpenAI's Codex backend, paid for with the user's ChatGPT plan.
     id: 'chatgpt',
     name: 'ChatGPT',
     kind: 'openai',

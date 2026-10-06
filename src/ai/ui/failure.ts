@@ -10,7 +10,6 @@ export const FAILURE_TEXT: Record<ChatFailureCode, string> = {
   'rate-limited': 'ai.error.rateLimited',
   network: 'ai.error.network',
   'signed-out': 'ai.error.signedOut',
-  'plan-disabled': 'ai.error.planDisabled',
   'renew-failed': 'ai.error.renewFailed',
   'usage-limit': 'ai.error.usageLimit',
   'plan-unavailable': 'ai.error.planUnavailable',
@@ -24,7 +23,6 @@ export const SETTINGS_FIXES = new Set<ChatFailureCode>([
   'key-needed',
   'unauthorized',
   'signed-out',
-  'plan-disabled',
   'renew-failed',
 ]);
 
@@ -37,5 +35,4 @@ export const SELF_EXPLAINED = new Set<ChatFailureCode>([
   'not-connected',
   'key-needed',
   'signed-out',
-  'plan-disabled',
 ]);

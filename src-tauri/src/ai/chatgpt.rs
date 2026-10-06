@@ -1,25 +1,25 @@
-//! Sign in with ChatGPT: a service that signs in with a ChatGPT account uses
-//! the user's ChatGPT plan in place of an API key.
+//! Sign in with ChatGPT: a service signed in to a ChatGPT account sends its
+//! requests to OpenAI's Codex backend, paid for by the user's ChatGPT plan
+//! in place of an API key.
 //!
-//! Each service holds a registration of its own: the client id OpenAI issued
-//! when the user first approved NyaMark for that account, and the tokens of
-//! the last sign-in. They are kept in the credential store beside the keys,
-//! and like the keys never reach the webview: a request through `http.rs`
-//! gets the access token here, renewed as it runs out.
+//! The sign-in is the one the Codex CLI makes, as Cherry Studio and other
+//! open-source apps make it: OpenAI's own Codex client, which a workspace
+//! that keeps third-party apps out still lets in. OAuth with PKCE in the
+//! system browser comes back to a listener on 127.0.0.1, at a port OpenAI
+//! registered for that client.
 //!
-//! The flow is the one OpenAI describes for open-source apps
-//! (developers.openai.com/siwc): OAuth with PKCE in the system browser, which
-//! comes back to a listener on 127.0.0.1, then the ID token checked against
-//! OpenAI's published keys.
+//! The tokens are kept in the credential store beside the keys, and like the
+//! keys never reach the webview: a request through `http.rs` gets them here,
+//! renewed as they run out, and they go to the Codex backend alone.
 
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     convert::Infallible,
     future::Future,
+    io::ErrorKind,
     net::Ipv4Addr,
     pin::Pin,
-    str::FromStr,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex, PoisonError,
@@ -27,6 +27,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::{
@@ -37,18 +38,17 @@ use hyper::{
     Method, Request, Response, StatusCode,
 };
 use hyper_util::rt::{TokioIo, TokioTimer};
-use jsonwebtoken::{jwk::JwkSet, Algorithm, DecodingKey, Validation};
 use oauth2::{
     basic::{
         BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse,
         BasicTokenType,
     },
-    AuthUrl, AuthorizationCode, ClientId, CsrfToken, EndpointMaybeSet, EndpointNotSet, EndpointSet,
-    ExtraTokenFields, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, RefreshToken,
-    RequestTokenError, RevocationUrl, Scope, StandardRevocableToken, StandardTokenResponse,
-    TokenResponse, TokenUrl,
+    AccessToken, AuthUrl, AuthorizationCode, ClientId, CsrfToken, EndpointNotSet, EndpointSet,
+    PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, RefreshToken, RequestTokenError, Scope,
+    StandardRevocableToken, TokenResponse, TokenUrl,
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::{AppHandle, Manager, Runtime, Window};
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::{mpsc, oneshot, OwnedMutexGuard};
@@ -61,47 +61,48 @@ use super::{
 };
 
 /// OpenAI's sign-in service.
-pub const ISSUER: &str = "https://auth.openai.com";
-/// The API the tokens are for, and the only place they are sent.
-pub const RESOURCE: &str = "https://api.openai.com/v1";
-/// The client id a first sign-in to an account registers through. OpenAI
-/// answers it with the id issued to NyaMark for that account.
-const DYNAMIC_CLIENT: &str = "dynamic_agent_client";
-/// The name OpenAI shows the user for NyaMark, which they may change.
-const AGENT_NAME: &str = "NyaMark";
-/// Granted when the user lets NyaMark use their ChatGPT plan.
-const PLAN_SCOPE: &str = "chatgpt.tokens.use.direct";
-const SCOPES: [&str; 6] = [
-    "openid",
-    "profile",
-    "email",
-    "offline_access",
-    "resource.invoke",
-    PLAN_SCOPE,
-];
+const ISSUER: &str = "https://auth.openai.com";
+/// The Codex CLI's client.
+const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
+/// Where a signed-in service's requests go, and the only place its tokens
+/// are sent.
+pub const BACKEND: &str = "https://chatgpt.com/backend-api/codex";
+const SCOPES: [&str; 4] = ["openid", "profile", "email", "offline_access"];
+/// The ports OpenAI takes the Codex client's callbacks on: Codex's own, then
+/// the one Codex falls back to while another program holds it.
+const PORTS: [u16; 2] = [1455, 1457];
 const CALLBACK_PATH: &str = "/auth/callback";
+/// Tries at a port, a moment apart: a sign-in just stopped lets go of it
+/// once its listener winds down.
+const BIND_TRIES: u32 = 5;
+/// How each client of the backend names itself to it; Codex is
+/// `codex_cli_rs`.
+const ORIGINATOR: &str = "nyamark";
+/// Headers this module sets on a request to the backend, which the page's
+/// may not stand in for.
+const BACKEND_HEADERS: [&str; 4] = [
+    "authorization",
+    "chatgpt-account-id",
+    "originator",
+    "x-openai-fedramp",
+];
 /// How long the browser may take to come back.
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(600);
-/// An access token this close to its end is renewed before it is sent.
-const REFRESH_MARGIN: u64 = 120;
-/// Clock difference allowed when checking an ID token's times.
-const LEEWAY: u64 = 5;
-/// Tries at ending a session at OpenAI before signing out without it.
+/// An access token this close to its end is renewed before it is sent, as
+/// Codex does.
+const REFRESH_MARGIN: u64 = 300;
+/// Tries at ending a session at OpenAI before signing out without it, each
+/// given as long as Codex gives its one.
 const REVOKE_TRIES: u32 = 4;
-/// Refresh errors after which the refresh token is no use: the user has to
-/// sign in again.
-const ENDED: [&str; 6] = [
+const REVOKE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Refresh errors after which the refresh token is no use, as Codex reads
+/// them: the user has to sign in again. So does a 401.
+const ENDED: [&str; 4] = [
     "invalid_grant",
-    "invalid_refresh_token",
-    "token_expired",
     "refresh_token_expired",
-    "refresh_token_invalidated",
     "refresh_token_reused",
+    "refresh_token_invalidated",
 ];
-/// The store account holding the id of this install, which OpenAI asks for
-/// with every sign-in. A profile id has no dot, so no service's account
-/// can take this name.
-const HOST_ACCOUNT: &str = "chatgpt.host";
 const PROFILE_ACCOUNT: &str = "chatgpt-";
 
 /// Why signing in or getting a token failed, as the page reads it:
@@ -118,30 +119,21 @@ pub enum ChatGptError {
     SignedOut,
     /// The sign-in ended at OpenAI (the refresh token no longer works).
     SignInAgain,
-    /// Signed in without letting NyaMark use the ChatGPT plan.
-    PlanDisabled,
     /// The user declined in the browser.
     AccessDenied,
-    /// Another sign-in started in the window, or it was stopped.
+    /// The account's workspace has not let its members use Codex.
+    NoCodex,
+    /// Another sign-in started, or it was stopped.
     Cancelled,
     TimedOut,
-    /// The browser signed in to another account than the service's.
-    AccountMismatch,
-    /// A first sign-in came back without the client id OpenAI issues.
-    RegistrationIncomplete,
-    /// The ID token did not hold up.
-    IdToken {
-        message: String,
-    },
+    /// Other programs hold every port OpenAI comes back to: a sign-in to
+    /// Codex itself, say.
+    PortsBusy,
     /// OpenAI answered with an OAuth error.
     #[serde(rename = "oauth")]
     OAuth {
         code: String,
         message: Option<String>,
-    },
-    /// OpenAI's sign-in configuration could not be read.
-    Discovery {
-        message: String,
     },
     Network {
         message: String,
@@ -189,90 +181,48 @@ impl From<tauri::Error> for ChatGptError {
     }
 }
 
-fn network(error: &reqwest::Error) -> ChatGptError {
-    ChatGptError::Network {
-        message: http::describe(error),
-    }
-}
-
-/// What a service keeps of its ChatGPT account. A registration outlives
-/// signing out; only its tokens go.
+/// What a service keeps of its ChatGPT sign-in.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(test, derive(Debug))]
 struct Credentials {
-    issuer: String,
-    /// Issued by OpenAI for this account on its first sign-in.
-    client_id: String,
-    /// The account, from the first verified ID token.
+    /// The ChatGPT account the tokens act for, a workspace or the user's
+    /// own, which the backend is told with each request.
     #[serde(default)]
-    subject: Option<String>,
+    account_id: Option<String>,
+    /// The account is on ChatGPT's FedRAMP service, which the backend is
+    /// told as well.
+    #[serde(default)]
+    fedramp: bool,
     #[serde(default)]
     email: Option<String>,
-    #[serde(default)]
-    name: Option<String>,
-    /// The last ID token, which tells OpenAI the account on the next
-    /// sign-in. Dropped on signing out.
-    #[serde(default)]
-    id_token: Option<String>,
-    #[serde(default)]
-    session: Option<Session>,
-}
-
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(test, derive(Debug))]
-struct Session {
     access_token: String,
     #[serde(default)]
     refresh_token: Option<String>,
     /// Unix seconds.
     #[serde(default)]
     expires_at: Option<u64>,
-    #[serde(default)]
-    scopes: Vec<String>,
 }
 
-impl Session {
-    fn plan_enabled(&self) -> bool {
-        self.scopes.iter().any(|scope| scope == PLAN_SCOPE)
-    }
-}
-
-/// What the settings show of a service's ChatGPT account.
+/// What the settings show of a service's ChatGPT sign-in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatGptStatus {
-    /// Approved for an account once, so signing in again skips that step.
-    pub registered: bool,
     pub signed_in: bool,
-    pub plan_enabled: bool,
     pub email: Option<String>,
-    pub name: Option<String>,
 }
 
 fn status_of(credentials: Option<&Credentials>) -> ChatGptStatus {
-    let session = credentials.and_then(|credentials| credentials.session.as_ref());
     ChatGptStatus {
-        registered: credentials.is_some(),
-        signed_in: session.is_some(),
-        plan_enabled: session.is_some_and(Session::plan_enabled),
+        signed_in: credentials.is_some(),
         email: credentials.and_then(|credentials| credentials.email.clone()),
-        name: credentials.and_then(|credentials| credentials.name.clone()),
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatGptSignIn {
-    pub status: ChatGptStatus,
-    /// A first sign-in that may use the plan, which the page welcomes.
-    pub welcome: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatGptSignOut {
     /// OpenAI confirmed the session ended. When it did not, the user can
-    /// still disconnect NyaMark in ChatGPT's settings.
+    /// still sign out of their devices in ChatGPT's settings.
     pub revoked: bool,
     pub status: ChatGptStatus,
 }
@@ -312,17 +262,62 @@ fn escape_html(text: &str) -> String {
     escaped
 }
 
-/// OpenAI's published sign-in configuration.
-#[derive(Debug, Deserialize)]
-struct Discovery {
-    issuer: String,
-    authorization_endpoint: String,
-    token_endpoint: String,
+/// The claims of OpenAI's tokens NyaMark reads.
+#[derive(Debug, Default, Deserialize)]
+struct Claims {
     #[serde(default)]
-    revocation_endpoint: Option<String>,
-    jwks_uri: String,
+    email: Option<String>,
     #[serde(default)]
-    id_token_signing_alg_values_supported: Vec<String>,
+    exp: Option<u64>,
+    #[serde(rename = "https://api.openai.com/profile", default)]
+    profile: Option<ProfileClaims>,
+    #[serde(rename = "https://api.openai.com/auth", default)]
+    auth: Option<AuthClaims>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct ProfileClaims {
+    #[serde(default)]
+    email: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct AuthClaims {
+    #[serde(default)]
+    chatgpt_account_id: Option<String>,
+    #[serde(default)]
+    chatgpt_account_is_fedramp: bool,
+}
+
+/// The claims of a token, unverified: it came straight from OpenAI's token
+/// endpoint over TLS, which OpenID Connect lets stand in for checking its
+/// signature (Core 3.1.3.7). None for one that does not read as a JWT.
+fn claims_of(token: &str) -> Option<Claims> {
+    let payload = token.split('.').nth(1)?;
+    serde_json::from_slice(&URL_SAFE_NO_PAD.decode(payload).ok()?).ok()
+}
+
+impl Claims {
+    fn account_id(&self) -> Option<String> {
+        self.auth
+            .as_ref()
+            .and_then(|auth| auth.chatgpt_account_id.clone())
+            .filter(|id| !id.is_empty())
+    }
+
+    fn fedramp(&self) -> bool {
+        self.auth
+            .as_ref()
+            .is_some_and(|auth| auth.chatgpt_account_is_fedramp)
+    }
+
+    fn email(&self) -> Option<String> {
+        self.email.clone().or_else(|| {
+            self.profile
+                .as_ref()
+                .and_then(|profile| profile.email.clone())
+        })
+    }
 }
 
 /// One service's credentials, read once and then kept here. Its lock also
@@ -335,23 +330,27 @@ struct Slot {
 
 type SlotLock = Arc<tokio::sync::Mutex<Slot>>;
 
+/// The sign-in a window is waiting on.
+struct Pending {
+    window: String,
+    id: u64,
+    cancel: CancellationToken,
+}
+
 /// Sign-in state shared by the windows.
 #[derive(Default)]
 pub struct ChatGpt {
-    discovery: tokio::sync::Mutex<Option<Arc<Discovery>>>,
-    keys: tokio::sync::Mutex<Option<Arc<JwkSet>>>,
-    host: tokio::sync::Mutex<Option<String>>,
-    profiles: Mutex<HashMap<String, SlotLock>>,
-    /// The sign-in each window is waiting on, so a new one or a closed
-    /// window stops it.
-    pending: Mutex<HashMap<String, (u64, CancellationToken)>>,
+    profiles: Mutex<std::collections::HashMap<String, SlotLock>>,
+    /// The sign-in under way. The browser comes back to one port, so there
+    /// is only ever one: a new one, or its window closing, stops it.
+    pending: Mutex<Option<Pending>>,
     attempts: AtomicU64,
     /// Services that signed in from a settings dialog not yet confirmed, by
     /// window: cancelling the dialog signs them out again.
     unconfirmed: Mutex<HashSet<(String, String)>>,
 }
 
-/// The maps here are replaced an entry at a time, so one a panic left
+/// The state here is replaced a value at a time, so state a panic left
 /// poisoned is still sound.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
@@ -368,12 +367,10 @@ fn now() -> u64 {
 #[derive(Clone)]
 struct Shelf {
     store: Arc<dyn SecretStore>,
-    issuer: String,
 }
 
 impl Shelf {
-    /// The service's credentials from this issuer, read from the store the
-    /// first time.
+    /// The service's credentials, read from the store the first time.
     async fn load(
         &self,
         profile: &str,
@@ -388,10 +385,7 @@ impl Shelf {
             slot.credentials = stored.and_then(|stored| secrets::decode_record(&stored).ok());
             slot.read = true;
         }
-        Ok(slot
-            .credentials
-            .clone()
-            .filter(|credentials| credentials.issuer == self.issuer))
+        Ok(slot.credentials.clone())
     }
 
     async fn save(
@@ -432,7 +426,6 @@ impl<'a> Vault<'a> {
             state: app.state::<ChatGpt>().inner(),
             shelf: Shelf {
                 store: Arc::from(store),
-                issuer: ISSUER.into(),
             },
         })
     }
@@ -452,41 +445,60 @@ impl<'a> Vault<'a> {
             self.shelf.load(profile, &mut slot).await?.as_ref(),
         ))
     }
-
-    /// This install's id, made on first use and kept from then on.
-    async fn host_id(&self) -> Result<String, ChatGptError> {
-        let mut host = self.state.host.lock().await;
-        if let Some(id) = host.as_ref() {
-            return Ok(id.clone());
-        }
-        let store = self.shelf.store.clone();
-        let id = blocking(move || {
-            let saved = store
-                .get(HOST_ACCOUNT)?
-                .and_then(|stored| secrets::decode_record::<String>(&stored).ok());
-            if let Some(id) = saved {
-                return Ok(id);
-            }
-            let id = format!("urn:uuid:{}", uuid::Uuid::new_v4());
-            store.set(HOST_ACCOUNT, &secrets::encode_record(&id)?)?;
-            Ok::<_, ChatGptError>(id)
-        })
-        .await?;
-        *host = Some(id.clone());
-        Ok(id)
-    }
 }
 
-/// The ID token, which the token endpoint returns beside the OAuth fields.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct IdTokenField {
+/// What the token endpoint answers. Codex reads no `token_type`, and
+/// OpenAI's tokens are bearer tokens, so an answer without one still counts.
+#[derive(Debug, Serialize, Deserialize)]
+struct TokenReply {
+    access_token: AccessToken,
+    #[serde(skip, default = "bearer")]
+    token_type: BasicTokenType,
+    #[serde(default)]
+    expires_in: Option<u64>,
+    #[serde(default)]
+    refresh_token: Option<RefreshToken>,
     #[serde(default)]
     id_token: Option<String>,
 }
 
-impl ExtraTokenFields for IdTokenField {}
+fn bearer() -> BasicTokenType {
+    BasicTokenType::Bearer
+}
 
-type TokenReply = StandardTokenResponse<IdTokenField, BasicTokenType>;
+impl TokenResponse for TokenReply {
+    type TokenType = BasicTokenType;
+
+    fn access_token(&self) -> &AccessToken {
+        &self.access_token
+    }
+
+    fn token_type(&self) -> &BasicTokenType {
+        &self.token_type
+    }
+
+    fn expires_in(&self) -> Option<Duration> {
+        self.expires_in.map(Duration::from_secs)
+    }
+
+    fn refresh_token(&self) -> Option<&RefreshToken> {
+        self.refresh_token.as_ref()
+    }
+
+    fn scopes(&self) -> Option<&Vec<Scope>> {
+        None
+    }
+}
+
+impl TokenReply {
+    /// When the access token runs out: as the answer says, else as the
+    /// token itself says.
+    fn expires_at(&self) -> Option<u64> {
+        self.expires_in
+            .map(|left| now() + left)
+            .or_else(|| claims_of(self.access_token.secret()).and_then(|claims| claims.exp))
+    }
+}
 
 type OAuthClient = oauth2::Client<
     BasicErrorResponse,
@@ -497,24 +509,17 @@ type OAuthClient = oauth2::Client<
     EndpointSet,
     EndpointNotSet,
     EndpointNotSet,
-    EndpointMaybeSet,
+    EndpointNotSet,
     EndpointSet,
 >;
 
-fn oauth_client(discovery: &Discovery, client_id: &str) -> Result<OAuthClient, ChatGptError> {
-    let bad = |error: oauth2::url::ParseError| ChatGptError::Discovery {
+fn oauth_client(issuer: &str) -> Result<OAuthClient, ChatGptError> {
+    let bad = |error: oauth2::url::ParseError| ChatGptError::Network {
         message: error.to_string(),
     };
-    let revocation = discovery
-        .revocation_endpoint
-        .clone()
-        .map(RevocationUrl::new)
-        .transpose()
-        .map_err(bad)?;
-    Ok(oauth2::Client::new(ClientId::new(client_id.into()))
-        .set_auth_uri(AuthUrl::new(discovery.authorization_endpoint.clone()).map_err(bad)?)
-        .set_token_uri(TokenUrl::new(discovery.token_endpoint.clone()).map_err(bad)?)
-        .set_revocation_url_option(revocation))
+    Ok(oauth2::Client::new(ClientId::new(CLIENT_ID.into()))
+        .set_auth_uri(AuthUrl::new(format!("{issuer}/oauth/authorize")).map_err(bad)?)
+        .set_token_uri(TokenUrl::new(format!("{issuer}/oauth/token")).map_err(bad)?))
 }
 
 /// Why a request to the sign-in service failed before OpenAI could answer
@@ -523,6 +528,9 @@ fn oauth_client(discovery: &Discovery, client_id: &str) -> Result<OAuthClient, C
 enum HttpFailure {
     Network(String),
     Status(u16),
+    /// A 401, with its body: whatever it says, the tokens or the client
+    /// are no longer let in.
+    Unauthorized(Vec<u8>),
 }
 
 impl std::fmt::Display for HttpFailure {
@@ -530,6 +538,7 @@ impl std::fmt::Display for HttpFailure {
         match self {
             Self::Network(message) => f.write_str(message),
             Self::Status(status) => write!(f, "HTTP {status}"),
+            Self::Unauthorized(_) => f.write_str("HTTP 401"),
         }
     }
 }
@@ -563,35 +572,46 @@ async fn send_oauth(
     }
     let headers = response.headers().clone();
     let body = response.bytes().await.map_err(failed)?;
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return Err(HttpFailure::Unauthorized(body.to_vec()));
+    }
     let mut reply = oauth2::HttpResponse::new(body.to_vec());
     *reply.status_mut() = status;
     *reply.headers_mut() = headers;
     Ok(reply)
 }
 
-/// OpenAI's own error shape, which some of its sign-in errors take in place
-/// of OAuth's.
-#[derive(Deserialize)]
-struct OpenAiError {
-    error: OpenAiErrorBody,
+/// The code and message of an error the sign-in service answered with, in
+/// the shapes it takes besides OAuth's: OpenAI's own, or a bare code.
+fn error_detail(body: &[u8]) -> Option<(String, Option<String>)> {
+    let json: Value = serde_json::from_slice(body).ok()?;
+    let text = |value: Option<&Value>| {
+        value
+            .and_then(Value::as_str)
+            .filter(|text| !text.is_empty())
+            .map(String::from)
+    };
+    let code = text(json.get("error"))
+        .or_else(|| text(json.pointer("/error/code")))
+        .or_else(|| text(json.get("code")))?;
+    let message =
+        text(json.get("error_description")).or_else(|| text(json.pointer("/error/message")));
+    Some((code, message))
 }
 
-#[derive(Deserialize)]
-struct OpenAiErrorBody {
-    #[serde(default)]
-    code: Option<String>,
-    #[serde(default, rename = "type")]
-    kind: Option<String>,
-    #[serde(default)]
-    message: Option<String>,
-}
+type TokenError = RequestTokenError<HttpFailure, BasicErrorResponse>;
 
-fn oauth_failure(error: RequestTokenError<HttpFailure, BasicErrorResponse>) -> ChatGptError {
+fn oauth_failure(error: TokenError) -> ChatGptError {
     let invalid = |message: Option<String>| ChatGptError::OAuth {
         code: "invalid_response".into(),
         message,
     };
     match error {
+        RequestTokenError::Request(HttpFailure::Unauthorized(body)) => {
+            let (code, message) =
+                error_detail(&body).unwrap_or_else(|| ("unauthorized".into(), None));
+            ChatGptError::OAuth { code, message }
+        }
         RequestTokenError::Request(failure) => ChatGptError::Network {
             message: failure.to_string(),
         },
@@ -599,190 +619,68 @@ fn oauth_failure(error: RequestTokenError<HttpFailure, BasicErrorResponse>) -> C
             code: response.error().as_ref().to_string(),
             message: response.error_description().cloned(),
         },
-        RequestTokenError::Parse(_, body) => match serde_json::from_slice::<OpenAiError>(&body) {
-            Ok(OpenAiError { error }) => match error.code.or(error.kind) {
-                Some(code) => ChatGptError::OAuth {
-                    code,
-                    message: error.message,
-                },
-                None => invalid(error.message),
-            },
-            Err(_) => invalid(None),
+        RequestTokenError::Parse(_, body) => match error_detail(&body) {
+            Some((code, message)) => ChatGptError::OAuth { code, message },
+            None => invalid(None),
         },
         RequestTokenError::Other(message) => invalid(Some(message)),
     }
 }
 
-/// The claims of an ID token NyaMark reads.
-#[derive(Debug, Deserialize)]
-struct IdClaims {
-    sub: String,
-    #[serde(default)]
-    nonce: Option<String>,
-    #[serde(default)]
-    email: Option<String>,
-    #[serde(default)]
-    name: Option<String>,
-    iat: u64,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum Rejected {
-    /// Signed with a key not among those fetched: OpenAI may have rotated
-    /// its keys since.
-    UnknownKey,
-    Invalid(String),
-}
-
-fn verify_id_token(
-    token: &str,
-    discovery: &Discovery,
-    keys: &JwkSet,
-    client_id: &str,
-    nonce: &str,
-) -> Result<IdClaims, Rejected> {
-    let invalid = |error: jsonwebtoken::errors::Error| Rejected::Invalid(error.to_string());
-    let header = jsonwebtoken::decode_header(token).map_err(invalid)?;
-    let allowed: Vec<&str> = if discovery.id_token_signing_alg_values_supported.is_empty() {
-        vec!["RS256"]
-    } else {
-        discovery
-            .id_token_signing_alg_values_supported
-            .iter()
-            .map(String::as_str)
-            .collect()
-    };
-    // A shared-secret algorithm would need a secret, which NyaMark, a
-    // public client, does not have.
-    let permitted = allowed
-        .iter()
-        .filter_map(|name| Algorithm::from_str(name).ok())
-        .filter(|algorithm| {
-            !matches!(
-                algorithm,
-                Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512
-            )
-        })
-        .any(|algorithm| algorithm == header.alg);
-    if !permitted {
-        return Err(Rejected::Invalid(format!(
-            "algorithm {:?} not allowed",
-            header.alg
-        )));
-    }
-    let jwk = match &header.kid {
-        Some(kid) => keys.find(kid).ok_or(Rejected::UnknownKey)?,
-        None => match keys.keys.as_slice() {
-            [only] => only,
-            _ => return Err(Rejected::UnknownKey),
-        },
-    };
-    if let Some(algorithm) = &jwk.common.key_algorithm {
-        if Algorithm::from_str(&algorithm.to_string()).ok() != Some(header.alg) {
-            return Err(Rejected::Invalid(format!(
-                "key is for {algorithm}, token uses {:?}",
-                header.alg
-            )));
+/// Whether a refresh failed for good: the user has to sign in again.
+fn ended(error: &TokenError) -> bool {
+    match error {
+        RequestTokenError::Request(HttpFailure::Unauthorized(_)) => true,
+        RequestTokenError::ServerResponse(response) => ENDED.contains(&response.error().as_ref()),
+        RequestTokenError::Parse(_, body) => {
+            error_detail(body).is_some_and(|(code, _)| ENDED.contains(&code.as_str()))
         }
+        _ => false,
     }
-    let key = DecodingKey::from_jwk(jwk).map_err(invalid)?;
-    let mut validation = Validation::new(header.alg);
-    validation.set_issuer(&[&discovery.issuer]);
-    validation.set_audience(&[client_id]);
-    validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
-    validation.leeway = LEEWAY;
-    let claims = jsonwebtoken::decode::<IdClaims>(token, &key, &validation)
-        .map_err(invalid)?
-        .claims;
-    if claims.iat > now() + LEEWAY {
-        return Err(Rejected::Invalid("issued in the future".into()));
-    }
-    let nonce_matches = claims
-        .nonce
-        .as_ref()
-        .is_some_and(|claimed| CsrfToken::new(claimed.clone()) == CsrfToken::new(nonce.into()));
-    if !nonce_matches {
-        return Err(Rejected::Invalid("nonce does not match".into()));
-    }
-    Ok(claims)
 }
 
 /// One trip through the browser.
 struct Attempt {
     url: oauth2::url::Url,
     state: CsrfToken,
-    nonce: String,
     verifier: String,
     redirect: RedirectUrl,
-    /// The issued client id it signs in with; none for a first sign-in,
-    /// whose id comes back with the browser.
-    client_id: Option<String>,
-}
-
-/// A callback that belongs to the attempt.
-struct Accepted {
-    code: String,
-    client_id: String,
-    /// The callback issued the client id: a first sign-in.
-    registered_now: bool,
-    scope: Option<String>,
 }
 
 impl Attempt {
-    fn new(
-        discovery: &Discovery,
-        registration: Option<&Credentials>,
-        host: &str,
-        consent: bool,
-        port: u16,
-    ) -> Result<Self, ChatGptError> {
-        let client_id = registration.map(|registration| registration.client_id.clone());
-        let client = oauth_client(discovery, client_id.as_deref().unwrap_or(DYNAMIC_CLIENT))?;
-        // Only the port may change between sign-ins; OpenAI holds to the
-        // rest, `127.0.0.1` included.
+    /// `fresh` has the user sign in again, so they can pick another account
+    /// than the one the browser is signed in to.
+    fn new(issuer: &str, port: u16, fresh: bool) -> Result<Self, ChatGptError> {
+        let client = oauth_client(issuer)?;
+        // As the Codex CLI has it: OpenAI holds to the address exactly.
         let redirect = RedirectUrl::new(format!("http://127.0.0.1:{port}{CALLBACK_PATH}"))
             .map_err(|error| ChatGptError::Network {
                 message: error.to_string(),
             })?;
         let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
-        let nonce = CsrfToken::new_random().secret().clone();
         let mut request = client
             .authorize_url(CsrfToken::new_random)
             .add_scopes(SCOPES.iter().map(|scope| Scope::new((*scope).into())))
             .set_pkce_challenge(challenge)
             .set_redirect_uri(Cow::Borrowed(&redirect))
-            .add_extra_param("resource", RESOURCE)
-            .add_extra_param("nonce", nonce.clone())
-            .add_extra_param("ext_agent_host_id", host.to_string());
-        match registration {
-            None => request = request.add_extra_param("agent_name_hint", AGENT_NAME),
-            Some(registration) => {
-                if let Some(hint) = &registration.id_token {
-                    request = request.add_extra_param("id_token_hint", hint.clone());
-                }
-                if let Some(email) = &registration.email {
-                    request = request.add_extra_param("login_hint", email.clone());
-                }
-            }
-        }
-        // Asks again for what the user declined before, instead of passing
-        // straight back as an approved sign-in does.
-        if consent {
-            request = request.add_extra_param("prompt", "consent");
+            // The account's workspaces in the ID token, and the sign-in page
+            // Codex gets.
+            .add_extra_param("id_token_add_organizations", "true")
+            .add_extra_param("codex_cli_simplified_flow", "true");
+        if fresh {
+            request = request.add_extra_param("prompt", "login");
         }
         let (url, state) = request.url();
         Ok(Self {
             url,
             state,
-            nonce,
             verifier: verifier.secret().clone(),
             redirect,
-            client_id,
         })
     }
 
-    /// What a callback brought, if it carries this attempt's `state`.
-    fn accept(&self, query: &[(String, String)]) -> Option<Result<Accepted, ChatGptError>> {
+    /// The code a callback brought, if it carries this attempt's `state`.
+    fn accept(&self, query: &[(String, String)]) -> Option<Result<String, ChatGptError>> {
         let get = |name: &str| {
             query
                 .iter()
@@ -793,38 +691,35 @@ impl Attempt {
             return None;
         }
         if let Some(error) = get("error") {
-            return Some(Err(if error == "access_denied" {
-                ChatGptError::AccessDenied
-            } else {
-                ChatGptError::OAuth {
-                    code: error.into(),
-                    message: get("error_description").map(Into::into),
+            let description = get("error_description");
+            return Some(Err(match error {
+                // OpenAI says so in the description alone, where Codex reads
+                // it (`is_missing_codex_entitlement_error`).
+                "access_denied"
+                    if description.is_some_and(|description| {
+                        description
+                            .to_ascii_lowercase()
+                            .contains("missing_codex_entitlement")
+                    }) =>
+                {
+                    ChatGptError::NoCodex
                 }
+                "access_denied" => ChatGptError::AccessDenied,
+                _ => ChatGptError::OAuth {
+                    code: error.into(),
+                    message: description.map(Into::into),
+                },
             }));
         }
-        let Some(code) = get("code") else {
-            return Some(Err(ChatGptError::OAuth {
-                code: "invalid_response".into(),
-                message: None,
-            }));
-        };
-        let issued = get("client_id").filter(|id| !id.is_empty());
-        let (client_id, registered_now) = match (&self.client_id, issued) {
-            (None, Some(id)) if id != DYNAMIC_CLIENT => (id.to_string(), true),
-            (None, _) => return Some(Err(ChatGptError::RegistrationIncomplete)),
-            // The browser went through another registration than the one
-            // asked for; it may not replace this one.
-            (Some(ours), Some(id)) if id != ours.as_str() => {
-                return Some(Err(ChatGptError::AccountMismatch))
-            }
-            (Some(ours), _) => (ours.clone(), false),
-        };
-        Some(Ok(Accepted {
-            code: code.into(),
-            client_id,
-            registered_now,
-            scope: get("scope").map(Into::into),
-        }))
+        Some(
+            get("code")
+                .filter(|code| !code.is_empty())
+                .map(Into::into)
+                .ok_or(ChatGptError::OAuth {
+                    code: "invalid_response".into(),
+                    message: None,
+                }),
+        )
     }
 }
 
@@ -848,7 +743,7 @@ impl Callbacks {
         &mut self,
         attempt: &Attempt,
         page: &CallbackPage,
-    ) -> Result<(Accepted, oneshot::Sender<String>), ChatGptError> {
+    ) -> Result<(String, oneshot::Sender<String>), ChatGptError> {
         loop {
             let arrival = self.arrivals.recv().await.ok_or(ChatGptError::Cancelled)?;
             match attempt.accept(&arrival.query) {
@@ -859,20 +754,35 @@ impl Callbacks {
                     let _ = arrival.reply.send(page.html(false));
                     return Err(error);
                 }
-                Some(Ok(accepted)) => return Ok((accepted, arrival.reply)),
+                Some(Ok(code)) => return Ok((code, arrival.reply)),
             }
         }
     }
 }
 
-async fn listen() -> Result<Callbacks, ChatGptError> {
+/// Listens on the first of `ports` free on 127.0.0.1.
+async fn listen(ports: &[u16]) -> Result<Callbacks, ChatGptError> {
     let failed = |error: std::io::Error| ChatGptError::Network {
         message: error.to_string(),
     };
-    let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-        .await
-        .map_err(failed)?;
-    let port = listener.local_addr().map_err(failed)?.port();
+    for &port in ports {
+        for _ in 0..BIND_TRIES {
+            match tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await {
+                Ok(listener) => {
+                    let port = listener.local_addr().map_err(failed)?.port();
+                    return Ok(serve_callbacks(listener, port));
+                }
+                Err(error) if error.kind() == ErrorKind::AddrInUse => {
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                }
+                Err(error) => return Err(failed(error)),
+            }
+        }
+    }
+    Err(ChatGptError::PortsBusy)
+}
+
+fn serve_callbacks(listener: tokio::net::TcpListener, port: u16) -> Callbacks {
     let (arrive, arrivals) = mpsc::channel(8);
     let stop = CancellationToken::new();
     let running = stop.clone();
@@ -901,11 +811,11 @@ async fn listen() -> Result<Callbacks, ChatGptError> {
             }
         }
     });
-    Ok(Callbacks {
+    Callbacks {
         port,
         arrivals,
         _stop: stop.drop_guard(),
-    })
+    }
 }
 
 async fn answer(
@@ -942,10 +852,30 @@ fn page_response(status: StatusCode, html: String) -> Response<Full<Bytes>> {
     response
 }
 
+/// What a request to the backend is sent with.
+struct Grant {
+    access_token: String,
+    account_id: Option<String>,
+    fedramp: bool,
+}
+
+impl From<&Credentials> for Grant {
+    fn from(credentials: &Credentials) -> Self {
+        Self {
+            access_token: credentials.access_token.clone(),
+            account_id: credentials.account_id.clone(),
+            fedramp: credentials.fedramp,
+        }
+    }
+}
+
 /// Signing in, and the tokens it yields, for one proxy setting.
 pub struct Service<'a> {
     vault: Vault<'a>,
     http: reqwest::Client,
+    issuer: String,
+    backend: String,
+    ports: Vec<u16>,
 }
 
 impl<'a> Service<'a> {
@@ -956,89 +886,16 @@ impl<'a> Service<'a> {
         Ok(Self {
             vault: Vault::of(app)?,
             http: http::oauth_client(app, proxy)?,
+            issuer: ISSUER.into(),
+            backend: BACKEND.into(),
+            ports: PORTS.to_vec(),
         })
     }
 
-    async fn get_json<T: DeserializeOwned>(&self, url: &str) -> Result<T, ChatGptError> {
-        let response = self
-            .http
-            .get(url)
-            .send()
-            .await
-            .map_err(|error| network(&error))?;
-        let status = response.status();
-        let body = response.bytes().await.map_err(|error| network(&error))?;
-        if !status.is_success() {
-            return Err(ChatGptError::Discovery {
-                message: format!("{url}: HTTP {status}"),
-            });
-        }
-        serde_json::from_slice(&body).map_err(|error| ChatGptError::Discovery {
-            message: format!("{url}: {error}"),
-        })
-    }
-
-    async fn discovery(&self) -> Result<Arc<Discovery>, ChatGptError> {
-        let mut cached = self.vault.state.discovery.lock().await;
-        if let Some(discovery) = cached.as_ref() {
-            return Ok(discovery.clone());
-        }
-        let issuer = &self.vault.shelf.issuer;
-        let discovery: Discovery = self
-            .get_json(&format!("{issuer}/.well-known/openid-configuration"))
-            .await?;
-        if &discovery.issuer != issuer {
-            return Err(ChatGptError::Discovery {
-                message: format!("issuer {} is not {issuer}", discovery.issuer),
-            });
-        }
-        let discovery = Arc::new(discovery);
-        *cached = Some(discovery.clone());
-        Ok(discovery)
-    }
-
-    /// OpenAI's signing keys; `fresh` fetches them again.
-    async fn keys(&self, discovery: &Discovery, fresh: bool) -> Result<Arc<JwkSet>, ChatGptError> {
-        let mut cached = self.vault.state.keys.lock().await;
-        if let Some(keys) = cached.as_ref().filter(|_| !fresh) {
-            return Ok(keys.clone());
-        }
-        let keys = Arc::new(self.get_json::<JwkSet>(&discovery.jwks_uri).await?);
-        *cached = Some(keys.clone());
-        Ok(keys)
-    }
-
-    async fn verify(
-        &self,
-        discovery: &Discovery,
-        token: &str,
-        client_id: &str,
-        nonce: &str,
-    ) -> Result<IdClaims, ChatGptError> {
-        let keys = self.keys(discovery, false).await?;
-        let verified = match verify_id_token(token, discovery, &keys, client_id, nonce) {
-            Err(Rejected::UnknownKey) => {
-                let keys = self.keys(discovery, true).await?;
-                verify_id_token(token, discovery, &keys, client_id, nonce)
-            }
-            verified => verified,
-        };
-        verified.map_err(|rejected| ChatGptError::IdToken {
-            message: match rejected {
-                Rejected::UnknownKey => "signed with an unknown key".into(),
-                Rejected::Invalid(message) => message,
-            },
-        })
-    }
-
-    /// The access token for a request of the service, renewed first when it
-    /// is about to run out, or when `rejected` names it: the API turned it
-    /// down.
-    pub async fn access_token(
-        &self,
-        profile: &str,
-        rejected: Option<&str>,
-    ) -> Result<String, ChatGptError> {
+    /// The tokens for a request of the service, renewed first when they are
+    /// about to run out, or when `rejected` names the access token: the
+    /// backend turned it down.
+    async fn grant(&self, profile: &str, rejected: Option<&str>) -> Result<Grant, ChatGptError> {
         let mut slot = self.vault.slot(profile)?.lock_owned().await;
         let credentials = self
             .vault
@@ -1046,27 +903,19 @@ impl<'a> Service<'a> {
             .load(profile, &mut slot)
             .await?
             .ok_or(ChatGptError::SignedOut)?;
-        let session = credentials
-            .session
-            .as_ref()
-            .ok_or(ChatGptError::SignedOut)?;
-        if !session.plan_enabled() {
-            return Err(ChatGptError::PlanDisabled);
-        }
-        let due = session
+        let due = credentials
             .expires_at
             .is_some_and(|at| at <= now() + REFRESH_MARGIN)
-            || rejected == Some(session.access_token.as_str());
+            || rejected == Some(credentials.access_token.as_str());
         if !due {
-            return Ok(session.access_token.clone());
+            return Ok(Grant::from(&credentials));
         }
-        let discovery = self.discovery().await?;
         // OpenAI spends the refresh token as it answers, so the answer is
         // kept even when the request that asked for it is stopped.
         tauri::async_runtime::spawn(refresh(
             self.vault.shelf.clone(),
             self.http.clone(),
-            discovery,
+            self.issuer.clone(),
             profile.to_string(),
             slot,
             credentials,
@@ -1075,32 +924,20 @@ impl<'a> Service<'a> {
     }
 
     /// Signs the service in through the browser `open` shows the address
-    /// in. `fresh` registers another account in place of the one the
-    /// service signed in with before; `consent` asks again for what the
-    /// user declined.
+    /// in. `fresh` asks the user to sign in again, for another account.
     pub async fn sign_in(
         &self,
         profile: &str,
         fresh: bool,
-        consent: bool,
         page: &CallbackPage,
         cancel: &CancellationToken,
         open: impl FnOnce(&str) -> Result<(), ChatGptError>,
-    ) -> Result<ChatGptSignIn, ChatGptError> {
-        let host = self.vault.host_id().await?;
-        let discovery = self.discovery().await?;
-        let previous = {
-            let slot = self.vault.slot(profile)?;
-            let mut slot = slot.lock().await;
-            self.vault.shelf.load(profile, &mut slot).await?
-        };
-        // Another account only replaces one that is signed out, so no
-        // live session is left behind.
-        let registration = previous
-            .as_ref()
-            .filter(|previous| !fresh || previous.session.is_some());
-        let mut callbacks = listen().await?;
-        let attempt = Attempt::new(&discovery, registration, &host, consent, callbacks.port)?;
+    ) -> Result<ChatGptStatus, ChatGptError> {
+        let mut callbacks = cancel
+            .run_until_cancelled(listen(&self.ports))
+            .await
+            .ok_or(ChatGptError::Cancelled)??;
+        let attempt = Attempt::new(&self.issuer, callbacks.port, fresh)?;
         open(attempt.url.as_str())?;
         let waited = cancel
             .run_until_cancelled(tokio::time::timeout(
@@ -1108,12 +945,12 @@ impl<'a> Service<'a> {
                 callbacks.wait(&attempt, page),
             ))
             .await;
-        let (accepted, reply) = match waited {
+        let (code, reply) = match waited {
             None => return Err(ChatGptError::Cancelled),
             Some(Err(_)) => return Err(ChatGptError::TimedOut),
             Some(Ok(arrived)) => arrived?,
         };
-        let finished = self.finish(profile, &discovery, &attempt, accepted).await;
+        let finished = self.finish(profile, &attempt, code).await;
         let _ = reply.send(page.html(finished.is_ok()));
         finished
     }
@@ -1121,185 +958,95 @@ impl<'a> Service<'a> {
     async fn finish(
         &self,
         profile: &str,
-        discovery: &Discovery,
         attempt: &Attempt,
-        accepted: Accepted,
-    ) -> Result<ChatGptSignIn, ChatGptError> {
-        let slot = self.vault.slot(profile)?;
-        let mut slot = slot.lock().await;
-        let current = self.vault.shelf.load(profile, &mut slot).await?;
-        let base = if accepted.registered_now {
-            let registration = Credentials {
-                issuer: self.vault.shelf.issuer.clone(),
-                client_id: accepted.client_id.clone(),
-                subject: None,
-                email: None,
-                name: None,
-                id_token: None,
-                session: None,
-            };
-            // Kept before the exchange: should it fail, signing in again
-            // goes through this registration instead of making another.
-            self.vault
-                .shelf
-                .save(profile, &mut slot, registration.clone())
-                .await?;
-            registration
-        } else {
-            match current {
-                Some(current) if current.client_id == accepted.client_id => current,
-                // Another sign-in replaced the registration meanwhile.
-                _ => return Err(ChatGptError::Cancelled),
-            }
-        };
-        let client = oauth_client(discovery, &accepted.client_id)?;
-        let send = OAuthHttp(self.http.clone());
-        let reply = client
-            .exchange_code(AuthorizationCode::new(accepted.code))
+        code: String,
+    ) -> Result<ChatGptStatus, ChatGptError> {
+        let reply = oauth_client(&self.issuer)?
+            .exchange_code(AuthorizationCode::new(code))
             .set_pkce_verifier(PkceCodeVerifier::new(attempt.verifier.clone()))
             .set_redirect_uri(Cow::Borrowed(&attempt.redirect))
-            .add_extra_param("resource", RESOURCE)
-            .request_async(&send)
+            .request_async(&OAuthHttp(self.http.clone()))
             .await
             .map_err(oauth_failure)?;
-        let id_token =
-            reply
-                .extra_fields()
-                .id_token
-                .clone()
-                .ok_or_else(|| ChatGptError::IdToken {
-                    message: "missing".into(),
-                })?;
-        let claims = self
-            .verify(discovery, &id_token, &accepted.client_id, &attempt.nonce)
-            .await?;
-        if base
-            .subject
-            .as_ref()
-            .is_some_and(|subject| subject != &claims.sub)
-        {
-            return Err(ChatGptError::AccountMismatch);
-        }
-        let scopes = match (reply.scopes(), &accepted.scope) {
-            (Some(scopes), _) => scopes.iter().map(|scope| scope.to_string()).collect(),
-            (None, Some(scope)) => scope.split_whitespace().map(Into::into).collect(),
-            // Granted as asked, as OAuth reads a reply without a scope.
-            (None, None) => SCOPES.iter().map(|scope| (*scope).into()).collect(),
-        };
-        let session = Session {
-            access_token: reply.access_token().secret().clone(),
-            refresh_token: reply.refresh_token().map(|token| token.secret().clone()),
-            expires_at: reply.expires_in().map(|left| now() + left.as_secs()),
-            scopes,
-        };
-        let welcome = accepted.registered_now && session.plan_enabled();
+        let id = reply
+            .id_token
+            .as_deref()
+            .and_then(claims_of)
+            .unwrap_or_default();
+        let access = claims_of(reply.access_token.secret()).unwrap_or_default();
         let credentials = Credentials {
-            subject: Some(claims.sub),
-            email: claims.email.or(base.email),
-            name: claims.name.or(base.name),
-            id_token: Some(id_token),
-            session: Some(session),
-            ..base
+            account_id: id.account_id().or_else(|| access.account_id()),
+            fedramp: id.fedramp() || access.fedramp(),
+            email: id.email().or_else(|| access.email()),
+            expires_at: reply.expires_at(),
+            access_token: reply.access_token.secret().clone(),
+            refresh_token: reply.refresh_token.map(|token| token.secret().clone()),
         };
+        let slot = self.vault.slot(profile)?;
+        let mut slot = slot.lock().await;
+        let earlier = self.vault.shelf.load(profile, &mut slot).await?;
         self.vault
             .shelf
             .save(profile, &mut slot, credentials.clone())
             .await?;
-        Ok(ChatGptSignIn {
-            status: status_of(Some(&credentials)),
-            welcome,
-        })
-    }
-
-    /// Ends the session at OpenAI, retrying a failed connection or a server
-    /// error with backoff. True once OpenAI confirmed it.
-    async fn revoke(&self, client_id: &str, refresh_token: &str) -> bool {
-        for attempt in 0..REVOKE_TRIES {
-            if attempt > 0 {
-                tokio::time::sleep(Duration::from_secs(1 << (attempt - 1))).await;
-            }
-            let discovery = match self.discovery().await {
-                Ok(discovery) => discovery,
-                Err(ChatGptError::Network { .. }) => continue,
-                Err(_) => return false,
-            };
-            let Ok(client) = oauth_client(&discovery, client_id) else {
-                return false;
-            };
-            let token =
-                StandardRevocableToken::RefreshToken(RefreshToken::new(refresh_token.into()));
-            // No revocation endpoint, or not over https.
-            let Ok(request) = client.revoke_token(token) else {
-                return false;
-            };
-            let send = OAuthHttp(self.http.clone());
-            match request.request_async(&send).await {
-                Ok(()) => return true,
-                Err(RequestTokenError::Request(_)) => continue,
-                Err(_) => return false,
-            }
+        // The sign-in it replaces ends at OpenAI too, as Codex ends it.
+        if let Some(earlier) = earlier {
+            let (http, issuer) = (self.http.clone(), self.issuer.clone());
+            tauri::async_runtime::spawn(async move { revoke(&http, &issuer, &earlier).await });
         }
-        false
+        Ok(status_of(Some(&credentials)))
     }
 
-    /// Signs the service out: the session ends, its tokens and ID token go,
-    /// the registration stays for signing in again.
+    /// Signs the service out: the session ends at OpenAI as far as it
+    /// answers, and the tokens go.
     pub async fn sign_out(&self, profile: &str) -> Result<ChatGptSignOut, ChatGptError> {
         let slot = self.vault.slot(profile)?;
         let mut slot = slot.lock().await;
-        let Some(credentials) = self.vault.shelf.load(profile, &mut slot).await? else {
-            return Ok(ChatGptSignOut {
-                revoked: true,
-                status: status_of(None),
-            });
-        };
-        let refresh_token = credentials
-            .session
-            .as_ref()
-            .and_then(|session| session.refresh_token.clone());
-        let revoked = match refresh_token {
-            Some(token) => self.revoke(&credentials.client_id, &token).await,
-            // Nothing at OpenAI outlives the access token.
+        let revoked = match self.vault.shelf.load(profile, &mut slot).await? {
+            Some(credentials) => revoke(&self.http, &self.issuer, &credentials).await,
             None => true,
         };
-        let credentials = Credentials {
-            id_token: None,
-            session: None,
-            ..credentials
-        };
-        self.vault
-            .shelf
-            .save(profile, &mut slot, credentials.clone())
-            .await?;
+        self.vault.shelf.delete(profile, &mut slot).await?;
         Ok(ChatGptSignOut {
             revoked,
-            status: status_of(Some(&credentials)),
+            status: status_of(None),
         })
     }
+}
 
-    /// Signs out as far as OpenAI answers and forgets the registration: the
-    /// service no longer signs in with ChatGPT.
-    pub async fn forget(&self, profile: &str) -> Result<(), ChatGptError> {
-        let slot = self.vault.slot(profile)?;
-        let mut slot = slot.lock().await;
-        let credentials = self
-            .vault
-            .shelf
-            .load(profile, &mut slot)
-            .await
-            .ok()
-            .flatten();
-        if let Some(credentials) = credentials {
-            if let Some(token) = credentials
-                .session
-                .as_ref()
-                .and_then(|session| session.refresh_token.as_ref())
-            {
-                self.revoke(&credentials.client_id, token).await;
-            }
+/// Ends a session at OpenAI as Codex does (`login/src/auth/revoke.rs`):
+/// the refresh token, else the access token. A failed connection or a server
+/// error is tried again with backoff. True once OpenAI confirmed it.
+async fn revoke(http: &reqwest::Client, issuer: &str, credentials: &Credentials) -> bool {
+    let body = match &credentials.refresh_token {
+        Some(token) => serde_json::json!({
+            "token": token,
+            "token_type_hint": "refresh_token",
+            "client_id": CLIENT_ID,
+        }),
+        None => serde_json::json!({
+            "token": credentials.access_token,
+            "token_type_hint": "access_token",
+        }),
+    };
+    for attempt in 0..REVOKE_TRIES {
+        if attempt > 0 {
+            tokio::time::sleep(Duration::from_secs(1 << (attempt - 1))).await;
         }
-        self.vault.shelf.delete(profile, &mut slot).await
+        let sent = http
+            .post(format!("{issuer}/oauth/revoke"))
+            .header(CONTENT_TYPE, "application/json")
+            .timeout(REVOKE_TIMEOUT)
+            .body(body.to_string())
+            .send()
+            .await;
+        match sent {
+            Ok(response) if response.status().is_success() => return true,
+            Ok(response) if !response.status().is_server_error() => return false,
+            _ => {}
+        }
     }
+    false
 }
 
 /// Renews a service's access token with its refresh token, holding its
@@ -1307,71 +1054,62 @@ impl<'a> Service<'a> {
 async fn refresh(
     shelf: Shelf,
     http: reqwest::Client,
-    discovery: Arc<Discovery>,
+    issuer: String,
     profile: String,
     mut slot: OwnedMutexGuard<Slot>,
     credentials: Credentials,
-) -> Result<String, ChatGptError> {
-    let Some(session) = credentials.session.clone() else {
-        return Err(ChatGptError::SignedOut);
-    };
-    // The session ended at OpenAI: its tokens go, the registration and the
-    // ID token stay for signing in again.
-    let ended = |credentials: Credentials| Credentials {
-        session: None,
-        ..credentials
-    };
-    let Some(refresh_token) = session.refresh_token.clone() else {
-        shelf.save(&profile, &mut slot, ended(credentials)).await?;
+) -> Result<Grant, ChatGptError> {
+    let Some(refresh_token) = credentials.refresh_token.clone() else {
+        shelf.delete(&profile, &mut slot).await?;
         return Err(ChatGptError::SignInAgain);
     };
-    let client = oauth_client(&discovery, &credentials.client_id)?;
-    let send = OAuthHttp(http);
-    let refresh_token = RefreshToken::new(refresh_token);
-    // No scope: the grant stays as it was.
-    let reply = client
-        .exchange_refresh_token(&refresh_token)
-        .add_extra_param("resource", RESOURCE)
-        .request_async(&send)
+    let reply = oauth_client(&issuer)?
+        .exchange_refresh_token(&RefreshToken::new(refresh_token))
+        .request_async(&OAuthHttp(http))
         .await;
-    let reply = match reply.map_err(oauth_failure) {
+    let reply = match reply {
         Ok(reply) => reply,
-        Err(ChatGptError::OAuth { code, .. }) if ENDED.contains(&code.as_str()) => {
-            shelf.save(&profile, &mut slot, ended(credentials)).await?;
+        // The session ended at OpenAI: its tokens are no use.
+        Err(error) if ended(&error) => {
+            shelf.delete(&profile, &mut slot).await?;
             return Err(ChatGptError::SignInAgain);
         }
-        Err(error) => return Err(error),
+        Err(error) => return Err(oauth_failure(error)),
     };
-    let next = Session {
-        access_token: reply.access_token().secret().clone(),
+    let id = reply.id_token.as_deref().and_then(claims_of);
+    let next = Credentials {
+        account_id: id
+            .as_ref()
+            .and_then(Claims::account_id)
+            .or(credentials.account_id),
+        fedramp: id.as_ref().map_or(credentials.fedramp, Claims::fedramp),
+        email: id.as_ref().and_then(Claims::email).or(credentials.email),
+        expires_at: reply.expires_at(),
+        access_token: reply.access_token.secret().clone(),
         // A refresh token is spent once used; one not replaced stays.
         refresh_token: reply
-            .refresh_token()
+            .refresh_token
             .map(|token| token.secret().clone())
-            .or(session.refresh_token),
-        expires_at: reply.expires_in().map(|left| now() + left.as_secs()),
-        scopes: reply
-            .scopes()
-            .map(|scopes| scopes.iter().map(|scope| scope.to_string()).collect())
-            .unwrap_or(session.scopes),
+            .or(credentials.refresh_token),
     };
-    let plan_enabled = next.plan_enabled();
-    let token = next.access_token.clone();
-    let credentials = Credentials {
-        session: Some(next),
-        ..credentials
-    };
-    shelf.save(&profile, &mut slot, credentials).await?;
-    if plan_enabled {
-        Ok(token)
-    } else {
-        Err(ChatGptError::PlanDisabled)
-    }
+    let grant = Grant::from(&next);
+    shelf.save(&profile, &mut slot, next).await?;
+    Ok(grant)
 }
 
-/// Sends a request of a service signed in with ChatGPT, with its access
-/// token. A 401 renews the token and sends once more: OpenAI may have ended
-/// it before its time.
+/// The address a request of a signed-in service goes to, read as reqwest
+/// will send it, so long as it is within the backend: its tokens open the
+/// whole ChatGPT account, which the rest of chatgpt.com serves.
+fn backend_url(backend: &str, url: &str) -> Option<String> {
+    let url = url::Url::parse(url).ok()?;
+    url.as_str()
+        .starts_with(&format!("{backend}/"))
+        .then(|| url.into())
+}
+
+/// Sends a request of a service signed in with ChatGPT, with its tokens. A
+/// 401 renews them and sends once more: OpenAI may have ended them before
+/// their time.
 pub async fn send(
     service: &Service<'_>,
     client: &reqwest::Client,
@@ -1381,54 +1119,81 @@ pub async fn send(
     headers: Vec<(String, String)>,
     body: Option<String>,
 ) -> Result<reqwest::Response, FetchError> {
-    let with_token = |token: &str| {
+    let url = backend_url(&service.backend, url).ok_or_else(|| FetchError::BadUrl {
+        url: url.to_string(),
+    })?;
+    let headers: Vec<(String, String)> = headers
+        .into_iter()
+        .filter(|(name, _)| !BACKEND_HEADERS.contains(&name.to_ascii_lowercase().as_str()))
+        .collect();
+    let with_grant = |grant: &Grant| {
         let mut headers = headers.clone();
-        headers.push(("authorization".into(), format!("Bearer {token}")));
+        headers.push((
+            "authorization".into(),
+            format!("Bearer {}", grant.access_token),
+        ));
+        if let Some(account) = &grant.account_id {
+            headers.push(("chatgpt-account-id".into(), account.clone()));
+        }
+        if grant.fedramp {
+            headers.push(("x-openai-fedramp".into(), "true".into()));
+        }
+        headers.push(("originator".into(), ORIGINATOR.into()));
         headers
     };
-    let token = service.access_token(profile, None).await?;
-    let response = http::send(client, method, url, with_token(&token), body.clone()).await?;
+    let grant = service.grant(profile, None).await?;
+    let response = http::send(client, method, &url, with_grant(&grant), body.clone()).await?;
     if response.status() != reqwest::StatusCode::UNAUTHORIZED {
         return Ok(response);
     }
-    match service.access_token(profile, Some(&token)).await {
-        Ok(renewed) => http::send(client, method, url, with_token(&renewed), body).await,
+    match service.grant(profile, Some(&grant.access_token)).await {
+        Ok(renewed) => http::send(client, method, &url, with_grant(&renewed), body).await,
         Err(error @ (ChatGptError::SignInAgain | ChatGptError::SignedOut)) => Err(error.into()),
         // Renewing failed for now; the page sees the 401 as it came.
         Err(_) => Ok(response),
     }
 }
 
+/// Starts the window's sign-in. Any other under way stops: the browser comes
+/// back to the one port both would listen on.
 fn begin<R: Runtime>(app: &AppHandle<R>, window: &str) -> (u64, CancellationToken) {
     let state = app.state::<ChatGpt>();
     let id = state.attempts.fetch_add(1, Ordering::Relaxed);
     let cancel = CancellationToken::new();
-    let earlier = lock(&state.pending).insert(window.to_string(), (id, cancel.clone()));
-    if let Some((_, earlier)) = earlier {
-        earlier.cancel();
+    let earlier = lock(&state.pending).replace(Pending {
+        window: window.to_string(),
+        id,
+        cancel: cancel.clone(),
+    });
+    if let Some(earlier) = earlier {
+        earlier.cancel.cancel();
     }
     (id, cancel)
 }
 
-fn end<R: Runtime>(app: &AppHandle<R>, window: &str, id: u64) {
+fn end<R: Runtime>(app: &AppHandle<R>, id: u64) {
     let state = app.state::<ChatGpt>();
     let mut pending = lock(&state.pending);
-    if pending
-        .get(window)
-        .is_some_and(|(current, _)| *current == id)
-    {
-        pending.remove(window);
+    if pending.as_ref().is_some_and(|pending| pending.id == id) {
+        *pending = None;
     }
 }
 
 fn cancel_window<R: Runtime>(app: &AppHandle<R>, window: &str) {
-    if let Some((_, cancel)) = lock(&app.state::<ChatGpt>().pending).remove(window) {
-        cancel.cancel();
+    let state = app.state::<ChatGpt>();
+    let mut pending = lock(&state.pending);
+    if pending
+        .as_ref()
+        .is_some_and(|pending| pending.window == window)
+    {
+        if let Some(pending) = pending.take() {
+            pending.cancel.cancel();
+        }
     }
 }
 
 /// Sign a service in with ChatGPT in the system browser. A sign-in already
-/// waiting in the window stops.
+/// under way stops.
 #[tauri::command]
 pub async fn ai_chatgpt_sign_in(
     app: AppHandle,
@@ -1436,14 +1201,13 @@ pub async fn ai_chatgpt_sign_in(
     profile: String,
     proxy: Option<ProxySetting>,
     fresh: bool,
-    consent: bool,
     page: CallbackPage,
-) -> Result<ChatGptSignIn, ChatGptError> {
+) -> Result<ChatGptStatus, ChatGptError> {
     let (id, cancel) = begin(&app, window.label());
     let signed_in = async {
         let service = Service::of(&app, &proxy.unwrap_or_default())?;
         service
-            .sign_in(&profile, fresh, consent, &page, &cancel, |url| {
+            .sign_in(&profile, fresh, &page, &cancel, |url| {
                 app.opener()
                     .open_url(url, None::<&str>)
                     .map_err(|error| ChatGptError::Browser {
@@ -1453,7 +1217,7 @@ pub async fn ai_chatgpt_sign_in(
             .await
     }
     .await;
-    end(&app, window.label(), id);
+    end(&app, id);
     if signed_in.is_ok() {
         lock(&app.state::<ChatGpt>().unconfirmed).insert((window.label().into(), profile));
     }
@@ -1501,7 +1265,7 @@ pub fn take_unconfirmed<R: Runtime>(app: &AppHandle<R>, window: &str) -> Vec<Str
         .collect()
 }
 
-/// Forgets the registrations of `profiles` in the background.
+/// Signs `profiles` out in the background.
 pub fn forget_later<R: Runtime>(app: &AppHandle<R>, profiles: Vec<String>, proxy: ProxySetting) {
     if profiles.is_empty() {
         return;
@@ -1517,7 +1281,7 @@ async fn forget_all<R: Runtime>(app: &AppHandle<R>, profiles: Vec<String>, proxy
         return;
     };
     for profile in profiles {
-        let _ = service.forget(&profile).await;
+        let _ = service.sign_out(&profile).await;
     }
 }
 
@@ -1561,81 +1325,50 @@ pub fn forget_window<R: Runtime>(app: &AppHandle<R>, window: &str) {
 mod tests {
     use std::{collections::VecDeque, path::Path, sync::atomic::AtomicUsize};
 
-    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
     use http_body_util::BodyExt;
-    use jsonwebtoken::{EncodingKey, Header};
-    use ring::{
-        rand::SystemRandom,
-        signature::{EcdsaKeyPair, KeyPair, ECDSA_P256_SHA256_FIXED_SIGNING},
-    };
-    use serde_json::{json, Value};
+    use serde_json::json;
 
     use super::*;
     use crate::ai::secrets::FileStore;
 
-    struct Signer {
-        kid: String,
-        encoding: EncodingKey,
-        jwk: Value,
+    /// A token as OpenAI's read, unsigned: nothing here checks a signature.
+    fn jwt(claims: &Value) -> String {
+        format!("e30.{}.sig", URL_SAFE_NO_PAD.encode(claims.to_string()))
     }
 
-    fn signer(kid: &str) -> Signer {
-        let random = SystemRandom::new();
-        let pkcs8 =
-            EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &random).unwrap();
-        let pair =
-            EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs8.as_ref(), &random)
-                .unwrap();
-        // Uncompressed: 0x04, then x and y.
-        let point = pair.public_key().as_ref();
-        Signer {
-            kid: kid.into(),
-            encoding: EncodingKey::from_ec_der(pkcs8.as_ref()),
-            jwk: json!({
-                "kty": "EC",
-                "crv": "P-256",
-                "kid": kid,
-                "alg": "ES256",
-                "use": "sig",
-                "x": URL_SAFE_NO_PAD.encode(&point[1..33]),
-                "y": URL_SAFE_NO_PAD.encode(&point[33..65]),
-            }),
-        }
+    fn identity(account: &str) -> Value {
+        json!({
+            "email": "cat@example.com",
+            AUTH_CLAIM: { "chatgpt_account_id": account },
+        })
     }
 
-    impl Signer {
-        fn sign(&self, claims: &Value) -> String {
-            let mut header = Header::new(Algorithm::ES256);
-            header.kid = Some(self.kid.clone());
-            jsonwebtoken::encode(&header, claims, &self.encoding).unwrap()
-        }
-    }
+    const AUTH_CLAIM: &str = "https://api.openai.com/auth";
 
     enum Reply {
         Tokens {
-            sub: &'static str,
-            scope: Option<&'static str>,
             refresh: Option<&'static str>,
             expires_in: u64,
+            id: Option<Value>,
         },
         Status(u16, &'static str),
     }
 
-    fn tokens(sub: &'static str, refresh: &'static str) -> Reply {
+    fn tokens(refresh: &'static str) -> Reply {
         Reply::Tokens {
-            sub,
-            scope: None,
             refresh: Some(refresh),
             expires_in: 3600,
+            id: Some(identity("account-1")),
         }
     }
 
-    /// A stand-in for OpenAI's sign-in service and API.
+    /// A stand-in for OpenAI's sign-in service and the Codex backend.
     struct Issuer {
         url: String,
-        signer: Signer,
         replies: Mutex<VecDeque<Reply>>,
         forms: Mutex<Vec<Vec<(String, String)>>>,
+        revokes: Mutex<VecDeque<u16>>,
+        revoked: Mutex<Vec<Value>>,
         issued: AtomicUsize,
     }
 
@@ -1651,6 +1384,18 @@ mod tests {
                 .filter(|form| field(form, "grant_type").as_deref() == Some(grant))
                 .cloned()
                 .collect()
+        }
+
+        /// The revocations asked for, once `count` have come.
+        async fn revoked(&self, count: usize) -> Vec<Value> {
+            for _ in 0..100 {
+                let revoked = lock(&self.revoked).clone();
+                if revoked.len() >= count {
+                    return revoked;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            lock(&self.revoked).clone()
         }
     }
 
@@ -1674,82 +1419,71 @@ mod tests {
         issuer: Arc<Issuer>,
         request: Request<Incoming>,
     ) -> Result<Response<Full<Bytes>>, Infallible> {
-        let url = &issuer.url;
         let path = request.uri().path().to_string();
+        let header = |name: &str| {
+            request
+                .headers()
+                .get(name)
+                .and_then(|value| value.to_str().ok())
+                .map(String::from)
+        };
         Ok(match path.as_str() {
-            "/.well-known/openid-configuration" => json_response(
-                200,
-                json!({
-                    "issuer": url,
-                    "authorization_endpoint": format!("{url}/authorize"),
-                    "token_endpoint": format!("{url}/token"),
-                    "revocation_endpoint": format!("{url}/revoke"),
-                    "jwks_uri": format!("{url}/jwks"),
-                    "id_token_signing_alg_values_supported": ["ES256"],
-                })
-                .to_string(),
-            ),
-            "/jwks" => json_response(200, json!({ "keys": [issuer.signer.jwk] }).to_string()),
-            "/token" => {
+            "/oauth/token" => {
                 let body = request.into_body().collect().await.unwrap().to_bytes();
                 let form: Vec<(String, String)> =
                     url::form_urlencoded::parse(&body).into_owned().collect();
-                lock(&issuer.forms).push(form.clone());
+                lock(&issuer.forms).push(form);
                 let reply = lock(&issuer.replies)
                     .pop_front()
                     .unwrap_or(Reply::Status(500, ""));
                 match reply {
                     Reply::Status(status, body) => json_response(status, body.into()),
                     Reply::Tokens {
-                        sub,
-                        scope,
                         refresh,
                         expires_in,
+                        id,
                     } => {
                         let n = issuer.issued.fetch_add(1, Ordering::SeqCst) + 1;
+                        // No `token_type`, as Codex does without one.
                         let mut reply = json!({
                             "access_token": format!("access-{n}"),
-                            "token_type": "Bearer",
                             "expires_in": expires_in,
                         });
                         if let Some(refresh) = refresh {
                             reply["refresh_token"] = refresh.into();
                         }
-                        if let Some(scope) = scope {
-                            reply["scope"] = scope.into();
-                        }
-                        // The test browser hands the nonce over as the code.
-                        if field(&form, "grant_type").as_deref() == Some("authorization_code") {
-                            reply["id_token"] = issuer
-                                .signer
-                                .sign(&json!({
-                                    "iss": url,
-                                    "aud": field(&form, "client_id"),
-                                    "sub": sub,
-                                    "email": "cat@example.com",
-                                    "name": "Cat",
-                                    "nonce": field(&form, "code"),
-                                    "iat": now(),
-                                    "exp": now() + 3600,
-                                }))
-                                .into();
+                        if let Some(id) = id {
+                            reply["id_token"] = jwt(&id).into();
                         }
                         json_response(200, reply.to_string())
                     }
                 }
             }
-            // The API: turns the first access token down.
-            "/v1/models" => {
-                let bearer = request
-                    .headers()
-                    .get("authorization")
-                    .and_then(|value| value.to_str().ok())
-                    .unwrap_or_default()
-                    .to_string();
+            "/oauth/revoke" => {
+                let content_type = header("content-type");
+                let body = request.into_body().collect().await.unwrap().to_bytes();
+                assert_eq!(content_type.as_deref(), Some("application/json"));
+                lock(&issuer.revoked).push(serde_json::from_slice(&body).unwrap());
+                let status = lock(&issuer.revokes).pop_front().unwrap_or(200);
+                json_response(status, "{}".into())
+            }
+            // The backend: turns the first access token down.
+            "/codex/models" => {
+                let bearer = header("authorization").unwrap_or_default();
                 if bearer == "Bearer access-1" {
                     json_response(401, r#"{"detail":"expired"}"#.into())
                 } else {
-                    json_response(200, json!({ "bearer": bearer }).to_string())
+                    json_response(
+                        200,
+                        json!({
+                            "bearer": bearer,
+                            "account": header("chatgpt-account-id"),
+                            "originator": header("originator"),
+                            "fedramp": header("x-openai-fedramp"),
+                            "page": header("x-page"),
+                        })
+                        .to_string(),
+                    )
                 }
             }
             _ => json_response(404, String::new()),
@@ -1762,9 +1496,10 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         let issuer = Arc::new(Issuer {
             url: format!("http://127.0.0.1:{port}"),
-            signer: signer("key-1"),
             replies: Mutex::default(),
             forms: Mutex::default(),
+            revokes: Mutex::default(),
+            revoked: Mutex::default(),
             issued: AtomicUsize::new(0),
         });
         let stop = CancellationToken::new();
@@ -1795,10 +1530,13 @@ mod tests {
                 state,
                 shelf: Shelf {
                     store: Arc::new(FileStore::new(dir.join("keys.json"))),
-                    issuer: issuer.url.clone(),
                 },
             },
             http: http::build_oauth_client(&ProxySetting::None).unwrap(),
+            issuer: issuer.url.clone(),
+            backend: format!("{}/codex", issuer.url),
+            // Any free port: the test browser goes where it is sent.
+            ports: vec![0],
         }
     }
 
@@ -1807,6 +1545,14 @@ mod tests {
             .get(&format!("{PROFILE_ACCOUNT}{profile}"))
             .unwrap()
             .map(|stored| secrets::decode_record(&stored).unwrap())
+    }
+
+    async fn token(
+        service: &Service<'_>,
+        profile: &str,
+        rejected: Option<&str>,
+    ) -> Result<String, ChatGptError> {
+        Ok(service.grant(profile, rejected).await?.access_token)
     }
 
     fn page() -> CallbackPage {
@@ -1819,11 +1565,10 @@ mod tests {
     /// What the test browser does with the address it is shown.
     #[derive(Default)]
     struct Browser {
-        /// The client id the callback carries.
-        client_id: Option<&'static str>,
         /// Comes back once with another `state` first.
         stray: bool,
         error: Option<&'static str>,
+        description: Option<&'static str>,
     }
 
     struct Visit {
@@ -1837,9 +1582,8 @@ mod tests {
         service: &Service<'_>,
         profile: &str,
         fresh: bool,
-        consent: bool,
         browser: Browser,
-    ) -> (Result<ChatGptSignIn, ChatGptError>, Visit) {
+    ) -> (Result<ChatGptStatus, ChatGptError>, Visit) {
         let (shown, opened) = oneshot::channel::<String>();
         let visit = tauri::async_runtime::spawn(async move {
             let address = opened.await.unwrap();
@@ -1865,197 +1609,143 @@ mod tests {
             let mut pairs = vec![("state", state)];
             match browser.error {
                 Some(error) => pairs.push(("error", error.into())),
-                None => pairs.push(("code", field(&query, "nonce").unwrap())),
+                None => pairs.push(("code", "code-1".into())),
             }
-            if let Some(id) = browser.client_id {
-                pairs.push(("client_id", id.into()));
+            if let Some(description) = browser.description {
+                pairs.push(("error_description", description.into()));
             }
             pages.push(visit(pairs).await);
             Visit { query, pages }
         });
         let signed_in = service
-            .sign_in(
-                profile,
-                fresh,
-                consent,
-                &page(),
-                &CancellationToken::new(),
-                |url| {
-                    shown.send(url.into()).unwrap();
-                    Ok(())
-                },
-            )
+            .sign_in(profile, fresh, &page(), &CancellationToken::new(), |url| {
+                shown.send(url.into()).unwrap();
+                Ok(())
+            })
             .await;
         (signed_in, visit.await.unwrap())
     }
 
-    fn first_browser() -> Browser {
-        Browser {
-            client_id: Some("oaiapp_1"),
-            ..Browser::default()
-        }
-    }
-
     #[test]
-    fn a_first_sign_in_registers_the_app_and_welcomes_the_user() {
+    fn signing_in_goes_the_way_codex_does() {
         let (issuer, _stop) = issuer();
         let dir = tempfile::tempdir().unwrap();
         let service = service(&issuer, dir.path());
-        issuer.reply(tokens("user-1", "refresh-1"));
+        issuer.reply(tokens("refresh-1"));
         let browser = Browser {
             stray: true,
-            ..first_browser()
+            ..Browser::default()
         };
         let (signed_in, visit) =
-            tauri::async_runtime::block_on(sign_in(&service, "p1", false, false, browser));
-        let signed_in = signed_in.unwrap();
-        assert!(signed_in.welcome);
+            tauri::async_runtime::block_on(sign_in(&service, "p1", false, browser));
         assert_eq!(
-            signed_in.status,
-            ChatGptStatus {
-                registered: true,
+            signed_in,
+            Ok(ChatGptStatus {
                 signed_in: true,
-                plan_enabled: true,
                 email: Some("cat@example.com".into()),
-                name: Some("Cat".into()),
-            }
+            })
         );
+        assert_eq!(visit.pages, [page().html(false), page().html(true)]);
+
         let query = &visit.query;
-        let get = |name| field(query, name);
-        assert_eq!(get("client_id").as_deref(), Some(DYNAMIC_CLIENT));
-        assert_eq!(get("agent_name_hint").as_deref(), Some(AGENT_NAME));
-        assert!(get("ext_agent_host_id").unwrap().starts_with("urn:uuid:"));
-        assert_eq!(get("response_type").as_deref(), Some("code"));
-        assert_eq!(get("resource").as_deref(), Some(RESOURCE));
-        assert_eq!(get("code_challenge_method").as_deref(), Some("S256"));
-        assert_eq!(get("scope"), Some(SCOPES.join(" ")));
-        let redirect = get("redirect_uri").unwrap();
+        assert_eq!(field(query, "client_id").as_deref(), Some(CLIENT_ID));
+        assert_eq!(field(query, "response_type").as_deref(), Some("code"));
+        assert_eq!(
+            field(query, "scope").as_deref(),
+            Some("openid profile email offline_access")
+        );
+        assert_eq!(
+            field(query, "code_challenge_method").as_deref(),
+            Some("S256")
+        );
+        assert_eq!(
+            field(query, "id_token_add_organizations").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            field(query, "codex_cli_simplified_flow").as_deref(),
+            Some("true")
+        );
+        assert_eq!(field(query, "prompt"), None);
+        let redirect = field(query, "redirect_uri").unwrap();
         assert!(redirect.starts_with("http://127.0.0.1:"));
         assert!(redirect.ends_with(CALLBACK_PATH));
-        assert_eq!(get("id_token_hint"), None);
-        assert_eq!(get("prompt"), None);
-        // The stray callback was turned away and the real one taken.
-        assert_eq!(visit.pages.len(), 2);
-        assert!(visit.pages[0].contains("failed"));
-        assert!(visit.pages[1].contains("signed in"));
 
         let forms = issuer.sent("authorization_code");
+        assert_eq!(forms.len(), 1);
         let form = &forms[0];
-        assert_eq!(field(form, "client_id").as_deref(), Some("oaiapp_1"));
+        assert_eq!(field(form, "code").as_deref(), Some("code-1"));
+        assert_eq!(field(form, "client_id").as_deref(), Some(CLIENT_ID));
         assert_eq!(field(form, "redirect_uri"), Some(redirect));
-        assert_eq!(field(form, "resource").as_deref(), Some(RESOURCE));
         assert!(field(form, "code_verifier").is_some());
 
         let saved = saved(dir.path(), "p1").unwrap();
-        assert_eq!(saved.client_id, "oaiapp_1");
-        assert_eq!(saved.subject.as_deref(), Some("user-1"));
-        let session = saved.session.unwrap();
-        assert_eq!(session.refresh_token.as_deref(), Some("refresh-1"));
-        assert!(session.plan_enabled());
-        let token = tauri::async_runtime::block_on(service.access_token("p1", None));
-        assert_eq!(token.as_deref(), Ok("access-1"));
+        assert_eq!(saved.account_id.as_deref(), Some("account-1"));
+        assert_eq!(saved.refresh_token.as_deref(), Some("refresh-1"));
+        assert!(saved.expires_at.is_some_and(|at| at > now() + 3000));
+        assert_eq!(
+            tauri::async_runtime::block_on(token(&service, "p1", None)).as_deref(),
+            Ok("access-1")
+        );
     }
 
     #[test]
-    fn signing_in_again_goes_through_the_same_registration() {
+    fn another_account_replaces_the_last_and_ends_it() {
         let (issuer, _stop) = issuer();
         let dir = tempfile::tempdir().unwrap();
         let service = service(&issuer, dir.path());
-        issuer.reply(tokens("user-1", "refresh-1"));
-        issuer.reply(tokens("user-1", "refresh-2"));
-        issuer.reply(tokens("user-1", "refresh-3"));
-        tauri::async_runtime::block_on(async {
-            let (first, visit) = sign_in(&service, "p1", false, false, first_browser()).await;
-            first.unwrap();
-            let host = field(&visit.query, "ext_agent_host_id");
-
-            // Signed in: the ID token names the account.
-            let (again, visit) = sign_in(&service, "p1", false, true, Browser::default()).await;
-            let again = again.unwrap();
-            assert!(!again.welcome);
-            let get = |name| field(&visit.query, name);
-            assert_eq!(get("client_id").as_deref(), Some("oaiapp_1"));
-            assert!(get("id_token_hint").is_some());
-            assert_eq!(get("login_hint").as_deref(), Some("cat@example.com"));
-            assert_eq!(get("agent_name_hint"), None);
-            assert_eq!(get("prompt").as_deref(), Some("consent"));
-            assert_eq!(get("ext_agent_host_id"), host);
-
-            // Signed out: no ID token to hint with, the registration stays.
-            let out = service.sign_out("p1").await.unwrap();
-            // The test issuer is not on https, which revocation insists on.
-            assert!(!out.revoked);
-            assert!(out.status.registered);
-            assert!(!out.status.signed_in);
-            let saved = saved(dir.path(), "p1").unwrap();
-            assert_eq!(saved.id_token, None);
-            assert_eq!(saved.session, None);
-            assert_eq!(
-                service.access_token("p1", None).await,
-                Err(ChatGptError::SignedOut)
-            );
-
-            let (back, visit) = sign_in(&service, "p1", false, false, Browser::default()).await;
-            back.unwrap();
-            let get = |name| field(&visit.query, name);
-            assert_eq!(get("client_id").as_deref(), Some("oaiapp_1"));
-            assert_eq!(get("id_token_hint"), None);
-            assert_eq!(get("login_hint").as_deref(), Some("cat@example.com"));
+        issuer.reply(tokens("refresh-1"));
+        issuer.reply(Reply::Tokens {
+            refresh: Some("refresh-2"),
+            expires_in: 3600,
+            id: Some(identity("account-2")),
         });
-    }
-
-    #[test]
-    fn another_account_does_not_replace_the_one_signed_in() {
-        let (issuer, _stop) = issuer();
-        let dir = tempfile::tempdir().unwrap();
-        let service = service(&issuer, dir.path());
-        issuer.reply(tokens("user-1", "refresh-1"));
-        issuer.reply(tokens("user-2", "refresh-2"));
         tauri::async_runtime::block_on(async {
-            sign_in(&service, "p1", false, false, first_browser())
+            sign_in(&service, "p1", false, Browser::default())
                 .await
                 .0
                 .unwrap();
-            let (other, visit) = sign_in(&service, "p1", false, false, Browser::default()).await;
-            assert_eq!(other, Err(ChatGptError::AccountMismatch));
-            assert!(visit.pages[0].contains("failed"));
+            let (signed_in, visit) = sign_in(&service, "p1", true, Browser::default()).await;
+            assert!(signed_in.unwrap().signed_in);
+            assert_eq!(field(&visit.query, "prompt").as_deref(), Some("login"));
             assert_eq!(
-                service.access_token("p1", None).await.as_deref(),
-                Ok("access-1")
+                issuer.revoked(1).await,
+                [json!({
+                    "token": "refresh-1",
+                    "token_type_hint": "refresh_token",
+                    "client_id": CLIENT_ID,
+                })]
             );
         });
-    }
-
-    #[test]
-    fn a_first_sign_in_needs_the_issued_client_id() {
-        let (issuer, _stop) = issuer();
-        let dir = tempfile::tempdir().unwrap();
-        let service = service(&issuer, dir.path());
-        let (signed_in, visit) = tauri::async_runtime::block_on(sign_in(
-            &service,
-            "p1",
-            false,
-            false,
-            Browser::default(),
-        ));
-        assert_eq!(signed_in, Err(ChatGptError::RegistrationIncomplete));
-        assert!(visit.pages[0].contains("failed"));
-        assert!(saved(dir.path(), "p1").is_none());
+        assert_eq!(
+            saved(dir.path(), "p1").unwrap().account_id.as_deref(),
+            Some("account-2")
+        );
     }
 
     #[test]
     fn declining_in_the_browser_stops_the_sign_in() {
-        let (issuer, _stop) = issuer();
-        let dir = tempfile::tempdir().unwrap();
-        let service = service(&issuer, dir.path());
-        let browser = Browser {
-            error: Some("access_denied"),
-            ..first_browser()
-        };
-        let (signed_in, _) =
-            tauri::async_runtime::block_on(sign_in(&service, "p1", false, false, browser));
-        assert_eq!(signed_in, Err(ChatGptError::AccessDenied));
-        assert!(issuer.sent("authorization_code").is_empty());
+        for (description, expected) in [
+            (None, ChatGptError::AccessDenied),
+            (
+                Some("Missing_Codex_Entitlement: ask your admin"),
+                ChatGptError::NoCodex,
+            ),
+        ] {
+            let (issuer, _stop) = issuer();
+            let dir = tempfile::tempdir().unwrap();
+            let service = service(&issuer, dir.path());
+            let browser = Browser {
+                error: Some("access_denied"),
+                description,
+                ..Browser::default()
+            };
+            let (signed_in, visit) =
+                tauri::async_runtime::block_on(sign_in(&service, "p1", false, browser));
+            assert_eq!(signed_in, Err(expected));
+            assert_eq!(visit.pages, [page().html(false)]);
+            assert!(issuer.sent("authorization_code").is_empty());
+        }
     }
 
     #[test]
@@ -2064,79 +1754,76 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let service = service(&issuer, dir.path());
         let cancel = CancellationToken::new();
-        let signed_in = tauri::async_runtime::block_on(service.sign_in(
-            "p1",
-            false,
-            false,
-            &page(),
-            &cancel,
-            |_| {
+        let signed_in =
+            tauri::async_runtime::block_on(service.sign_in("p1", false, &page(), &cancel, |_| {
                 cancel.cancel();
                 Ok(())
-            },
-        ));
+            }));
         assert_eq!(signed_in, Err(ChatGptError::Cancelled));
     }
 
     #[test]
-    fn a_sign_in_without_the_plan_is_kept_but_not_used() {
-        let (issuer, _stop) = issuer();
-        let dir = tempfile::tempdir().unwrap();
-        let service = service(&issuer, dir.path());
-        issuer.reply(Reply::Tokens {
-            sub: "user-1",
-            scope: Some("openid profile email offline_access resource.invoke"),
-            refresh: Some("refresh-1"),
-            expires_in: 3600,
-        });
+    fn the_next_port_is_taken_while_one_is_held() {
+        let held = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let busy = held.local_addr().unwrap().port();
         tauri::async_runtime::block_on(async {
-            let signed_in = sign_in(&service, "p1", false, false, first_browser())
-                .await
-                .0
-                .unwrap();
-            assert!(!signed_in.welcome);
-            assert!(signed_in.status.signed_in);
-            assert!(!signed_in.status.plan_enabled);
-            assert_eq!(
-                service.access_token("p1", None).await,
-                Err(ChatGptError::PlanDisabled)
-            );
+            assert!(matches!(
+                listen(&[busy]).await,
+                Err(ChatGptError::PortsBusy)
+            ));
+            let callbacks = listen(&[busy, 0]).await.unwrap();
+            assert_ne!(callbacks.port, busy);
         });
     }
 
     #[test]
-    fn a_refresh_replaces_both_tokens() {
+    fn a_refresh_replaces_the_tokens_it_is_given() {
         let (issuer, _stop) = issuer();
         let dir = tempfile::tempdir().unwrap();
         let service = service(&issuer, dir.path());
         // Runs out within the margin, so the first request renews it.
         issuer.reply(Reply::Tokens {
-            sub: "user-1",
-            scope: None,
             refresh: Some("refresh-1"),
             expires_in: 60,
+            id: Some(identity("account-1")),
         });
-        issuer.reply(tokens("user-1", "refresh-2"));
+        issuer.reply(Reply::Tokens {
+            refresh: Some("refresh-2"),
+            expires_in: 3600,
+            id: Some(identity("account-2")),
+        });
+        // A refresh token that is not replaced stays.
+        issuer.reply(Reply::Tokens {
+            refresh: None,
+            expires_in: 3600,
+            id: None,
+        });
         tauri::async_runtime::block_on(async {
-            sign_in(&service, "p1", false, false, first_browser())
+            sign_in(&service, "p1", false, Browser::default())
                 .await
                 .0
                 .unwrap();
+            assert_eq!(token(&service, "p1", None).await.as_deref(), Ok("access-2"));
             assert_eq!(
-                service.access_token("p1", None).await.as_deref(),
-                Ok("access-2")
+                token(&service, "p1", Some("access-2")).await.as_deref(),
+                Ok("access-3")
             );
         });
         let forms = issuer.sent("refresh_token");
-        assert_eq!(forms.len(), 1);
+        assert_eq!(forms.len(), 2);
         let form = &forms[0];
         assert_eq!(field(form, "refresh_token").as_deref(), Some("refresh-1"));
-        assert_eq!(field(form, "client_id").as_deref(), Some("oaiapp_1"));
-        assert_eq!(field(form, "resource").as_deref(), Some(RESOURCE));
+        assert_eq!(field(form, "client_id").as_deref(), Some(CLIENT_ID));
         assert_eq!(field(form, "scope"), None);
-        let session = saved(dir.path(), "p1").unwrap().session.unwrap();
-        assert_eq!(session.refresh_token.as_deref(), Some("refresh-2"));
-        assert!(session.plan_enabled());
+        assert_eq!(
+            field(&forms[1], "refresh_token").as_deref(),
+            Some("refresh-2")
+        );
+        let saved = saved(dir.path(), "p1").unwrap();
+        assert_eq!(saved.access_token, "access-3");
+        assert_eq!(saved.refresh_token.as_deref(), Some("refresh-2"));
+        assert_eq!(saved.account_id.as_deref(), Some("account-2"));
+        assert_eq!(saved.email.as_deref(), Some("cat@example.com"));
     }
 
     #[test]
@@ -2144,15 +1831,14 @@ mod tests {
         let (issuer, _stop) = issuer();
         let dir = tempfile::tempdir().unwrap();
         let service: &'static Service<'static> = Box::leak(Box::new(service(&issuer, dir.path())));
-        issuer.reply(tokens("user-1", "refresh-1"));
-        issuer.reply(tokens("user-1", "refresh-2"));
+        issuer.reply(tokens("refresh-1"));
+        issuer.reply(tokens("refresh-2"));
         tauri::async_runtime::block_on(async {
-            sign_in(service, "p1", false, false, first_browser())
+            sign_in(service, "p1", false, Browser::default())
                 .await
                 .0
                 .unwrap();
-            let renew =
-                || tauri::async_runtime::spawn(service.access_token("p1", Some("access-1")));
+            let renew = || tauri::async_runtime::spawn(token(service, "p1", Some("access-1")));
             let (first, second) = (renew(), renew());
             assert_eq!(first.await.unwrap().as_deref(), Ok("access-2"));
             assert_eq!(second.await.unwrap().as_deref(), Ok("access-2"));
@@ -2162,220 +1848,175 @@ mod tests {
 
     #[test]
     fn a_refresh_token_that_no_longer_works_asks_to_sign_in_again() {
-        for body in [
-            r#"{"error":"invalid_grant","error_description":"expired"}"#,
-            r#"{"error":{"code":"refresh_token_reused","message":"used","type":"invalid_request_error"}}"#,
+        for (status, body) in [
+            (
+                400,
+                r#"{"error":"invalid_grant","error_description":"expired"}"#,
+            ),
+            (
+                400,
+                r#"{"error":{"code":"refresh_token_reused","message":"used"}}"#,
+            ),
+            (400, r#"{"code":"refresh_token_expired"}"#),
+            (401, r#"{"error":"invalid_client"}"#),
+            (401, ""),
         ] {
             let (issuer, _stop) = issuer();
             let dir = tempfile::tempdir().unwrap();
             let service = service(&issuer, dir.path());
-            issuer.reply(tokens("user-1", "refresh-1"));
-            issuer.reply(Reply::Status(400, body));
+            issuer.reply(tokens("refresh-1"));
+            issuer.reply(Reply::Status(status, body));
             tauri::async_runtime::block_on(async {
-                sign_in(&service, "p1", false, false, first_browser())
+                sign_in(&service, "p1", false, Browser::default())
                     .await
                     .0
                     .unwrap();
                 assert_eq!(
-                    service.access_token("p1", Some("access-1")).await,
-                    Err(ChatGptError::SignInAgain)
+                    token(&service, "p1", Some("access-1")).await,
+                    Err(ChatGptError::SignInAgain),
+                    "{body}"
                 );
                 assert_eq!(
-                    service.access_token("p1", None).await,
+                    token(&service, "p1", None).await,
                     Err(ChatGptError::SignedOut)
                 );
             });
-            let saved = saved(dir.path(), "p1").unwrap();
-            assert_eq!(saved.client_id, "oaiapp_1");
-            assert!(saved.id_token.is_some());
-            assert_eq!(saved.session, None);
+            assert_eq!(saved(dir.path(), "p1"), None);
         }
     }
 
     #[test]
-    fn a_server_error_keeps_the_sign_in() {
-        let (issuer, _stop) = issuer();
-        let dir = tempfile::tempdir().unwrap();
-        let service = service(&issuer, dir.path());
-        issuer.reply(tokens("user-1", "refresh-1"));
-        issuer.reply(Reply::Status(503, ""));
-        tauri::async_runtime::block_on(async {
-            sign_in(&service, "p1", false, false, first_browser())
-                .await
-                .0
-                .unwrap();
-            let renewed = service.access_token("p1", Some("access-1")).await;
-            assert!(matches!(renewed, Err(ChatGptError::Network { .. })));
-            assert!(service.vault.status("p1").await.unwrap().signed_in);
-        });
+    fn a_failure_for_now_keeps_the_sign_in() {
+        for (status, body) in [(503, ""), (400, r#"{"error":"temporarily_unavailable"}"#)] {
+            let (issuer, _stop) = issuer();
+            let dir = tempfile::tempdir().unwrap();
+            let service = service(&issuer, dir.path());
+            issuer.reply(tokens("refresh-1"));
+            issuer.reply(Reply::Status(status, body));
+            tauri::async_runtime::block_on(async {
+                sign_in(&service, "p1", false, Browser::default())
+                    .await
+                    .0
+                    .unwrap();
+                let renewed = token(&service, "p1", Some("access-1")).await;
+                assert!(
+                    matches!(
+                        renewed,
+                        Err(ChatGptError::Network { .. } | ChatGptError::OAuth { .. })
+                    ),
+                    "{renewed:?}"
+                );
+                assert!(service.vault.status("p1").await.unwrap().signed_in);
+            });
+        }
     }
 
     #[test]
-    fn a_turned_down_request_is_sent_again_with_a_new_token() {
+    fn requests_reach_the_backend_alone_with_the_account() {
         let (issuer, _stop) = issuer();
         let dir = tempfile::tempdir().unwrap();
         let service = service(&issuer, dir.path());
-        issuer.reply(tokens("user-1", "refresh-1"));
-        issuer.reply(tokens("user-1", "refresh-2"));
-        let body = tauri::async_runtime::block_on(async {
-            sign_in(&service, "p1", false, false, first_browser())
+        let fedramp = || Reply::Tokens {
+            refresh: Some("refresh-1"),
+            expires_in: 3600,
+            id: Some(json!({
+                AUTH_CLAIM: {
+                    "chatgpt_account_id": "account-1",
+                    "chatgpt_account_is_fedramp": true,
+                },
+            })),
+        };
+        issuer.reply(fedramp());
+        issuer.reply(fedramp());
+        let client = http::build_client(&ProxySetting::None).unwrap();
+        let headers = vec![
+            ("Authorization".to_string(), "Bearer page".to_string()),
+            ("originator".into(), "page".into()),
+            ("ChatGPT-Account-Id".into(), "page".into()),
+            ("x-page".into(), "1".into()),
+        ];
+        tauri::async_runtime::block_on(async {
+            sign_in(&service, "p1", false, Browser::default())
                 .await
                 .0
                 .unwrap();
-            let client = http::build_client(&ProxySetting::None).unwrap();
-            let url = format!("{}/v1/models", issuer.url);
-            let response = send(&service, &client, "p1", "GET", &url, Vec::new(), None)
+            let url = format!("{}/codex/models", issuer.url);
+            let response = send(&service, &client, "p1", "GET", &url, headers, None)
                 .await
                 .unwrap();
             assert_eq!(response.status(), reqwest::StatusCode::OK);
-            response.text().await.unwrap()
+            let body: Value = response.json().await.unwrap();
+            assert_eq!(
+                body,
+                json!({
+                    "bearer": "Bearer access-2",
+                    "account": "account-1",
+                    "originator": ORIGINATOR,
+                    "fedramp": "true",
+                    "page": "1",
+                })
+            );
+            for elsewhere in [
+                format!("{}/oauth/token", issuer.url),
+                format!("{}/codex/../oauth/token", issuer.url),
+                format!("{}/codexes", issuer.url),
+                "https://example.com/codex/models".into(),
+            ] {
+                let sent = send(&service, &client, "p1", "GET", &elsewhere, Vec::new(), None).await;
+                assert!(
+                    matches!(sent, Err(FetchError::BadUrl { .. })),
+                    "{elsewhere}"
+                );
+            }
         });
-        assert!(body.contains("Bearer access-2"));
-    }
-
-    fn discovery(issuer: &str) -> Discovery {
-        Discovery {
-            issuer: issuer.into(),
-            authorization_endpoint: format!("{issuer}/authorize"),
-            token_endpoint: format!("{issuer}/token"),
-            revocation_endpoint: Some(format!("{issuer}/revoke")),
-            jwks_uri: format!("{issuer}/jwks"),
-            id_token_signing_alg_values_supported: vec!["ES256".into()],
-        }
-    }
-
-    fn registration(client_id: &str) -> Credentials {
-        Credentials {
-            issuer: ISSUER.into(),
-            client_id: client_id.into(),
-            subject: Some("user-1".into()),
-            email: Some("cat@example.com".into()),
-            name: None,
-            id_token: Some("hint".into()),
-            session: None,
-        }
-    }
-
-    fn callback(attempt: &Attempt, pairs: &[(&str, &str)]) -> Vec<(String, String)> {
-        let mut query = vec![("state".to_string(), attempt.state.secret().clone())];
-        query.extend(pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())));
-        query
     }
 
     #[test]
-    fn a_callback_is_read_only_for_its_own_attempt() {
-        let discovery = discovery(ISSUER);
-        let first = Attempt::new(&discovery, None, "urn:uuid:host", false, 4000).unwrap();
-        let ours = registration("oaiapp_1");
-        let again = Attempt::new(&discovery, Some(&ours), "urn:uuid:host", false, 4000).unwrap();
+    fn signing_out_ends_the_session_at_openai() {
+        let (issuer, _stop) = issuer();
+        let dir = tempfile::tempdir().unwrap();
+        let service = service(&issuer, dir.path());
+        issuer.reply(tokens("refresh-1"));
+        issuer.reply(tokens("refresh-2"));
+        // Turned down: signed out all the same.
+        lock(&issuer.revokes).extend([200, 400]);
+        tauri::async_runtime::block_on(async {
+            sign_in(&service, "p1", false, Browser::default())
+                .await
+                .0
+                .unwrap();
+            let signed_out = service.sign_out("p1").await.unwrap();
+            assert!(signed_out.revoked);
+            assert!(!signed_out.status.signed_in);
+            assert_eq!(saved(dir.path(), "p1"), None);
 
-        let stray = vec![
-            ("state".to_string(), "other".to_string()),
-            ("code".to_string(), "c".to_string()),
-        ];
-        assert!(first.accept(&stray).is_none());
-        assert!(first.accept(&[]).is_none());
-        assert!(matches!(
-            first.accept(&callback(&first, &[("error", "access_denied")])),
-            Some(Err(ChatGptError::AccessDenied))
-        ));
-        assert!(matches!(
-            first.accept(&callback(&first, &[("error", "server_error")])),
-            Some(Err(ChatGptError::OAuth { code, .. })) if code == "server_error"
-        ));
-        assert!(matches!(
-            first.accept(&callback(&first, &[("client_id", "oaiapp_1")])),
-            Some(Err(ChatGptError::OAuth { code, .. })) if code == "invalid_response"
-        ));
-        assert!(matches!(
-            first.accept(&callback(&first, &[("code", "c")])),
-            Some(Err(ChatGptError::RegistrationIncomplete))
-        ));
-        assert!(matches!(
-            first.accept(&callback(
-                &first,
-                &[("code", "c"), ("client_id", DYNAMIC_CLIENT)]
-            )),
-            Some(Err(ChatGptError::RegistrationIncomplete))
-        ));
-        let Some(Ok(accepted)) = first.accept(&callback(
-            &first,
-            &[("code", "c"), ("client_id", "oaiapp_1")],
-        )) else {
-            panic!("a first sign-in with its client id is accepted");
-        };
-        assert!(accepted.registered_now);
-        assert_eq!(accepted.client_id, "oaiapp_1");
-
-        assert!(matches!(
-            again.accept(&callback(
-                &again,
-                &[("code", "c"), ("client_id", "oaiapp_2")]
-            )),
-            Some(Err(ChatGptError::AccountMismatch))
-        ));
-        let Some(Ok(accepted)) = again.accept(&callback(&again, &[("code", "c")])) else {
-            panic!("signing in again needs no client id back");
-        };
-        assert!(!accepted.registered_now);
-        assert_eq!(accepted.client_id, "oaiapp_1");
+            sign_in(&service, "p1", false, Browser::default())
+                .await
+                .0
+                .unwrap();
+            assert!(!service.sign_out("p1").await.unwrap().revoked);
+            assert_eq!(saved(dir.path(), "p1"), None);
+        });
+        let revoked = lock(&issuer.revoked).clone();
+        assert_eq!(revoked.len(), 2);
+        assert_eq!(revoked[0]["token"], "refresh-1");
+        assert_eq!(revoked[1]["token"], "refresh-2");
     }
 
     #[test]
-    fn id_tokens_that_do_not_hold_up_are_turned_away() {
-        let issuer = "https://auth.example";
-        let discovery = discovery(issuer);
-        let key = signer("key-1");
-        let keys: JwkSet = serde_json::from_value(json!({ "keys": [key.jwk] })).unwrap();
-        let claims = |change: &dyn Fn(&mut Value)| {
-            let mut claims = json!({
-                "iss": issuer,
-                "aud": "oaiapp_1",
-                "sub": "user-1",
-                "nonce": "n-1",
-                "iat": now(),
-                "exp": now() + 600,
-            });
-            change(&mut claims);
-            claims
-        };
-        let check = |token: &str| verify_id_token(token, &discovery, &keys, "oaiapp_1", "n-1");
-
-        let good = check(&key.sign(&claims(&|_| {}))).unwrap();
-        assert_eq!(good.sub, "user-1");
-        let changes: [fn(&mut Value); 6] = [
-            |c: &mut Value| c["aud"] = "oaiapp_2".into(),
-            |c: &mut Value| c["iss"] = "https://elsewhere.example".into(),
-            |c: &mut Value| c["nonce"] = "n-2".into(),
-            |c: &mut Value| {
-                c.as_object_mut().unwrap().remove("nonce");
-            },
-            |c: &mut Value| c["exp"] = (now() - 600).into(),
-            |c: &mut Value| c["iat"] = (now() + 600).into(),
-        ];
-        for change in changes {
-            assert!(matches!(
-                check(&key.sign(&claims(&change))),
-                Err(Rejected::Invalid(_))
-            ));
-        }
-
-        let rotated = signer("key-2");
-        assert_eq!(
-            check(&rotated.sign(&claims(&|_| {}))).err(),
-            Some(Rejected::UnknownKey)
-        );
-
-        // A shared-secret token, which anyone with the client id could make.
-        let mut header = Header::new(Algorithm::HS256);
-        header.kid = Some("key-1".into());
-        let forged = jsonwebtoken::encode(
-            &header,
-            &claims(&|_| {}),
-            &EncodingKey::from_secret(b"oaiapp_1"),
-        )
+    fn claims_are_read_from_either_token() {
+        let claims = claims_of(&jwt(&json!({
+            "https://api.openai.com/profile": { "email": "cat@example.com" },
+            AUTH_CLAIM: { "chatgpt_account_id": "account-1" },
+            "exp": 42,
+        })))
         .unwrap();
-        assert!(matches!(check(&forged), Err(Rejected::Invalid(_))));
+        assert_eq!(claims.email().as_deref(), Some("cat@example.com"));
+        assert_eq!(claims.account_id().as_deref(), Some("account-1"));
+        assert_eq!(claims.exp, Some(42));
+        assert!(!claims.fedramp());
+        assert!(claims_of("access-1").is_none());
+        assert!(claims_of("a.not base64.c").is_none());
     }
 
     #[test]
@@ -2396,6 +2037,14 @@ mod tests {
         assert_eq!(
             serde_json::to_value(ChatGptError::SignInAgain).unwrap(),
             json!({ "kind": "sign-in-again" })
+        );
+        assert_eq!(
+            serde_json::to_value(ChatGptError::NoCodex).unwrap(),
+            json!({ "kind": "no-codex" })
+        );
+        assert_eq!(
+            serde_json::to_value(ChatGptError::PortsBusy).unwrap(),
+            json!({ "kind": "ports-busy" })
         );
         assert_eq!(
             serde_json::to_value(ChatGptError::OAuth {

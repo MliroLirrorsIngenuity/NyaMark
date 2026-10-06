@@ -14,7 +14,11 @@ import {
   parseOpenAiModels,
 } from '../src/ai/providers/models';
 import { AI_PRESETS, authSchemeOf } from '../src/ai/providers/presets';
-import { type AiProvider, defaultQuickActions } from '../src/state/ai-settings';
+import {
+  type AiProvider,
+  CHATGPT_BASE_URL,
+  defaultQuickActions,
+} from '../src/state/ai-settings';
 import { normalizeSettings } from '../src/state/settings';
 
 function provider(overrides: Partial<AiProvider> = {}): AiProvider {
@@ -163,7 +167,7 @@ describe('AI settings', () => {
     expect(
       ai.providers.map(({ id, auth, baseUrl }) => ({ id, auth, baseUrl }))
     ).toEqual([
-      { id: 'p-1', auth: 'chatgpt', baseUrl: 'https://api.openai.com/v1' },
+      { id: 'p-1', auth: 'chatgpt', baseUrl: CHATGPT_BASE_URL },
       { id: 'p-2', auth: 'key', baseUrl: '' },
       { id: 'p-3', auth: 'key', baseUrl: '' },
     ]);

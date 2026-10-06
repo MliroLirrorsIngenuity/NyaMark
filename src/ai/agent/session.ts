@@ -19,8 +19,8 @@ import {
 import { AiFetchError } from '../../bridge/ipc/ai';
 import { type ChatImage, userMessage } from '../images/image';
 import {
+  NOT_INCLUDED,
   ReplyCutOffError,
-  USAGE_LIMIT,
   planErrorCode,
 } from '../providers/chatgpt';
 import { isDenied } from './approvals';
@@ -68,13 +68,11 @@ export type ChatFailureCode =
   | 'network'
   /** The ChatGPT sign-in ended, or OpenAI no longer accepts it. */
   | 'signed-out'
-  /** Signed in with ChatGPT without letting NyaMark use the plan. */
-  | 'plan-disabled'
   /** OpenAI would not renew the ChatGPT sign-in. */
   | 'renew-failed'
-  /** The ChatGPT plan's limit for NyaMark, or for the account, is reached. */
+  /** The ChatGPT plan's usage limit is reached, or its credits are spent. */
   | 'usage-limit'
-  /** The account, its workspace or their policy keeps the plan from NyaMark. */
+  /** The ChatGPT plan does not include Codex. */
   | 'plan-unavailable'
   | 'other';
 
@@ -176,13 +174,6 @@ function fetchFailure(error: unknown): AiFetchError | null {
   return cause instanceof AiFetchError ? cause : null;
 }
 
-/** What OpenAI's code for a ChatGPT plan error means to the user. */
-const PLAN_FAILURES: Record<string, ChatFailureCode> = {
-  [USAGE_LIMIT]: 'usage-limit',
-  subscription_sharing_user_not_eligible: 'plan-unavailable',
-  subscription_sharing_invalid_user: 'signed-out',
-};
-
 /** Sorts a failed turn's error into what the panel can say about it. */
 export function describeFailure(error: unknown): ChatFailure {
   if (error instanceof ChatFailureError) return error.failure;
@@ -196,8 +187,9 @@ export function describeFailure(error: unknown): ChatFailure {
     const message = api ? serviceMessage(cause) : cause.message;
     const plan = planErrorCode(cause);
     if (plan) {
-      // The code goes along for whoever has to look into it.
-      const code = PLAN_FAILURES[plan] ?? 'other';
+      // Every other plan error is a limit reached; the code goes along for
+      // whoever has to look into it.
+      const code = plan === NOT_INCLUDED ? 'plan-unavailable' : 'usage-limit';
       return { code, message: `${message} (${plan})`, status };
     }
     if (status === 401 || status === 403) {
@@ -219,8 +211,6 @@ export function describeFailure(error: unknown): ChatFailure {
       return { code: 'key-needed', message };
     case 'signed-out':
       return { code: 'signed-out', message };
-    case 'plan-disabled':
-      return { code: 'plan-disabled', message };
     case 'sign-in-failed':
       return {
         code: 'renew-failed',

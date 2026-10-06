@@ -76,8 +76,7 @@ export type FetchFailure =
         | 'bad-profile'
         | 'too-many-redirects'
         | 'aborted'
-        | 'signed-out'
-        | 'plan-disabled';
+        | 'signed-out';
     }
   | { kind: 'bad-url'; url: string }
   | {
@@ -183,25 +182,14 @@ export async function discardAiSecrets(proxy: ProxySetting): Promise<void> {
 
 /** A service's ChatGPT sign-in (see `src-tauri/src/ai/chatgpt.rs`). */
 export type ChatGptStatus = {
-  /** OpenAI approved NyaMark for the account once. */
-  registered: boolean;
   signedIn: boolean;
-  /** The sign-in lets NyaMark use the ChatGPT plan. */
-  planEnabled: boolean;
   email: string | null;
-  name: string | null;
-};
-
-export type ChatGptSignIn = {
-  status: ChatGptStatus;
-  /** A first sign-in that may use the plan, which the page welcomes. */
-  welcome: boolean;
 };
 
 export type ChatGptSignOut = {
   /**
-   * OpenAI confirmed the sign-in ended. When it did not, the user can still
-   * disconnect NyaMark in ChatGPT's settings.
+   * OpenAI confirmed the session ended. When it did not, the user can still
+   * sign out of their devices in ChatGPT's settings.
    */
   revoked: boolean;
   status: ChatGptStatus;
@@ -214,22 +202,15 @@ export type ChatGptFailure =
         | 'bad-profile'
         | 'signed-out'
         | 'sign-in-again'
-        | 'plan-disabled'
         | 'access-denied'
+        | 'no-codex'
         | 'cancelled'
         | 'timed-out'
-        | 'account-mismatch'
-        | 'registration-incomplete';
+        | 'ports-busy';
     }
   | { kind: 'oauth'; code: string; message: string | null }
   | {
-      kind:
-        | 'id-token'
-        | 'discovery'
-        | 'network'
-        | 'store'
-        | 'bad-proxy'
-        | 'browser';
+      kind: 'network' | 'store' | 'bad-proxy' | 'browser';
       message: string;
     };
 
@@ -239,19 +220,17 @@ const chatGptCommand = commands(ChatGptError);
 
 /**
  * Signs a service in with ChatGPT in the browser, which comes back to the
- * app with `page` in the user's language. `fresh` signs in to another
- * account than the one the service last used; `consent` asks again for the
- * plan the user declined. The sign-in holds for this window until
- * `commitAiSecrets` or `discardAiSecrets`.
+ * app with `page` in the user's language. `fresh` asks for the account
+ * again rather than taking the one the browser is signed in to. The sign-in
+ * holds for this window until `commitAiSecrets` or `discardAiSecrets`.
  */
 export async function chatGptSignIn(options: {
   profile: string;
   proxy: ProxySetting;
   fresh: boolean;
-  consent: boolean;
   page: { signedIn: string; failed: string };
-}): Promise<ChatGptSignIn> {
-  return await chatGptCommand<ChatGptSignIn>('ai_chatgpt_sign_in', options);
+}): Promise<ChatGptStatus> {
+  return await chatGptCommand<ChatGptStatus>('ai_chatgpt_sign_in', options);
 }
 
 /** Stops the sign-in this window is waiting on. */

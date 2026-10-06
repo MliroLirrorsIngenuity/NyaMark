@@ -62,23 +62,12 @@ tokio = { version = "1", features = ["io-util", "net", "process", "sync", "time"
 # Sign in with ChatGPT: OAuth with PKCE, sent through our own reqwest client
 # so no second HTTP stack comes with it.
 oauth2 = { version = "5", default-features = false, features = ["timing-resistant-secret-traits"] }
-# The ID token that sign-in returns, checked against OpenAI's published keys.
-# Version 9 verifies with ring, already here for TLS; later versions need
-# aws-lc or the RustCrypto stack.
-jsonwebtoken = { version = "9.3", default-features = false }
 # The listener on 127.0.0.1 the browser comes back to after signing in.
 # Already in the tree through reqwest.
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
 bytes = "1"
-# The id that tells OpenAI which install a sign-in comes from.
-uuid = { version = "1", features = ["v4"] }
-
-[dev-dependencies]
-# Test ID tokens are signed with a key made on the spot. Already in the tree
-# through rustls.
-ring = "0.17"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2"

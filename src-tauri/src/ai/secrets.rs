@@ -500,10 +500,10 @@ pub fn ai_secret_set(
     let origin = origin_of(&base_url).ok_or_else(|| SecretError::BadUrl {
         url: base_url.clone(),
     })?;
-    // A ChatGPT sign-in's tokens are for OpenAI's API alone, and it has no
-    // key to keep.
+    // A ChatGPT sign-in's tokens are for the Codex backend alone, and it has
+    // no key to keep.
     let chatgpt = auth == AuthScheme::Chatgpt;
-    if chatgpt && origin_of(chatgpt::RESOURCE).as_ref() != Some(&origin) {
+    if chatgpt && origin_of(chatgpt::BACKEND).as_ref() != Some(&origin) {
         return Err(SecretError::BadUrl { url: base_url });
     }
     let (key, keep_key) = if chatgpt {

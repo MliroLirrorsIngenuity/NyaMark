@@ -36,8 +36,8 @@ export type AiModelInfo = {
  */
 export type AiProviderAuth = 'key' | 'chatgpt';
 
-/** Where a ChatGPT sign-in's requests go: OpenAI's own API, and no other. */
-export const CHATGPT_BASE_URL = 'https://api.openai.com/v1';
+/** Where a ChatGPT sign-in's requests go: OpenAI's Codex backend alone. */
+export const CHATGPT_BASE_URL = 'https://chatgpt.com/backend-api/codex';
 
 export type AiProvider = {
   /** Names the provider's key in the keychain: `[A-Za-z0-9_-]{1,64}`. */

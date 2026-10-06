@@ -278,8 +278,6 @@ pub enum FetchError {
     /// The service signs in with ChatGPT, and is signed out or has to sign
     /// in again.
     SignedOut,
-    /// Signed in with ChatGPT without letting NyaMark use the plan.
-    PlanDisabled,
     /// OpenAI would not renew the ChatGPT sign-in, for a reason other than
     /// its having ended.
     SignInFailed {
@@ -313,25 +311,19 @@ impl From<ChatGptError> for FetchError {
     fn from(error: ChatGptError) -> Self {
         match error {
             ChatGptError::BadProfile => Self::BadProfile,
-            ChatGptError::PlanDisabled => Self::PlanDisabled,
             ChatGptError::Network { message } => Self::Network { message },
             ChatGptError::Store { message } => Self::Store { message },
             ChatGptError::BadProxy { message } => Self::BadProxy { message },
             ChatGptError::OAuth { code, message } => Self::SignInFailed { code, message },
-            ChatGptError::Discovery { message } => Self::SignInFailed {
-                code: "discovery".into(),
-                message: Some(message),
-            },
             // The rest fail a sign-in in the browser, which a request never
             // starts: what it meets is a sign-in that has ended.
             ChatGptError::SignedOut
             | ChatGptError::SignInAgain
             | ChatGptError::AccessDenied
+            | ChatGptError::NoCodex
             | ChatGptError::Cancelled
             | ChatGptError::TimedOut
-            | ChatGptError::AccountMismatch
-            | ChatGptError::RegistrationIncomplete
-            | ChatGptError::IdToken { .. }
+            | ChatGptError::PortsBusy
             | ChatGptError::Browser { .. } => Self::SignedOut,
         }
     }

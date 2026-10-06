@@ -322,8 +322,7 @@
         "keyNeeded": "需重新填寫金鑰",
         "notConnected": "未設定",
         "signedOut": "未登入",
-        "signedIn": "使用 ChatGPT 方案",
-        "planOff": "未開啟方案"
+        "signedIn": "使用 ChatGPT 方案"
       },
       "name": "名稱",
       "kind": "介面類型",
@@ -347,34 +346,25 @@
       "getKey": "取得金鑰",
       "chatgpt": {
         "title": "ChatGPT 帳號",
-        "about": "傳送到這個服務的請求使用你 ChatGPT 方案內含的用量或點數餘額。登入在瀏覽器中的 chatgpt.com 完成。",
+        "about": "傳送到這個服務的請求經由 Codex 發出，使用你 ChatGPT 方案內含的用量。登入在瀏覽器中的 chatgpt.com 完成。",
         "continue": "透過 ChatGPT 繼續",
         "signedInAs": "已登入：{{who}}",
         "signedIn": "已登入 ChatGPT",
-        "planOff": "這個帳號沒有允許 NyaMark 使用 ChatGPT 方案。可以開啟，或讓這個服務改用 API 金鑰。",
-        "enablePlan": "使用我的 ChatGPT 方案",
-        "useKey": "改用 API 金鑰",
         "otherAccount": "換個帳號",
         "signOut": "登出",
         "waiting": "請在瀏覽器中完成登入…",
-        "notRevoked": "這裡已登出。無法連線到 ChatGPT，它的已連結應用程式中可能還列著 NyaMark。",
+        "notRevoked": "這裡已登出。無法連線到 ChatGPT；要在那邊也結束登入，可以在 ChatGPT 的安全設定中登出所有裝置。",
         "page": {
           "signedIn": "NyaMark 已登入，可以關閉這個頁面回到應用程式。",
           "failed": "NyaMark 未能完成登入，請回到應用程式查看原因。"
         },
-        "welcome": {
-          "title": "你正在使用 ChatGPT 方案",
-          "body": "傳送到這個服務的請求現在使用你的 ChatGPT 方案。可以在 ChatGPT 的用量設定中查看用量、為 NyaMark 設定上限。",
-          "ok": "知道了"
-        },
         "error": {
           "signedOut": "這個服務已登出 ChatGPT，請重新登入。",
           "signInAgain": "ChatGPT 登入已失效，請重新登入。",
-          "planDisabled": "這個 ChatGPT 帳號沒有允許 NyaMark 使用方案。",
           "accessDenied": "登入在瀏覽器中被拒絕了。",
+          "noCodex": "這個 ChatGPT 工作區沒有開通 Codex。請工作區管理員開通，或換個帳號登入。",
           "timedOut": "登入逾時，請再試一次。",
-          "accountMismatch": "瀏覽器登入的是另一個 ChatGPT 帳號。要切換帳號，請選「換個帳號」。",
-          "registrationIncomplete": "ChatGPT 沒有完成 NyaMark 的註冊，請重新登入。",
+          "portsBusy": "ChatGPT 登入要回到的連接埠 1455 和 1457 都被占用了，可能是 Codex 正在登入。完成或關閉它再試一次。",
           "oauth": "ChatGPT 拒絕了登入：{{message}}",
           "browser": "無法開啟瀏覽器：{{message}}"
         }
@@ -552,10 +542,9 @@
       "rateLimited": "請求過多或額度已用完，請稍後再試。",
       "network": "無法連線到這個服務。",
       "signedOut": "這個服務已登出 ChatGPT，請在 AI 設定中重新登入。",
-      "planDisabled": "這個 ChatGPT 帳號沒有允許 NyaMark 使用方案。請在 AI 設定中開啟，或改用 API 金鑰。",
       "renewFailed": "ChatGPT 登入無法續期。",
-      "usageLimit": "已達到用量上限（NyaMark 的上限或 ChatGPT 方案的上限）。請到 ChatGPT 的用量設定中查看。",
-      "planUnavailable": "這個 ChatGPT 帳號無法在 NyaMark 中使用方案。",
+      "usageLimit": "ChatGPT 方案的用量已達上限。可以到 ChatGPT 的用量設定中查看何時重設。",
+      "planUnavailable": "你的 ChatGPT 方案不含 Codex。請升級到 Plus 或更高的方案，或改用 API 金鑰。",
       "other": "服務傳回了錯誤。"
     },
     "plan": {

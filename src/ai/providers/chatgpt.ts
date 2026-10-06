@@ -1,9 +1,9 @@
 /**
- * Requests paid for with the user's ChatGPT plan. OpenAI takes a narrower
- * Responses API on this route (its "Preview limitations" for Sign in with
- * ChatGPT): every request streams and stores nothing, the system prompt
- * goes as developer messages, sampling settings and output caps are
- * refused, and function tools are sent in a namespace.
+ * Requests paid for with the user's ChatGPT plan, sent to OpenAI's Codex
+ * backend as the Codex CLI sends them. It takes a narrower Responses API:
+ * every request streams and stores nothing, so reasoning goes back to it
+ * encrypted; the system prompt goes as developer messages; and sampling
+ * settings and output caps are refused.
  */
 
 import {
@@ -14,54 +14,86 @@ import {
   StreamProviderError,
 } from 'ai';
 
-/** Where the user reviews and limits what NyaMark uses of their plan. */
+/** Where the user sees what their plan has left. */
 export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
 
-/** The namespace the app's tools go in. */
-const TOOLS = {
-  name: 'nyamark',
-  description:
-    'Tools of NyaMark, the Markdown editor the user writes in: read and edit their notes, search the web, and the tools of the MCP servers they connected.',
-};
-
-/** The plan's limit for NyaMark or for the account is reached. */
-export const USAGE_LIMIT = 'subscription_sharing_usage_limit_exceeded';
+/** The Codex release whose requests NyaMark's follow. */
+export const CODEX_VERSION = '0.160.1';
 
 /**
- * Plan errors OpenAI says to retry later, with backoff. Every other one
- * stops: sent again as it is, it fails again.
+ * The models that release ships with, for when OpenAI cannot list them: the
+ * ones it shows, by priority.
  */
-const PASSING = new Set([
-  'subscription_sharing_usage_unavailable',
-  'subscription_sharing_user_unavailable',
+export const CODEX_MODELS = [
+  ['gpt-6.1-sol', 'GPT-6.1-Sol'],
+  ['gpt-6-astra', 'GPT-6-Astra'],
+  ['gpt-6-sol', 'GPT-6-Sol'],
+  ['gpt-6-luna', 'GPT-6-Luna'],
+  ['gpt-5.6-sol', 'GPT-5.6-Sol'],
+  ['gpt-5.6-terra', 'GPT-5.6-Terra'],
+  ['gpt-5.6-luna', 'GPT-5.6-Luna'],
+  ['gpt-5.5', 'GPT-5.5'],
+].map(([id, name]) => ({
+  id,
+  name,
+  contextWindow: 272_000,
+  vision: true,
+  tools: true,
+  reasoning: true,
+}));
+
+/** The plan's usage limit is reached until it resets. */
+export const USAGE_LIMIT = 'usage_limit_reached';
+
+/** The plan does not include Codex. */
+export const NOT_INCLUDED = 'usage_not_included';
+
+/**
+ * The errors that Codex stops at rather than retrying: by `type` in an error
+ * answer, by `code` in a stream. Sent again, they fail again until the plan
+ * changes or resets.
+ */
+const PLAN_ERRORS = new Set([
+  USAGE_LIMIT,
+  NOT_INCLUDED,
+  'insufficient_quota',
+  'credit_balance_exhausted',
+  'organization_spend_limit_exceeded',
+  'project_spend_limit_exceeded',
+  'organization_usage_limit_exceeded',
 ]);
 
-/** The code of an error that comes from the ChatGPT plan, as OpenAI typed it. */
-export function planErrorCode(error: unknown): string | null {
-  if (RetryError.isInstance(error)) return planErrorCode(error.lastError);
-  let code: unknown;
-  if (StreamProviderError.isInstance(error)) code = error.code;
-  else if (APICallError.isInstance(error)) {
-    // An error answer, or the error event of a stream that sent no output.
-    const data = error.data as
-      | {
-          code?: unknown;
-          error?: { code?: unknown };
-          response?: { error?: { code?: unknown } };
-        }
-      | undefined;
-    code = data?.error?.code ?? data?.response?.error?.code ?? data?.code;
-  }
-  return typeof code === 'string' &&
-    (code.startsWith('subscription_sharing_') || code.startsWith('chatpass_'))
-    ? code
-    : null;
+type ErrorFields = { type?: unknown; code?: unknown };
+
+/**
+ * The error a failure carries: an error answer's body, or the event of a
+ * stream, which has it at the top, under `error`, or in a failed response.
+ */
+function errorFields(data: unknown): ErrorFields | undefined {
+  const frame = data as
+    | (ErrorFields & {
+        error?: ErrorFields;
+        response?: { error?: ErrorFields };
+      })
+    | undefined;
+  return frame?.response?.error ?? frame?.error ?? frame;
 }
 
-/** Whether the plan said to stop asking, rather than to wait and ask again. */
+/** What the ChatGPT plan refused a request for, as Codex reads it. */
+export function planErrorCode(error: unknown): string | null {
+  if (RetryError.isInstance(error)) return planErrorCode(error.lastError);
+  if (!StreamProviderError.isInstance(error) && !APICallError.isInstance(error))
+    return null;
+  const fields = errorFields(error.data);
+  for (const value of [fields?.type, fields?.code]) {
+    if (typeof value === 'string' && PLAN_ERRORS.has(value)) return value;
+  }
+  return null;
+}
+
+/** Whether the plan refused a request, which asking again would not change. */
 export function stopsPlan(error: unknown): boolean {
-  const code = planErrorCode(error);
-  return code !== null && !PASSING.has(code);
+  return planErrorCode(error) !== null;
 }
 
 /** A reply that ended before OpenAI said it was complete. */
@@ -74,7 +106,6 @@ export class ReplyCutOffError extends Error {
 type CallOptions = Parameters<
   NonNullable<LanguageModelMiddleware['transformParams']>
 >[0]['params'];
-type Prompt = CallOptions['prompt'];
 type ProviderOptions = CallOptions['providerOptions'];
 type Started = Awaited<
   ReturnType<
@@ -97,54 +128,20 @@ function withOpenAi(
   return { ...options, openai: { ...options?.openai, ...extra } };
 }
 
-/**
- * Tool calls made before, in this conversation or by another service,
- * named as the namespace has them now.
- */
-function namespaced(prompt: Prompt): Prompt {
-  return prompt.map((message) =>
-    message.role === 'assistant'
-      ? {
-          ...message,
-          content: message.content.map((part) =>
-            part.type === 'tool-call' &&
-            !part.providerExecuted &&
-            part.providerOptions?.openai?.namespace == null
-              ? {
-                  ...part,
-                  providerOptions: withOpenAi(part.providerOptions, {
-                    namespace: TOOLS.name,
-                  }),
-                }
-              : part
-          ),
-        }
-      : message
-  );
-}
-
 function planParams(params: CallOptions): CallOptions {
   return {
     ...params,
-    prompt: namespaced(params.prompt),
     temperature: undefined,
     topP: undefined,
     maxOutputTokens: undefined,
     // Read for the event that ends the response; see `wrapStream`.
     includeRawChunks: true,
-    tools: params.tools?.map((tool) =>
-      tool.type === 'function'
-        ? {
-            ...tool,
-            providerOptions: withOpenAi(tool.providerOptions, {
-              namespace: TOOLS,
-            }),
-          }
-        : tool
-    ),
     providerOptions: withOpenAi(params.providerOptions, {
       store: false,
       systemMessageMode: 'developer',
+      // Every Codex model reasons; with nothing stored, its reasoning comes
+      // back encrypted to be sent again.
+      forceReasoning: true,
     }),
   };
 }

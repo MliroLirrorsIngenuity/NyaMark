@@ -687,12 +687,10 @@ export function renderAiSection(
     let key: string;
     let tone: 'ok' | 'missing';
     if (provider.auth === 'chatgpt') {
-      key = !account?.signedIn
-        ? 'settings.ai.status.signedOut'
-        : account.planEnabled
-          ? 'settings.ai.status.signedIn'
-          : 'settings.ai.status.planOff';
-      tone = account?.signedIn && account.planEnabled ? 'ok' : 'missing';
+      key = account?.signedIn
+        ? 'settings.ai.status.signedIn'
+        : 'settings.ai.status.signedOut';
+      tone = account?.signedIn ? 'ok' : 'missing';
     } else if (keyNeeded.has(provider.id)) {
       key = 'settings.ai.status.keyNeeded';
       tone = 'missing';
@@ -1031,9 +1029,7 @@ export function renderAiSection(
           accounts.set(provider.id, next);
         },
         redraw: () => refresh(provider.id),
-        dialog: () => root.closest<HTMLElement>('.ny-settings-dialog'),
         proxy: options.proxy,
-        useKey: () => setAuth(provider, 'key'),
       });
       const accountField = el('div', 'ny-settings__field');
       accountField.append(

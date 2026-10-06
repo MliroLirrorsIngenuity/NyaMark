@@ -1,4 +1,5 @@
 import type { AiProvider } from '../../state/ai-settings';
+import { CODEX_MODELS, CODEX_VERSION } from './chatgpt';
 import { baseUrlOf } from './factory';
 
 /** A model a service lists, with what it says about it. */
@@ -139,23 +140,48 @@ export function parseGoogleModels(json: unknown): ListedModel[] {
 }
 
 /**
- * The models a ChatGPT account may use, in the order OpenAI gives them:
- * those it means to be shown, by name, to be asked for by `slug`.
+ * The models a ChatGPT account may use in Codex, by priority as Codex
+ * orders them: those it shows, by name, to be asked for by `slug`. Every
+ * one reasons and calls tools.
  */
 export function parseChatGptModels(json: unknown): ListedModel[] {
-  return records((json as Json)?.models).flatMap((entry) =>
-    entry.visibility === 'list' && typeof entry.slug === 'string'
-      ? [
-          {
-            id: entry.slug,
-            name:
-              typeof entry.display_name === 'string'
-                ? entry.display_name
-                : undefined,
-          },
-        ]
-      : []
-  );
+  const rank = (entry: Json) =>
+    typeof entry.priority === 'number' ? entry.priority : Number.MAX_VALUE;
+  return records((json as Json)?.models)
+    .filter(
+      (entry) => entry.visibility === 'list' && typeof entry.slug === 'string'
+    )
+    .sort((a, b) => rank(a) - rank(b))
+    .map((entry) => ({
+      id: String(entry.slug),
+      name:
+        typeof entry.display_name === 'string' ? entry.display_name : undefined,
+      contextWindow: positive(entry.context_window),
+      vision: Array.isArray(entry.input_modalities)
+        ? entry.input_modalities.includes('image')
+        : undefined,
+      tools: true,
+      reasoning: true,
+    }));
+}
+
+/**
+ * The models Codex lists for the account, or the ones it ships with when
+ * the list fails, as Codex falls back to them. A sign-in that ended or a
+ * connection that failed still fails.
+ */
+async function listChatGptModels(
+  fetch: typeof globalThis.fetch,
+  base: string,
+  signal?: AbortSignal
+): Promise<ListedModel[]> {
+  try {
+    const url = `${base}/models?client_version=${CODEX_VERSION}`;
+    return parseChatGptModels(await getJson(fetch, url, {}, signal));
+  } catch (error) {
+    if (!(error instanceof ModelListError) || error.status === 401) throw error;
+    return CODEX_MODELS;
+  }
 }
 
 /** The models a service offers, as it lists them. */
@@ -203,8 +229,8 @@ export async function listModels(
     }
     return models;
   }
-  const json = await getJson(fetch, `${base}/models`, {}, signal);
-  return provider.auth === 'chatgpt'
-    ? parseChatGptModels(json)
-    : parseOpenAiModels(json);
+  if (provider.auth === 'chatgpt') {
+    return await listChatGptModels(fetch, base, signal);
+  }
+  return parseOpenAiModels(await getJson(fetch, `${base}/models`, {}, signal));
 }

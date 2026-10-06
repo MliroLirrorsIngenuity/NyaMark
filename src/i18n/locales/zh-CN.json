@@ -322,8 +322,7 @@
         "keyNeeded": "需重新填写密钥",
         "notConnected": "未设置",
         "signedOut": "未登录",
-        "signedIn": "使用 ChatGPT 套餐",
-        "planOff": "未开启套餐"
+        "signedIn": "使用 ChatGPT 套餐"
       },
       "name": "名称",
       "kind": "接口类型",
@@ -347,34 +346,25 @@
       "getKey": "获取密钥",
       "chatgpt": {
         "title": "ChatGPT 账号",
-        "about": "发往这个服务的请求使用你 ChatGPT 套餐内含的用量或额度余额。登录在浏览器里的 chatgpt.com 完成。",
+        "about": "发往这个服务的请求经 Codex 发出，使用你 ChatGPT 套餐内含的用量。登录在浏览器里的 chatgpt.com 完成。",
         "continue": "通过 ChatGPT 继续",
         "signedInAs": "已登录：{{who}}",
         "signedIn": "已登录 ChatGPT",
-        "planOff": "这个账号没有允许 NyaMark 使用 ChatGPT 套餐。可以开启，或让这个服务改用 API 密钥。",
-        "enablePlan": "使用我的 ChatGPT 套餐",
-        "useKey": "改用 API 密钥",
         "otherAccount": "换个账号",
         "signOut": "退出登录",
         "waiting": "请在浏览器里完成登录…",
-        "notRevoked": "这里已退出。连不上 ChatGPT，它的已连接应用里可能还列着 NyaMark。",
+        "notRevoked": "这里已退出。连不上 ChatGPT；要在那边也结束登录，可以在 ChatGPT 的安全设置里退出所有设备。",
         "page": {
           "signedIn": "NyaMark 已登录，可以关掉这个页面回到应用。",
           "failed": "NyaMark 没能完成登录，请回到应用查看原因。"
         },
-        "welcome": {
-          "title": "你正在使用 ChatGPT 套餐",
-          "body": "发往这个服务的请求现在使用你的 ChatGPT 套餐。可以在 ChatGPT 的用量设置里查看用量、给 NyaMark 设上限。",
-          "ok": "知道了"
-        },
         "error": {
           "signedOut": "这个服务已退出 ChatGPT 登录，请重新登录。",
           "signInAgain": "ChatGPT 登录已失效，请重新登录。",
-          "planDisabled": "这个 ChatGPT 账号没有允许 NyaMark 使用套餐。",
           "accessDenied": "登录在浏览器里被拒绝了。",
+          "noCodex": "这个 ChatGPT 工作区没有开通 Codex。请让工作区管理员开通，或换个账号登录。",
           "timedOut": "登录超时，请再试一次。",
-          "accountMismatch": "浏览器登录的是另一个 ChatGPT 账号。要切换账号，请选“换个账号”。",
-          "registrationIncomplete": "ChatGPT 没有完成 NyaMark 的注册，请重新登录。",
+          "portsBusy": "ChatGPT 登录要回到的端口 1455 和 1457 都被占用了，可能是 Codex 正在登录。完成或关掉它再试一次。",
           "oauth": "ChatGPT 拒绝了登录：{{message}}",
           "browser": "打不开浏览器：{{message}}"
         }
@@ -552,10 +542,9 @@
       "rateLimited": "请求太多或额度已用完，请稍后再试。",
       "network": "连不上这个服务。",
       "signedOut": "这个服务已退出 ChatGPT 登录，请在 AI 设置里重新登录。",
-      "planDisabled": "这个 ChatGPT 账号没有允许 NyaMark 使用套餐。请在 AI 设置里开启，或改用 API 密钥。",
       "renewFailed": "ChatGPT 登录无法续期。",
-      "usageLimit": "已达到用量上限（NyaMark 的上限或 ChatGPT 套餐的上限）。请到 ChatGPT 的用量设置里查看。",
-      "planUnavailable": "这个 ChatGPT 账号无法在 NyaMark 里使用套餐。",
+      "usageLimit": "ChatGPT 套餐的用量已达上限。可以到 ChatGPT 的用量设置里查看何时重置。",
+      "planUnavailable": "你的 ChatGPT 套餐不含 Codex。请升级到 Plus 或更高的套餐，或改用 API 密钥。",
       "other": "服务返回了错误。"
     },
     "plan": {

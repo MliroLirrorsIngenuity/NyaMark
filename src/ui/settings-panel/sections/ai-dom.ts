@@ -28,8 +28,6 @@ export function failureText(error: unknown): string {
       return i18next.t('settings.ai.badUrl');
     case 'signed-out':
       return i18next.t('settings.ai.chatgpt.error.signedOut');
-    case 'plan-disabled':
-      return i18next.t('settings.ai.chatgpt.error.planDisabled');
     case 'sign-in-failed':
       return i18next.t('settings.ai.chatgpt.error.oauth', {
         message: failure.message
