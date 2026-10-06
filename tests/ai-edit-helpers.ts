@@ -6,8 +6,11 @@
  */
 
 import { type Node, Schema } from '@milkdown/kit/prose/model';
+import remarkGfm from 'remark-gfm';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import type { EditEnv } from '../src/ai/edit/propose';
-import type { BlockSpan } from '../src/editor/source-caret';
+import { type BlockSpan, sourceSpans } from '../src/editor/source-caret';
 
 export const schema = new Schema({
   nodes: {
@@ -212,5 +215,12 @@ export function serialize(node: Node): string {
 export const env: EditEnv = {
   parse,
   serialize,
-  blockSpans: (text) => parseLines(linesOf(text)).spans,
+  blockSpans: (text) => {
+    const read = sourceSpans(unified().use(remarkParse).use(remarkGfm), text);
+    return parseLines(linesOf(text)).spans.map((span) => ({
+      ...span,
+      text: read.find((each) => each.from <= span.from && span.to <= each.to)
+        ?.text,
+    }));
+  },
 };

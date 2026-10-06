@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
+import remarkFrontmatter from 'remark-frontmatter';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
 import {
-  blockSpans,
   docPosition,
   sourceOffset,
+  sourceSpans,
 } from '../src/editor/source-caret';
 
 const schema = new Schema({
@@ -18,6 +19,9 @@ const schema = new Schema({
     code_block: { group: 'block', content: 'text*', code: true },
     bullet_list: { group: 'block', content: 'list_item+' },
     list_item: { content: 'paragraph block*' },
+    table: { group: 'block', content: 'table_row+' },
+    table_row: { content: 'table_cell+' },
+    table_cell: { content: 'inline*' },
     hardbreak: { group: 'inline', inline: true },
     text: { group: 'inline' },
   },
@@ -38,10 +42,28 @@ const code = (text: string) =>
   schema.node('code_block', null, schema.text(text));
 const item = (...blocks: Node[]) => schema.node('list_item', null, blocks);
 const list = (...items: Node[]) => schema.node('bullet_list', null, items);
+const cell = (text = '') =>
+  schema.node('table_cell', null, text ? schema.text(text) : []);
+const row = (...cells: Node[]) => schema.node('table_row', null, cells);
+const table = (...rows: Node[]) => schema.node('table', null, rows);
 const doc = (...blocks: Node[]) => schema.node('doc', null, blocks);
 
-const spansOf = (markdown: string) =>
-  blockSpans(unified().use(remarkParse).use(remarkGfm).parse(markdown));
+const reader = unified().use(remarkParse).use(remarkGfm).use(remarkFrontmatter);
+const spansOf = (markdown: string) => sourceSpans(reader, markdown);
+
+function expectRoundTrip(start: Node, markdown: string) {
+  const spans = spansOf(markdown);
+  start.descendants((node, pos) => {
+    if (!node.isTextblock) return true;
+    for (let at = pos + 1; at <= pos + 1 + node.content.size; at++) {
+      const offset = sourceOffset(start, at, markdown, spans);
+      expect({ at, back: docPosition(start, offset, markdown, spans) }).toEqual(
+        { at, back: at }
+      );
+    }
+    return false;
+  });
+}
 
 /** Document position just after the first `text` in it. */
 function endOf(start: Node, text: string) {
@@ -112,6 +134,72 @@ describe('sourceOffset', () => {
     ).toBe(markdown.indexOf('s = 1'));
   });
 
+  test('reads an entity or escape as the character it stands for', () => {
+    const markdown = '&#x78; x \\* y\n';
+    const start = doc(p('x x * y'));
+    const spans = spansOf(markdown);
+    expect(sourceOffset(start, endOf(start, 'x'), markdown, spans)).toBe(6);
+    expect(sourceOffset(start, endOf(start, 'x *'), markdown, spans)).toBe(
+      markdown.indexOf('*') + 1
+    );
+    expectRoundTrip(start, markdown);
+
+    const emoji = '&#x1F600; y\n';
+    const face = doc(p('😀 y'));
+    expect(sourceOffset(face, endOf(face, '😀'), emoji, spansOf(emoji))).toBe(
+      emoji.indexOf(';') + 1
+    );
+  });
+
+  test('steps over the backticks of inline code', () => {
+    const markdown = 'a `c` d\n';
+    const start = doc(p('a c d'));
+    const spans = spansOf(markdown);
+    const before = endOf(start, 'a ');
+    expect(sourceOffset(start, before, markdown, spans)).toBe(2);
+    expect(sourceOffset(start, before, markdown, spans, 1)).toBe(3);
+    expect(sourceOffset(start, endOf(start, 'a c'), markdown, spans)).toBe(4);
+    expectRoundTrip(start, markdown);
+  });
+
+  test('finds an empty table cell, list item or code block', () => {
+    const markdown =
+      '| a |  |\n| - | - |\n|   | b |\n\n- a\n-\n- b\n\n```\n```\n';
+    const start = doc(
+      table(row(cell('a'), cell()), row(cell(), cell('b'))),
+      list(item(p('a')), item(p()), item(p('b'))),
+      schema.node('code_block')
+    );
+    const spans = spansOf(markdown);
+    const empty: number[] = [];
+    start.descendants((node, pos) => {
+      if (node.isTextblock && !node.content.size) empty.push(pos + 1);
+      return !node.isTextblock;
+    });
+    expect(empty.map((at) => sourceOffset(start, at, markdown, spans))).toEqual(
+      [
+        markdown.indexOf('|  |') + 3,
+        markdown.indexOf('|   |') + 4,
+        markdown.indexOf('-\n-') + 1,
+        markdown.indexOf('```\n```') + 4,
+      ]
+    );
+    expectRoundTrip(start, markdown);
+  });
+
+  test('keeps the blank first line of a code block and the front matter', () => {
+    const markdown = '---\na: 1\n---\n\n```js\n\ns = 1;\n```\n';
+    const start = doc(code('a: 1'), code('\ns = 1;'));
+    const spans = spansOf(markdown);
+    expect(sourceOffset(start, startOf(start, 'a: 1'), markdown, spans)).toBe(
+      4
+    );
+    expect(sourceOffset(start, startOf(start, '\ns'), markdown, spans)).toBe(
+      markdown.indexOf('```js') + 6
+    );
+    expectRoundTrip(start, markdown);
+  });
+
   test('sends the empty paragraph after the last block to the end', () => {
     const markdown = '> 引用\n';
     const start = doc(quote(p('引用')), p());
@@ -175,15 +263,5 @@ test('every caret in the text survives the round trip', () => {
     list(item(p('列表一')), item(p('列表二'), list(item(p('子项'))))),
     code('const a = 1;')
   );
-  const spans = spansOf(markdown);
-  start.descendants((node, pos) => {
-    if (!node.isTextblock) return true;
-    for (let at = pos + 1; at <= pos + 1 + node.content.size; at++) {
-      const offset = sourceOffset(start, at, markdown, spans);
-      expect({ at, back: docPosition(start, offset, markdown, spans) }).toEqual(
-        { at, back: at }
-      );
-    }
-    return false;
-  });
+  expectRoundTrip(start, markdown);
 });

@@ -165,7 +165,7 @@ import { typedBlocks } from './plugins/typed-blocks';
 import { typedMarksInput } from './plugins/typed-marks';
 import { undoByLine } from './plugins/undo-lines';
 import { scrollIntoViewSettled } from './scroll-settled';
-import { type BlockSpan, blockSpans } from './source-caret';
+import { type BlockSpan, sourceSpans } from './source-caret';
 import { registerEditorStyles } from './styles';
 
 import './styles/prosemirror.css';
@@ -456,11 +456,9 @@ export class NyaEditor {
   /** Where each top-level block of `markdown` sits in it (see `source-caret`). */
   blockSpans(markdown: string): BlockSpan[] {
     if (!this.crepe) return [];
-    return this.crepe.editor.action((ctx) => {
-      const remark = ctx.get(remarkCtx);
-      const tree = remark.runSync(remark.parse(markdown), markdown);
-      return blockSpans(tree as Parameters<typeof blockSpans>[0]);
-    });
+    return this.crepe.editor.action((ctx) =>
+      sourceSpans(ctx.get(remarkCtx), markdown)
+    );
   }
 
   /**
