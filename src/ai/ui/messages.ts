@@ -15,9 +15,15 @@ import type { ViewImageOutput } from '../agent/tools/image';
 import { type McpOutput, isMcpToolName } from '../agent/tools/mcp';
 import type { EditOutcome } from '../edit/controller';
 import type { ChatImage } from '../images/image';
+import { CHATGPT_USAGE_URL } from '../providers/chatgpt';
 import { isOpenableLink, renderChatMarkdown } from '../render/markdown';
 import { copyText } from './clipboard';
-import { FAILURE_TEXT, SELF_EXPLAINED, SETTINGS_FIXES } from './failure';
+import {
+  FAILURE_TEXT,
+  SELF_EXPLAINED,
+  SETTINGS_FIXES,
+  USAGE_FIXES,
+} from './failure';
 import { ICONS } from './icons';
 import { imageUrl } from './image-tray';
 import { proposedEdit, searchSources, toolLabel } from './tool-labels';
@@ -890,6 +896,18 @@ export class MessageList {
       open.type = 'button';
       open.addEventListener('click', () => this.actions.openSettings());
       actions.append(open);
+    }
+    if (USAGE_FIXES.has(code)) {
+      const usage = el(
+        'button',
+        'ny-ai__button ny-ai__button--primary',
+        i18next.t('ai.plan.manage')
+      );
+      usage.type = 'button';
+      usage.addEventListener('click', () => {
+        void openExternalUrl(CHATGPT_USAGE_URL).catch(console.error);
+      });
+      actions.append(usage);
     }
     const retry = el(
       'button',

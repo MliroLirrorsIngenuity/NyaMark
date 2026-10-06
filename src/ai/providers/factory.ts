@@ -9,6 +9,7 @@ import {
   wrapLanguageModel,
 } from 'ai';
 import type { AiProvider } from '../../state/ai-settings';
+import { chatGptPlanMiddleware } from './chatgpt';
 
 /**
  * What the page sends for a key. The app takes it out and puts in the key
@@ -29,8 +30,12 @@ export function languageModel(
   const baseURL = baseUrlOf(provider);
   const apiKey = KEY_PLACEHOLDER;
   switch (provider.kind) {
-    case 'openai':
-      return createOpenAI({ baseURL, apiKey, fetch }).responses(modelId);
+    case 'openai': {
+      const model = createOpenAI({ baseURL, apiKey, fetch }).responses(modelId);
+      return provider.auth === 'chatgpt'
+        ? wrapLanguageModel({ model, middleware: chatGptPlanMiddleware })
+        : model;
+    }
     case 'anthropic':
       return createAnthropic({ baseURL, apiKey, fetch })(modelId);
     case 'google':

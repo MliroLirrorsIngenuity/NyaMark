@@ -1,7 +1,8 @@
 //! The native side of the AI assistant: requests to the services a user
-//! connects and the keys for them, web search, the notes it may work on,
-//! its conversations and the MCP servers it calls.
+//! connects and the keys for them, signing in with ChatGPT, web search, the
+//! notes it may work on, its conversations and the MCP servers it calls.
 
+pub mod chatgpt;
 pub mod history;
 pub mod http;
 pub mod images;

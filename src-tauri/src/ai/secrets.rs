@@ -24,8 +24,10 @@ use std::{
 };
 
 use base64::{engine::general_purpose::STANDARD, Engine};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime, Window};
+
+use super::{chatgpt, http::ProxySetting};
 
 /// How a service expects its key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,6 +41,9 @@ pub enum AuthScheme {
     XGoogApiKey,
     /// `api-key`: Azure OpenAI.
     ApiKey,
+    /// No key: the user signed in with ChatGPT, and the token comes from
+    /// that sign-in (see `chatgpt.rs`).
+    Chatgpt,
 }
 
 /// What is kept for one connected service.
@@ -117,14 +122,14 @@ pub struct StagedSecrets(pub Mutex<Staged>);
 
 const PREFIX: &str = "nyamark-b64:";
 
-/// The record as stored: base64 behind a prefix, so the store holds plain
+/// A record as stored: base64 behind a prefix, so the store holds plain
 /// ASCII that `security` prints back as it was given.
-pub fn encode_record(record: &SecretRecord) -> Result<String, SecretError> {
+pub fn encode_record<T: Serialize>(record: &T) -> Result<String, SecretError> {
     let json = serde_json::to_vec(record).map_err(store_error)?;
     Ok(format!("{PREFIX}{}", STANDARD.encode(json)))
 }
 
-pub fn decode_record(stored: &str) -> Result<SecretRecord, SecretError> {
+pub fn decode_record<T: DeserializeOwned>(stored: &str) -> Result<T, SecretError> {
     let encoded = stored
         .trim()
         .strip_prefix(PREFIX)
@@ -132,6 +137,8 @@ pub fn decode_record(stored: &str) -> Result<SecretRecord, SecretError> {
     let json = STANDARD.decode(encoded).map_err(store_error)?;
     serde_json::from_slice(&json).map_err(store_error)
 }
+
+const PROFILE_ACCOUNT: &str = "profile-";
 
 /// A profile id names a keychain item, so it is kept to plain characters.
 pub fn account_for(profile: &str) -> Result<String, SecretError> {
@@ -141,7 +148,7 @@ pub fn account_for(profile: &str) -> Result<String, SecretError> {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
     if plain {
-        Ok(format!("profile-{profile}"))
+        Ok(format!("{PROFILE_ACCOUNT}{profile}"))
     } else {
         Err(SecretError::BadProfile)
     }
@@ -355,14 +362,18 @@ mod keychain {
 
 /// The store this system offers, and which kind it is.
 #[cfg(target_os = "macos")]
-fn store<R: Runtime>(app: &AppHandle<R>) -> Result<(Box<dyn SecretStore>, Storage), SecretError> {
+pub(crate) fn store<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<(Box<dyn SecretStore>, Storage), SecretError> {
     let service = format!("{}.ai", app.config().identifier);
     Ok((Box::new(keychain::Keychain { service }), Storage::Keychain))
 }
 
 /// The store this system offers, and which kind it is.
 #[cfg(not(target_os = "macos"))]
-fn store<R: Runtime>(app: &AppHandle<R>) -> Result<(Box<dyn SecretStore>, Storage), SecretError> {
+pub(crate) fn store<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<(Box<dyn SecretStore>, Storage), SecretError> {
     #[cfg(any(windows, target_os = "linux"))]
     if keychain::Keychain::available() {
         let service = format!("{}.ai", app.config().identifier);
@@ -391,6 +402,13 @@ fn saved_record<R: Runtime>(
         .transpose()?;
     lock(&cache.0).insert(account.to_string(), record.clone());
     Ok(record)
+}
+
+/// How a profile's saved record, confirmed in the settings, sends its
+/// requests; none when nothing is saved or it cannot be read.
+pub(crate) fn saved_auth<R: Runtime>(app: &AppHandle<R>, profile: &str) -> Option<AuthScheme> {
+    let account = account_for(profile).ok()?;
+    Some(saved_record(app, &account).ok()??.auth)
 }
 
 /// The maps here are replaced an entry at a time, so one a panic left
@@ -479,7 +497,20 @@ pub fn ai_secret_set(
     keep_key: bool,
 ) -> Result<SecretStatus, SecretError> {
     let account = account_for(&profile)?;
-    let origin = origin_of(&base_url).ok_or(SecretError::BadUrl { url: base_url })?;
+    let origin = origin_of(&base_url).ok_or_else(|| SecretError::BadUrl {
+        url: base_url.clone(),
+    })?;
+    // A ChatGPT sign-in's tokens are for OpenAI's API alone, and it has no
+    // key to keep.
+    let chatgpt = auth == AuthScheme::Chatgpt;
+    if chatgpt && origin_of(chatgpt::RESOURCE).as_ref() != Some(&origin) {
+        return Err(SecretError::BadUrl { url: base_url });
+    }
+    let (key, keep_key) = if chatgpt {
+        (None, false)
+    } else {
+        (key, keep_key)
+    };
     let previous = record(&app, window.label(), &profile)?;
     let next = next_record(previous.as_ref(), origin, auth, key, keep_key)?;
     let (_, storage) = store(&app)?;
@@ -534,12 +565,41 @@ fn take_staged<R: Runtime>(
     drain_window(&mut lock(&app.state::<StagedSecrets>().0), window)
 }
 
-/// Keep what the window's settings dialog changed.
+/// Keep what the window's settings dialog changed. A service that signed in
+/// with ChatGPT and no longer does (removed, or switched to a key) signs
+/// out and forgets its registration, through `proxy`.
 #[tauri::command(async)]
-pub fn ai_secrets_commit(app: AppHandle, window: Window) -> Result<(), SecretError> {
+pub fn ai_secrets_commit(
+    app: AppHandle,
+    window: Window,
+    proxy: Option<ProxySetting>,
+) -> Result<(), SecretError> {
     let (store, _) = store(&app)?;
+    let signed_in = chatgpt::take_unconfirmed(&app, window.label());
+    let staged = take_staged(&app, window.label());
+    // Signed in, then left as it was saved: a service that does not sign in
+    // with ChatGPT keeps no registration.
+    let mut leaving: Vec<String> = signed_in
+        .iter()
+        .filter(|profile| {
+            let account = format!("{PROFILE_ACCOUNT}{profile}");
+            !staged.iter().any(|(staged, _)| staged == &account)
+                && saved_auth(&app, profile) != Some(AuthScheme::Chatgpt)
+        })
+        .cloned()
+        .collect();
     let mut failed = None;
-    for (account, record) in take_staged(&app, window.label()) {
+    for (account, record) in staged {
+        if let Some(profile) = account.strip_prefix(PROFILE_ACCOUNT) {
+            let was = signed_in.iter().any(|signed| signed == profile)
+                || saved_auth(&app, profile) == Some(AuthScheme::Chatgpt);
+            let stays = record
+                .as_ref()
+                .is_some_and(|record| record.auth == AuthScheme::Chatgpt);
+            if was && !stays {
+                leaving.push(profile.to_string());
+            }
+        }
         let written = match &record {
             Some(record) => encode_record(record).and_then(|value| store.set(&account, &value)),
             None => store.delete(&account),
@@ -549,13 +609,16 @@ pub fn ai_secrets_commit(app: AppHandle, window: Window) -> Result<(), SecretErr
             failed.get_or_insert(error);
         }
     }
+    chatgpt::forget_later(&app, leaving, proxy.unwrap_or_default());
     failed.map_or(Ok(()), Err)
 }
 
-/// Drop what the window's settings dialog changed.
+/// Drop what the window's settings dialog changed. A service it added and
+/// signed in with ChatGPT signs out again, through `proxy`.
 #[tauri::command(async)]
-pub fn ai_secrets_discard(app: AppHandle, window: Window) {
+pub fn ai_secrets_discard(app: AppHandle, window: Window, proxy: Option<ProxySetting>) {
     take_staged(&app, window.label());
+    chatgpt::abandon(&app, window.label(), proxy.unwrap_or_default());
 }
 
 /// A closed window's dialog can no longer be confirmed.
@@ -585,7 +648,7 @@ mod tests {
         let stored = encode_record(&written).unwrap();
         assert!(stored.is_ascii());
         assert_eq!(decode_record(&format!("{stored}\n")), Ok(written));
-        assert!(decode_record("plain").is_err());
+        assert!(decode_record::<SecretRecord>("plain").is_err());
     }
 
     #[test]

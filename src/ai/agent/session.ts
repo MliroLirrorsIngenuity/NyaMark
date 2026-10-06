@@ -11,12 +11,18 @@ import {
   type LanguageModelUsage,
   type ModelMessage,
   RetryError,
+  StreamProviderError,
   type ToolSet,
   stepCountIs,
   streamText,
 } from 'ai';
 import { AiFetchError } from '../../bridge/ipc/ai';
 import { type ChatImage, userMessage } from '../images/image';
+import {
+  ReplyCutOffError,
+  USAGE_LIMIT,
+  planErrorCode,
+} from '../providers/chatgpt';
 import { isDenied } from './approvals';
 
 /** What a turn is sent with, read again for each turn and each retry. */
@@ -60,6 +66,16 @@ export type ChatFailureCode =
   | 'rate-limited'
   /** The service could not be reached. */
   | 'network'
+  /** The ChatGPT sign-in ended, or OpenAI no longer accepts it. */
+  | 'signed-out'
+  /** Signed in with ChatGPT without letting NyaMark use the plan. */
+  | 'plan-disabled'
+  /** OpenAI would not renew the ChatGPT sign-in. */
+  | 'renew-failed'
+  /** The ChatGPT plan's limit for NyaMark, or for the account, is reached. */
+  | 'usage-limit'
+  /** The account, its workspace or their policy keeps the plan from NyaMark. */
+  | 'plan-unavailable'
   | 'other';
 
 export type ChatFailure = {
@@ -160,6 +176,13 @@ function fetchFailure(error: unknown): AiFetchError | null {
   return cause instanceof AiFetchError ? cause : null;
 }
 
+/** What OpenAI's code for a ChatGPT plan error means to the user. */
+const PLAN_FAILURES: Record<string, ChatFailureCode> = {
+  [USAGE_LIMIT]: 'usage-limit',
+  subscription_sharing_user_not_eligible: 'plan-unavailable',
+  subscription_sharing_invalid_user: 'signed-out',
+};
+
 /** Sorts a failed turn's error into what the panel can say about it. */
 export function describeFailure(error: unknown): ChatFailure {
   if (error instanceof ChatFailureError) return error.failure;
@@ -167,22 +190,44 @@ export function describeFailure(error: unknown): ChatFailure {
     RetryError.isInstance(error) && error.lastError != null
       ? error.lastError
       : error;
-  if (APICallError.isInstance(cause)) {
+  const api = APICallError.isInstance(cause);
+  if (api || StreamProviderError.isInstance(cause)) {
     const status = cause.statusCode;
-    const message = serviceMessage(cause);
+    const message = api ? serviceMessage(cause) : cause.message;
+    const plan = planErrorCode(cause);
+    if (plan) {
+      // The code goes along for whoever has to look into it.
+      const code = PLAN_FAILURES[plan] ?? 'other';
+      return { code, message: `${message} (${plan})`, status };
+    }
     if (status === 401 || status === 403) {
       return { code: 'unauthorized', message, status };
     }
     if (status === 429) return { code: 'rate-limited', message, status };
-    if (status == null) return { code: 'network', message };
+    if (status == null && api) return { code: 'network', message };
     return { code: 'other', message, status };
   }
+  if (cause instanceof ReplyCutOffError) {
+    return { code: 'network', message: cause.message };
+  }
   const message = errorMessage(cause);
-  switch (fetchFailure(cause)?.failure.kind) {
+  const failure = fetchFailure(cause)?.failure;
+  switch (failure?.kind) {
     case 'not-connected':
       return { code: 'not-connected', message };
     case 'key-needed':
       return { code: 'key-needed', message };
+    case 'signed-out':
+      return { code: 'signed-out', message };
+    case 'plan-disabled':
+      return { code: 'plan-disabled', message };
+    case 'sign-in-failed':
+      return {
+        code: 'renew-failed',
+        message: failure.message
+          ? `${failure.message} (${failure.code})`
+          : failure.code,
+      };
     case 'network':
     case 'bad-proxy':
       return { code: 'network', message };

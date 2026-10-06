@@ -1,5 +1,9 @@
 import { i18next } from '../../i18n';
-import type { AiModelRef, AiSettings } from '../../state/ai-settings';
+import {
+  type AiModelRef,
+  type AiSettings,
+  modelLabel,
+} from '../../state/ai-settings';
 import { pushEscapeLayer } from '../../ui/escape-layers';
 import { ICONS } from './icons';
 
@@ -49,8 +53,10 @@ export class ModelPicker {
     const ref = ai.chatModel;
     const provider = ref && ai.providers.find((p) => p.id === ref.provider);
     if (ref && provider) {
-      this.label.textContent = ref.model;
-      this.button.title = `${provider.name} · ${ref.model}`;
+      const model = provider.models.find((m) => m.id === ref.model);
+      const label = model ? modelLabel(model) : ref.model;
+      this.label.textContent = label;
+      this.button.title = `${provider.name} · ${label}`;
     } else {
       this.label.textContent = i18next.t('ai.chooseModel');
       this.button.title = '';
@@ -107,7 +113,7 @@ export class ModelPicker {
         item.setAttribute('role', 'menuitemradio');
         item.setAttribute('aria-checked', String(checked));
         const name = document.createElement('span');
-        name.textContent = model.id;
+        name.textContent = modelLabel(model);
         item.title = `${provider.name} · ${model.id}`;
         const mark = document.createElement('span');
         mark.className = 'ny-ai-menu__check';

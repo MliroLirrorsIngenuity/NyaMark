@@ -1,5 +1,10 @@
 import type { AuthScheme } from '../../bridge/ipc/ai';
-import type { AiProviderKind } from '../../state/ai-settings';
+import {
+  type AiProvider,
+  type AiProviderAuth,
+  type AiProviderKind,
+  CHATGPT_BASE_URL,
+} from '../../state/ai-settings';
 
 export type AiPreset = {
   id: string;
@@ -11,6 +16,8 @@ export type AiPreset = {
   local: boolean;
   /** Where the user gets a key. */
   keyPage?: string;
+  /** How it signs in, when not with a key. */
+  auth?: AiProviderAuth;
 };
 
 /**
@@ -25,6 +32,15 @@ export const AI_PRESETS: readonly AiPreset[] = [
     baseUrl: 'https://api.openai.com/v1',
     local: false,
     keyPage: 'https://platform.openai.com/api-keys',
+  },
+  {
+    // OpenAI's API, paid for with the user's ChatGPT plan.
+    id: 'chatgpt',
+    name: 'ChatGPT',
+    kind: 'openai',
+    baseUrl: CHATGPT_BASE_URL,
+    local: false,
+    auth: 'chatgpt',
   },
   {
     id: 'anthropic',
@@ -125,9 +141,15 @@ export function presetById(id: string): AiPreset | undefined {
   return AI_PRESETS.find((preset) => preset.id === id);
 }
 
-/** Where each API expects its key; the app puts it there. */
-export function authSchemeOf(kind: AiProviderKind): AuthScheme {
-  if (kind === 'anthropic') return 'x-api-key';
-  if (kind === 'google') return 'x-goog-api-key';
+/**
+ * Where each API expects its key, which the app puts there, or the token
+ * of a ChatGPT sign-in.
+ */
+export function authSchemeOf(
+  provider: Pick<AiProvider, 'kind' | 'auth'>
+): AuthScheme {
+  if (provider.auth === 'chatgpt') return 'chatgpt';
+  if (provider.kind === 'anthropic') return 'x-api-key';
+  if (provider.kind === 'google') return 'x-goog-api-key';
   return 'bearer';
 }

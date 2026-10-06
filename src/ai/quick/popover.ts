@@ -6,6 +6,7 @@
  * so.
  */
 
+import { openExternalUrl } from '../../bridge/ipc/attachments';
 import type { NyaEditor } from '../../editor/editor';
 import { i18next } from '../../i18n';
 import type { AiSettings } from '../../state/ai-settings';
@@ -15,10 +16,16 @@ import { forInputMethod } from '../../ui/ime';
 import { describeFailure } from '../agent/session';
 import type { EditController } from '../edit/controller';
 import { EditError } from '../edit/text-edit';
+import { CHATGPT_USAGE_URL } from '../providers/chatgpt';
 import { connectModel } from '../providers/connect';
 import { renderChatMarkdown } from '../render/markdown';
 import { copyText } from '../ui/clipboard';
-import { FAILURE_TEXT, SELF_EXPLAINED, SETTINGS_FIXES } from '../ui/failure';
+import {
+  FAILURE_TEXT,
+  SELF_EXPLAINED,
+  SETTINGS_FIXES,
+  USAGE_FIXES,
+} from '../ui/failure';
 import { ICONS } from '../ui/icons';
 import { quickCommands } from './actions';
 import { askModel } from './ask';
@@ -545,14 +552,12 @@ export class QuickMenu {
       failure.message && !SELF_EXPLAINED.has(failure.code)
         ? failure.message
         : null;
-    this.showProblem(
-      run,
-      message,
-      null,
-      preview,
-      detail,
-      SETTINGS_FIXES.has(failure.code)
-    );
+    const fix = SETTINGS_FIXES.has(failure.code)
+      ? 'settings'
+      : USAGE_FIXES.has(failure.code)
+        ? 'usage'
+        : null;
+    this.showProblem(run, message, null, preview, detail, fix);
   }
 
   /** What went wrong, with the reply when there is one to copy. */
@@ -562,7 +567,7 @@ export class QuickMenu {
     reply: string | null,
     preview: HTMLElement,
     detail: string | null = null,
-    settings = false
+    fix: 'settings' | 'usage' | null = null
   ) {
     const head = el('div', 'ny-ai-quick__head');
     head.append(el('span', 'ny-ai-quick__label', run.label));
@@ -571,13 +576,19 @@ export class QuickMenu {
     note.append(el('div', '', message));
     if (detail) note.append(el('div', 'ny-ai-quick__detail', detail));
     const actions = el('div', 'ny-ai-quick__actions');
-    if (settings) {
+    if (fix === 'settings') {
       const open = button(i18next.t('ai.openSettings'), true);
       open.addEventListener('click', () => {
         this.close(false);
         this.host.openSettings();
       });
       actions.append(open);
+    } else if (fix === 'usage') {
+      const usage = button(i18next.t('ai.plan.manage'), true);
+      usage.addEventListener('click', () => {
+        void openExternalUrl(CHATGPT_USAGE_URL).catch(console.error);
+      });
+      actions.append(usage);
     }
     if (reply) {
       const copy = button(i18next.t('ai.copy'));

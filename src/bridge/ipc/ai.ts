@@ -41,8 +41,16 @@ export type ProxySetting =
   | { mode: 'none' }
   | { mode: 'manual'; url: string };
 
-/** How a service expects its key. */
-export type AuthScheme = 'bearer' | 'x-api-key' | 'x-goog-api-key' | 'api-key';
+/**
+ * How a service expects its key; `chatgpt` sends the token of the user's
+ * ChatGPT sign-in instead of a key.
+ */
+export type AuthScheme =
+  | 'bearer'
+  | 'x-api-key'
+  | 'x-goog-api-key'
+  | 'api-key'
+  | 'chatgpt';
 
 export type AiFetchRequest = {
   id: string;
@@ -67,13 +75,17 @@ export type FetchFailure =
         | 'key-needed'
         | 'bad-profile'
         | 'too-many-redirects'
-        | 'aborted';
+        | 'aborted'
+        | 'signed-out'
+        | 'plan-disabled';
     }
   | { kind: 'bad-url'; url: string }
   | {
       kind: 'bad-request' | 'bad-proxy' | 'store' | 'network';
       message: string;
-    };
+    }
+  /** OpenAI would not renew the ChatGPT sign-in. */
+  | { kind: 'sign-in-failed'; code: string; message: string | null };
 
 export class AiFetchError extends AiCommandError<FetchFailure> {}
 
@@ -153,14 +165,112 @@ export async function deleteAiSecret(profile: string): Promise<void> {
   await secretCommand('ai_secret_delete', { profile });
 }
 
-/** Keep the key changes this window made. */
-export async function commitAiSecrets(): Promise<void> {
-  await secretCommand('ai_secrets_commit');
+/**
+ * Keep the key changes this window made. A service that signed in with
+ * ChatGPT and no longer does signs out, through `proxy`.
+ */
+export async function commitAiSecrets(proxy: ProxySetting): Promise<void> {
+  await secretCommand('ai_secrets_commit', { proxy });
 }
 
-/** Drop the key changes this window made. */
-export async function discardAiSecrets(): Promise<void> {
-  await invoke('ai_secrets_discard');
+/**
+ * Drop the key changes this window made. A service that signed in with
+ * ChatGPT only in this window signs out again, through `proxy`.
+ */
+export async function discardAiSecrets(proxy: ProxySetting): Promise<void> {
+  await invoke('ai_secrets_discard', { proxy });
+}
+
+/** A service's ChatGPT sign-in (see `src-tauri/src/ai/chatgpt.rs`). */
+export type ChatGptStatus = {
+  /** OpenAI approved NyaMark for the account once. */
+  registered: boolean;
+  signedIn: boolean;
+  /** The sign-in lets NyaMark use the ChatGPT plan. */
+  planEnabled: boolean;
+  email: string | null;
+  name: string | null;
+};
+
+export type ChatGptSignIn = {
+  status: ChatGptStatus;
+  /** A first sign-in that may use the plan, which the page welcomes. */
+  welcome: boolean;
+};
+
+export type ChatGptSignOut = {
+  /**
+   * OpenAI confirmed the sign-in ended. When it did not, the user can still
+   * disconnect NyaMark in ChatGPT's settings.
+   */
+  revoked: boolean;
+  status: ChatGptStatus;
+};
+
+/** Why signing in with ChatGPT failed. */
+export type ChatGptFailure =
+  | {
+      kind:
+        | 'bad-profile'
+        | 'signed-out'
+        | 'sign-in-again'
+        | 'plan-disabled'
+        | 'access-denied'
+        | 'cancelled'
+        | 'timed-out'
+        | 'account-mismatch'
+        | 'registration-incomplete';
+    }
+  | { kind: 'oauth'; code: string; message: string | null }
+  | {
+      kind:
+        | 'id-token'
+        | 'discovery'
+        | 'network'
+        | 'store'
+        | 'bad-proxy'
+        | 'browser';
+      message: string;
+    };
+
+export class ChatGptError extends AiCommandError<ChatGptFailure> {}
+
+const chatGptCommand = commands(ChatGptError);
+
+/**
+ * Signs a service in with ChatGPT in the browser, which comes back to the
+ * app with `page` in the user's language. `fresh` signs in to another
+ * account than the one the service last used; `consent` asks again for the
+ * plan the user declined. The sign-in holds for this window until
+ * `commitAiSecrets` or `discardAiSecrets`.
+ */
+export async function chatGptSignIn(options: {
+  profile: string;
+  proxy: ProxySetting;
+  fresh: boolean;
+  consent: boolean;
+  page: { signedIn: string; failed: string };
+}): Promise<ChatGptSignIn> {
+  return await chatGptCommand<ChatGptSignIn>('ai_chatgpt_sign_in', options);
+}
+
+/** Stops the sign-in this window is waiting on. */
+export async function chatGptCancelSignIn(): Promise<void> {
+  await invoke('ai_chatgpt_cancel');
+}
+
+export async function chatGptStatus(profile: string): Promise<ChatGptStatus> {
+  return await chatGptCommand<ChatGptStatus>('ai_chatgpt_status', { profile });
+}
+
+export async function chatGptSignOut(
+  profile: string,
+  proxy: ProxySetting
+): Promise<ChatGptSignOut> {
+  return await chatGptCommand<ChatGptSignOut>('ai_chatgpt_sign_out', {
+    profile,
+    proxy,
+  });
 }
 
 /** A note in the window's workspace. */

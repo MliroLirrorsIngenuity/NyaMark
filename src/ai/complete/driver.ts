@@ -8,6 +8,7 @@
 import type { SuggestDriver, SuggestSpot } from '../../editor/suggest';
 import type { AiSettings } from '../../state/ai-settings';
 import { getSettings } from '../../state/settings';
+import { stopsPlan } from '../providers/chatgpt';
 import { connectModel } from '../providers/connect';
 import { cleanSuggestion, suggestPrompt } from './prompt';
 import { suggestText } from './request';
@@ -29,6 +30,12 @@ const KEY_BEFORE = 400;
 const KEY_AFTER = 200;
 const CACHE_SIZE = 40;
 
+/**
+ * How long suggestions from a ChatGPT plan wait once it says to stop: they
+ * ask on their own, and OpenAI asks for a pause, not a retry per keystroke.
+ */
+const PLAN_PAUSE = 15 * 60 * 1000;
+
 const fileName = (path: string) => path.split(/[\\/]/).pop() || path;
 
 export class CompletionDriver implements SuggestDriver {
@@ -36,6 +43,8 @@ export class CompletionDriver implements SuggestDriver {
   private running: AbortController | null = null;
   /** The suggestion for each place asked about lately, empty for none. */
   private readonly cache = new Map<string, string>();
+  /** When each service whose plan said to stop may be asked again. */
+  private readonly paused = new Map<string, number>();
   private warned = false;
 
   constructor(private readonly host: SuggestHost) {}
@@ -70,6 +79,7 @@ export class CompletionDriver implements SuggestDriver {
     if (!spot.line.trim()) return;
     const chosen = suggestModel(ai);
     if (!chosen) return;
+    if ((this.paused.get(chosen.provider.id) ?? 0) > Date.now()) return;
 
     const key = [
       spot.markdown ? 'md' : 'text',
@@ -111,6 +121,9 @@ export class CompletionDriver implements SuggestDriver {
     } catch (error) {
       if (this.running === controller) this.running = null;
       if (controller.signal.aborted) return;
+      if (stopsPlan(error)) {
+        this.paused.set(chosen.provider.id, Date.now() + PLAN_PAUSE);
+      }
       // Once, for whoever looks: every pause in typing would repeat it.
       if (!this.warned) {
         this.warned = true;

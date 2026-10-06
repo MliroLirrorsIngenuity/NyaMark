@@ -13,8 +13,11 @@ import {
 } from '../../../ai/providers/presets';
 import {
   type AiSecretStatus,
+  type ChatGptStatus,
   type ProxySetting,
   SecretError,
+  chatGptCancelSignIn,
+  chatGptStatus,
   deleteAiSecret,
   getAiSecretStatus,
   setAiSecret,
@@ -31,11 +34,19 @@ import {
   type AiProvider,
   type AiSearchEngine,
   type AiSettings,
+  CHATGPT_BASE_URL,
   isWebUrl,
+  modelLabel,
   newAiProfileId,
 } from '../../../state/ai-settings';
 import { ensureStyle } from '../../../style/register';
 import { type SelectOption, renderMenuButton, renderSelect } from '../select';
+import {
+  type ChatGptAccount,
+  type ChatGptActivity,
+  chatGptStyles,
+  renderChatGptAccount,
+} from './ai-chatgpt';
 import { renderCompleteSection } from './ai-complete';
 import {
   button,
@@ -391,6 +402,7 @@ export function modelFromListing(
   });
   return {
     ...guess,
+    ...(listed.name && { name: listed.name }),
     vision: listed.vision ?? guess.vision,
     tools: listed.tools ?? guess.tools,
     reasoning: listed.reasoning ?? guess.reasoning,
@@ -407,7 +419,7 @@ function modelChoices(providers: AiProvider[]) {
       refs.set(value, { provider: provider.id, model: model.id });
       options.push({
         value,
-        label: escapeHtml(`${provider.name} · ${model.id}`),
+        label: escapeHtml(`${provider.name} · ${modelLabel(model)}`),
       });
     }
   }
@@ -440,8 +452,12 @@ export function renderAiSection(
   ensureStyle('ny-settings-ai', styles);
   ensureStyle('ny-settings-ai-mcp', mcpStyles);
   ensureStyle('ny-settings-ai-quick', quickStyles);
+  ensureStyle('ny-settings-ai-chatgpt', chatGptStyles);
   const state: AiSettings = structuredClone(current);
   const statuses = new Map<string, AiSecretStatus>();
+  /** The ChatGPT account of each service that signs in with it. */
+  const accounts = new Map<string, ChatGptStatus>();
+  const activities = new Map<string, ChatGptActivity>();
   /** Providers moved to another address whose key must be typed again. */
   const keyNeeded = new Set<string>();
   /** Updates what a card shows of its saved key, without redrawing it. */
@@ -666,10 +682,18 @@ export function renderAiSection(
 
   const showStatus = (provider: AiProvider, status: HTMLElement) => {
     const saved = statuses.get(provider.id);
+    const account = accounts.get(provider.id);
     const local = presetById(provider.preset)?.local ?? false;
     let key: string;
     let tone: 'ok' | 'missing';
-    if (keyNeeded.has(provider.id)) {
+    if (provider.auth === 'chatgpt') {
+      key = !account?.signedIn
+        ? 'settings.ai.status.signedOut'
+        : account.planEnabled
+          ? 'settings.ai.status.signedIn'
+          : 'settings.ai.status.planOff';
+      tone = account?.signedIn && account.planEnabled ? 'ok' : 'missing';
+    } else if (keyNeeded.has(provider.id)) {
       key = 'settings.ai.status.keyNeeded';
       tone = 'missing';
     } else if (saved?.hasKey) {
@@ -699,7 +723,7 @@ export function renderAiSection(
         setAiSecret({
           profile: provider.id,
           baseUrl: provider.baseUrl,
-          auth: authSchemeOf(provider.kind),
+          auth: authSchemeOf(provider),
           key,
           keepKey: key === null,
         })
@@ -717,6 +741,28 @@ export function renderAiSection(
     }
   };
 
+  /** Reads the ChatGPT account a service signs in with. */
+  const loadAccount = (provider: AiProvider) => {
+    void chatGptStatus(provider.id)
+      .then((account) => {
+        accounts.set(provider.id, account);
+        refresh(provider.id);
+      })
+      .catch(console.error);
+  };
+
+  /** Signs the service in with a key, or with ChatGPT for its plan. */
+  const setAuth = (provider: AiProvider, auth: AiProvider['auth']) => {
+    if (provider.auth === auth) return;
+    provider.auth = auth;
+    // A ChatGPT sign-in's tokens are for OpenAI's API alone.
+    if (auth === 'chatgpt') provider.baseUrl = CHATGPT_BASE_URL;
+    emit();
+    renderList();
+    void bind(provider, null).catch(console.error);
+    if (auth === 'chatgpt') loadAccount(provider);
+  };
+
   const addProvider = (preset: AiPreset) => {
     const provider: AiProvider = {
       id: newAiProfileId(),
@@ -724,6 +770,7 @@ export function renderAiSection(
         preset.id === 'custom' ? i18next.t('settings.ai.custom') : preset.name,
       preset: preset.id,
       kind: preset.kind,
+      auth: preset.auth ?? 'key',
       baseUrl: preset.baseUrl,
       models: [],
     };
@@ -732,12 +779,18 @@ export function renderAiSection(
     providersChanged();
     renderList();
     if (provider.baseUrl) void bind(provider, null).catch(console.error);
+    if (provider.auth === 'chatgpt') loadAccount(provider);
     focusFirstField(provider, preset);
   };
 
-  // What a service needs first: its key, or where it runs.
+  // What a service needs first: its key, where it runs, or a sign-in.
   const focusFirstField = (provider: AiProvider, preset: AiPreset) => {
-    const field = provider.baseUrl && !preset.local ? 'key' : 'baseUrl';
+    const field =
+      provider.auth === 'chatgpt'
+        ? 'signIn'
+        : provider.baseUrl && !preset.local
+          ? 'key'
+          : 'baseUrl';
     list
       .querySelector<HTMLElement>(
         `[data-provider="${provider.id}"] [data-key="${field}"]`
@@ -766,6 +819,7 @@ export function renderAiSection(
       (entry) => entry.id !== provider.id
     );
     statuses.delete(provider.id);
+    accounts.delete(provider.id);
     keyNeeded.delete(provider.id);
     if (editing === provider.id) editing = null;
     void track(deleteAiSecret(provider.id)).catch(console.error);
@@ -894,6 +948,29 @@ export function renderAiSection(
       urlInput,
       urlNote
     );
+    const chatgpt = provider.auth === 'chatgpt';
+    const signsInWithChatGpt = provider.kind === 'openai';
+    urlField.hidden = chatgpt;
+    // OpenAI's API alone takes a ChatGPT sign-in.
+    if (signsInWithChatGpt) {
+      const authField = el('label', 'ny-settings__field');
+      const authSelect = el('div', 'ny-settings__select');
+      authField.append(translated('span', 'settings.ai.auth'), authSelect);
+      renderSelect(
+        authSelect,
+        [
+          { value: 'key', label: 'API key', i18n: 'settings.ai.authKey' },
+          {
+            value: 'chatgpt',
+            label: 'ChatGPT account',
+            i18n: 'settings.ai.authChatgpt',
+          },
+        ],
+        provider.auth,
+        (value) => setAuth(provider, value === 'chatgpt' ? 'chatgpt' : 'key')
+      );
+      second.append(authField);
+    }
     second.append(urlField);
 
     // Key.
@@ -936,12 +1013,41 @@ export function renderAiSection(
       keyLine.append(getKey);
     }
     keyField.append(translated('span', 'settings.ai.key'), keyLine);
+    keyField.hidden = chatgpt;
     third.append(keyField);
+
+    let account: ChatGptAccount | null = null;
+    if (chatgpt) {
+      let activity = activities.get(provider.id);
+      if (!activity) {
+        activity = { busy: null, message: null };
+        activities.set(provider.id, activity);
+      }
+      account = renderChatGptAccount({
+        provider,
+        activity,
+        status: () => accounts.get(provider.id),
+        changed: (next) => {
+          accounts.set(provider.id, next);
+        },
+        redraw: () => refresh(provider.id),
+        dialog: () => root.closest<HTMLElement>('.ny-settings-dialog'),
+        proxy: options.proxy,
+        useKey: () => setAuth(provider, 'key'),
+      });
+      const accountField = el('div', 'ny-settings__field');
+      accountField.append(
+        translated('span', 'settings.ai.chatgpt.title'),
+        account.element
+      );
+      third.append(accountField);
+    }
 
     refreshers.set(provider.id, () => {
       showStatus(provider, status);
       placeKey();
       showUrlNote();
+      account?.refresh();
     });
     refresh(provider.id);
     lookUp(provider.baseUrl);
@@ -997,7 +1103,7 @@ export function renderAiSection(
       }
       for (const model of provider.models) {
         const row = el('div', 'ny-ai-model');
-        const id = el('span', 'ny-ai-model__id', model.id);
+        const id = el('span', 'ny-ai-model__id', modelLabel(model));
         id.title = model.id;
         row.append(id);
         for (const flag of ['vision', 'tools', 'reasoning'] as const) {
@@ -1106,7 +1212,11 @@ export function renderAiSection(
             }
             modelsChanged();
           });
-          const label = el('span', '', entry.id);
+          const label = el(
+            'span',
+            '',
+            provider.auth === 'chatgpt' ? (entry.name ?? entry.id) : entry.id
+          );
           label.title =
             entry.name && entry.name !== entry.id
               ? `${entry.name} (${entry.id})`
@@ -1147,9 +1257,13 @@ export function renderAiSection(
           controller.signal
         );
         if (outcome.kind === 'models') {
-          listed = outcome.models
-            .filter((entry) => isChatModel(entry.id))
-            .sort((a, b) => a.id.localeCompare(b.id));
+          // ChatGPT lists what the account may use, in its own order.
+          listed =
+            provider.auth === 'chatgpt'
+              ? outcome.models
+              : outcome.models
+                  .filter((entry) => isChatModel(entry.id))
+                  .sort((a, b) => a.id.localeCompare(b.id));
           showResult(
             i18next.t('settings.ai.connected', { count: listed.length }),
             'ok'
@@ -1188,7 +1302,13 @@ export function renderAiSection(
       provider.kind,
       (value) => {
         provider.kind = value as AiProvider['kind'];
+        if (provider.kind !== 'openai' && provider.auth === 'chatgpt') {
+          setAuth(provider, 'key');
+          return;
+        }
         emit();
+        // Whether it may sign in with ChatGPT changed: the fields do too.
+        if ((provider.kind === 'openai') !== signsInWithChatGpt) renderList();
         if (isWebUrl(provider.baseUrl)) {
           void bind(provider, null).catch((error) =>
             showResult(failureText(error), 'error')
@@ -1353,6 +1473,7 @@ export function renderAiSection(
 
   // What is saved for each provider, staged changes included.
   for (const provider of state.providers) {
+    if (provider.auth === 'chatgpt') loadAccount(provider);
     void getAiSecretStatus(provider.id)
       .then((status) => {
         statuses.set(provider.id, status);
@@ -1368,7 +1489,13 @@ export function renderAiSection(
       while (pending.size) await Promise.allSettled([...pending]);
     },
     committed: mcp.committed,
-    destroy: mcp.destroy,
+    destroy: () => {
+      // A sign-in still waiting on the browser has nothing left to land in.
+      if ([...activities.values()].some((entry) => entry.busy === 'sign-in')) {
+        void chatGptCancelSignIn().catch(console.error);
+      }
+      mcp.destroy();
+    },
     addService,
   };
 }

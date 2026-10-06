@@ -23,6 +23,7 @@ function provider(overrides: Partial<AiProvider> = {}): AiProvider {
     name: 'Test',
     preset: 'custom',
     kind: 'openai-compatible',
+    auth: 'key',
     baseUrl: 'https://api.example.com/v1',
     models: [],
     ...overrides,
@@ -120,6 +121,7 @@ describe('AI settings', () => {
         name: 'p-1',
         preset: 'custom',
         kind: 'openai',
+        auth: 'key',
         baseUrl: 'https://api.openai.com/v1',
         models: [
           {
@@ -139,6 +141,36 @@ describe('AI settings', () => {
         ],
       },
     ]);
+  });
+
+  test('sign in with ChatGPT only on OpenAI’s own API', () => {
+    const { ai } = normalizeSettings({
+      ai: {
+        providers: [
+          {
+            id: 'p-1',
+            preset: 'chatgpt',
+            kind: 'openai',
+            auth: 'chatgpt',
+            baseUrl: 'https://elsewhere.example/v1',
+            models: [{ id: 'gpt-5.5', name: ' GPT-5.5 ' }],
+          },
+          { id: 'p-2', kind: 'anthropic', auth: 'chatgpt' },
+          { id: 'p-3', kind: 'openai', auth: 'mystery' },
+        ],
+      },
+    } as never);
+    expect(
+      ai.providers.map(({ id, auth, baseUrl }) => ({ id, auth, baseUrl }))
+    ).toEqual([
+      { id: 'p-1', auth: 'chatgpt', baseUrl: 'https://api.openai.com/v1' },
+      { id: 'p-2', auth: 'key', baseUrl: '' },
+      { id: 'p-3', auth: 'key', baseUrl: '' },
+    ]);
+    expect(ai.providers[0].models[0]).toMatchObject({
+      id: 'gpt-5.5',
+      name: 'GPT-5.5',
+    });
   });
 
   test('drop a chosen model its service no longer has', () => {
@@ -214,10 +246,15 @@ describe('presets', () => {
   });
 
   test('put the key where each API reads it', () => {
-    expect(authSchemeOf('anthropic')).toBe('x-api-key');
-    expect(authSchemeOf('google')).toBe('x-goog-api-key');
-    expect(authSchemeOf('openai')).toBe('bearer');
-    expect(authSchemeOf('openai-compatible')).toBe('bearer');
+    const scheme = (
+      kind: AiProvider['kind'],
+      auth: AiProvider['auth'] = 'key'
+    ) => authSchemeOf({ kind, auth });
+    expect(scheme('anthropic')).toBe('x-api-key');
+    expect(scheme('google')).toBe('x-goog-api-key');
+    expect(scheme('openai')).toBe('bearer');
+    expect(scheme('openai-compatible')).toBe('bearer');
+    expect(scheme('openai', 'chatgpt')).toBe('chatgpt');
   });
 });
 

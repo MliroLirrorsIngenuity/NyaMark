@@ -213,6 +213,7 @@ pub fn run() {
         .manage(ai::http::InFlight::default())
         .manage(ai::secrets::SecretCache::default())
         .manage(ai::secrets::StagedSecrets::default())
+        .manage(ai::chatgpt::ChatGpt::default())
         .manage(ai::web::LastSearchEngine::default())
         .manage(ai::workspace::WorkspaceGrants::default())
         .manage(ai::history::HistoryLock::default())
@@ -260,6 +261,7 @@ pub fn run() {
                 sessions::forget_window_dirty(app, window.label());
                 sessions::clear_last_focused_window(app, window.label());
                 ai::secrets::forget_window(app, window.label());
+                ai::chatgpt::forget_window(app, window.label());
                 ai::workspace::forget_window(app, window.label());
                 ai::history::forget_window(app, window.label());
                 quit::continue_pending_quit(app);
@@ -290,6 +292,10 @@ pub fn run() {
             ai::secrets::ai_secret_delete,
             ai::secrets::ai_secrets_commit,
             ai::secrets::ai_secrets_discard,
+            ai::chatgpt::ai_chatgpt_sign_in,
+            ai::chatgpt::ai_chatgpt_cancel,
+            ai::chatgpt::ai_chatgpt_status,
+            ai::chatgpt::ai_chatgpt_sign_out,
             ai::web::web_search,
             ai::web::web_fetch,
             ai::web::web_address_is_public,

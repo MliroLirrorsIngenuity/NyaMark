@@ -18,13 +18,24 @@ function appFailure(error: unknown) {
 
 /** The text of a failure, for a line in the settings. */
 export function failureText(error: unknown): string {
-  switch (appFailure(error)?.kind) {
+  const failure = appFailure(error);
+  switch (failure?.kind) {
     case 'not-connected':
       return i18next.t('settings.ai.notConnected');
     case 'key-needed':
       return i18next.t('settings.ai.keyNeeded');
     case 'bad-url':
       return i18next.t('settings.ai.badUrl');
+    case 'signed-out':
+      return i18next.t('settings.ai.chatgpt.error.signedOut');
+    case 'plan-disabled':
+      return i18next.t('settings.ai.chatgpt.error.planDisabled');
+    case 'sign-in-failed':
+      return i18next.t('settings.ai.chatgpt.error.oauth', {
+        message: failure.message
+          ? `${failure.message} (${failure.code})`
+          : failure.code,
+      });
     default:
       return error instanceof Error ? error.message : String(error ?? 'error');
   }

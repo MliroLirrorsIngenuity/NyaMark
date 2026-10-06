@@ -26,7 +26,8 @@ export async function checkProvider(
     const unlisted =
       error instanceof ModelListError &&
       (error.status === 404 || error.status === 405);
-    if (!unlisted || !model) throw error;
+    // A ChatGPT plan takes streamed requests only, and always lists its models.
+    if (!unlisted || !model || provider.auth === 'chatgpt') throw error;
     await generateText({
       model: languageModel(provider, model, fetch),
       prompt: 'Reply with OK.',

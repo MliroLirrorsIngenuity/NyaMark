@@ -18,6 +18,8 @@ export const AI_PROVIDER_KINDS: readonly AiProviderKind[] = [
 
 export type AiModelInfo = {
   id: string;
+  /** What the service calls it, when it names its models. */
+  name?: string;
   /** Takes images. */
   vision: boolean;
   /** Can call tools, which the assistant needs to read and edit. */
@@ -28,6 +30,15 @@ export type AiModelInfo = {
   contextWindow: number;
 };
 
+/**
+ * How a provider's requests are paid for: with the key the user saved, or
+ * with the ChatGPT plan of the account they signed in with.
+ */
+export type AiProviderAuth = 'key' | 'chatgpt';
+
+/** Where a ChatGPT sign-in's requests go: OpenAI's own API, and no other. */
+export const CHATGPT_BASE_URL = 'https://api.openai.com/v1';
+
 export type AiProvider = {
   /** Names the provider's key in the keychain: `[A-Za-z0-9_-]{1,64}`. */
   id: string;
@@ -35,11 +46,18 @@ export type AiProvider = {
   /** The preset it was added from, `custom` for none. */
   preset: string;
   kind: AiProviderKind;
+  /** `chatgpt` only with the `openai` kind, at `CHATGPT_BASE_URL`. */
+  auth: AiProviderAuth;
   baseUrl: string;
   models: AiModelInfo[];
 };
 
 export type AiModelRef = { provider: string; model: string };
+
+/** How a model reads in the app: by the service's name for it, else its id. */
+export function modelLabel(model: AiModelInfo): string {
+  return model.name || model.id;
+}
 
 /** The assistant's edits: shown to accept or reject, or applied right away. */
 export type AiEditMode = 'review' | 'auto';
@@ -206,8 +224,10 @@ function sanitizeModel(value: unknown): AiModelInfo | null {
   const id = text(value.id, 200).trim();
   if (!id) return null;
   const context = Number(value.contextWindow);
+  const name = text(value.name, 200).trim();
   return {
     id,
+    ...(name && { name }),
     vision: bool(value.vision, false),
     tools: bool(value.tools, true),
     reasoning: bool(value.reasoning, false),
@@ -236,12 +256,16 @@ function sanitizeProvider(value: unknown): AiProvider | null {
       models.push(model);
     }
   }
+  const auth =
+    kind === 'openai' && value.auth === 'chatgpt' ? 'chatgpt' : 'key';
   return {
     id: value.id,
     name: text(value.name, 100).trim() || value.id,
     preset: text(value.preset, 64) || (legacyDeepSeek ? 'deepseek' : 'custom'),
     kind,
-    baseUrl: text(value.baseUrl, 2000).trim(),
+    auth,
+    baseUrl:
+      auth === 'chatgpt' ? CHATGPT_BASE_URL : text(value.baseUrl, 2000).trim(),
     models: models.slice(0, 1000),
   };
 }

@@ -20,6 +20,7 @@ import {
   resolveDocumentAssetPath,
   toAssetUrl,
 } from '../../bridge/ipc/attachments';
+import { openExternalUrl } from '../../bridge/ipc/attachments';
 import { openImageFilesDialog } from '../../bridge/ipc/files';
 import { dragDropTarget, listenWindowFileDrop } from '../../bridge/ipc/windows';
 import type { NyaEditor } from '../../editor/editor';
@@ -27,7 +28,7 @@ import { isNetworkPath } from '../../features/attachment-paths';
 import { IMAGE_EXTENSIONS } from '../../features/attachment-policy';
 import { i18next } from '../../i18n';
 import { translateDOM } from '../../i18n/dom';
-import type { AiSettings } from '../../state/ai-settings';
+import { type AiSettings, modelLabel } from '../../state/ai-settings';
 import {
   getSettings,
   subscribeSettings,
@@ -57,6 +58,7 @@ import { ConversationKeeper } from '../history/keeper';
 import { conversationTitle } from '../history/saved';
 import { prepareImage } from '../images/prepare';
 import { mcpHub } from '../mcp/hub';
+import { CHATGPT_USAGE_URL } from '../providers/chatgpt';
 import { connectModel } from '../providers/connect';
 import { nativeSearchTool } from '../providers/native-search';
 import { AI_PRESETS } from '../providers/presets';
@@ -122,7 +124,12 @@ function chatModel(ai: AiSettings) {
   const provider = ref && ai.providers.find((p) => p.id === ref.provider);
   if (!ref || !provider) return null;
   const model = provider.models.find((m) => m.id === ref.model);
-  return { ref, provider, vision: model?.vision ?? false };
+  return {
+    ref,
+    provider,
+    label: model ? modelLabel(model) : ref.model,
+    vision: model?.vision ?? false,
+  };
 }
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() || path;
@@ -192,6 +199,7 @@ export class AiPanel {
   private quick: QuickMenu | null = null;
   private readonly review: HTMLElement;
   private readonly reviewCount: HTMLElement;
+  private readonly plan: HTMLElement;
   private readonly title: HTMLElement;
   private readonly mode: ModeMenu;
   private readonly newChat: HTMLButtonElement;
@@ -323,9 +331,11 @@ export class AiPanel {
     this.reviewCount.className = 'ny-ai__review-count';
     this.review = this.reviewBar();
 
+    this.plan = this.planNote();
+
     const foot = document.createElement('div');
     foot.className = 'ny-ai__foot';
-    foot.append(this.review, this.composer.element);
+    foot.append(this.review, this.plan, this.composer.element);
 
     this.root.append(resize, header, this.scroller, foot);
     document.body.append(this.root);
@@ -348,6 +358,7 @@ export class AiPanel {
     i18next.on('languageChanged', onLanguage);
     this.cleanups.push(() => i18next.off('languageChanged', onLanguage));
     this.drawVision();
+    this.drawPlan();
     void this.bindDrop();
     // The servers the user added start with the assistant.
     mcpHub();
@@ -594,9 +605,7 @@ export class AiPanel {
   /** Warns when the images may not reach the model chosen. */
   private drawVision() {
     const model = chatModel(this.ai);
-    this.composer.images.setBlind(
-      model && !model.vision ? model.ref.model : null
-    );
+    this.composer.images.setBlind(model && !model.vision ? model.label : null);
   }
 
   private async prepareTurn(): Promise<TurnSetup> {
@@ -605,7 +614,7 @@ export class AiPanel {
     if (!chosen) {
       throw new ChatFailureError({ code: 'no-model', message: '' });
     }
-    const { ref, provider, vision } = chosen;
+    const { ref, provider, label, vision } = chosen;
     // What became of the earlier edits goes before the text it changed.
     const notices = await this.edits.notices();
     const document = await this.edits.read();
@@ -620,7 +629,7 @@ export class AiPanel {
     );
     return {
       model: connectModel(provider, ref.model, () => getSettings().ai.proxy),
-      modelLabel: ref.model,
+      modelLabel: label,
       instructions: buildInstructions({
         documentPath: this.host.documentPath(),
         custom: ai.instructions,
@@ -700,6 +709,7 @@ export class AiPanel {
     this.mode.update(ai.editMode);
     this.drawState();
     this.drawVision();
+    this.drawPlan();
   }
 
   private editsChanged() {
@@ -740,6 +750,34 @@ export class AiPanel {
     accept.addEventListener('click', () => this.edits.accept());
     bar.append(dot, this.reviewCount, prev, next, reject, accept);
     return bar;
+  }
+
+  /** Says whose money the replies cost when they come from a ChatGPT plan. */
+  private planNote() {
+    const note = document.createElement('div');
+    note.className = 'ny-ai__plan';
+    note.hidden = true;
+    const logo = document.createElement('span');
+    logo.className = 'ny-ai__plan-logo';
+    logo.innerHTML = ICONS.chatgpt;
+    const text = document.createElement('span');
+    text.className = 'ny-ai__plan-text';
+    text.textContent = 'Using your ChatGPT plan';
+    text.setAttribute('data-i18n', 'ai.plan.using');
+    const manage = document.createElement('button');
+    manage.type = 'button';
+    manage.className = 'ny-ai__plan-manage';
+    manage.textContent = 'Manage usage';
+    manage.setAttribute('data-i18n', 'ai.plan.manage');
+    manage.addEventListener('click', () => {
+      void openExternalUrl(CHATGPT_USAGE_URL).catch(console.error);
+    });
+    note.append(logo, text, manage);
+    return note;
+  }
+
+  private drawPlan() {
+    this.plan.hidden = chatModel(this.ai)?.provider.auth !== 'chatgpt';
   }
 
   private drawReview() {

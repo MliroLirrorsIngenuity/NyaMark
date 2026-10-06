@@ -22,6 +22,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::{
     blocking,
+    chatgpt::{self, ChatGptError},
     secrets::{self, AuthScheme, SecretError, SecretRecord},
 };
 
@@ -39,11 +40,12 @@ pub enum ProxySetting {
 }
 
 /// The clients last built, kept for their pooled connections: one for
-/// requests that carry a key, one for web search.
+/// requests that carry a key, one for web search, one for signing in.
 #[derive(Default)]
 pub struct HttpClients {
     keyed: Mutex<Option<(ProxySetting, reqwest::Client)>>,
     search: Mutex<Option<(ProxySetting, reqwest::Client)>>,
+    oauth: Mutex<Option<(ProxySetting, reqwest::Client)>>,
 }
 
 /// Redirects followed before giving up, as reqwest does by default.
@@ -82,6 +84,17 @@ pub fn build_search_client(proxy: &ProxySetting) -> Result<reqwest::Client, Clie
     let builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(15))
         .read_timeout(Duration::from_secs(300));
+    finish_client(builder, proxy)
+}
+
+/// The client for signing in. It follows no redirect at all, as OAuth asks
+/// of requests to the token endpoint, which carry codes and tokens.
+pub fn build_oauth_client(proxy: &ProxySetting) -> Result<reqwest::Client, ClientError> {
+    install_crypto_provider();
+    let builder = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(60));
     finish_client(builder, proxy)
 }
 
@@ -189,6 +202,14 @@ pub fn search_client<R: Runtime>(
     )
 }
 
+/// The client for signing in; see [`build_oauth_client`].
+pub fn oauth_client<R: Runtime>(
+    app: &AppHandle<R>,
+    proxy: &ProxySetting,
+) -> Result<reqwest::Client, ClientError> {
+    cached(&app.state::<HttpClients>().oauth, proxy, build_oauth_client)
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FetchRequest {
@@ -254,6 +275,17 @@ pub enum FetchError {
         message: String,
     },
     Aborted,
+    /// The service signs in with ChatGPT, and is signed out or has to sign
+    /// in again.
+    SignedOut,
+    /// Signed in with ChatGPT without letting NyaMark use the plan.
+    PlanDisabled,
+    /// OpenAI would not renew the ChatGPT sign-in, for a reason other than
+    /// its having ended.
+    SignInFailed {
+        code: String,
+        message: Option<String>,
+    },
 }
 
 impl From<SecretError> for FetchError {
@@ -273,6 +305,34 @@ impl From<AuthError> for FetchError {
             AuthError::NotConnected => Self::NotConnected,
             AuthError::KeyNeeded => Self::KeyNeeded,
             AuthError::BadUrl { url } => Self::BadUrl { url },
+        }
+    }
+}
+
+impl From<ChatGptError> for FetchError {
+    fn from(error: ChatGptError) -> Self {
+        match error {
+            ChatGptError::BadProfile => Self::BadProfile,
+            ChatGptError::PlanDisabled => Self::PlanDisabled,
+            ChatGptError::Network { message } => Self::Network { message },
+            ChatGptError::Store { message } => Self::Store { message },
+            ChatGptError::BadProxy { message } => Self::BadProxy { message },
+            ChatGptError::OAuth { code, message } => Self::SignInFailed { code, message },
+            ChatGptError::Discovery { message } => Self::SignInFailed {
+                code: "discovery".into(),
+                message: Some(message),
+            },
+            // The rest fail a sign-in in the browser, which a request never
+            // starts: what it meets is a sign-in that has ended.
+            ChatGptError::SignedOut
+            | ChatGptError::SignInAgain
+            | ChatGptError::AccessDenied
+            | ChatGptError::Cancelled
+            | ChatGptError::TimedOut
+            | ChatGptError::AccountMismatch
+            | ChatGptError::RegistrationIncomplete
+            | ChatGptError::IdToken { .. }
+            | ChatGptError::Browser { .. } => Self::SignedOut,
         }
     }
 }
@@ -352,7 +412,9 @@ pub fn authorize(
         .collect();
     if let Some(key) = &record.key {
         headers.push(match record.auth {
-            AuthScheme::Bearer => ("authorization".into(), format!("Bearer {key}")),
+            AuthScheme::Bearer | AuthScheme::Chatgpt => {
+                ("authorization".into(), format!("Bearer {key}"))
+            }
             AuthScheme::XApiKey => ("x-api-key".into(), key.clone()),
             AuthScheme::XGoogApiKey => ("x-goog-api-key".into(), key.clone()),
             AuthScheme::ApiKey => ("api-key".into(), key.clone()),
@@ -512,41 +574,54 @@ pub async fn ai_fetch(
     request: FetchRequest,
     on_event: Channel<FetchEvent>,
 ) -> Result<FetchHead, FetchError> {
+    let FetchRequest {
+        id,
+        profile,
+        url,
+        method,
+        headers,
+        body,
+        proxy,
+    } = request;
     let record = {
         let app = app.clone();
         let label = window.label().to_string();
-        let profile = request.profile.clone();
+        let profile = profile.clone();
         // The keychain may ask the user, so it is read off the async threads.
         blocking(move || secrets::record(&app, &label, &profile).map_err(FetchError::from)).await?
     };
-    let headers = authorize(&request.url, request.headers, record.as_ref())?;
-    let client = client(&app, &request.proxy)?;
+    let signed_in = record
+        .as_ref()
+        .is_some_and(|record| record.auth == AuthScheme::Chatgpt);
+    let headers = authorize(&url, headers, record.as_ref())?;
+    let client = client(&app, &proxy)?;
     let token = CancellationToken::new();
-    track(&app, &request.id, Some(token.clone()));
+    track(&app, &id, Some(token.clone()));
     let sent = token
-        .run_until_cancelled(send(
-            &client,
-            &request.method,
-            &request.url,
-            headers,
-            request.body,
-        ))
+        .run_until_cancelled(async {
+            if signed_in {
+                let service = chatgpt::Service::of(&app, &proxy)?;
+                chatgpt::send(&service, &client, &profile, &method, &url, headers, body).await
+            } else {
+                send(&client, &method, &url, headers, body).await
+            }
+        })
         .await;
     let response = match sent {
         Some(Ok(response)) => response,
         Some(Err(error)) => {
-            track(&app, &request.id, None);
+            track(&app, &id, None);
             return Err(error);
         }
         None => {
-            track(&app, &request.id, None);
+            track(&app, &id, None);
             return Err(FetchError::Aborted);
         }
     };
     let head = head_of(&response);
     tauri::async_runtime::spawn(async move {
         pump(response, &on_event, &token).await;
-        track(&app, &request.id, None);
+        track(&app, &id, None);
     });
     Ok(head)
 }

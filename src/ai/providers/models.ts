@@ -138,6 +138,26 @@ export function parseGoogleModels(json: unknown): ListedModel[] {
   });
 }
 
+/**
+ * The models a ChatGPT account may use, in the order OpenAI gives them:
+ * those it means to be shown, by name, to be asked for by `slug`.
+ */
+export function parseChatGptModels(json: unknown): ListedModel[] {
+  return records((json as Json)?.models).flatMap((entry) =>
+    entry.visibility === 'list' && typeof entry.slug === 'string'
+      ? [
+          {
+            id: entry.slug,
+            name:
+              typeof entry.display_name === 'string'
+                ? entry.display_name
+                : undefined,
+          },
+        ]
+      : []
+  );
+}
+
 /** The models a service offers, as it lists them. */
 export async function listModels(
   provider: AiProvider,
@@ -183,5 +203,8 @@ export async function listModels(
     }
     return models;
   }
-  return parseOpenAiModels(await getJson(fetch, `${base}/models`, {}, signal));
+  const json = await getJson(fetch, `${base}/models`, {}, signal);
+  return provider.auth === 'chatgpt'
+    ? parseChatGptModels(json)
+    : parseOpenAiModels(json);
 }

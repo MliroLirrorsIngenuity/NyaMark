@@ -799,11 +799,12 @@ export class SettingsPanel {
       const { commitAiSecrets, discardAiSecrets } = await import(
         '../../bridge/ipc/ai'
       );
+      // A ChatGPT sign-out goes through the proxy that stays in force.
       if (!keep) {
-        await discardAiSecrets();
+        await discardAiSecrets(opened.ai.proxy);
         return;
       }
-      await commitAiSecrets();
+      await commitAiSecrets(working.ai.proxy);
       aiSection?.committed();
     };
     const loadAi = () => {

@@ -323,7 +323,10 @@
         "local": "Ready",
         "noKey": "No key",
         "keyNeeded": "Key needed again",
-        "notConnected": "Not set up"
+        "notConnected": "Not set up",
+        "signedOut": "Not signed in",
+        "signedIn": "Using ChatGPT plan",
+        "planOff": "Plan not turned on"
       },
       "name": "Name",
       "kind": "API",
@@ -333,6 +336,9 @@
         "anthropic": "Anthropic",
         "google": "Google Gemini"
       },
+      "auth": "Sign in with",
+      "authKey": "API key",
+      "authChatgpt": "ChatGPT account",
       "baseUrl": "Address",
       "badUrl": "Enter an address that starts with https:// or http://.",
       "plainHttp": "This address uses plain http, so the key crosses the internet unencrypted. Use https if the service offers it.",
@@ -342,6 +348,40 @@
       "keyOptional": "Optional",
       "keySaved": "Saved ••••{{hint}} — paste a new key to replace it",
       "getKey": "Get a key",
+      "chatgpt": {
+        "title": "ChatGPT account",
+        "about": "Requests to this service use the usage included in your ChatGPT plan or your credits balance. You sign in on chatgpt.com in your browser.",
+        "continue": "Continue with ChatGPT",
+        "signedInAs": "Signed in as {{who}}",
+        "signedIn": "Signed in to ChatGPT",
+        "planOff": "This account has not let NyaMark use its ChatGPT plan. Turn it on, or use an API key for this service.",
+        "enablePlan": "Use my ChatGPT plan",
+        "useKey": "Use an API key",
+        "otherAccount": "Use another account",
+        "signOut": "Sign out",
+        "waiting": "Finish signing in in your browser…",
+        "notRevoked": "Signed out here. ChatGPT could not be reached, so NyaMark may still show in its connected apps.",
+        "page": {
+          "signedIn": "NyaMark is signed in. You can close this page and go back to the app.",
+          "failed": "NyaMark could not finish signing in. Go back to the app to see why."
+        },
+        "welcome": {
+          "title": "You’re using your ChatGPT plan",
+          "body": "Requests to this service now use your ChatGPT plan. Review the usage and set limits for NyaMark in ChatGPT’s usage settings.",
+          "ok": "Got it"
+        },
+        "error": {
+          "signedOut": "This service is signed out of ChatGPT. Sign in again.",
+          "signInAgain": "The ChatGPT sign-in has ended. Sign in again.",
+          "planDisabled": "This ChatGPT account has not let NyaMark use its plan.",
+          "accessDenied": "The sign-in was declined in the browser.",
+          "timedOut": "The sign-in took too long. Try again.",
+          "accountMismatch": "The browser signed in to another ChatGPT account. To switch accounts, choose “Use another account”.",
+          "registrationIncomplete": "ChatGPT did not finish registering NyaMark. Try signing in again.",
+          "oauth": "ChatGPT refused the sign-in: {{message}}",
+          "browser": "The browser could not be opened: {{message}}"
+        }
+      },
       "fetchModels": "Fetch models",
       "check": "Test connection",
       "fetching": "Fetching models…",
@@ -517,7 +557,16 @@
       "unauthorized": "The service refused the key ({{status}}).",
       "rateLimited": "Too many requests, or the quota is used up. Try again in a moment.",
       "network": "The service could not be reached.",
+      "signedOut": "This service is signed out of ChatGPT. Sign in again in the AI settings.",
+      "planDisabled": "This ChatGPT account has not let NyaMark use its plan. Turn it on in the AI settings, or use an API key.",
+      "renewFailed": "The ChatGPT sign-in could not be renewed.",
+      "usageLimit": "The usage limit is reached, for NyaMark or for your ChatGPT plan. Review it in ChatGPT’s usage settings.",
+      "planUnavailable": "This ChatGPT account cannot use its plan in NyaMark.",
       "other": "The service returned an error."
+    },
+    "plan": {
+      "using": "Using ChatGPT plan",
+      "manage": "Manage usage"
     },
     "tool": {
       "readDocument": "Reading the document",

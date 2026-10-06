@@ -1489,6 +1489,61 @@ pre.ny-ai-approval__box {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1);
 }
 
+.ny-ai__plan {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 4px 6px;
+  color: var(--ny-text-secondary);
+  font-size: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ny-ai__plan[hidden] {
+  display: none;
+}
+
+.ny-ai__plan-logo {
+  display: inline-flex;
+  flex: none;
+  color: var(--ny-text-primary);
+}
+
+.ny-ai__plan-logo svg {
+  width: 13px;
+  height: 13px;
+}
+
+.ny-ai__plan-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ny-ai__plan-manage {
+  flex: none;
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ny-accent);
+  font: inherit;
+  cursor: default;
+}
+
+.ny-ai__plan-manage:hover {
+  background: var(--ny-fill-soft);
+}
+
+.ny-ai__plan-manage:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 50%);
+  outline-offset: 1px;
+}
+
 .ny-ai__composer {
   position: relative;
   padding: 10px;
