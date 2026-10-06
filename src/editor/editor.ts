@@ -761,6 +761,34 @@ export class NyaEditor {
     if (view?.editable) view.focus();
   }
 
+  /** Where the image whose view holds `dom` starts, or -1. */
+  imageAt(dom: Node): number {
+    const view = this.getView();
+    if (!view?.dom.contains(dom)) return -1;
+    const { doc } = view.state;
+    const $pos = doc.resolve(view.posAtDOM(dom, 0));
+    const before = $pos.nodeBefore;
+    const starts = [$pos.pos, before ? $pos.pos - before.nodeSize : -1];
+    return (
+      starts.find((pos) => {
+        const name = pos < 0 ? '' : doc.nodeAt(pos)?.type.name;
+        return (
+          (name === 'image-block' || name === 'image') &&
+          !!view.nodeDOM(pos)?.contains(dom)
+        );
+      }) ?? -1
+    );
+  }
+
+  /** Gives the image whose view holds `dom` the address `src`. */
+  setImageSource(dom: Node, src: string): boolean {
+    const view = this.getView();
+    const pos = this.imageAt(dom);
+    if (!view?.editable || pos < 0) return false;
+    view.dispatch(view.state.tr.setNodeAttribute(pos, 'src', src));
+    return true;
+  }
+
   insertAttachments(attachments: EditorAttachment[]) {
     if (!this.crepe || attachments.length === 0) return;
     const view = this.crepe.editor.ctx.get(editorViewCtx);

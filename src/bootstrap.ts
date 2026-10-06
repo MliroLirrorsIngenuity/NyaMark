@@ -195,7 +195,7 @@ export class App {
     this.sourceMode.init();
 
     this.attachments.bindPaste(editorContainer);
-    this.attachments.bindImagePicker(editorContainer);
+    this.attachments.bindImagePicker(editorContainer, this.editor);
     void this.attachments.bindWindowFileDrop();
 
     editorContainer.addEventListener('click', (e) => {

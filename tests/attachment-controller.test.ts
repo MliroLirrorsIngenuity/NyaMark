@@ -8,6 +8,7 @@ import {
   spyOn,
   test,
 } from 'bun:test';
+import { parseHTML } from 'linkedom';
 import * as realAttachments from '../src/bridge/ipc/attachments';
 import * as realFiles from '../src/bridge/ipc/files';
 import * as realWindows from '../src/bridge/ipc/windows';
@@ -57,6 +58,7 @@ const bridge = {
   drop: null as DropHandler | null,
   /** What the files were dropped on. */
   dropTarget: null as Element | null,
+  pickedImage: null as string | null,
 };
 
 mock.module('../src/bridge/ipc/attachments', () => ({
@@ -98,6 +100,7 @@ mock.module('../src/bridge/ipc/files', () => ({
     return bridge.allowCopyTarget;
   },
   openDirectoryDialog: async () => null,
+  openImageFileDialog: async () => bridge.pickedImage,
 }));
 
 mock.module('../src/bridge/ipc/windows', () => ({
@@ -196,6 +199,7 @@ beforeEach(() => {
   bridge.pastedImageChoice = null;
   bridge.drop = null;
   bridge.dropTarget = null;
+  bridge.pickedImage = null;
 });
 
 afterEach(() => {
@@ -356,5 +360,45 @@ describe('front matter copy folder', () => {
       '/pictures/cat.png',
       '/pictures/dog.png',
     ]);
+  });
+});
+
+describe('picking a file for an image', () => {
+  const page = parseHTML(
+    '<div><input type="file"><input type="file"><input type="text"></div>'
+  );
+  const container = page.document.querySelector('div') as HTMLElement;
+  const [inImage, elsewhere, text] = Array.from(
+    container.querySelectorAll('input')
+  );
+  const hadInput = 'HTMLInputElement' in globalThis;
+
+  const pick = async (input: Element) => {
+    const { controller } = await setup();
+    const given: Array<[Node, string]> = [];
+    controller.bindImagePicker(container, {
+      imageAt: (dom) => (dom === inImage ? 3 : -1),
+      setImageSource: (dom, src) => given.push([dom, src]) > 0,
+    });
+    Object.assign(globalThis, { HTMLInputElement: page.HTMLInputElement });
+    const click = new page.Event('click', { bubbles: true, cancelable: true });
+    input.dispatchEvent(click);
+    if (!hadInput) Reflect.deleteProperty(globalThis, 'HTMLInputElement');
+    await settle();
+    return { opened: click.defaultPrevented, given };
+  };
+
+  test("an image's file button picks through the native dialog", async () => {
+    bridge.pickedImage = '/pictures/cat.png';
+    expect(await pick(inImage)).toEqual({
+      opened: true,
+      given: [[inImage, '/pictures/cat.png']],
+    });
+  });
+
+  test('a file button outside an image is left alone', async () => {
+    bridge.pickedImage = '/pictures/cat.png';
+    expect(await pick(elsewhere)).toEqual({ opened: false, given: [] });
+    expect(await pick(text)).toEqual({ opened: false, given: [] });
   });
 });

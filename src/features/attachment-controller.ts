@@ -16,7 +16,7 @@ import {
   openMarkdownInNewWindow,
 } from '../bridge/ipc/files';
 import { dragDropTarget, listenWindowFileDrop } from '../bridge/ipc/windows';
-import type { EditorAttachment } from '../editor/editor';
+import type { EditorAttachment, NyaEditor } from '../editor/editor';
 import type { FrontMatter } from '../editor/plugins/front-matter';
 import { i18next } from '../i18n';
 import type {
@@ -67,6 +67,8 @@ type AttachmentSource = {
   name: string;
   load: () => Promise<EditorAttachment | null>;
 };
+
+type ImageSources = Pick<NyaEditor, 'imageAt' | 'setImageSource'>;
 
 type AttachmentControllerOptions = {
   getMarkdown: () => string;
@@ -122,27 +124,30 @@ export class AttachmentController {
    * The image block's upload button opens a plain `<input type="file">`, whose
    * File carries no path, so the insert policy (keep the path, copy next to
    * the document...) could not apply. Picking through the native dialog
-   * yields a path; the result goes back through the block's own link field.
+   * yields a path, which becomes the image's address.
    */
-  bindImagePicker(editorContainer: HTMLElement) {
+  bindImagePicker(editorContainer: HTMLElement, images: ImageSources) {
     editorContainer.addEventListener(
       'click',
       (event) => {
-        const target = event.target instanceof Element ? event.target : null;
-        const uploader = target?.closest('.image-edit .uploader');
-        const linkInput = uploader
-          ?.closest('.image-edit')
-          ?.querySelector<HTMLInputElement>('.link-input-area');
-        if (!linkInput || linkInput.disabled) return;
+        const input = event.target;
+        if (
+          !(input instanceof HTMLInputElement) ||
+          input.type !== 'file' ||
+          input.disabled ||
+          images.imageAt(input) < 0
+        ) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
-        void this.pickImageInto(linkInput);
+        void this.pickImageInto(input, images);
       },
       true
     );
   }
 
-  private async pickImageInto(linkInput: HTMLInputElement) {
+  private async pickImageInto(input: HTMLInputElement, images: ImageSources) {
     const path = await openImageFileDialog(
       i18next.t('dialog.imageFilter'),
       IMAGE_EXTENSIONS
@@ -150,12 +155,7 @@ export class AttachmentController {
     if (!path) return;
     try {
       const attachment = await this.createAttachmentFromLocalPath(path);
-      if (!attachment) return;
-      linkInput.value = attachment.href;
-      linkInput.dispatchEvent(new Event('input', { bubbles: true }));
-      linkInput.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
-      );
+      if (attachment) images.setImageSource(input, attachment.href);
     } catch (error) {
       console.error('Failed to insert picked image:', error);
       await this.reportFailure('insert', basenamePath(path), error);
