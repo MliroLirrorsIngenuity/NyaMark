@@ -6,7 +6,7 @@
  * are gone.
  */
 
-import type { ModelMessage } from 'ai';
+import { type ModelMessage, modelMessageSchema } from 'ai';
 import type {
   AssistantEntry,
   ChatEntry,
@@ -176,7 +176,6 @@ function putBack(
   return value;
 }
 
-const ROLES = new Set(['system', 'user', 'assistant', 'tool']);
 const TOOL_STATES = new Set(['running', 'done', 'denied', 'error', 'stopped']);
 const STATUSES = new Set(['streaming', 'done', 'stopped', 'error']);
 
@@ -282,12 +281,12 @@ export async function unpackConversation(
   }
   const back = putBack(value, images) as Record<string, unknown>;
 
-  const messages: ModelMessage[] = [];
-  for (const message of Array.isArray(back.history) ? back.history : []) {
-    if (!isRecord(message) || typeof message.role !== 'string') return null;
-    if (!ROLES.has(message.role)) return null;
-    messages.push(message as ModelMessage);
-  }
+  // As the model is sent them, or the conversation cannot go on.
+  const history = modelMessageSchema
+    .array()
+    .safeParse(Array.isArray(back.history) ? back.history : []);
+  if (!history.success) return null;
+  const messages = history.data;
   const entries: ChatEntry[] = [];
   for (const item of Array.isArray(back.messages) ? back.messages : []) {
     const entry = chatEntry(item, messages.length);

@@ -362,6 +362,23 @@ describe('a conversation kept on disk', () => {
         read
       )
     ).toBeNull();
+    expect(
+      await unpackConversation(
+        {
+          version: 1,
+          history: [
+            { role: 'assistant', content: [{ type: 'tool-call', input: {} }] },
+          ],
+        },
+        read
+      )
+    ).toBeNull();
+    expect(
+      await unpackConversation(
+        { version: 1, history: [{ role: 'tool', content: 'Done.' }] },
+        read
+      )
+    ).toBeNull();
     expect(await unpackConversation({ version: 1 }, read)).toEqual({
       title: '',
       createdAt: 0,
