@@ -81,6 +81,7 @@ function spot(view: FakeView): SuggestSpot {
 
 function key(view: FakeView, name: string) {
   let prevented = false;
+  let stopped = false;
   const event = {
     key: name,
     shiftKey: false,
@@ -91,13 +92,16 @@ function key(view: FakeView, name: string) {
     preventDefault() {
       prevented = true;
     },
+    stopPropagation() {
+      stopped = true;
+    },
   } as unknown as KeyboardEvent;
   const handled = pluginOf(view).props.handleDOMEvents?.keydown?.call(
     pluginOf(view),
     asView(view),
     event
   );
-  return { handled: !!handled, prevented };
+  return { handled: !!handled, prevented, stopped };
 }
 
 const text = (view: FakeView) => view.state.doc.textContent;
@@ -185,7 +189,11 @@ describe('suggestions in the editor', () => {
     const view = viewOf(doc(p('Hello')), 6);
     expect(key(view, 'Tab').handled).toBe(false);
     spot(view).show(' world');
-    expect(key(view, 'Tab')).toEqual({ handled: true, prevented: true });
+    expect(key(view, 'Tab')).toEqual({
+      handled: true,
+      prevented: true,
+      stopped: false,
+    });
     expect(text(view)).toBe('Hello world');
     expect(suggestionOf(view.state)).toBeNull();
     expect(view.state.selection.head).toBe(12);
@@ -193,7 +201,12 @@ describe('suggestions in the editor', () => {
     expect(text(view)).toBe('Hello');
 
     spot(view).show(' there');
-    expect(key(view, 'Escape').handled).toBe(true);
+    // Kept from the find bar, which closes on the next one.
+    expect(key(view, 'Escape')).toEqual({
+      handled: true,
+      prevented: true,
+      stopped: true,
+    });
     expect(suggestionOf(view.state)).toBeNull();
     expect(text(view)).toBe('Hello');
   });

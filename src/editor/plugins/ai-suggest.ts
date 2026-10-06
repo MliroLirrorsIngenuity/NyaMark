@@ -244,6 +244,7 @@ export function suggestPlugin() {
             take(view, nextWord(suggestion.text));
           } else if (event.key === 'Escape' && plainKey(event)) {
             clear(view);
+            event.stopPropagation();
           } else {
             return false;
           }

@@ -161,6 +161,7 @@ export class Composer {
     }
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       if (this.busy) this.actions.stop();
       else this.actions.leave();
     }

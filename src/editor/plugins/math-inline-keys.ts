@@ -103,6 +103,7 @@ export const mathInlineKeys = $prose(
           if (event.key !== 'Escape' || event.isComposing) return;
           if (!(event.target as Element).closest?.(BOX)) return;
           event.preventDefault();
+          event.stopPropagation();
           const { state } = view;
           const after = TextSelection.create(state.doc, state.selection.to);
           view.dispatch(state.tr.setSelection(after));
