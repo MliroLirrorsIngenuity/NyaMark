@@ -28,6 +28,7 @@ tauri-plugin-store = "2"
 anyhow = "1.0.102"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+dunce = "1"
 # Atomic document saves: write next to the target, then rename over it.
 tempfile = "3"
 # AI requests. Already in the tree through the updater, which also brings

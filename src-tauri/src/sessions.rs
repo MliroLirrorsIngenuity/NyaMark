@@ -144,12 +144,7 @@ pub fn ensure_attachment_directory<R: Runtime>(
 }
 
 pub(crate) fn strip_verbatim_prefix(path: PathBuf) -> String {
-    let s = path.to_string_lossy().into_owned();
-    #[cfg(windows)]
-    if let Some(stripped) = s.strip_prefix(r"\\?\") {
-        return stripped.to_string();
-    }
-    s
+    dunce::simplified(&path).to_string_lossy().into_owned()
 }
 
 /// Bind `path` to the window `label`, or name the open window that already

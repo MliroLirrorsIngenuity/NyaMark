@@ -191,19 +191,27 @@ pub(crate) fn normalize_lexically(path: &Path) -> Option<PathBuf> {
 /// paths as they were shown to it.
 #[cfg(windows)]
 pub(crate) fn within_lexically(root: &Path, path: &Path) -> bool {
+    use std::path::Prefix;
     let key = |path: &Path| {
-        let text = path.to_string_lossy().replace('/', "\\");
-        let text = match text.strip_prefix(r"\\?\UNC\") {
-            Some(share) => format!(r"\\{share}"),
-            None => text.strip_prefix(r"\\?\").unwrap_or(&text).to_string(),
-        };
-        text.trim_end_matches('\\').to_lowercase()
+        path.components()
+            .map(|component| match component {
+                Component::Prefix(prefix) => match prefix.kind() {
+                    Prefix::Disk(drive) | Prefix::VerbatimDisk(drive) => {
+                        format!("{}:", drive as char)
+                    }
+                    Prefix::UNC(server, share) | Prefix::VerbatimUNC(server, share) => format!(
+                        r"\\{}\{}",
+                        server.to_string_lossy(),
+                        share.to_string_lossy()
+                    ),
+                    _ => component.as_os_str().to_string_lossy().into_owned(),
+                },
+                other => other.as_os_str().to_string_lossy().into_owned(),
+            })
+            .map(|part| part.to_lowercase())
+            .collect::<Vec<_>>()
     };
-    let (root, path) = (key(root), key(path));
-    path == root
-        || path
-            .strip_prefix(&root)
-            .is_some_and(|rest| rest.starts_with('\\'))
+    key(path).starts_with(&key(root))
 }
 
 #[cfg(not(windows))]
@@ -778,6 +786,41 @@ mod tests {
         );
         assert_eq!(normalize_lexically(Path::new("/a/../..")), None);
         assert_eq!(normalize_lexically(Path::new("../a")), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_resolved_root_holds_the_paths_it_was_shown_as() {
+        for (root, path, within) in [
+            (r"\\?\C:\Docs", "c:/docs/a.md", true),
+            (r"\\?\C:\Docs\", r"C:\Docs", true),
+            (
+                r"\\?\UNC\Server\Share\Docs",
+                r"\\server\share\docs\a.md",
+                true,
+            ),
+            (r"\\?\C:\Docs", r"C:\Docs2\a.md", false),
+            (r"\\?\C:\Docs", r"D:\Docs\a.md", false),
+            (
+                r"\\?\UNC\Server\Share\Docs",
+                r"\\server\other\docs\a.md",
+                false,
+            ),
+        ] {
+            assert_eq!(
+                within_lexically(Path::new(root), Path::new(path)),
+                within,
+                "{root} {path}"
+            );
+        }
+        assert_eq!(
+            sessions::strip_verbatim_prefix(PathBuf::from(r"\\?\UNC\server\share\a.md")),
+            r"\\server\share\a.md"
+        );
+        assert_eq!(
+            sessions::strip_verbatim_prefix(PathBuf::from(r"\\?\C:\Docs\a.md")),
+            r"C:\Docs\a.md"
+        );
     }
 
     /// Paths outside every root are refused before anything on disk is
