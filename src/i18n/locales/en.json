@@ -429,6 +429,7 @@
           "exited": "The server stopped.",
           "commandNotFound": "The command was not found: {{detail}}",
           "badHeader": "This request header is not valid: {{detail}}",
+          "reservedHeader": "The connection sets this request header itself; remove it from the list: {{detail}}",
           "keyStore": "The saved key could not be read: {{detail}}",
           "badProxy": "The proxy address is not valid: {{detail}}",
           "server": "The server reported an error: {{detail}}",

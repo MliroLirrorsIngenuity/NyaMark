@@ -425,6 +425,7 @@
           "exited": "服务器已停止。",
           "commandNotFound": "找不到命令：{{detail}}",
           "badHeader": "请求头无效：{{detail}}",
+          "reservedHeader": "这个请求头由连接自己设置，请从列表里删掉：{{detail}}",
           "keyStore": "读不出保存的密钥：{{detail}}",
           "badProxy": "代理地址无效：{{detail}}",
           "server": "服务器报错：{{detail}}",

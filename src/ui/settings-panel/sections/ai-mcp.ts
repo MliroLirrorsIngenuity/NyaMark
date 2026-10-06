@@ -159,6 +159,8 @@ export function mcpErrorText(failure: McpStartFailure): string {
       return i18next.t('settings.ai.badUrl');
     case 'bad-header':
       return text('badHeader', failure.name);
+    case 'reserved-header':
+      return text('reservedHeader', failure.name);
     case 'not-connected':
       return text('noKey');
     case 'key-needed':

@@ -399,6 +399,7 @@ export type McpStartFailure =
   | { kind: 'bad-url'; url: string }
   | { kind: 'unsupported-scheme'; scheme: string }
   | { kind: 'bad-header'; name: string }
+  | { kind: 'reserved-header'; name: string }
   | {
       kind: 'spawn' | 'bad-proxy' | 'store' | 'server' | 'connection';
       message: string;

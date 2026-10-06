@@ -425,6 +425,7 @@
           "exited": "伺服器已停止。",
           "commandNotFound": "找不到指令：{{detail}}",
           "badHeader": "請求標頭無效：{{detail}}",
+          "reservedHeader": "這個請求標頭由連線自己設定，請從清單裡刪掉：{{detail}}",
           "keyStore": "讀不出儲存的金鑰：{{detail}}",
           "badProxy": "代理位址無效：{{detail}}",
           "server": "伺服器回報錯誤：{{detail}}",

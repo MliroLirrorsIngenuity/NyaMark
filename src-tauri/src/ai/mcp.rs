@@ -21,8 +21,8 @@ use rmcp::{
     },
     service::{ClientInitializeError, NotificationContext, PeerRequestOptions, RunningService},
     transport::{
-        streamable_http_client::StreamableHttpClientTransportConfig, StreamableHttpClientTransport,
-        TokioChildProcess,
+        streamable_http_client::{StreamableHttpClientTransportConfig, StreamableHttpError},
+        StreamableHttpClientTransport, TokioChildProcess,
     },
     ClientHandler, Peer, RoleClient, ServiceError,
 };
@@ -47,13 +47,6 @@ const QUIT_TIMEOUT: Duration = Duration::from_millis(1500);
 /// How long a stopped server gets to exit before it is killed; rmcp kills
 /// a local one after three seconds of its own.
 const STOP_TIMEOUT: Duration = Duration::from_secs(5);
-/// Header names the HTTP transport sets itself.
-const RESERVED_HEADERS: [&str; 4] = [
-    "accept",
-    "mcp-session-id",
-    "mcp-protocol-version",
-    "last-event-id",
-];
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(
@@ -178,6 +171,10 @@ pub enum McpStartError {
     BadHeader {
         name: String,
     },
+    /// One the transport sets itself, which rmcp refuses to send.
+    ReservedHeader {
+        name: String,
+    },
     /// It is to send a key and none is saved for it.
     NotConnected,
     /// The key saved was for another address.
@@ -241,6 +238,18 @@ impl From<tauri::Error> for McpStartError {
 
 impl From<ClientInitializeError> for McpStartError {
     fn from(error: ClientInitializeError) -> Self {
+        if let ClientInitializeError::TransportError {
+            error: transport, ..
+        } = &error
+        {
+            if let Some(StreamableHttpError::ReservedHeaderConflict(name)) =
+                transport
+                    .error
+                    .downcast_ref::<StreamableHttpError<reqwest::Error>>()
+            {
+                return Self::ReservedHeader { name: name.clone() };
+            }
+        }
         match error {
             ClientInitializeError::JsonRpcError(error) => Self::Server {
                 message: error.message.into(),
@@ -908,11 +917,18 @@ async fn remote(
                 .await?;
         headers = http::authorize(parsed.as_str(), headers, record.as_ref())?;
     }
+    http_transport(parsed.as_str(), headers, proxy)
+}
+
+/// The transport to an HTTP server, with the headers the user set. rmcp
+/// refuses one it sets itself as it sends the first request.
+fn http_transport(
+    url: &str,
+    headers: Vec<(String, String)>,
+    proxy: &ProxySetting,
+) -> Result<StreamableHttpClientTransport<reqwest::Client>, McpStartError> {
     let mut custom = HashMap::new();
     for (name, value) in headers {
-        if RESERVED_HEADERS.contains(&name.to_ascii_lowercase().as_str()) {
-            continue;
-        }
         let bad = || McpStartError::BadHeader { name: name.clone() };
         let header = reqwest::header::HeaderName::from_bytes(name.as_bytes()).map_err(|_| bad())?;
         let value = reqwest::header::HeaderValue::from_str(value.trim()).map_err(|_| bad())?;
@@ -920,7 +936,7 @@ async fn remote(
     }
     Ok(StreamableHttpClientTransport::with_client(
         http_client(proxy)?,
-        StreamableHttpClientTransportConfig::with_uri(parsed.as_str()).custom_headers(custom),
+        StreamableHttpClientTransportConfig::with_uri(url).custom_headers(custom),
     ))
 }
 
@@ -1558,6 +1574,30 @@ mod tests {
                 handshake(watcher, ours).await,
                 Err(McpStartError::Connection { .. })
             ));
+        });
+    }
+
+    #[test]
+    fn a_header_the_transport_sets_is_refused_by_name() {
+        tauri::async_runtime::block_on(async {
+            // Refused before anything is sent: nothing listens there.
+            let transport = http_transport(
+                "http://127.0.0.1:9/mcp",
+                vec![("Accept".into(), "text/plain".into())],
+                &ProxySetting::default(),
+            )
+            .unwrap();
+            let watcher = Watcher {
+                registry: Weak::new(),
+                id: "fake".into(),
+                generation: 1,
+            };
+            assert_eq!(
+                handshake(watcher, transport).await.err(),
+                Some(McpStartError::ReservedHeader {
+                    name: "accept".into()
+                })
+            );
         });
     }
 
