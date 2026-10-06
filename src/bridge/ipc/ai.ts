@@ -187,6 +187,8 @@ export type WorkspaceMatch = {
 export type WorkspaceMatches = {
   matches: WorkspaceMatch[];
   truncated: boolean;
+  /** Notes left out, as read_file would refuse them: not UTF-8. */
+  unreadable: number;
 };
 
 export type WorkspaceWritten = { path: string; version: string };

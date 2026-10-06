@@ -76,6 +76,8 @@ pub struct SearchMatch {
 pub struct SearchMatches {
     pub matches: Vec<SearchMatch>,
     pub truncated: bool,
+    /// Notes left out, as `read` would refuse them: not UTF-8.
+    pub unreadable: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -515,6 +517,7 @@ pub fn search(
     let limit = limit.unwrap_or(100).clamp(1, 500) as usize;
     let mut matches = Vec::new();
     let mut truncated = false;
+    let mut unreadable = 0;
     let capped = each_note(roots, |path, relative| {
         if fs::metadata(path).map_or(true, |metadata| metadata.len() > MAX_SEARCH_BYTES) {
             return true;
@@ -522,9 +525,11 @@ pub fn search(
         let Ok(bytes) = fs::read(path) else {
             return true;
         };
-        let text = String::from_utf8_lossy(&bytes);
-        let text = text.strip_prefix('\u{FEFF}').unwrap_or(&text);
-        for (index, line) in text.lines().enumerate() {
+        let Ok(note) = document::decode(bytes) else {
+            unreadable += 1;
+            return true;
+        };
+        for (index, line) in note.text.lines().enumerate() {
             let Some(found) = matcher.find(line) else {
                 continue;
             };
@@ -544,6 +549,7 @@ pub fn search(
     Ok(SearchMatches {
         matches,
         truncated: truncated || capped,
+        unreadable,
     })
 }
 
@@ -1049,8 +1055,11 @@ mod tests {
             ("a.md", "\u{FEFF}first Cat\nsecond line\r\nthird cat\n"),
             ("b.md", "no match here\n"),
         ]);
+        // "cat 中文" in GBK, which `read` refuses as not UTF-8.
+        fs::write(space.root.join("c.md"), b"cat \xD6\xD0\xCE\xC4").unwrap();
         let roots = [space.root.clone()];
         let found = search(&roots, "cat", false, false, None).unwrap();
+        assert_eq!(found.unreadable, 1);
         let lines: Vec<(u32, &str)> = found
             .matches
             .iter()

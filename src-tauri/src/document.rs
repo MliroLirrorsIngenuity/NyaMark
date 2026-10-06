@@ -191,15 +191,12 @@ fn ensure_allowed<R: Runtime>(app: &AppHandle<R>, path: &Path) -> Result<(), Doc
 
 pub fn decode(bytes: Vec<u8>) -> Result<MarkdownDocument, DocumentError> {
     let version = version_of(&bytes);
-    if bytes.starts_with(&[0xFF, 0xFE]) {
-        return Err(DocumentError::NotUtf8 {
-            encoding: Some("UTF-16 LE"),
-        });
-    }
-    if bytes.starts_with(&[0xFE, 0xFF]) {
-        return Err(DocumentError::NotUtf8 {
-            encoding: Some("UTF-16 BE"),
-        });
+    if let Some((encoding, _)) = encoding_rs::Encoding::for_bom(&bytes) {
+        if encoding != encoding_rs::UTF_8 {
+            return Err(DocumentError::NotUtf8 {
+                encoding: Some(encoding.name()),
+            });
+        }
     }
 
     let mut text =
@@ -405,7 +402,7 @@ mod tests {
         assert!(matches!(
             error,
             DocumentError::NotUtf8 {
-                encoding: Some("UTF-16 LE")
+                encoding: Some("UTF-16LE")
             }
         ));
     }

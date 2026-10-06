@@ -131,7 +131,7 @@ export class DocumentError extends Error {
   constructor(
     readonly kind: DocumentErrorKind,
     readonly path: string,
-    /** Encoding a byte order mark identified, e.g. `UTF-16 LE`. */
+    /** Encoding a byte order mark identified, e.g. `UTF-16LE`. */
     readonly encoding: string | null,
     message: string,
     /** Size cap a `too-large` read ran into. */

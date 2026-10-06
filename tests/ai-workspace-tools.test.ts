@@ -66,6 +66,7 @@ function fakeApi(notes: Record<string, string>, roots = [ROOT]) {
         )
       ),
       truncated: false,
+      unreadable: 1,
     }),
     write: async (options) => {
       writes.push(options);
@@ -233,6 +234,9 @@ describe('the assistant listing and reading notes', () => {
     expect(output.count).toBe(1);
     expect(output.text).toContain('1 line hold “ta”:\na.md:2\tbeta');
     expect(output.text).toContain('search_document searches it');
+    expect(output.text).toContain(
+      '1 note is not UTF-8 text and went unsearched.'
+    );
   });
 });
 

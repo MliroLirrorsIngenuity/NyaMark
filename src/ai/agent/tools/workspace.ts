@@ -324,6 +324,11 @@ export function workspaceTools(host: WorkspaceHost) {
         if (found.truncated) {
           parts.push('There are more; narrow the search to see the rest.');
         }
+        if (found.unreadable) {
+          parts.push(
+            `${found.unreadable} note${found.unreadable === 1 ? ' is' : 's are'} not UTF-8 text and went unsearched.`
+          );
+        }
         if (host.documentPath()) {
           parts.push(
             'The open document is searched as saved on disk; search_document searches it with its unsaved changes.'
