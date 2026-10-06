@@ -63,6 +63,7 @@ import { cjkFriendlyToMarkdown } from 'mdast-util-to-markdown-cjk-friendly';
 import type { Processor } from 'unified';
 import { bareLinkWriter, noteFollowing } from './bare-links';
 import { frontMatterOnTop } from './front-matter';
+import { ALERT_MARKER } from './gfm-alerts';
 
 type MdNode = {
   type: string;
@@ -74,7 +75,6 @@ type MdNode = {
   children?: MdNode[];
 };
 
-const ALERT_MARKER = /^\[!(?:note|tip|important|warning|caution)\]/i;
 const LINE_BREAK = /^<br\s*\/?>$/i;
 // East Asian wide and fullwidth ranges: CJK, kana, Hangul, fullwidth forms,
 // and the emoji blocks terminals draw two columns wide.

@@ -35,7 +35,8 @@ import { ensureStyle } from '../../style/register';
 const ALERT_KINDS = ['note', 'tip', 'important', 'warning', 'caution'] as const;
 type AlertKind = (typeof ALERT_KINDS)[number];
 
-const MARKER_PATTERN = new RegExp(
+/** The `[!NOTE]` that starts an alert, its kind in the first group. */
+export const ALERT_MARKER = new RegExp(
   `^\\s*\\[!(${ALERT_KINDS.join('|')})\\]`,
   'i'
 );
@@ -63,7 +64,7 @@ function findMarker(paragraph: ProseNode): MarkerHit | null {
   const first = paragraph.child(0);
   if (!first.isText || !first.text) return null;
 
-  const match = first.text.match(MARKER_PATTERN);
+  const match = first.text.match(ALERT_MARKER);
   if (!match) return null;
 
   const kind = match[1].toLowerCase() as AlertKind;
@@ -73,11 +74,11 @@ function findMarker(paragraph: ProseNode): MarkerHit | null {
 
   if (tail.length === 0) {
     // Marker ends exactly with the first text node. Eat a trailing
-    // hard_break, if any, so the empty line collapses too.
+    // hardbreak, if any, so the empty line collapses too.
     if (paragraph.childCount > 1) {
       const next = paragraph.child(1);
-      if (next.type.name === 'hard_break' || next.type.name === 'hardbreak') {
-        consumed += 1; // hard_break occupies a single position
+      if (next.type.name === 'hardbreak') {
+        consumed += 1; // hardbreak occupies a single position
         return { kind, range: consumed, breaks: true };
       }
     }
@@ -96,7 +97,7 @@ function findMarker(paragraph: ProseNode): MarkerHit | null {
     consumed += wsOnly[0].length;
     if (paragraph.childCount > 1) {
       const next = paragraph.child(1);
-      if (next.type.name === 'hard_break' || next.type.name === 'hardbreak') {
+      if (next.type.name === 'hardbreak') {
         consumed += 1;
         return { kind, range: consumed, breaks: true };
       }
@@ -297,7 +298,7 @@ export function keepCaretOutOfMarker(
   if (head < marker.from) return null;
   if (marker.body === null) {
     const { schema } = newState;
-    const lineBreak = schema.nodes.hardbreak ?? schema.nodes.hard_break;
+    const lineBreak = schema.nodes.hardbreak;
     if (!lineBreak) return null;
     const tr = newState.tr.insert(
       marker.to,
@@ -465,7 +466,7 @@ const css = `
 
 /*
  * Hide ONLY the marker span, never the surrounding paragraph.
- * The decoration wraps "[!NOTE]" (plus a trailing hard_break / blank
+ * The decoration wraps "[!NOTE]" (plus a trailing hardbreak / blank
  * whitespace) in an inline span we can collapse off-screen while keeping
  * it in the DOM so the editor still allows the user to delete or edit it.
  */

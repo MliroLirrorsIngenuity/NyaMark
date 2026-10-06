@@ -66,10 +66,18 @@ describe('normalizeOutput', () => {
     expect(roundTrip(markdown)).toBe(markdown);
   });
 
-  test('ends a marker line typed with a hard break plainly', () => {
-    expect(roundTrip('> [!TIP]\\\n> Read this first.\n')).toBe(
-      '> [!TIP]\n> Read this first.\n'
-    );
+  test.each(['[!TIP]', '[!caution]'])(
+    'ends a marker line %s typed with a hard break plainly',
+    (marker) => {
+      expect(roundTrip(`> ${marker}\\\n> Read this first.\n`)).toBe(
+        `> ${marker}\n> Read this first.\n`
+      );
+    }
+  );
+
+  test('keeps the hard break after a kind of alert GitHub has not', () => {
+    const markdown = '> [!TODO]\\\n> Read this first.\n';
+    expect(roundTrip(markdown)).toBe(markdown);
   });
 
   test('leaves a marker that starts no alert as text', () => {
