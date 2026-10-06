@@ -1,12 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { Schema } from '@milkdown/kit/prose/model';
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
-import {
-  IMAGE,
-  LINK,
-  typedImage,
-  typedLink,
-} from '../src/editor/plugins/link-input';
+import remarkGfm from 'remark-gfm';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
+import { type Parse, typedLink } from '../src/editor/plugins/link-input';
 
 const schema = new Schema({
   nodes: {
@@ -27,11 +25,15 @@ const schema = new Schema({
   marks: {
     link: { attrs: { href: {}, title: { default: null } } },
     strong: {},
+    code: { code: true },
   },
 });
 
+const processor = unified().use(remarkParse).use(remarkGfm);
+const parse: Parse = (markdown) => processor.parse(markdown);
+
 /** Types `text` then the last character the way the input rule sees it. */
-function type(text: string, rule: RegExp, handler: typeof typedLink) {
+function type(text: string) {
   const typed = text.slice(0, -1);
   const doc = schema.node('doc', null, [
     schema.node('paragraph', null, typed ? [schema.text(typed)] : []),
@@ -41,16 +43,19 @@ function type(text: string, rule: RegExp, handler: typeof typedLink) {
     doc,
     selection: TextSelection.create(doc, end),
   });
-  const match = rule.exec(text);
-  if (!match) return null;
-  const start = end - (match[0].length - 1);
-  const tr = handler(state, match, start, end);
+  const tr = typedLink(state, text.slice(-1), end, end, parse);
   return tr && state.apply(tr);
 }
 
+const linkOf = (text: string) => {
+  const para = type(text)?.doc.firstChild;
+  const link = para?.lastChild?.marks.find((mark) => mark.type.name === 'link');
+  return link && { text: para?.textContent, ...link.attrs };
+};
+
 describe('a link typed as Markdown', () => {
   test('becomes a link on its closing parenthesis', () => {
-    const state = type('看 [文档](https://a.com "标题")', LINK, typedLink);
+    const state = type('看 [文档](https://a.com "标题")');
     const para = state?.doc.firstChild;
     expect(para?.textContent).toBe('看 文档');
     const link = para?.lastChild?.marks[0];
@@ -73,10 +78,7 @@ describe('a link typed as Markdown', () => {
       doc,
       selection: TextSelection.create(doc, end),
     });
-    const match = LINK.exec(`${doc.textBetween(1, end, null, '\ufffc')})`);
-    if (!match) throw new Error('no match');
-    const start = end - (match[0].length - 1);
-    const para = state.apply(typedLink(state, match, start, end) ?? state.tr)
+    const para = state.apply(typedLink(state, ')', end, end, parse) ?? state.tr)
       .doc.firstChild;
     expect(para?.childCount).toBe(3);
     const link = schema.mark('link', { href: 'u' });
@@ -85,16 +87,64 @@ describe('a link typed as Markdown', () => {
     expect(para?.child(2).marks).toEqual([link]);
   });
 
-  test('stays text after a backslash, an unclosed backtick or a bang', () => {
-    expect(type('\\[a](b)', LINK, typedLink)).toBeNull();
-    expect(type('`[a](b)', LINK, typedLink)).toBeNull();
-    expect(LINK.exec('![a](b)')).toBeNull();
+  test('takes its address and title as Markdown reads them', () => {
+    expect(linkOf('[a](<b c>)')).toEqual({
+      text: 'a',
+      href: 'b c',
+      title: null,
+    });
+    expect(linkOf('[a](b(c))')).toEqual({
+      text: 'a',
+      href: 'b(c)',
+      title: null,
+    });
+    expect(linkOf("[a](b 't')")).toEqual({ text: 'a', href: 'b', title: 't' });
+    expect(linkOf('[a](b\\)c)')).toEqual({
+      text: 'a',
+      href: 'b)c',
+      title: null,
+    });
+    expect(linkOf('`x` [a [b] c](u)')).toEqual({
+      text: '`x` a [b] c',
+      href: 'u',
+      title: null,
+    });
+  });
+
+  test('stays text where Markdown reads none, or a backtick could make code', () => {
+    for (const text of [
+      '\\[a](b)',
+      '`[a](b)',
+      '[a`b](c)',
+      '[a](b c)',
+      '[a](b',
+      'www.a.com/(x)',
+      '[](u)',
+    ]) {
+      expect(type(text)).toBeNull();
+    }
+  });
+
+  test('leaves brackets in code it follows as text', () => {
+    const code = schema.mark('code');
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, [
+        schema.text('[a', [code]),
+        schema.text('](u'),
+      ]),
+    ]);
+    const end = doc.content.size - 1;
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, end),
+    });
+    expect(typedLink(state, ')', end, end, parse)).toBeNull();
   });
 });
 
 describe('an image typed as Markdown', () => {
   test('alone on its line becomes an image block with a line below', () => {
-    const state = type('![猫](cat.png "说明")', IMAGE, typedImage);
+    const state = type('![猫](cat.png "说明")');
     const block = state?.doc.firstChild;
     expect(block?.type.name).toBe('image-block');
     expect(block?.attrs).toEqual({
@@ -107,10 +157,20 @@ describe('an image typed as Markdown', () => {
   });
 
   test('within text is an inline image', () => {
-    const state = type('图 ![猫](cat.png)', IMAGE, typedImage);
+    const state = type('图 ![猫](cat.png)');
     const para = state?.doc.firstChild;
     expect(para?.type.name).toBe('paragraph');
     expect(para?.lastChild?.type.name).toBe('image');
     expect(para?.lastChild?.attrs.src).toBe('cat.png');
+  });
+
+  test('takes the description Markdown reads from its brackets', () => {
+    const image = type('图 ![*猫* 与 `狗`](<a b.png>)')?.doc.firstChild
+      ?.lastChild;
+    expect(image?.attrs).toEqual({
+      src: 'a b.png',
+      alt: '猫 与 狗',
+      title: '',
+    });
   });
 });

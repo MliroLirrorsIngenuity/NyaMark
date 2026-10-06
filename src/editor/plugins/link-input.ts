@@ -10,67 +10,119 @@
  * typed, `` `[a](b)` ``, the brackets stay text for the code.
  */
 
+import { remarkCtx } from '@milkdown/kit/core';
 import { InputRule, inputRules } from '@milkdown/kit/prose/inputrules';
-import { type EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import {
+  type EditorState,
+  TextSelection,
+  type Transaction,
+} from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
 import { caretBelowTypedBlock } from './typed-block-enter';
 
-/** `](url)` or `](url "title")` at the end of the text typed so far. */
-const TARGET = String.raw`\]\(([^()\s]+)(?:\s+"([^"]*)")?\)$`;
-export const IMAGE = new RegExp(String.raw`!\[([^[\]]*)${TARGET}`);
-// Not after `!`, an image's, or `\`, which keeps the bracket text.
-export const LINK = new RegExp(String.raw`(^|[^!\\])\[([^[\]]+)${TARGET}`);
-/** What the text before the caret holds for a line break, image or formula. */
-const INLINE_NODE = '\ufffc';
-
-/** After an opening backtick still unclosed: the text of a code span. */
-function inCodeSpan(match: RegExpMatchArray, lead = 0): boolean {
-  const before = match.input?.slice(0, (match.index ?? 0) + lead) ?? '';
-  return (before.match(/`/g)?.length ?? 0) % 2 === 1;
+interface Syntax {
+  type: string;
+  url?: string;
+  title?: string | null;
+  alt?: string | null;
+  position?: { start: { offset?: number }; end: { offset?: number } };
+  children?: Syntax[];
 }
 
-export function typedLink(
+export type Parse = (markdown: string) => Syntax;
+
+const CLOSE = /\)$/;
+const HOLE = '\ufffc';
+
+function sourceBefore(state: EditorState, at: number) {
+  const $at = state.doc.resolve(at);
+  const start = $at.start();
+  let raw = '';
+  $at.parent.forEach((child, offset) => {
+    const size = Math.min(child.nodeSize, at - start - offset);
+    if (size <= 0) return;
+    const literal =
+      child.isText && !child.marks.some((mark) => mark.type.spec.code);
+    raw += literal ? (child.text ?? '').slice(0, size) : HOLE.repeat(size);
+  });
+  return { $at, start, raw };
+}
+
+function endingAt(tree: Syntax, end: number): Syntax | null {
+  for (const child of tree.children ?? []) {
+    const found = endingAt(child, end);
+    if (found) return found;
+  }
+  const kind = tree.type === 'link' || tree.type === 'image';
+  return kind && tree.position?.end.offset === end ? tree : null;
+}
+
+function sameSyntax(a: Syntax, b: Syntax | null) {
+  return (
+    b?.type === a.type &&
+    b.position?.start.offset === a.position?.start.offset &&
+    b.position?.end.offset === a.position?.end.offset
+  );
+}
+
+function couldBeCode(raw: string, node: Syntax, parse: Parse) {
+  const runs = new Set(raw.match(/`+/g));
+  return [...runs].some(
+    (run) => !sameSyntax(node, endingAt(parse(raw + run), raw.length))
+  );
+}
+
+function linkOf(
   state: EditorState,
-  match: RegExpMatchArray,
-  start: number,
-  end: number
-) {
-  const [, before = '', label = '', href = '', title] = match;
+  node: Syntax,
+  from: number,
+  end: number,
+  start: number
+): Transaction | null {
   const type = state.schema.marks.link;
-  if (!type || inCodeSpan(match, before.length)) return null;
+  const children = node.children ?? [];
+  const textFrom = children[0]?.position?.start.offset;
+  const textTo = children[children.length - 1]?.position?.end.offset;
+  if (!type || textFrom == null || textTo == null || textFrom >= textTo) {
+    return null;
+  }
+  const href = node.url ?? '';
+  const title = node.title ?? null;
+  if (href.includes(HOLE) || title?.includes(HOLE)) return null;
   // The brackets go and the text between them takes the link as it stands:
   // made plain text, it lost its bold, and a line break in it was gone with
   // a stray character in its place.
-  const from = start + before.length;
-  const to = from + 1 + label.length;
+  const length = textTo - textFrom;
   return (
     state.tr
-      .delete(to, end)
-      .delete(from, from + 1)
-      .addMark(from, to - 1, type.create({ href, title: title ?? null }))
+      .delete(start + textTo, end)
+      .delete(from, start + textFrom)
+      .addMark(from, from + length, type.create({ href, title }))
       // What is typed next goes after the link, outside it.
       .removeStoredMark(type)
   );
 }
 
-export function typedImage(
+function imageOf(
   state: EditorState,
-  match: RegExpMatchArray,
-  start: number,
+  node: Syntax,
+  from: number,
   end: number
-) {
-  const [, alt = '', src = '', title = ''] = match;
+): Transaction | null {
+  const src = node.url ?? '';
+  const alt = node.alt ?? '';
+  const title = node.title ?? '';
   // A description is text alone.
-  if (inCodeSpan(match) || alt.includes(INLINE_NODE)) return null;
+  if ([src, alt, title].some((value) => value.includes(HOLE))) return null;
   const { nodes } = state.schema;
-  const $start = state.doc.resolve(start);
+  const $start = state.doc.resolve(from);
   const line = $start.parent;
   const block = nodes['image-block'];
   const index = $start.index(-1);
   if (
     block &&
     line.type.name === 'paragraph' &&
-    start === $start.start() &&
+    from === $start.start() &&
     end === $start.end() &&
     $start.node(-1).canReplaceWith(index, index, block)
   ) {
@@ -85,14 +137,37 @@ export function typedImage(
   }
   const inline = nodes.image;
   if (!inline) return null;
-  return state.tr.replaceWith(start, end, inline.create({ src, alt, title }));
+  return state.tr.replaceWith(from, end, inline.create({ src, alt, title }));
 }
 
-export const linkInput = $prose(() =>
-  inputRules({
+export function typedLink(
+  state: EditorState,
+  typed: string,
+  at: number,
+  end: number,
+  parse: Parse
+): Transaction | null {
+  const { start, raw: before } = sourceBefore(state, at);
+  const raw = before + typed;
+  const node = endingAt(parse(raw), raw.length);
+  const offset = node?.position?.start.offset;
+  if (!node || offset == null || couldBeCode(raw, node, parse)) return null;
+  const from = start + offset;
+  if (node.type === 'image') return imageOf(state, node, from, end);
+  if (raw[offset] !== '[') return null;
+  return linkOf(state, node, from, end, start);
+}
+
+export const linkInput = $prose((ctx) => {
+  const parse: Parse = (markdown) => ctx.get(remarkCtx).parse(markdown);
+  return inputRules({
     rules: [
-      new InputRule(IMAGE, typedImage, { inCodeMark: false }),
-      new InputRule(LINK, typedLink, { inCodeMark: false }),
+      new InputRule(
+        CLOSE,
+        (state, match, start, end) =>
+          typedLink(state, match[0], start, end, parse),
+        { inCodeMark: false }
+      ),
     ],
-  })
-);
+  });
+});
