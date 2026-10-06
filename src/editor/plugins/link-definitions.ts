@@ -12,6 +12,7 @@
 import { InitReady, remarkPluginsCtx } from '@milkdown/kit/core';
 import type { MilkdownPlugin } from '@milkdown/kit/ctx';
 import type { RemarkPlugin } from '@milkdown/kit/transformer';
+import { toMarkdown } from 'mdast-util-to-markdown';
 import { normalizeIdentifier } from 'micromark-util-normalize-identifier';
 
 type MdNode = {
@@ -47,22 +48,20 @@ function writtenLabel(node: MdNode, written: string): string {
     : (node.identifier ?? '');
 }
 
-/** `&` escaped where it would start a character reference. */
-const escapeReferences = (value: string) =>
-  value.replace(/&(?=#?[0-9A-Za-z]+;)/g, '\\&');
-
-/** The definition on one line, for one written over several. */
+/**
+ * The definition on one line, for one written over several. The address and
+ * title are written by mdast-util-to-markdown, the label as in the file: one
+ * written anew from what remark read has its escapes taken off.
+ */
 function writeDefinition(node: MdNode, written: string): string {
-  const url = node.url ?? '';
-  // A bracket left open ended an address written bare, `a(b` for one.
-  const address = /^[^\s\p{Cc}<>()\\]+$/u.test(url)
-    ? escapeReferences(url)
-    : `<${escapeReferences(url.replace(/[<>\\]/g, '\\$&'))}>`;
-  const title =
-    node.title == null
-      ? ''
-      : ` "${escapeReferences(node.title.replace(/["\\]/g, '\\$&'))}"`;
-  return `[${writtenLabel(node, written)}]: ${address}${title}`;
+  const line = toMarkdown({
+    type: 'definition',
+    identifier: '',
+    label: '',
+    url: node.url ?? '',
+    title: node.title,
+  }).trimEnd();
+  return `[${writtenLabel(node, written)}]${line.slice('[]'.length)}`;
 }
 
 /** Remark transformer: each definition no reference takes made raw HTML. */

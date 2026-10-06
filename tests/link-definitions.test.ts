@@ -109,8 +109,8 @@ describe('link definitions', () => {
     expect(save('- [X\\*Y]:\n  /a\n')).toBe('- [X\\*Y]: /a\n');
   });
 
-  test('bracket an address that would end early written bare', () => {
-    expect(save('> [a]:\n> <a(b>\n')).toBe('> [a]: <a(b>\n');
+  test('escape a bracket that would end an address written bare', () => {
+    expect(save('> [a]:\n> <a(b>\n')).toBe('> [a]: a\\(b\n');
   });
 
   test('escape what would be read as a character reference', () => {

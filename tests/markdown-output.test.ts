@@ -674,3 +674,13 @@ describe('writeEmphasis and writeStrong', () => {
     );
   });
 });
+
+test('keeps an `&` written as text in a link address or title', () => {
+  for (const markdown of [
+    '[t](?q=\\&amp; "\\&copy;")\n',
+    '[t](<a b?\\&lt;> "\\&#39;")\n',
+    '![i](a\\&amp;b.png)\n',
+  ]) {
+    expect(roundTrip(markdown)).toBe(markdown);
+  }
+});
