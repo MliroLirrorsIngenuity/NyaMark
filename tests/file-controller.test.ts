@@ -111,10 +111,12 @@ function setup(content = '') {
     );
   const fakeEditor = {
     getMarkdown: () => editor.markdown,
-    getMarkdownWithReferences: relocated,
-    rewriteLocalReferences: (mapper: (reference: string) => string | null) => {
-      editor.markdown = relocated(mapper);
-    },
+    referencesMoved: async (mapper: (reference: string) => string | null) => ({
+      markdown: relocated(mapper),
+      apply: () => {
+        editor.markdown = relocated(mapper);
+      },
+    }),
   } as unknown as NyaEditor;
   const controller = new FileController(() => fakeEditor, {
     syncEditorAfterSave: (saved) => {

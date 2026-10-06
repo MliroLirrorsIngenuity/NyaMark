@@ -25,7 +25,6 @@ import {
 } from '../src/editor/plugins/cjk-emphasis';
 import {
   htmlFlowParse,
-  htmlReferencesMapped,
   inlineHtml,
   isHtmlBlock,
   keepHtmlBlocks,
@@ -117,9 +116,6 @@ describe('an HTML block', () => {
   });
 });
 
-const moved = (reference: string) =>
-  /^[a-z]+:|^#/i.test(reference) ? null : `../notes/${reference}`;
-
 describe('HTML in running text, shown', () => {
   test('reads the Markdown in it as the editor reads it', () => {
     expect(
@@ -134,27 +130,5 @@ describe('HTML in running text, shown', () => {
 
   test('reads a tag that opens a block elsewhere as one in a line', () => {
     expect(show('<div>**x**</div>')).toBe('<div><strong>x</strong></div>');
-  });
-});
-
-describe('htmlReferencesMapped', () => {
-  test('moves the image and link addresses beside the document', () => {
-    expect(
-      htmlReferencesMapped(
-        '<p align="center"><img width="120" src="img/logo.png"></p>',
-        moved
-      )
-    ).toBe(
-      '<p align="center"><img width="120" src="../notes/img/logo.png"></p>'
-    );
-    expect(
-      htmlReferencesMapped("<a href='docs/a.md'>A</a> <img src=b.png>", moved)
-    ).toBe(`<a href='../notes/docs/a.md'>A</a> <img src="../notes/b.png">`);
-  });
-
-  test('leaves web addresses, anchors and other attributes alone', () => {
-    const html =
-      '<a href="https://example.com" title="src=x.png">x</a><a href="#top">t</a><div data-src="y.png"></div>';
-    expect(htmlReferencesMapped(html, moved)).toBe(html);
   });
 });

@@ -99,7 +99,6 @@ import {
   htmlBlockView,
   htmlFlowParse,
   htmlImageSource,
-  htmlReferencesMapped,
   keepHtmlBlocks,
   registerHtmlBlockStyles,
 } from './plugins/html-block';
@@ -842,28 +841,27 @@ export class NyaEditor {
   }
 
   /**
-   * Run every image `src` and link `href` through `mapper` and apply the
-   * values it returns (`null` keeps the original). Used when the document
-   * moves so its references keep resolving from the new directory. Kept out
-   * of the undo history: Cmd+Z cannot move the file back.
+   * The Markdown the document reads with every image `src` and link `href`
+   * run through `mapper` (`null` keeps the original), and `apply` to make
+   * the same change in the document: when it moves, its references keep
+   * resolving from the new directory. Applied out of the undo history:
+   * Cmd+Z cannot move the file back.
    */
-  rewriteLocalReferences(mapper: (reference: string) => string | null) {
-    if (!this.crepe) return 0;
-    const view = this.crepe.editor.ctx.get(editorViewCtx);
-    const { tr, rewritten } = referencesRewritten(view.state, mapper);
-    if (rewritten > 0) view.dispatch(tr.setMeta('addToHistory', false));
-    return rewritten;
-  }
-
-  /**
-   * The Markdown the document reads with its references run through
-   * `mapper` (see `rewriteLocalReferences`), the document left as it is.
-   */
-  getMarkdownWithReferences(mapper: (reference: string) => string | null) {
-    if (!this.crepe) return '';
-    const { ctx } = this.crepe.editor;
-    const { tr } = referencesRewritten(ctx.get(editorViewCtx).state, mapper);
-    return ctx.get(serializerCtx)(tr.doc);
+  async referencesMoved(mapper: (reference: string) => string | null) {
+    const { htmlReferencesMapped } = await import('./html-references');
+    const ctx = this.crepe?.editor.ctx;
+    if (!ctx) return { markdown: '', apply: () => 0 };
+    const move = (state: EditorState) =>
+      referencesRewritten(state, mapper, htmlReferencesMapped);
+    const view = ctx.get(editorViewCtx);
+    return {
+      markdown: ctx.get(serializerCtx)(move(view.state).tr.doc),
+      apply: () => {
+        const { tr, rewritten } = move(view.state);
+        if (rewritten > 0) view.dispatch(tr.setMeta('addToHistory', false));
+        return rewritten;
+      },
+    };
   }
 }
 
@@ -873,7 +871,11 @@ export class NyaEditor {
  */
 function referencesRewritten(
   state: EditorState,
-  mapper: (reference: string) => string | null
+  mapper: (reference: string) => string | null,
+  htmlReferencesMapped: (
+    html: string,
+    mapper: (reference: string) => string | null
+  ) => string
 ) {
   const { tr } = state;
   const linkMarkType = state.schema.marks.link;

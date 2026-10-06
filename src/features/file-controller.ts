@@ -430,13 +430,10 @@ export class FileController {
     // References move with the file only once it is written there: moved
     // first, a failed write left them pointing from a folder the document
     // never reached, and the next save wrote them into the original.
-    const relocate = this.referenceRelocation(state.filePath, path);
-    await this.saveToExistingPath(
-      path,
-      editor.getMarkdownWithReferences(relocate),
-      null,
-      () => editor.rewriteLocalReferences(relocate)
+    const moved = await editor.referencesMoved(
+      this.referenceRelocation(state.filePath, path)
     );
+    await this.saveToExistingPath(path, moved.markdown, null, moved.apply);
     const registeredPath = await this.registerDocumentPath(path);
     store.update({ filePath: registeredPath });
     return registeredPath;
