@@ -3,7 +3,11 @@ import { createDeepSeek } from '@ai-sdk/deepseek';
 import { createGoogle } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import type { LanguageModel } from 'ai';
+import {
+  type LanguageModel,
+  extractReasoningMiddleware,
+  wrapLanguageModel,
+} from 'ai';
 import type { AiProvider } from '../../state/ai-settings';
 
 /**
@@ -34,12 +38,17 @@ export function languageModel(
     case 'deepseek':
       return createDeepSeek({ baseURL, apiKey, fetch })(modelId);
     case 'openai-compatible':
-      return createOpenAICompatible({
-        name: 'compatible',
-        baseURL,
-        apiKey,
-        fetch,
-        includeUsage: true,
-      }).chatModel(modelId);
+      // Models served this way often write their thinking into the reply,
+      // between `<think>` tags; it is read out as reasoning.
+      return wrapLanguageModel({
+        model: createOpenAICompatible({
+          name: 'compatible',
+          baseURL,
+          apiKey,
+          fetch,
+          includeUsage: true,
+        }).chatModel(modelId),
+        middleware: extractReasoningMiddleware({ tagName: 'think' }),
+      });
   }
 }

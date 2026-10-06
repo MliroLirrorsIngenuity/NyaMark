@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test';
+import { streamText } from 'ai';
 import {
   guessCapabilities,
   isChatModel,
 } from '../src/ai/providers/capabilities';
 import { checkProvider } from '../src/ai/providers/check';
+import { languageModel } from '../src/ai/providers/factory';
 import {
   ModelListError,
   listModels,
@@ -443,5 +445,50 @@ describe('checkProvider', () => {
         fakeFetch({ '/v1/models': json({ error: 'nope' }, 401) })
       )
     ).rejects.toMatchObject({ status: 401 });
+  });
+});
+
+/** A chat completion streamed as `deltas` of its content. */
+const streamed = (deltas: string[]) => () =>
+  new Response(
+    [
+      ...deltas.map((content) => ({
+        id: 'c',
+        object: 'chat.completion.chunk',
+        created: 0,
+        model: 'm',
+        choices: [{ index: 0, delta: { content }, finish_reason: null }],
+      })),
+      {
+        id: 'c',
+        object: 'chat.completion.chunk',
+        created: 0,
+        model: 'm',
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      },
+    ]
+      .map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+      .concat('data: [DONE]\n\n')
+      .join(''),
+    { headers: { 'content-type': 'text/event-stream' } }
+  );
+
+describe('languageModel', () => {
+  test("reads a compatible model's thinking out of its reply", async () => {
+    const model = languageModel(
+      provider(),
+      'm',
+      fakeFetch({
+        '/v1/chat/completions': streamed([
+          '<thi',
+          'nk>hm, a',
+          '</think>',
+          '\n\nHello.',
+        ]),
+      })
+    );
+    const result = streamText({ model, prompt: 'Hi' });
+    expect(await result.text).toBe('\n\nHello.');
+    expect(await result.reasoningText).toBe('hm, a');
   });
 });

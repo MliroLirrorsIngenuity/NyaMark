@@ -185,8 +185,8 @@ describe('what a command asks the model', () => {
 });
 
 describe('the reply as it goes in', () => {
-  test('loses the thinking and the fence around it', () => {
-    expect(cleanReply('<think>hmm</think>\n\nHello.  \n')).toBe('Hello.');
+  test('loses the fence around it', () => {
+    expect(cleanReply('\n\nHello.  \n')).toBe('Hello.');
     expect(cleanReply('```markdown\n# Title\n\nText\n```')).toBe(
       '# Title\n\nText'
     );

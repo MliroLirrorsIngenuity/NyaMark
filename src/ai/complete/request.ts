@@ -24,9 +24,15 @@ export async function suggestText(
       onError: () => {},
     });
     let text = '';
+    let thought = false;
     for await (const part of result.stream) {
-      if (part.type === 'text-delta') {
+      if (part.type === 'reasoning-end') {
+        thought = true;
+      } else if (part.type === 'text-delta') {
         text += part.text;
+        // A model that thought first sets the reply apart from the thinking
+        // with a line break, which starts no new paragraph of the reply.
+        if (thought) text = text.replace(/^[ \t]*\n+/, '');
         if (replyDone(text)) {
           stop.abort();
           break;

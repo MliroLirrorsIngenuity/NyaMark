@@ -112,12 +112,11 @@ const FENCED =
   /^(`{3,}|~{3,})[ \t]*(?:markdown|md)?[ \t]*\n([\s\S]*?)\n\1[ \t]*$/i;
 
 /**
- * The reply as it goes into the document: without the thinking some models
- * write before it, or a code fence around the whole of it.
+ * The reply as it goes into the document: without a code fence around the
+ * whole of it.
  */
 export function cleanReply(reply: string): string {
-  let text = reply.replace(/^\s*<think>[\s\S]*?<\/think>/, '');
-  text = text.replace(/^\s*\n/, '').trimEnd();
+  let text = reply.replace(/^\s*\n/, '').trimEnd();
   const fenced = FENCED.exec(text.trim());
   if (fenced) text = fenced[2];
   return text;

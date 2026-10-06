@@ -66,23 +66,9 @@ export function suggestPrompt(
   };
 }
 
-/**
- * The reply as far as it is to be shown, null while a model is still
- * thinking out loud in front of it.
- */
-export function visibleReply(reply: string): string | null {
-  const thinking = /^\s*<think>/.exec(reply);
-  if (!thinking) return reply;
-  const end = reply.indexOf('</think>', thinking[0].length);
-  if (end < 0) return null;
-  return reply.slice(end + '</think>'.length).replace(/^[ \t]*\n+/, '');
-}
-
 /** The reply has run to a line's end or past what is shown, and can stop. */
 export function replyDone(reply: string): boolean {
-  const visible = visibleReply(reply);
-  if (visible === null) return false;
-  return /\S[^\n]*\n/.test(visible) || visible.length > SUGGEST_MAX * 2;
+  return /\S[^\n]*\n/.test(reply) || reply.length > SUGGEST_MAX * 2;
 }
 
 /** Ends a sentence; the next starts with a space and a capital. */
@@ -119,9 +105,7 @@ export function cleanSuggestion(
   before: string,
   after: string
 ): string {
-  let text = visibleReply(reply);
-  if (text === null) return '';
-  text = text.replace(/^\s*```[^\n]*\n/, '');
+  let text = reply.replace(/^\s*```[^\n]*\n/, '');
   // A reply that opens a new paragraph is no suggestion for this one.
   if (/^[ \t]*\n/.test(text)) return '';
   text = text.split('\n', 1)[0].trimEnd();

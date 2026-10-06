@@ -9,13 +9,14 @@ import {
   type Transaction,
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
+import { MockLanguageModelV4 } from 'ai/test';
 import {
   SUGGEST_MAX,
   cleanSuggestion,
   replyDone,
   suggestPrompt,
-  visibleReply,
 } from '../src/ai/complete/prompt';
+import { suggestText } from '../src/ai/complete/request';
 import { ORIGIN_META } from '../src/editor/plugins/ai-proposals';
 import {
   spotIn,
@@ -270,15 +271,11 @@ describe('the suggestion asked for', () => {
     expect(source.prompt).not.toContain('x'.repeat(4001));
   });
 
-  test('stops at the end of a line, after any thinking', () => {
+  test('stops at the end of a line', () => {
     expect(replyDone('fox jumps')).toBe(false);
     expect(replyDone('fox jumps\n')).toBe(true);
     expect(replyDone('\n')).toBe(false);
-    expect(replyDone('<think>one\ntwo\n')).toBe(false);
-    expect(replyDone('<think>a</think>\n\nfox\n')).toBe(true);
     expect(replyDone('x'.repeat(SUGGEST_MAX * 2 + 1))).toBe(true);
-    expect(visibleReply('<think>a')).toBeNull();
-    expect(visibleReply('<think>a</think>\n\nfox')).toBe('fox');
   });
 });
 
@@ -289,9 +286,6 @@ describe('the suggestion shown', () => {
     );
     expect(cleanSuggestion('\n\nNext one.', 'The end.', '')).toBe('');
     expect(cleanSuggestion('```\nfoo bar\n```', 'Say ', '')).toBe('foo bar');
-    expect(cleanSuggestion('<think>hm</think>\n\n lazy dog', 'the ', '')).toBe(
-      'lazy dog'
-    );
     expect(cleanSuggestion('   ', 'the ', '')).toBe('');
   });
 
@@ -341,6 +335,50 @@ describe('the suggestion shown', () => {
     expect(chinese.length).toBeGreaterThan(0);
     expect(chinese.length).toBeLessThan(6);
     expect('今天天气很好'.startsWith(chinese)).toBe(true);
+  });
+});
+
+describe('the suggestion read', () => {
+  test('starts where the reply does, after any thinking', async () => {
+    const parts = [
+      { type: 'stream-start', warnings: [] },
+      { type: 'reasoning-start', id: 'r' },
+      { type: 'reasoning-delta', id: 'r', delta: 'one\ntwo\n' },
+      { type: 'reasoning-end', id: 'r' },
+      { type: 'text-start', id: 't' },
+      { type: 'text-delta', id: 't', delta: '\n\n lazy dog.\nMore' },
+      { type: 'text-end', id: 't' },
+      {
+        type: 'finish',
+        usage: {
+          inputTokens: {
+            total: 1,
+            noCache: 1,
+            cacheRead: undefined,
+            cacheWrite: undefined,
+          },
+          outputTokens: { total: 1, text: 1, reasoning: undefined },
+        },
+        finishReason: { unified: 'stop', raw: 'stop' },
+      },
+    ] as const;
+    const model = new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: new ReadableStream({
+          start(controller) {
+            for (const part of parts) controller.enqueue(part);
+            controller.close();
+          },
+        }),
+      }),
+    });
+    const reply = await suggestText(
+      model,
+      { instructions: '', prompt: '' },
+      new AbortController().signal
+    );
+    expect(reply).toBe(' lazy dog.\nMore');
+    expect(cleanSuggestion(reply, 'the ', '')).toBe('lazy dog.');
   });
 });
 
