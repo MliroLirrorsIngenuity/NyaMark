@@ -188,7 +188,7 @@ index 8983b1a213a07338368eaa26e47196a9872e1800..ae631775efa0b96017613bd56991b0b9
          });
        };
 diff --git a/lib/table-block/index.js b/lib/table-block/index.js
-index 5ecaaae6c915e01d78b343aa64bbd32c626eb27c..e2530c21bb4289b9bb757b719a642e06a9b1de34 100644
+index 5ecaaae6c915e01d78b343aa64bbd32c626eb27c..cf36786af2e289098c33b4f1b965af4e6fb66c38 100644
 --- a/lib/table-block/index.js
 +++ b/lib/table-block/index.js
 @@ -243,7 +243,12 @@ function handleDrag(refs, event, ctx, fn) {
@@ -205,3 +205,18 @@ index 5ecaaae6c915e01d78b343aa64bbd32c626eb27c..e2530c21bb4289b9bb757b719a642e06
    const context = prepareDndContext(refs);
    if (!context) return;
    requestAnimationFrame(() => {
+@@ -1031,11 +1036,9 @@ class TableNodeView {
+     if (e.type === "drop" || e.type.startsWith("drag")) return true;
+     if (e.type === "mousedown" || e.type === "pointerdown") {
+       if (e.target instanceof Element && e.target.closest("button")) return true;
+-      const target = e.target;
+-      if (target instanceof HTMLElement && (target.closest("th") || target.closest("td"))) {
+-        const event = e;
+-        return __privateMethod(this, _TableNodeView_instances, handleClick_fn).call(this, event);
+-      }
++      // NyaMark: a click in a cell is ProseMirror's to place the caret where
++      // it fell. Taken here, it selected the cell's paragraph as a node a
++      // frame later, the caret gone, and what was typed next replaced it.
+     }
+     return false;
+   }

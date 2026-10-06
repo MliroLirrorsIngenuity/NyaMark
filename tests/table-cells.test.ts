@@ -1,14 +1,11 @@
 import { describe, expect, test } from 'bun:test';
+import { TableNodeView } from '@milkdown/kit/component/table-block';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
-import {
-  EditorState,
-  NodeSelection,
-  TextSelection,
-} from '@milkdown/kit/prose/state';
+import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import { parseHTML } from 'linkedom';
 import {
   backspaceEmptyRow,
   isEmptyRow,
-  keepsCellCaret,
   prevCell,
   rowCells,
 } from '../src/editor/plugins/table-cells';
@@ -44,26 +41,26 @@ const doc = schema.node('doc', null, [
 const state = EditorState.create({ doc });
 
 describe('a click in a table cell', () => {
-  test('keeps the caret instead of selecting the cell paragraph', () => {
-    for (const pos of [3, 11]) {
-      const tr = state.tr.setSelection(NodeSelection.create(doc, pos));
-      expect(tr.selection.$from.parent.type.name).toMatch(/^table_/);
-      expect(keepsCellCaret(tr)).toBe(false);
+  test('is left to ProseMirror to place the caret', () => {
+    const page = parseHTML('<table><tr><td><p>苹果</p></td></tr></table>');
+    const target = page.document.querySelector('p');
+    const had = {
+      Element: globalThis.Element,
+      HTMLElement: globalThis.HTMLElement,
+    };
+    Object.assign(globalThis, {
+      Element: page.Element,
+      HTMLElement: page.HTMLElement,
+    });
+    try {
+      const stop = TableNodeView.prototype.stopEvent.call(
+        {} as TableNodeView,
+        { type: 'mousedown', target } as unknown as Event
+      );
+      expect(stop).toBe(false);
+    } finally {
+      Object.assign(globalThis, had);
     }
-  });
-
-  test('leaves every other selection alone', () => {
-    const hr = doc.child(0).nodeSize;
-    expect(
-      keepsCellCaret(state.tr.setSelection(NodeSelection.create(doc, hr)))
-    ).toBe(true);
-    expect(
-      keepsCellCaret(state.tr.setSelection(NodeSelection.create(doc, 0)))
-    ).toBe(true);
-    expect(
-      keepsCellCaret(state.tr.setSelection(TextSelection.create(doc, 12, 14)))
-    ).toBe(true);
-    expect(keepsCellCaret(state.tr.insertText('x', 12))).toBe(true);
   });
 });
 

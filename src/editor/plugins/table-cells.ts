@@ -1,15 +1,6 @@
 /**
  * Makes the caret in a table cell behave like the caret in a paragraph.
  *
- * Click: Crepe's table view answers the first mousedown in a cell by selecting
- * the cell's whole paragraph, one animation frame later. Typing then replaced
- * the cell: clicking after "苹果" and typing "x" left just "x". A fast typist
- * beat the frame instead, and the late selection, built on the state from
- * before the keystroke, threw "Applying a mismatched transaction". The click
- * has already put the caret where it landed by then, so the late selection is
- * dropped. No other path selects a cell's paragraph as a node: the table's own
- * handles select whole rows and columns as cells.
- *
  * ArrowUp/ArrowDown: prosemirror-tables moves to the cell above or below and
  * puts the caret at its start, so ArrowUp from the end of "香蕉" landed in front
  * of "苹果". It moves from a collapsed caret only, and WebKit's own move from
@@ -65,7 +56,6 @@ import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import type { Fragment, Node, ResolvedPos } from '@milkdown/kit/prose/model';
 import {
   type EditorState,
-  NodeSelection,
   Plugin,
   PluginKey,
   Selection,
@@ -85,14 +75,6 @@ import { verticalGoal } from './block-arrows';
 import { replaceLineWith } from './fence-input';
 
 const CELL_TYPES = new Set(['table_cell', 'table_header']);
-
-/** `filterTransaction`: drops a selection of a cell's paragraph as a node. */
-export function keepsCellCaret(tr: Transaction): boolean {
-  const { selection } = tr;
-  if (!tr.selectionSet || tr.docChanged) return true;
-  if (!(selection instanceof NodeSelection)) return true;
-  return !CELL_TYPES.has(selection.$from.parent.type.name);
-}
 
 /** The caret position in `cellPos`'s first (down) or last (up) line under `x`. */
 function caretInCell(
@@ -463,7 +445,6 @@ export const tableCells = $prose(
   (ctx) =>
     new Plugin({
       key: new PluginKey('nyamark/table-cells'),
-      filterTransaction: keepsCellCaret,
       props: {
         // A DOM handler runs ahead of every plugin's handleKeyDown, which is
         // where prosemirror-tables answers the arrows.
