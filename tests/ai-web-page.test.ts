@@ -66,6 +66,16 @@ describe('a fetched page as the assistant reads it', () => {
     expect(page).toEqual({ title: 'Short', text: 'Just a **short** note.' });
   });
 
+  test('keeps line breaks and the blank lines in code', () => {
+    const { text } = html(
+      'https://example.com/',
+      '<html><body><p>Roses are red,<br>violets are blue.</p><pre><code>a\n\n\n\nb</code></pre></body></html>'
+    );
+    expect(text).toBe(
+      'Roses are red,  \nviolets are blue.\n\n```\na\n\n\n\nb\n```'
+    );
+  });
+
   test('gives JSON pretty-printed, and text as it came', () => {
     expect(
       pageText(

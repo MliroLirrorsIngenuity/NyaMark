@@ -116,13 +116,9 @@ function turndown(): TurndownService {
   return service;
 }
 
-function markdown(html: string) {
-  return turndown()
-    .turndown(html)
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
+// Turndown joins blocks with one blank line and trims the ends already;
+// a line's trailing spaces are a hard break and code keeps its blank lines.
+const markdown = (html: string) => turndown().turndown(html);
 
 function htmlText(html: string, url: string, parse: HtmlParser): PageText {
   const doc = parse(html);
