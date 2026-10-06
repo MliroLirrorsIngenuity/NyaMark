@@ -1,4 +1,5 @@
 import { i18next } from '../../i18n';
+import { isWebUrl } from '../../state/ai-settings';
 import type { ToolPart } from '../agent/session';
 import { isMcpToolName } from '../agent/tools/mcp';
 
@@ -153,7 +154,7 @@ export function searchSources(part: ToolPart): Source[] {
   const sources: Source[] = [];
   for (const entry of Array.isArray(list) ? list : []) {
     const url = field<string>(entry, 'url');
-    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) continue;
+    if (typeof url !== 'string' || !isWebUrl(url)) continue;
     const title = field<string>(entry, 'title');
     sources.push({ url, title: typeof title === 'string' ? title : '' });
   }

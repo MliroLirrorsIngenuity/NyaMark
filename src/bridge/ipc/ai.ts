@@ -1,4 +1,5 @@
 import { Channel, type InvokeArgs, invoke } from '@tauri-apps/api/core';
+import { type UnlistenFn, listen } from '@tauri-apps/api/event';
 
 /** A command the app could not run at all, as one sent bad arguments. */
 export type InvokeFailure = { kind: 'invoke'; message: string };
@@ -454,6 +455,15 @@ export async function mcpSync(
 
 export async function mcpStatus(): Promise<McpStatus[]> {
   return await invoke<McpStatus[]>('mcp_status');
+}
+
+const MCP_STATUS_EVENT = 'nyamark://mcp-status';
+
+/** Calls `handler` whenever a server's status changes. */
+export async function onMcpStatusChange(
+  handler: () => void
+): Promise<UnlistenFn> {
+  return await listen(MCP_STATUS_EVENT, () => handler());
 }
 
 export async function mcpRestart(id: string): Promise<McpStatus> {

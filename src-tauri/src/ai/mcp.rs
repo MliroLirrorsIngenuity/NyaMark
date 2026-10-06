@@ -4,7 +4,8 @@
 //! The page owns the list and hands it over whole with `mcp_sync`; this
 //! side starts what is new, stops what is gone and restarts what changed.
 //! A server's tools are listed once it is ready and again whenever it says
-//! they changed, so the page only reads statuses.
+//! they changed, so the page only reads statuses, and the windows are told
+//! when one changes.
 
 use std::{
     collections::{HashMap, HashSet, VecDeque},
@@ -19,7 +20,10 @@ use rmcp::{
         CallToolRequest, CallToolRequestParams, CallToolResult, ClientCapabilities, ClientRequest,
         Implementation, InitializeRequestParams, JsonObject, ProtocolVersion, ServerResult, Tool,
     },
-    service::{ClientInitializeError, NotificationContext, PeerRequestOptions, RunningService},
+    service::{
+        ClientInitializeError, NotificationContext, PeerRequestOptions, RunningService,
+        RunningServiceCancellationToken,
+    },
     transport::{
         streamable_http_client::{StreamableHttpClientTransportConfig, StreamableHttpError},
         StreamableHttpClientTransport, TokioChildProcess,
@@ -28,8 +32,11 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{async_runtime::JoinHandle, AppHandle, Manager, Runtime, Window};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt};
+use tauri::{async_runtime::JoinHandle, AppHandle, Emitter, Manager, Runtime, Window};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt},
+    sync::watch,
+};
 
 use super::{
     blocking,
@@ -47,6 +54,12 @@ const QUIT_TIMEOUT: Duration = Duration::from_millis(1500);
 /// How long a stopped server gets to exit before it is killed; rmcp kills
 /// a local one after three seconds of its own.
 const STOP_TIMEOUT: Duration = Duration::from_secs(5);
+/// What the windows hear when a server's status changes; they ask for the
+/// statuses then.
+const STATUS_EVENT: &str = "nyamark://mcp-status";
+/// The least time between two of those, so a server writing to stderr line
+/// after line sends one at a time.
+const STATUS_EVENT_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(
@@ -375,7 +388,11 @@ impl StderrRing {
 pub struct McpServers(Arc<Registry>);
 
 #[derive(Default)]
-struct Registry(Mutex<Servers>);
+struct Registry {
+    servers: Mutex<Servers>,
+    /// Sent to whenever a status changes.
+    changes: watch::Sender<()>,
+}
 
 #[derive(Default)]
 struct Servers {
@@ -393,15 +410,19 @@ struct Entry {
     error: Option<McpStartError>,
     tools: Vec<McpTool>,
     stderr: Arc<Mutex<StderrRing>>,
-    service: Option<RunningService<RoleClient, Watcher>>,
+    /// Of a server that is ready, what calls go through.
+    peer: Option<Peer<RoleClient>>,
+    /// Of a server that is ready, what closes it.
+    stop: Option<RunningServiceCancellationToken>,
     /// Of a local server, whose process group is killed if it outlives the app.
     pid: Option<u32>,
+    /// Starts the server, then waits on it until it is closed.
     task: Option<JoinHandle<()>>,
 }
 
 /// What is left to stop of a server.
 struct Running {
-    service: Option<RunningService<RoleClient, Watcher>>,
+    stop: Option<RunningServiceCancellationToken>,
     pid: Option<u32>,
     task: Option<JoinHandle<()>>,
 }
@@ -415,34 +436,23 @@ impl Entry {
             error: None,
             tools: Vec::new(),
             stderr: Arc::default(),
-            service: None,
+            peer: None,
+            stop: None,
             pid: None,
             task: None,
         }
     }
 
     fn take_running(&mut self) -> Running {
+        self.peer = None;
         Running {
-            service: self.service.take(),
+            stop: self.stop.take(),
             pid: self.pid.take(),
             task: self.task.take(),
         }
     }
 
-    /// A server that exits on its own is failed from then on.
-    fn notice_exit(&mut self) {
-        let exited = self
-            .service
-            .as_ref()
-            .is_some_and(|service| service.peer().is_transport_closed());
-        if self.state == McpState::Ready && exited {
-            self.state = McpState::Failed;
-            self.error = Some(McpStartError::Exited);
-        }
-    }
-
-    fn status(&mut self) -> McpStatus {
-        self.notice_exit();
+    fn status(&self) -> McpStatus {
         McpStatus {
             id: self.config.id().to_string(),
             name: self.config.name().to_string(),
@@ -460,20 +470,25 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 impl Registry {
     fn servers(&self) -> MutexGuard<'_, Servers> {
-        lock(&self.0)
+        lock(&self.servers)
+    }
+
+    /// Lets the windows know a status changed.
+    fn changed(&self) {
+        self.changes.send_replace(());
     }
 
     fn statuses(&self) -> Vec<McpStatus> {
-        let mut servers = self.servers();
-        let Servers { order, entries, .. } = &mut *servers;
-        order
+        let servers = self.servers();
+        servers
+            .order
             .iter()
-            .filter_map(|id| entries.get_mut(id).map(Entry::status))
+            .filter_map(|id| servers.entries.get(id).map(Entry::status))
             .collect()
     }
 
     fn status(&self, id: &str) -> Option<McpStatus> {
-        self.servers().entries.get_mut(id).map(Entry::status)
+        self.servers().entries.get(id).map(Entry::status)
     }
 
     fn set_pid(&self, id: &str, generation: u64, pid: Option<u32>) {
@@ -485,21 +500,28 @@ impl Registry {
     }
 
     fn set_tools(&self, id: &str, generation: u64, tools: &[Tool]) {
-        if let Some(entry) = self.servers().entries.get_mut(id) {
-            if entry.generation == generation {
-                entry.tools = tools.iter().map(McpTool::from).collect();
-            }
-        }
+        let mut servers = self.servers();
+        let Some(entry) = servers
+            .entries
+            .get_mut(id)
+            .filter(|entry| entry.generation == generation)
+        else {
+            return;
+        };
+        entry.tools = tools.iter().map(McpTool::from).collect();
+        drop(servers);
+        self.changed();
     }
 
-    /// Records how a start ended. One that was overtaken by a stop or a
-    /// restart is closed again.
+    /// Records how a start ended, and hands back the server if it is up and
+    /// still wanted. One that was overtaken by a stop or a restart is closed
+    /// again.
     fn finish(
         &self,
         id: &str,
         generation: u64,
         result: Result<(RunningService<RoleClient, Watcher>, Vec<Tool>), McpStartError>,
-    ) {
+    ) -> Option<RunningService<RoleClient, Watcher>> {
         let mut servers = self.servers();
         let Some(entry) = servers
             .entries
@@ -510,34 +532,55 @@ impl Registry {
             if let Ok((service, _)) = result {
                 close_later(service);
             }
-            return;
+            return None;
         };
-        entry.task = None;
-        match result {
+        let running = match result {
             Ok((service, tools)) => {
                 entry.state = McpState::Ready;
                 entry.error = None;
                 entry.tools = tools.iter().map(McpTool::from).collect();
-                entry.service = Some(service);
+                entry.peer = Some(service.peer().clone());
+                entry.stop = Some(service.cancellation_token());
+                Some(service)
             }
             Err(error) => {
+                entry.task = None;
                 entry.state = McpState::Failed;
                 entry.error = Some(error);
+                None
             }
-        }
+        };
+        drop(servers);
+        self.changed();
+        running
+    }
+
+    /// Records that a server closed while it was still wanted: it exited on
+    /// its own, or its connection broke.
+    fn closed(&self, id: &str, generation: u64) {
+        let mut servers = self.servers();
+        let Some(entry) = servers
+            .entries
+            .get_mut(id)
+            .filter(|entry| entry.generation == generation)
+        else {
+            return;
+        };
+        entry.take_running();
+        entry.state = McpState::Failed;
+        entry.error = Some(McpStartError::Exited);
+        drop(servers);
+        self.changed();
     }
 
     fn peer(&self, id: &str) -> Result<Peer<RoleClient>, McpCallError> {
-        let mut servers = self.servers();
-        let entry = servers
+        self.servers()
             .entries
-            .get_mut(id)
-            .ok_or(McpCallError::UnknownServer)?;
-        entry.notice_exit();
-        match (&entry.service, entry.state) {
-            (Some(service), McpState::Ready) => Ok(service.peer().clone()),
-            _ => Err(McpCallError::NotReady),
-        }
+            .get(id)
+            .ok_or(McpCallError::UnknownServer)?
+            .peer
+            .clone()
+            .ok_or(McpCallError::NotReady)
     }
 }
 
@@ -564,7 +607,7 @@ fn start(
     match servers.entries.insert(id, entry) {
         Some(mut previous) => previous.take_running(),
         None => Running {
-            service: None,
+            stop: None,
             pid: None,
             task: None,
         },
@@ -596,7 +639,11 @@ async fn run(
             Ok((process, output)) => {
                 registry.set_pid(&id, generation, process.id());
                 if let Some(output) = output {
-                    tauri::async_runtime::spawn(collect_stderr(output, stderr));
+                    tauri::async_runtime::spawn(collect_stderr(
+                        output,
+                        stderr,
+                        registry.changes.clone(),
+                    ));
                 }
                 handshake(watcher, process).await
             }
@@ -613,7 +660,11 @@ async fn run(
             Err(error) => Err(error),
         },
     };
-    registry.finish(&id, generation, result);
+    let Some(service) = registry.finish(&id, generation, result) else {
+        return;
+    };
+    let _ = service.waiting().await;
+    registry.closed(&id, generation);
 }
 
 /// Initializes the connection and lists the tools.
@@ -667,7 +718,11 @@ impl ClientHandler for Watcher {
     }
 }
 
-async fn collect_stderr(output: impl tokio::io::AsyncRead + Unpin, ring: Arc<Mutex<StderrRing>>) {
+async fn collect_stderr(
+    output: impl tokio::io::AsyncRead + Unpin,
+    ring: Arc<Mutex<StderrRing>>,
+    changes: watch::Sender<()>,
+) {
     let mut reader = tokio::io::BufReader::new(output);
     let mut line = Vec::new();
     loop {
@@ -679,7 +734,10 @@ async fn collect_stderr(output: impl tokio::io::AsyncRead + Unpin, ring: Arc<Mut
             .await
         {
             Ok(0) | Err(_) => break,
-            Ok(_) => lock(&ring).push(&String::from_utf8_lossy(&line)),
+            Ok(_) => {
+                lock(&ring).push(&String::from_utf8_lossy(&line));
+                changes.send_replace(());
+            }
         }
     }
 }
@@ -962,11 +1020,12 @@ fn close_later(mut service: RunningService<RoleClient, Watcher>) {
 }
 
 fn stop(running: Running) {
-    if let Some(task) = running.task {
-        task.abort();
-    }
-    if let Some(service) = running.service {
-        close_later(service);
+    match (running.stop, running.task) {
+        // Its task closes it, in its own time.
+        (Some(stop), _) => stop.cancel(),
+        // Still starting: what there is of it goes with the task.
+        (None, Some(task)) => task.abort(),
+        (None, None) => {}
     }
 }
 
@@ -1031,7 +1090,7 @@ pub async fn mcp_sync(
         .collect();
     let registry = Arc::clone(&app.state::<McpServers>().0);
     let mut stopping = Vec::new();
-    {
+    let changed = {
         let mut state = registry.servers();
         let running = state
             .entries
@@ -1039,6 +1098,11 @@ pub async fn mcp_sync(
             .map(|(id, entry)| (id.clone(), (entry.config.clone(), entry.state)))
             .collect();
         let plan = plan(&running, servers);
+        let changed = state.order != plan.order
+            || !(plan.start.is_empty()
+                && plan.restart.is_empty()
+                && plan.rename.is_empty()
+                && plan.stop.is_empty());
         for id in &plan.stop {
             if let Some(mut entry) = state.entries.remove(id) {
                 stopping.push(entry.take_running());
@@ -1053,8 +1117,12 @@ pub async fn mcp_sync(
             stopping.push(start(&registry, &mut state, &app, window.label(), config));
         }
         state.order = plan.order;
-    }
+        changed
+    };
     stopping.into_iter().for_each(stop);
+    if changed {
+        registry.changed();
+    }
     registry.statuses()
 }
 
@@ -1080,6 +1148,7 @@ pub async fn mcp_restart(
         start(&registry, &mut state, &app, window.label(), config)
     };
     stop(previous);
+    registry.changed();
     registry.status(&id).ok_or(McpCallError::UnknownServer)
 }
 
@@ -1122,6 +1191,18 @@ async fn call_tool(
     }
 }
 
+/// Tells every window when a server's status changes, from now on.
+pub fn tell_windows<R: Runtime>(app: &AppHandle<R>) {
+    let mut changes = app.state::<McpServers>().0.changes.subscribe();
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while changes.changed().await.is_ok() {
+            let _ = app.emit(STATUS_EVENT, ());
+            tokio::time::sleep(STATUS_EVENT_INTERVAL).await;
+        }
+    });
+}
+
 /// Stops every server as the app quits: each gets a moment to exit, and
 /// what is left of a local one's process group is killed.
 pub fn shutdown<R: Runtime>(app: &AppHandle<R>) {
@@ -1141,23 +1222,23 @@ pub fn shutdown<R: Runtime>(app: &AppHandle<R>) {
     let mut leftover = Vec::new();
     let mut closing = Vec::new();
     for running in running {
-        if let Some(task) = running.task {
-            task.abort();
-            leftover.extend(running.pid);
-        } else if let Some(mut service) = running.service {
-            let closed = tauri::async_runtime::spawn(async move {
-                matches!(service.close_with_timeout(QUIT_TIMEOUT).await, Ok(Some(_)))
-            });
-            closing.push((running.pid, closed));
+        match (running.stop, running.task) {
+            // Its task ends once it is closed.
+            (Some(stop), Some(task)) => {
+                stop.cancel();
+                closing.push((running.pid, task));
+            }
+            (_, Some(task)) => {
+                task.abort();
+                leftover.extend(running.pid);
+            }
+            _ => {}
         }
     }
     tauri::async_runtime::block_on(async {
-        let deadline = tokio::time::Instant::now() + QUIT_TIMEOUT + Duration::from_millis(200);
+        let deadline = tokio::time::Instant::now() + QUIT_TIMEOUT;
         for (pid, closed) in closing {
-            if !matches!(
-                tokio::time::timeout_at(deadline, closed).await,
-                Ok(Ok(true))
-            ) {
+            if !matches!(tokio::time::timeout_at(deadline, closed).await, Ok(Ok(()))) {
                 leftover.extend(pid);
             }
         }
@@ -1339,7 +1420,10 @@ mod tests {
                 .await
                 .unwrap();
             drop(writer);
-            collect_stderr(reader, Arc::clone(&ring)).await;
+            let changes = watch::Sender::default();
+            let heard = changes.subscribe();
+            collect_stderr(reader, Arc::clone(&ring), changes.clone()).await;
+            assert!(heard.has_changed().unwrap());
         });
         let lines = lock(&ring).lines();
         let lengths: Vec<usize> = lines.iter().map(String::len).collect();
@@ -1384,8 +1468,8 @@ mod tests {
     }
 
     /// A server that speaks just enough MCP: two pages of tools, a tool
-    /// that echoes, one that fails, one that never answers and one that
-    /// adds a tool and says so.
+    /// that echoes, one that fails, one that never answers, one that adds a
+    /// tool and says so, and one that makes it exit.
     async fn fake_server(stream: DuplexStream) {
         let (read, mut write) = tokio::io::split(stream);
         let mut lines = tokio::io::BufReader::new(read).lines();
@@ -1426,6 +1510,7 @@ mod tests {
                         "structuredContent": {"echoed": params["arguments"]["text"]}
                     }),
                     "hang" => continue,
+                    "exit" => return,
                     "change" => {
                         extra_tool = true;
                         notify = Some(json!({
@@ -1467,6 +1552,7 @@ mod tests {
             let (ours, theirs) = tokio::io::duplex(64 * 1024);
             tauri::async_runtime::spawn(fake_server(theirs));
             let registry = Arc::new(Registry::default());
+            let mut changes = registry.changes.subscribe();
             {
                 let mut servers = registry.servers();
                 servers.order.push("fake".into());
@@ -1480,7 +1566,9 @@ mod tests {
                 generation: 1,
             };
             let result = handshake(watcher, ours).await;
-            registry.finish("fake", 1, result);
+            let service = registry.finish("fake", 1, result).unwrap();
+            assert!(changes.has_changed().unwrap());
+            changes.mark_unchanged();
 
             let status = registry.status("fake").unwrap();
             assert_eq!(status.state, McpState::Ready);
@@ -1516,22 +1604,45 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(20)).await;
             }
             assert_eq!(tool_names(&registry), ["echo", "fail", "added"]);
+            assert!(changes.has_changed().unwrap());
 
             assert_eq!(
                 registry.peer("other").unwrap_err(),
                 McpCallError::UnknownServer
             );
-            let running = registry
+            service.cancel().await.unwrap();
+        });
+    }
+
+    #[test]
+    fn a_server_that_exits_has_failed() {
+        tauri::async_runtime::block_on(async {
+            let (ours, theirs) = tokio::io::duplex(64 * 1024);
+            tauri::async_runtime::spawn(fake_server(theirs));
+            let registry = Arc::new(Registry::default());
+            registry
                 .servers()
                 .entries
-                .get_mut("fake")
-                .unwrap()
-                .take_running();
-            let mut service = running.service.unwrap();
-            service
-                .close_with_timeout(Duration::from_secs(1))
-                .await
-                .unwrap();
+                .insert("fake".into(), Entry::new(stdio("fake", "Fake", "x"), 1));
+            let watcher = Watcher {
+                registry: Arc::downgrade(&registry),
+                id: "fake".into(),
+                generation: 1,
+            };
+            let result = handshake(watcher, ours).await;
+            let service = registry.finish("fake", 1, result).unwrap();
+            let changes = registry.changes.subscribe();
+
+            let peer = registry.peer("fake").unwrap();
+            let _ = call_tool(&peer, "exit".into(), None, Duration::from_millis(500)).await;
+            let _ = service.waiting().await;
+            registry.closed("fake", 1);
+
+            let status = registry.status("fake").unwrap();
+            assert_eq!(status.state, McpState::Failed);
+            assert_eq!(status.error, Some(McpStartError::Exited));
+            assert_eq!(registry.peer("fake").unwrap_err(), McpCallError::NotReady);
+            assert!(changes.has_changed().unwrap());
         });
     }
 
@@ -1552,7 +1663,8 @@ mod tests {
             };
             let result = handshake(watcher, ours).await;
             assert!(result.is_ok());
-            registry.finish("fake", 1, result);
+            assert!(registry.finish("fake", 1, result).is_none());
+            registry.closed("fake", 1);
             let status = registry.status("fake").unwrap();
             assert_eq!(status.state, McpState::Starting);
             assert!(status.tools.is_empty());

@@ -20,11 +20,12 @@ import { translateDOM } from '../../../i18n/dom';
 import {
   type AiMcpServer,
   type AiSettings,
+  isWebUrl,
   mcpKeyProfile,
   newMcpServerId,
 } from '../../../state/ai-settings';
 import { renderSelect } from '../select';
-import { button, el, failureText, input, isUrl, translated } from './ai-dom';
+import { button, el, failureText, input, translated } from './ai-dom';
 
 export const mcpStyles = `
 .ny-ai-mcp__switch {
@@ -574,7 +575,7 @@ export function renderMcpSection({
         server.url = url.value.trim();
         url.value = server.url;
         changed();
-        const bad = server.url !== '' && !isUrl(server.url);
+        const bad = server.url !== '' && !isWebUrl(server.url);
         urlNote.hidden = !bad;
         urlNote.textContent = bad ? i18next.t('settings.ai.badUrl') : '';
         if (!bad && server.useKey && keys.get(server.id)?.saved) {
@@ -612,7 +613,7 @@ export function renderMcpSection({
       key.addEventListener('change', () => {
         const typed = key.value.trim();
         if (!typed) return;
-        if (!isUrl(server.url)) {
+        if (!isWebUrl(server.url)) {
           urlNote.hidden = false;
           urlNote.textContent = i18next.t('settings.ai.badUrl');
           return;
@@ -687,7 +688,6 @@ export function renderMcpSection({
   const unsubscribe = hub.subscribe(() => {
     for (const refresh of refreshers.values()) refresh();
   });
-  const unwatch = hub.watch();
   void hub.refresh().catch(console.error);
 
   return {
@@ -700,7 +700,6 @@ export function renderMcpSection({
     },
     destroy: () => {
       unsubscribe();
-      unwatch();
     },
   };
 }

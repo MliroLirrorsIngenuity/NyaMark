@@ -3,7 +3,8 @@
  * offers within reach of the assistant and the settings. The servers run
  * in the app, one set for every window; each window's hub sends it the
  * servers the settings turn on whenever they change, and the app starts,
- * stops or restarts only those that differ.
+ * stops or restarts only those that differ. The app says when a server's
+ * status changes, and the hub reads them all again.
  */
 
 import {
@@ -15,8 +16,13 @@ import {
   mcpRestart,
   mcpStatus,
   mcpSync,
+  onMcpStatusChange,
 } from '../../bridge/ipc/ai';
-import type { AiMcpServer, AiSettings } from '../../state/ai-settings';
+import {
+  type AiMcpServer,
+  type AiSettings,
+  isWebUrl,
+} from '../../state/ai-settings';
 import { subscribeSettings } from '../../state/settings';
 
 /** The app's MCP commands, as the hub uses them. */
@@ -29,6 +35,8 @@ export type McpApi = {
     tool: string,
     args: Record<string, unknown> | null
   ): Promise<McpToolResult>;
+  /** Calls `changed` whenever a server's status changes. */
+  onChange(changed: () => void): Promise<() => void>;
 };
 
 const MCP: McpApi = {
@@ -36,22 +44,14 @@ const MCP: McpApi = {
   status: mcpStatus,
   restart: mcpRestart,
   call: mcpCallTool,
+  onChange: onMcpStatusChange,
 };
-
-export type McpPolling = {
-  /** How often a server still starting is looked at. */
-  starting: number;
-  /** How often the servers are looked at while someone watches them. */
-  watching: number;
-};
-
-const POLLING: McpPolling = { starting: 500, watching: 1500 };
 
 /** Whether the server has what it needs to start. */
 export function isComplete(server: AiMcpServer): boolean {
   return server.transport === 'stdio'
     ? server.command.length > 0
-    : /^https?:\/\/\S+$/i.test(server.url);
+    : isWebUrl(server.url);
 }
 
 /** The server as the app starts it. */
@@ -91,13 +91,12 @@ export class McpHub {
   private applied: string | null = null;
   private queue: Promise<unknown> = Promise.resolve();
   private readonly listeners = new Set<() => void>();
-  private timer: ReturnType<typeof setTimeout> | null = null;
-  private watchers = 0;
+  /** A reading asked for by a change is waiting its turn. */
+  private stale = false;
 
-  constructor(
-    private readonly api: McpApi = MCP,
-    private readonly polling: McpPolling = POLLING
-  ) {}
+  constructor(private readonly api: McpApi = MCP) {
+    void api.onChange(() => this.changed()).catch(console.error);
+  }
 
   /** Where each running server is, as last heard. */
   get statuses(): readonly McpStatus[] {
@@ -156,19 +155,14 @@ export class McpHub {
     };
   }
 
-  /**
-   * Looks at the servers every so often until the returned function is
-   * called: a server can fail, or a stopped one come back, at any time.
-   */
-  watch(): () => void {
-    this.watchers++;
-    this.schedule();
-    let stopped = false;
-    return () => {
-      if (stopped) return;
-      stopped = true;
-      this.watchers--;
-    };
+  /** Reads the statuses again, once for any number of changes heard meanwhile. */
+  private changed() {
+    if (this.stale) return;
+    this.stale = true;
+    void this.enqueue(() => {
+      this.stale = false;
+      return this.api.status();
+    }).catch(console.error);
   }
 
   private enqueue(request: () => Promise<McpStatus[]>): Promise<void> {
@@ -183,20 +177,6 @@ export class McpHub {
   private received(statuses: McpStatus[]) {
     this.known = statuses;
     for (const listener of this.listeners) listener();
-    this.schedule();
-  }
-
-  private schedule() {
-    if (this.timer !== null) return;
-    const starting = this.known.some((status) => status.state === 'starting');
-    if (!starting && this.watchers === 0) return;
-    this.timer = setTimeout(
-      () => {
-        this.timer = null;
-        void this.refresh().catch(console.error);
-      },
-      starting ? this.polling.starting : this.polling.watching
-    );
   }
 }
 

@@ -238,6 +238,7 @@ function fakeApi(statuses: McpStatus[] = []) {
   const restarted: string[] = [];
   let current = statuses;
   let polls = 0;
+  const heard: Array<() => void> = [];
   const api: McpApi = {
     sync: async (servers, proxy) => {
       synced.push({ servers, proxy });
@@ -252,12 +253,20 @@ function fakeApi(statuses: McpStatus[] = []) {
       return current[0];
     },
     call: async () => text(''),
+    onChange: async (changed) => {
+      heard.push(changed);
+      return () => undefined;
+    },
   };
   return {
     api,
     synced,
     restarted,
     polls: () => polls,
+    /** The app says a status changed. */
+    change: () => {
+      for (const changed of heard) changed();
+    },
     set: (next: McpStatus[]) => {
       current = next;
     },
@@ -267,7 +276,7 @@ function fakeApi(statuses: McpStatus[] = []) {
 describe('McpHub', () => {
   test('sends the servers again only when they change', async () => {
     const fake = fakeApi([status()]);
-    const hub = new McpHub(fake.api, { starting: 5, watching: 5 });
+    const hub = new McpHub(fake.api);
     const heard: number[] = [];
     hub.subscribe(() => heard.push(hub.statuses.length));
     const ai = { mcpServers: [server()], proxy: { mode: 'system' as const } };
@@ -291,7 +300,7 @@ describe('McpHub', () => {
         return fake.api.sync(servers, proxy);
       },
     };
-    const hub = new McpHub(api, { starting: 5, watching: 5 });
+    const hub = new McpHub(api);
     const ai = { mcpServers: [server()], proxy: { mode: 'system' as const } };
     await expect(hub.apply(ai)).rejects.toThrow('down');
     fail = false;
@@ -299,22 +308,23 @@ describe('McpHub', () => {
     expect(fake.synced).toHaveLength(1);
   });
 
-  test('looks again while a server is starting', async () => {
+  test('reads the statuses again when the app says one changed', async () => {
     const fake = fakeApi([status({ state: 'starting', tools: [] })]);
-    const hub = new McpHub(fake.api, { starting: 5, watching: 1000 });
+    const hub = new McpHub(fake.api);
     await hub.refresh();
     expect(fake.polls()).toBe(1);
     fake.set([status()]);
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    fake.change();
+    fake.change();
+    fake.change();
+    await hub.settled();
     expect(hub.status('s-1')?.state).toBe('ready');
-    const polled = fake.polls();
-    await new Promise((resolve) => setTimeout(resolve, 40));
-    expect(fake.polls()).toBe(polled);
+    expect(fake.polls()).toBe(2);
   });
 
   test('restarts a server and hears where it is', async () => {
     const fake = fakeApi([status()]);
-    const hub = new McpHub(fake.api, { starting: 5, watching: 5 });
+    const hub = new McpHub(fake.api);
     await hub.restart('s-1');
     expect(fake.restarted).toEqual(['s-1']);
     expect(hub.statuses).toHaveLength(1);

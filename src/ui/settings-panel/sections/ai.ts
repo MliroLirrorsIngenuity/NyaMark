@@ -31,6 +31,7 @@ import {
   type AiProvider,
   type AiSearchEngine,
   type AiSettings,
+  isWebUrl,
   newAiProfileId,
 } from '../../../state/ai-settings';
 import { ensureStyle } from '../../../style/register';
@@ -42,7 +43,6 @@ import {
   escapeHtml,
   failureText,
   input,
-  isUrl,
   translated,
 } from './ai-dom';
 import { renderHistorySection } from './ai-history';
@@ -791,7 +791,7 @@ export function renderAiSection(
     // Looked up once the address is set, not on every key typed.
     let reach: { url: string; isPublic: boolean } | null = null;
     const lookUp = (value: string) => {
-      if (!isUrl(value) || new URL(value).protocol !== 'http:') return;
+      if (!isWebUrl(value) || new URL(value).protocol !== 'http:') return;
       if (reach?.url === value) return;
       void webAddressIsPublic(value).then(
         (isPublic) => {
@@ -809,7 +809,7 @@ export function renderAiSection(
       if (failure) {
         text = failure;
         tone = 'error';
-      } else if (value && !isUrl(value)) {
+      } else if (value && !isWebUrl(value)) {
         text = i18next.t('settings.ai.badUrl');
         tone = 'error';
       } else if (keyNeeded.has(provider.id)) {
@@ -828,7 +828,7 @@ export function renderAiSection(
       provider.baseUrl = value;
       showMeta();
       emit();
-      if (!isUrl(value)) {
+      if (!isWebUrl(value)) {
         showUrlNote();
         return;
       }
@@ -862,7 +862,7 @@ export function renderAiSection(
     keyInput.addEventListener('change', () => {
       const key = keyInput.value.trim();
       if (!key) return;
-      if (!isUrl(provider.baseUrl)) {
+      if (!isWebUrl(provider.baseUrl)) {
         showResult(i18next.t('settings.ai.badUrl'), 'error');
         return;
       }
@@ -1073,7 +1073,7 @@ export function renderAiSection(
 
     let running: AbortController | null = null;
     const run = async (mode: 'fetch' | 'check') => {
-      if (!isUrl(provider.baseUrl)) {
+      if (!isWebUrl(provider.baseUrl)) {
         showResult(i18next.t('settings.ai.badUrl'), 'error');
         return;
       }
@@ -1137,7 +1137,7 @@ export function renderAiSection(
       (value) => {
         provider.kind = value as AiProvider['kind'];
         emit();
-        if (isUrl(provider.baseUrl)) {
+        if (isWebUrl(provider.baseUrl)) {
           void bind(provider, null).catch((error) =>
             showResult(failureText(error), 'error')
           );

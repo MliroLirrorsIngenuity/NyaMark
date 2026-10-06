@@ -181,6 +181,16 @@ export function isAiProfileId(value: unknown): value is string {
   return typeof value === 'string' && ID.test(value);
 }
 
+/** Whether `value` is an http or https address. */
+export function isWebUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
