@@ -302,6 +302,14 @@ export async function webSearch(request: {
   return await webCommand<WebSearchResponse>('web_search', { request });
 }
 
+/**
+ * Whether an address leads off this computer and the local network, by
+ * what its host resolves to, as a page fetch judges it.
+ */
+export async function webAddressIsPublic(url: string): Promise<boolean> {
+  return await webCommand<boolean>('web_address_is_public', { url });
+}
+
 export type WebPage = {
   /** Where the page was found, after redirects. */
   url: string;

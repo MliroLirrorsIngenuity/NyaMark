@@ -292,6 +292,7 @@ pub fn run() {
             ai::secrets::ai_secrets_discard,
             ai::web::web_search,
             ai::web::web_fetch,
+            ai::web::web_address_is_public,
             ai::workspace::workspace_roots,
             ai::workspace::workspace_pick_root,
             ai::workspace::workspace_list,

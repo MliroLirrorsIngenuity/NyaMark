@@ -9,7 +9,6 @@ import {
   AI_PRESETS,
   type AiPreset,
   authSchemeOf,
-  isPlainRemoteAddress,
   presetById,
 } from '../../../ai/providers/presets';
 import {
@@ -19,6 +18,7 @@ import {
   deleteAiSecret,
   getAiSecretStatus,
   setAiSecret,
+  webAddressIsPublic,
 } from '../../../bridge/ipc/ai';
 import { openExternalUrl } from '../../../bridge/ipc/attachments';
 import { i18next } from '../../../i18n';
@@ -788,6 +788,20 @@ export function renderAiSection(
     urlInput.placeholder = 'https://api.example.com/v1';
     const urlNote = el('p', 'ny-settings__note');
     urlNote.hidden = true;
+    // Looked up once the address is set, not on every key typed.
+    let reach: { url: string; isPublic: boolean } | null = null;
+    const lookUp = (value: string) => {
+      if (!isUrl(value) || new URL(value).protocol !== 'http:') return;
+      if (reach?.url === value) return;
+      void webAddressIsPublic(value).then(
+        (isPublic) => {
+          reach = { url: value, isPublic };
+          if (urlInput.value.trim() === value) showUrlNote();
+        },
+        // Only a warning hangs on it; without an answer there is none.
+        () => {}
+      );
+    };
     const showUrlNote = (failure?: string) => {
       const value = urlInput.value.trim();
       let text: string | null = null;
@@ -800,7 +814,7 @@ export function renderAiSection(
         tone = 'error';
       } else if (keyNeeded.has(provider.id)) {
         text = i18next.t('settings.ai.keyNeeded');
-      } else if (isPlainRemoteAddress(value)) {
+      } else if (reach?.url === value && reach.isPublic) {
         text = i18next.t('settings.ai.plainHttp');
       }
       urlNote.hidden = text === null;
@@ -818,6 +832,7 @@ export function renderAiSection(
         showUrlNote();
         return;
       }
+      lookUp(value);
       void bind(provider, null).catch((error) => {
         if (!keyNeeded.has(provider.id)) showUrlNote(failureText(error));
       });
@@ -877,6 +892,7 @@ export function renderAiSection(
       showUrlNote();
     });
     refresh(provider.id);
+    lookUp(provider.baseUrl);
 
     // Fetching and checking.
     const fourth = el('div', 'ny-settings__row');

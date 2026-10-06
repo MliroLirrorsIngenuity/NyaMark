@@ -131,35 +131,3 @@ export function authSchemeOf(kind: AiProviderKind): AuthScheme {
   if (kind === 'google') return 'x-goog-api-key';
   return 'bearer';
 }
-
-/**
- * An `http:` address off this computer and the local network: a key sent
- * there crosses the internet in the clear.
- */
-export function isPlainRemoteAddress(baseUrl: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(baseUrl);
-  } catch {
-    return false;
-  }
-  if (url.protocol !== 'http:') return false;
-  const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  if (host === 'localhost' || host.endsWith('.local') || host === '::1') {
-    return false;
-  }
-  const v4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    return !(
-      a === 127 ||
-      a === 10 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 169 && b === 254) ||
-      (a === 100 && b >= 64 && b <= 127)
-    );
-  }
-  if (host.includes(':')) return !/^f[cd]|^fe[89ab]/.test(host);
-  return true;
-}

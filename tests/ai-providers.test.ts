@@ -13,11 +13,7 @@ import {
   parseGoogleModels,
   parseOpenAiModels,
 } from '../src/ai/providers/models';
-import {
-  AI_PRESETS,
-  authSchemeOf,
-  isPlainRemoteAddress,
-} from '../src/ai/providers/presets';
+import { AI_PRESETS, authSchemeOf } from '../src/ai/providers/presets';
 import { type AiProvider, defaultQuickActions } from '../src/state/ai-settings';
 import { normalizeSettings } from '../src/state/settings';
 
@@ -204,26 +200,6 @@ describe('presets', () => {
     expect(authSchemeOf('openai')).toBe('bearer');
     expect(authSchemeOf('openai-compatible')).toBe('bearer');
     expect(authSchemeOf('deepseek')).toBe('bearer');
-  });
-
-  test.each([
-    ['http://api.example.com/v1', true],
-    ['http://8.8.8.8:8080', true],
-    ['http://[2001:db8::1]/v1', true],
-    ['http://fcc.example.com', true],
-    ['https://api.example.com/v1', false],
-    ['http://127.0.0.1:11434/v1', false],
-    ['http://localhost:1234', false],
-    ['http://192.168.1.20:8000', false],
-    ['http://10.0.0.5', false],
-    ['http://172.20.0.1', false],
-    ['http://100.100.1.1', false],
-    ['http://nas.local:8080', false],
-    ['http://[::1]:1234', false],
-    ['http://[fd12::1]', false],
-    ['not a url', false],
-  ])('%s crosses the internet in the clear: %p', (url, plain) => {
-    expect(isPlainRemoteAddress(url)).toBe(plain);
   });
 });
 

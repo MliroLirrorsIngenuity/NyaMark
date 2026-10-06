@@ -880,6 +880,21 @@ impl std::fmt::Display for PrivateHost {
 
 impl std::error::Error for PrivateHost {}
 
+/// Whether an address leads off this machine and the local network, by the
+/// same rule as a fetch: a key the settings send there over plain http
+/// crosses the internet unencrypted.
+#[tauri::command]
+pub async fn web_address_is_public(url: String) -> Result<bool, WebError> {
+    let url = Url::parse(url.trim()).map_err(|error| WebError::BadUrl {
+        message: error.to_string(),
+    })?;
+    match ensure_public_host(&url).await {
+        Ok(()) => Ok(true),
+        Err(WebError::PrivateAddress { .. }) => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
 /// Refuses an address on this machine or the local network, on every hop
 /// and whether or not a proxy is set: an IP address as written, a name by
 /// every address it resolves to here. Behind a proxy the proxy resolves the
@@ -1535,6 +1550,26 @@ mod tests {
         .unwrap();
         assert_eq!(page.url, format!("http://localhost:{port}/final"));
         assert_eq!(page.text, "ok");
+    }
+
+    #[test]
+    fn a_service_address_is_public_unless_it_leads_here_or_nearby() {
+        for (url, public) in [
+            ("http://8.8.8.8:8080", true),
+            ("http://[2606:4700::1111]/v1", true),
+            ("http://127.0.0.1:11434/v1", false),
+            ("http://localhost:1234", false),
+            ("http://192.168.1.20:8000", false),
+            ("http://10.0.0.5", false),
+            ("http://100.100.1.1", false),
+            ("http://[::1]:1234", false),
+            ("http://[fd12::1]", false),
+        ] {
+            let answer = tauri::async_runtime::block_on(web_address_is_public(url.into()));
+            assert_eq!(answer, Ok(public), "{url}");
+        }
+        let answer = tauri::async_runtime::block_on(web_address_is_public("not a url".into()));
+        assert!(matches!(answer, Err(WebError::BadUrl { .. })), "{answer:?}");
     }
 
     #[test]
