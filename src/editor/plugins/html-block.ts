@@ -1,3 +1,4 @@
+import type { Ctx } from '@milkdown/kit/ctx';
 import { htmlSchema } from '@milkdown/kit/preset/commonmark';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import {
@@ -8,7 +9,7 @@ import {
   TextSelection,
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { $ctx, $prose, $view } from '@milkdown/kit/utils';
+import { $ctx, $prose, $remark, $view } from '@milkdown/kit/utils';
 import DOMPurify, { type Config } from 'dompurify';
 import { micromark } from 'micromark';
 import { ensureStyle } from '../../style/register';
@@ -237,17 +238,94 @@ export function registerHtmlBlockStyles() {
   ensureStyle('editor-html-block', css);
 }
 
+declare module 'mdast' {
+  interface HtmlData {
+    /** Read as a block of HTML, and not as tags in a line of text. */
+    block?: boolean;
+  }
+}
+
+/**
+ * HTML the file has as a block, as micromark reads it (`htmlFlow`), marked so
+ * as it is parsed. Milkdown wraps it alone in a paragraph to hold it
+ * (`remarkHtmlTransformer`), and a paragraph of nothing but tags looked the
+ * same: `<span>**重要**</span>` on a line of its own showed as a block, its
+ * stars as written.
+ */
+export const htmlFlowParse = $remark(
+  'nyamark-html-flow',
+  () =>
+    function () {
+      const data = this.data();
+      data.fromMarkdownExtensions ??= [];
+      data.fromMarkdownExtensions.push({
+        enter: {
+          htmlFlow(token) {
+            this.enter(
+              { type: 'html', value: '', data: { block: true } },
+              token
+            );
+            this.buffer();
+          },
+        },
+      });
+    }
+);
+
+/** `editor.config` hook: HTML keeps whether the file has it as a block. */
+export function keepHtmlBlocks(ctx: Ctx) {
+  ctx.update(htmlSchema.key, (base) => (schemaCtx) => {
+    const schema = base(schemaCtx);
+    return {
+      ...schema,
+      attrs: { ...schema.attrs, block: { default: false } },
+      toDOM: (node) => {
+        const [tag, attrs, ...content] = schema.toDOM?.(node) as [
+          string,
+          Record<string, unknown>,
+          ...unknown[],
+        ];
+        const block = node.attrs.block ? { 'data-block': '' } : {};
+        return [tag, { ...attrs, ...block }, ...content];
+      },
+      parseDOM: schema.parseDOM?.map((rule) =>
+        typeof rule.tag === 'string'
+          ? {
+              ...rule,
+              getAttrs: (dom: HTMLElement) => {
+                const attrs = rule.getAttrs?.(dom);
+                if (attrs === false) return false;
+                return { ...attrs, block: dom.hasAttribute('data-block') };
+              },
+            }
+          : rule
+      ),
+      parseMarkdown: {
+        match: ({ type }) => type === 'html',
+        runner: (state, node, type) => {
+          state.addNode(type, {
+            value: node.value as string,
+            block: (node.data as { block?: boolean })?.block === true,
+          });
+        },
+      },
+    };
+  });
+}
+
 /**
  * Milkdown models every HTML node as an inline atom. An HTML block reaches the
- * document wrapped alone in a paragraph (`remarkHtmlTransformer`); anything else
- * is HTML inside running text, an element whole (`inlineHtmlRuns`) or a tag
- * whose element is not all there, which is shown as source.
+ * document alone in a paragraph, marked as a block (`htmlFlowParse`);
+ * anything else is HTML inside running text, an element whole
+ * (`inlineHtmlRuns`) or a tag whose element is not all there, which is shown
+ * as source.
  */
 export function isHtmlBlock(node: ProseNode): boolean {
   return (
     node.type.name === 'paragraph' &&
     node.childCount === 1 &&
-    node.firstChild?.type.name === 'html'
+    node.firstChild?.type.name === 'html' &&
+    node.firstChild.attrs.block === true
   );
 }
 
@@ -386,7 +464,7 @@ export const htmlBlockView = $view(htmlSchema.node, (ctx) => {
       if (pos === undefined) return;
       const { tr } = view.state;
       if (editor.value.trim()) {
-        tr.setNodeMarkup(pos, undefined, { value: editor.value });
+        tr.setNodeAttribute(pos, 'value', editor.value);
       } else if (block) {
         const $pos = tr.doc.resolve(pos);
         tr.delete($pos.before(), $pos.after());

@@ -19,6 +19,7 @@ type MdNode = {
   url?: string;
   title?: string | null;
   value?: string;
+  data?: { block?: boolean };
   position?: { start: { offset?: number }; end: { offset?: number } };
   children?: MdNode[];
 };
@@ -119,7 +120,7 @@ export function keepUnusedDefinitions() {
       // block that holds it.
       node.children?.splice(node.children.indexOf(child), 1, {
         type: 'paragraph',
-        children: [{ type: 'html', value }],
+        children: [{ type: 'html', value, data: { block: true } }],
       });
     }
   };

@@ -33,7 +33,7 @@ const schema = new Schema({
       group: 'inline',
       inline: true,
       atom: true,
-      attrs: { value: { default: '' } },
+      attrs: { value: { default: '' }, block: { default: false } },
     },
     text: { group: 'inline' },
   },
@@ -53,7 +53,7 @@ const doc = (...blocks: Node[]) => schema.node('doc', null, blocks);
 const hr = () => schema.node('hr');
 /** An HTML block: the html atom alone in a paragraph, as Milkdown parses it. */
 const html = (value: string) =>
-  schema.node('paragraph', null, schema.node('html', { value }));
+  schema.node('paragraph', null, schema.node('html', { value, block: true }));
 const table = (...rows: string[][]) =>
   schema.node(
     'table',

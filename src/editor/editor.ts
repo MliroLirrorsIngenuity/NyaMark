@@ -97,8 +97,10 @@ import { hrInput, ruleOnEnter } from './plugins/hr-input';
 import {
   htmlBlockSelection,
   htmlBlockView,
+  htmlFlowParse,
   htmlImageSource,
   htmlReferencesMapped,
+  keepHtmlBlocks,
   registerHtmlBlockStyles,
 } from './plugins/html-block';
 import { imageAddressCaret } from './plugins/image-address-caret';
@@ -256,6 +258,7 @@ export class NyaEditor {
     });
     crepe.editor.config(keepImageAlt);
     crepe.editor.config(keepBareLinks);
+    crepe.editor.config(keepHtmlBlocks);
     crepe.editor.config(typeOutsideLinks);
     crepe.editor.config(writeLinksAround);
     crepe.editor.config(restoreOnCancel);
@@ -278,6 +281,7 @@ export class NyaEditor {
     crepe.editor.use(cjkStrikethrough);
     crepe.editor.use(dollarTextParse);
     crepe.editor.use(bareLinkParse);
+    crepe.editor.use(htmlFlowParse);
     crepe.editor.use(inlineHtmlRuns);
     crepe.editor.use(gfmAlerts);
     crepe.editor.use(blockEdges);
