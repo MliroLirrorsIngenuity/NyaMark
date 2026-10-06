@@ -18,6 +18,7 @@ import {
   emphasisStarInputRule,
   emphasisUnderscoreInputRule,
   headingIdGenerator,
+  inlineCodeInputRule,
   insertImageInputRule,
   strongInputRule,
 } from '@milkdown/kit/preset/commonmark';
@@ -117,7 +118,6 @@ import { listKinds } from './plugins/list-kinds';
 import { listTab } from './plugins/list-tab';
 import { marginClick } from './plugins/margin-click';
 import { markCursor } from './plugins/mark-cursor';
-import { markInput } from './plugins/mark-input';
 import { markTogglesThroughout } from './plugins/mark-toggles';
 import {
   displayWidth,
@@ -160,6 +160,7 @@ import { markCaretInCode } from './plugins/top-bar-heading-code';
 import { closeHeadingListOnKeys } from './plugins/top-bar-heading-list';
 import { typeOverBlocks } from './plugins/type-over-blocks';
 import { enterAfterTypedBlock } from './plugins/typed-block-enter';
+import { typedMarksInput } from './plugins/typed-marks';
 import { undoByLine } from './plugins/undo-lines';
 import { scrollIntoViewSettled } from './scroll-settled';
 import { type BlockSpan, blockSpans } from './source-caret';
@@ -239,7 +240,7 @@ export class NyaEditor {
     crepe.editor.config(writeAsNotes);
     crepe.editor.config((ctx) => {
       // Table pipes line up by display width (see markdown-output), and a
-      // strikethrough takes two tildes (see mark-input).
+      // strikethrough takes two tildes (see cjk-emphasis).
       ctx.update(remarkGFMPlugin.options.key, (options) => ({
         ...options,
         stringLength: displayWidth,
@@ -279,9 +280,10 @@ export class NyaEditor {
     crepe.editor.use(quoteInput);
     crepe.editor.use(headingInput);
     crepe.editor.use(dollarInput);
-    // Removed before the editor is created, so at once (see mark-input).
+    // Removed before the editor is created, so at once.
     void crepe.editor.remove([
       strongInputRule,
+      inlineCodeInputRule,
       emphasisStarInputRule,
       emphasisUnderscoreInputRule,
       insertImageInputRule,
@@ -290,7 +292,7 @@ export class NyaEditor {
       listener,
     ]);
     crepe.editor.use(keepTableAlign);
-    crepe.editor.use(markInput);
+    crepe.editor.use(typedMarksInput);
     crepe.editor.use(markCursor);
     crepe.editor.use(inlineCodeText);
     crepe.editor.use(cjkBreaks);

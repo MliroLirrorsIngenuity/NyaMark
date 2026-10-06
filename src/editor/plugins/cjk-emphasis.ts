@@ -19,7 +19,7 @@ export const cjkEmphasis = $remark(
 
 /**
  * One tilde is text to this as well, as it is to GFM's own strikethrough
- * here (see mark-input). Left to itself it took one: `3~5 天，100~200 元`
+ * here (see `editor`). Left to itself it took one: `3~5 天，100~200 元`
  * opened with "5 天，100" struck out.
  */
 export const strikethroughOptions = { singleTilde: false };

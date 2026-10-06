@@ -5,12 +5,13 @@ import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
-import { STRIKETHROUGH, markText } from '../src/editor/plugins/mark-input';
+import { strikethroughOptions } from '../src/editor/plugins/cjk-emphasis';
 import {
   normalizeOutput,
   relaxTildes,
   writeText,
 } from '../src/editor/plugins/markdown-output';
+import { typedMarksPlugin } from '../src/editor/plugins/typed-marks';
 
 const schema = new Schema({
   nodes: {
@@ -21,25 +22,21 @@ const schema = new Schema({
   marks: { strike_through: {} },
 });
 
-/** A `~` typed at the end of a paragraph holding `before`, struck out or not. */
+const processor = unified()
+  .use(remarkParse)
+  .use(remarkGfm, strikethroughOptions);
+
+/** A `~` typed at the end of a paragraph holding `before`. */
 function typeTilde(before: string) {
   const doc = schema.node('doc', null, [
     schema.node('paragraph', null, schema.text(before)),
   ]);
-  const end = before.length + 1;
   const state = EditorState.create({
     doc,
-    selection: TextSelection.create(doc, end),
+    selection: TextSelection.create(doc, before.length + 1),
+    plugins: [typedMarksPlugin((markdown) => processor.parse(markdown))],
   });
-  const match = `${before}~`.match(STRIKETHROUGH);
-  if (!match) return null;
-  const tr = markText('strike_through')(
-    state,
-    match,
-    end - (match[0].length - 1),
-    end
-  );
-  return tr?.doc.toJSON().content[0].content;
+  return state.apply(state.tr.insertText('~')).doc.toJSON().content[0].content;
 }
 
 /** Opened and saved again, with GFM as the editor sets it. */
@@ -54,7 +51,7 @@ function roundTrip(markdown: string) {
   );
 }
 
-describe('STRIKETHROUGH', () => {
+describe('typed tildes', () => {
   test('strikes out text between two tildes on each side', () => {
     expect(typeTilde('删掉 ~~旧的~')).toEqual([
       { type: 'text', text: '删掉 ' },
@@ -63,9 +60,9 @@ describe('STRIKETHROUGH', () => {
   });
 
   test('leaves single tildes as text', () => {
-    expect(typeTilde('好的~ 明天见')).toBeNull();
-    expect(typeTilde('删掉 ~~旧的')).toBeNull();
-    expect(typeTilde('删掉 ~~ 旧的~')).toBeNull();
+    for (const before of ['好的~ 明天见', '删掉 ~~旧的', '删掉 ~~ 旧的~']) {
+      expect(typeTilde(before)).toEqual([{ type: 'text', text: `${before}~` }]);
+    }
   });
 });
 
