@@ -598,7 +598,7 @@ export class NyaEditor {
     const smooth =
       !sourceMode && !matchMedia('(prefers-reduced-motion: reduce)').matches;
     const heading = this.headingElement(id);
-    if (heading) scrollIntoViewSettled(heading, 'start', smooth);
+    if (heading) scrollIntoViewSettled(heading, view.dom, 'start', smooth);
   }
 
   /**
@@ -663,7 +663,7 @@ export class NyaEditor {
     }
     const smooth =
       !sourceMode && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-    scrollIntoViewSettled(target, 'center', smooth);
+    scrollIntoViewSettled(target, view.dom, 'center', smooth);
     return true;
   }
 

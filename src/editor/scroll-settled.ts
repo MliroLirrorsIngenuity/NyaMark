@@ -6,18 +6,17 @@
  * scroll stopped at the first diagram it passed, whose drawing moved the page
  * to keep what was on screen: the outline left the last heading of a long
  * article five thousand pixels below. A target more than a screen away is
- * jumped to, and aimed at again at each frame until it holds still for a
- * while, or the reader takes the page.
+ * jumped to, and aimed at again each time the document changes size, until
+ * the reader takes the page.
  */
 
-const STILL_MS = 600;
-const LONGEST_MS = 3000;
 const READER_INPUT = ['wheel', 'pointerdown', 'keydown', 'touchstart'];
 
 let stopAiming: (() => void) | null = null;
 
 export function scrollIntoViewSettled(
   target: HTMLElement,
+  content: HTMLElement,
   block: ScrollLogicalPosition,
   smooth: boolean
 ) {
@@ -32,36 +31,21 @@ export function scrollIntoViewSettled(
   }
 
   target.scrollIntoView({ behavior: 'auto', block });
-  const started = performance.now();
-  let moved = started;
-  let aimed = target.getBoundingClientRect().top;
-  let frame = 0;
+  // Called after layout and before paint, so the page never shows off aim.
+  const resized = new ResizeObserver(() => {
+    if (target.isConnected) target.scrollIntoView({ behavior: 'auto', block });
+    else stop();
+  });
   const stop = () => {
-    cancelAnimationFrame(frame);
+    resized.disconnect();
     for (const type of READER_INPUT) {
       window.removeEventListener(type, stop, true);
     }
     if (stopAiming === stop) stopAiming = null;
   };
-  const aim = (now: number) => {
-    if (
-      !target.isConnected ||
-      now - started > LONGEST_MS ||
-      now - moved > STILL_MS
-    ) {
-      stop();
-      return;
-    }
-    if (Math.abs(target.getBoundingClientRect().top - aimed) >= 1) {
-      moved = now;
-      target.scrollIntoView({ behavior: 'auto', block });
-      aimed = target.getBoundingClientRect().top;
-    }
-    frame = requestAnimationFrame(aim);
-  };
   for (const type of READER_INPUT) {
     window.addEventListener(type, stop, { capture: true, passive: true });
   }
-  frame = requestAnimationFrame(aim);
+  resized.observe(content);
   stopAiming = stop;
 }
