@@ -50,6 +50,31 @@ function editSource(view: EditorView): boolean {
   return true;
 }
 
+/**
+ * The caret into the source of the formula clicked. A click on one not yet
+ * selected selects it, and Crepe draws its source into the box after that,
+ * as it renders the box: nothing else adds to or takes from the box.
+ */
+function editClicked(view: EditorView, at: number) {
+  const clicked = () =>
+    formulaSelected(view.state) && view.state.selection.from === at;
+  if (clicked()) {
+    editSource(view);
+    return;
+  }
+  const box = view.dom.parentElement?.querySelector(BOX);
+  if (box) {
+    const drawn = new MutationObserver(() => {
+      drawn.disconnect();
+      if (clicked()) editSource(view);
+    });
+    drawn.observe(box, { childList: true, subtree: true });
+  }
+  const { state } = view;
+  const selected = NodeSelection.create(state.doc, at);
+  view.dispatch(state.tr.setSelection(selected).setMeta('pointer', true));
+}
+
 /** A key that types: a character, or one an input method takes up. */
 const types = (event: KeyboardEvent) =>
   !event.metaKey &&
@@ -73,18 +98,10 @@ export const mathInlineKeys = $prose(
           if (types(event)) editSource(view);
           return false;
         },
-        handleClickOn(view, _pos, node, _nodePos, _event, direct) {
+        handleClickOn(view, _pos, node, nodePos, _event, direct) {
           if (!direct || node.type.name !== 'math_inline') return false;
-          // The box is drawn once the selection the click makes is.
-          let frames = 3;
-          const open = () => {
-            if (!formulaSelected(view.state)) return;
-            if (!editSource(view) && --frames > 0) {
-              requestAnimationFrame(open);
-            }
-          };
-          requestAnimationFrame(open);
-          return false;
+          editClicked(view, nodePos);
+          return true;
         },
       },
       appendTransaction(trs, _old, state) {
