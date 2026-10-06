@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
 import { EditorState } from '@milkdown/kit/prose/state';
-import {
-  endsInClosingFence,
-  leaveCodeAt,
-} from '../src/editor/plugins/code-fence-exit';
+import remarkMath from 'remark-math';
+import remarkParse from 'remark-parse';
+import remarkStringify from 'remark-stringify';
+import { unified } from 'unified';
+import { closesAs, leaveCodeAt } from '../src/editor/plugins/code-fence-exit';
 
 const schema = new Schema({
   nodes: {
@@ -26,24 +27,37 @@ const code = (text: string) =>
   schema.node('code_block', null, text ? schema.text(text) : []);
 const doc = (...blocks: Node[]) => schema.node('doc', null, blocks);
 
-describe('endsInClosingFence', () => {
-  test('a fence or $$ on the last line', () => {
-    expect(endsInClosingFence('let a\n```', false)).toBe(true);
-    expect(endsInClosingFence('let a\n  ~~~~ ', false)).toBe(true);
-    expect(endsInClosingFence('```', false)).toBe(true);
-    expect(endsInClosingFence('x^2\n$$', true)).toBe(true);
+const remark = unified().use(remarkParse).use(remarkMath).use(remarkStringify);
+const parse = (markdown: string) => remark.parse(markdown);
+
+/** Whether `line`, typed under `value` in a code block or formula, closes it. */
+function closes(value: string, line: string, type: 'code' | 'math' = 'code') {
+  const saved = remark.stringify({ type: 'root', children: [{ type, value }] });
+  return closesAs(saved, line, parse);
+}
+
+describe('closesAs', () => {
+  test('the fence the block is saved between, indented three spaces at most', () => {
+    expect(closes('let a', '```')).toBe(true);
+    expect(closes('let a', '   ```  ')).toBe(true);
+    expect(closes('', '```')).toBe(true);
+    expect(closes('x^2', '$$', 'math')).toBe(true);
   });
 
   test('anything else on the last line', () => {
-    expect(endsInClosingFence('let a\n```js', false)).toBe(false);
-    expect(endsInClosingFence('let a = `x`', false)).toBe(false);
-    expect(endsInClosingFence('x^2\n```', true)).toBe(false);
-    expect(endsInClosingFence('let a\n$$', false)).toBe(false);
+    expect(closes('let a', '    ```')).toBe(false);
+    expect(closes('let a', '~~~')).toBe(false);
+    expect(closes('let a', '```js')).toBe(false);
+    expect(closes('let a', 'let a = `x`')).toBe(false);
+    expect(closes('let a', '')).toBe(false);
+    expect(closes('let a', '$$')).toBe(false);
+    expect(closes('x^2', '```', 'math')).toBe(false);
   });
 
   test('a fence closing one opened in the code', () => {
-    expect(endsInClosingFence('```js\nlet a\n```', false)).toBe(false);
-    expect(endsInClosingFence('```js\nlet a\n```\n```', false)).toBe(true);
+    expect(closes('```js\nlet a', '```')).toBe(false);
+    expect(closes('```js\nlet a\n```', '```')).toBe(false);
+    expect(closes('```js\nlet a\n```', '````')).toBe(true);
   });
 });
 

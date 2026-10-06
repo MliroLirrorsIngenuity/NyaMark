@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import remarkMath from 'remark-math';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import { fenceFromLine } from '../src/editor/plugins/fence-input';
 
 const schema = new Schema({
@@ -18,6 +21,23 @@ const schema = new Schema({
     text: {},
   },
 });
+
+const remark = unified().use(remarkParse).use(remarkMath);
+
+/** `markdown` as a file reads: a fence a code block, and a line text. */
+function read(markdown: string) {
+  const blocks = remark.parse(markdown).children.map((block) => {
+    const text = 'value' in block ? block.value : markdown;
+    if (block.type !== 'code' && block.type !== 'math') return p(text);
+    const language = block.type === 'math' ? 'LaTeX' : (block.lang ?? '');
+    return schema.node(
+      'code_block',
+      { language },
+      text ? schema.text(text) : []
+    );
+  });
+  return doc(...blocks);
+}
 
 const p = (text = '') =>
   schema.node('paragraph', null, text ? [schema.text(text)] : []);
@@ -37,7 +57,7 @@ function enterAfter(start: Node, line: string) {
     doc: start,
     selection: TextSelection.create(start, at),
   });
-  const tr = fenceFromLine(state);
+  const tr = fenceFromLine(state, read);
   if (!tr) return null;
   return { doc: tr.doc, caret: tr.selection.$head.parent.type.name };
 }
@@ -49,19 +69,22 @@ describe('a fence typed on a line of its own', () => {
     expect(out?.caret).toBe('code_block');
   });
 
-  test('keeps any language name without a space', () => {
+  test('keeps any language name', () => {
     const out = enterAfter(doc(p('```C++')), '```C++');
     expect(out?.doc.firstChild?.attrs.language).toBe('C++');
+    const tildes = enterAfter(doc(p('  ~~~python')), '  ~~~python');
+    expect(tildes?.doc.firstChild?.attrs.language).toBe('python');
   });
 
-  test('stays text with a space after the name or the caret before the end', () => {
-    expect(enterAfter(doc(p('```js x')), '```js x')).toBeNull();
+  test('stays text where a file reads no fence, or the caret is before the end', () => {
+    expect(enterAfter(doc(p('    ```')), '    ```')).toBeNull();
+    expect(enterAfter(doc(p('```js```')), '```js```')).toBeNull();
     const start = doc(p('```'));
     const state = EditorState.create({
       doc: start,
       selection: TextSelection.create(start, 2),
     });
-    expect(fenceFromLine(state)).toBeNull();
+    expect(fenceFromLine(state, read)).toBeNull();
   });
 });
 
@@ -90,7 +113,6 @@ describe('a fence typed in a list item', () => {
     const out = enterAfter(doc(list(item(p('a')), item(p('$$')))), '$$');
     const formula = schema.node('code_block', { language: 'LaTeX' });
     expect(out?.doc.eq(doc(list(item(p('a'), formula))))).toBe(true);
-    expect(enterAfter(doc(p('$$ x')), '$$ x')).toBeNull();
   });
 
   test('leaves an item with more under it to the list', () => {

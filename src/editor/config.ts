@@ -19,7 +19,7 @@ import { codeArrowsByRow } from './plugins/block-arrows';
 import { intoKeys } from './plugins/block-keys';
 import { codeClearOfBar } from './plugins/caret-scroll';
 import { caretThroughColour } from './plugins/code-colour-caret';
-import { closeFenceOnEnter } from './plugins/code-fence-exit';
+import { type Markdown, closeFenceOnEnter } from './plugins/code-fence-exit';
 import { codeIndentUnit, codeLanguages } from './plugins/code-language';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
@@ -35,6 +35,7 @@ export type CrepeConfigOptions = {
   onUpload: (file: File) => Promise<string>;
   proxyDomURL: (src: string) => Promise<string> | string;
   getView: () => EditorView | null;
+  markdown: Markdown;
 };
 
 /**
@@ -56,7 +57,10 @@ export type CrepeConfigOptions = {
  * rounded border with nothing to say more was there: the end of a long command
  * could be read only by scrolling a block that showed no scrollbar.
  */
-function codeBlockExtensions(getView: () => EditorView | null) {
+function codeBlockExtensions(
+  getView: () => EditorView | null,
+  markdown: Markdown
+) {
   return [
     CodeMirror.lineWrapping,
     codeArrowsByRow,
@@ -65,7 +69,7 @@ function codeBlockExtensions(getView: () => EditorView | null) {
     codeBlockHistory(getView),
     codeBlockSelectAll(getView),
     codeBlockDocEdges(getView),
-    closeFenceOnEnter(getView),
+    closeFenceOnEnter(getView, markdown),
     codeSearchMatches,
     rememberCodeCopy(getView),
     codeClearOfBar,
@@ -454,7 +458,7 @@ export function buildCrepeConfig(
         theme: [oneDarkTheme, syntaxHighlighting(codeHighlight)],
         languages: codeLanguages,
         renderPreview: renderMermaidPreview,
-        extensions: codeBlockExtensions(opts.getView),
+        extensions: codeBlockExtensions(opts.getView, opts.markdown),
       },
       [CrepeFeature.ImageBlock]: {
         ...labels[CrepeFeature.ImageBlock],

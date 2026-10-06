@@ -6,15 +6,17 @@
  * goes under the item above, as code indented to it would; from the first
  * item, in front of the list.
  *
- * Milkdown's rule for it took only a lowercase name, so "```C++" stayed text;
- * any name without a space goes. `$$` starts a formula the same way: in a list
- * item it stayed as text too.
+ * Milkdown's rule for it took only a lowercase name, so "```C++" stayed text.
+ * A line starts the block it would open in a file, as the editor reads one:
+ * ``` or ~~~ with any name and what follows it, and `$$` a formula, which in a
+ * list item stayed as text too.
  *
  * A space after the fence starts the block too, as Milkdown's rule has it.
  * That rule never reached a list item, whose first line has to be text, so
  * "```py " there stayed text and the code typed after it ran on in the line.
  */
 
+import { parserCtx } from '@milkdown/kit/core';
 import { Fragment, type Node } from '@milkdown/kit/prose/model';
 import {
   type EditorState,
@@ -25,7 +27,8 @@ import {
 } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
 
-const FENCE = /^```([^\s`]*)$/;
+/** The document `markdown` reads as, as a file of it opens. */
+export type Read = (markdown: string) => Node | null;
 
 /**
  * The caret's line replaced with `block`, and where the block went. A list
@@ -66,32 +69,37 @@ export function replaceLineWith(
   return { tr: state.tr.replaceWith(at, $head.after(), content), at };
 }
 
-export function fenceFromLine(state: EditorState): Transaction | null {
-  const code = state.schema.nodes.code_block;
+export function fenceFromLine(
+  state: EditorState,
+  read: Read
+): Transaction | null {
   const { selection } = state;
-  if (!code || !(selection instanceof TextSelection)) return null;
+  if (!(selection instanceof TextSelection)) return null;
   const $head = selection.$cursor;
   const line = $head?.parent;
   if (!$head || line?.type.name !== 'paragraph') return null;
   if ($head.parentOffset !== line.content.size) return null;
   const text = (line.childCount === 1 && line.firstChild?.text) || '';
-  const language = text === '$$' ? 'LaTeX' : FENCE.exec(text)?.[1];
-  if (language == null) return null;
-  const placed = replaceLineWith(state, code.create({ language }));
+  const opened = text ? read(text) : null;
+  const block = opened?.childCount === 1 ? opened.firstChild : null;
+  if (block?.type !== state.schema.nodes.code_block || block.content.size) {
+    return null;
+  }
+  const placed = replaceLineWith(state, block);
   if (!placed) return null;
   const { tr, at } = placed;
   return tr.setSelection(TextSelection.create(tr.doc, at + 1));
 }
 
 export const fenceInput = $prose(
-  () =>
+  (ctx) =>
     new Plugin({
       key: new PluginKey('nyamark/fence-input'),
       props: {
         handleTextInput(view, from, to, text) {
           if (text !== ' ' || from !== to || view.composing) return false;
           if (view.state.selection.head !== from) return false;
-          const tr = fenceFromLine(view.state);
+          const tr = fenceFromLine(view.state, ctx.get(parserCtx));
           if (!tr) return false;
           view.dispatch(tr.scrollIntoView());
           return true;
@@ -104,7 +112,7 @@ export const fenceInput = $prose(
             }
             if (event.shiftKey || event.altKey || event.metaKey) return false;
             if (event.ctrlKey) return false;
-            const tr = fenceFromLine(view.state);
+            const tr = fenceFromLine(view.state, ctx.get(parserCtx));
             if (!tr) return false;
             view.dispatch(tr.scrollIntoView());
             event.preventDefault();

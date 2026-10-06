@@ -238,6 +238,10 @@ export class NyaEditor {
         },
         proxyDomURL: (src) => this.imageSource(src),
         getView: () => this.getView(),
+        markdown: {
+          parse: (markdown) => this.markdownTree(markdown),
+          serialize: (doc) => this.serializeDoc(doc),
+        },
       })
     );
 
