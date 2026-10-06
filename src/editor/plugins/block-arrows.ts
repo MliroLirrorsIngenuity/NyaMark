@@ -625,25 +625,6 @@ export const blockArrows = $prose(() => {
           view.dispatch(tr.insertText(event.data).scrollIntoView());
           return true;
         },
-        // For a moment after it takes focus, ProseMirror reads a caret at the
-        // top of the document as one the browser dropped there and puts it
-        // back: ArrowUp from code onto the first line, pressed again at once,
-        // was lost. Focus that comes back from code inside the editor was
-        // handed over with the caret already placed.
-        focus(view, event) {
-          const from = event.relatedTarget;
-          if (!(from instanceof HTMLElement) || !view.dom.contains(from)) {
-            return false;
-          }
-          // After ProseMirror's own handler, which notes the time.
-          queueMicrotask(() => {
-            const { input } = view as unknown as {
-              input?: { lastFocus?: number };
-            };
-            if (typeof input?.lastFocus === 'number') input.lastFocus = 0;
-          });
-          return false;
-        },
       },
       // WebKit's own moves into code, which lands at the start of a line,
       // and beside an HTML block, which leaves no transaction to take over.
@@ -722,6 +703,16 @@ export const blockArrows = $prose(() => {
           arrow.dir > 0 ? $head.after() : $head.before()
         );
         const next = Selection.findFrom($side, arrow.dir, true);
+        // Up on the first line goes to its start, as the browser takes it.
+        // For a moment after it takes focus, ProseMirror reads a caret the
+        // browser moves to the top of the document as one it dropped there,
+        // and puts it back: up from code onto the first line, pressed again
+        // at once, was lost.
+        if (arrow.vertical && arrow.dir < 0 && !next) {
+          const start = TextSelection.create(view.state.doc, $head.start());
+          view.dispatch(view.state.tr.setSelection(start).scrollIntoView());
+          return true;
+        }
         if (next && besideHtml(next)) {
           const past = pastHtml(view.state.doc, next, arrow.dir);
           const placed =
