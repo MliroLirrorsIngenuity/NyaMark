@@ -22,13 +22,7 @@ import { FAILURE_TEXT, SELF_EXPLAINED, SETTINGS_FIXES } from '../ui/failure';
 import { ICONS } from '../ui/icons';
 import { quickCommands } from './actions';
 import { askModel } from './ask';
-import {
-  type Landing,
-  type Placement,
-  type Target,
-  landingTarget,
-  quickEdit,
-} from './place';
+import { type Landing, type Placement, landingTarget } from './place';
 import { type QuickTask, cleanReply, quickPrompt } from './prompt';
 import quickStyles from './quick.css?inline';
 
@@ -141,7 +135,10 @@ export class QuickMenu {
     const range = selectionRange();
     const focused = document.activeElement;
     const placement = await this.host.edits.placement();
-    if (opening !== this.openings) return;
+    if (opening !== this.openings) {
+      this.host.edits.forget(placement);
+      return;
+    }
     this.range = range;
     this.returnFocus = focused instanceof HTMLElement ? focused : null;
     this.placement = placement;
@@ -169,6 +166,7 @@ export class QuickMenu {
       this.returnFocus.focus({ preventScroll: true });
     }
     this.returnFocus = null;
+    if (this.placement) this.host.edits.forget(this.placement);
     this.placement = null;
     this.range = null;
     this.lastRect = null;
@@ -496,7 +494,7 @@ export class QuickMenu {
         latest = reply;
         if (this.drawTimer != null) window.clearTimeout(this.drawTimer);
         drawPreview();
-        return this.land(run, target, cleanReply(reply, this.parse), preview);
+        return this.land(run, cleanReply(reply, this.parse), preview);
       })
       .catch((error) => {
         if (this.running !== controller) return;
@@ -506,12 +504,7 @@ export class QuickMenu {
   }
 
   /** Puts the reply in where the command ran, as a proposal or at once. */
-  private async land(
-    run: Run,
-    target: Target,
-    reply: string,
-    preview: HTMLElement
-  ) {
+  private async land(run: Run, reply: string, preview: HTMLElement) {
     const placement = this.placement;
     if (!placement) return;
     if (!reply.trim()) {
@@ -519,9 +512,10 @@ export class QuickMenu {
       return;
     }
     try {
-      const result = await this.host.edits.edit(
-        (now) => quickEdit(placement.text, now, target, reply),
-        false
+      const result = await this.host.edits.placeReply(
+        placement,
+        run.landing,
+        reply
       );
       this.close();
       if (result.report.status === 'proposed') {

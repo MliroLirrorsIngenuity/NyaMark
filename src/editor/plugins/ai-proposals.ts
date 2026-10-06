@@ -180,7 +180,7 @@ export function hunkContent(
  * redo puts at it, and has what is typed at it go before it. Null when the
  * user deleted across one of its ends: it went with the text around it.
  */
-function mapRange(
+export function mapRange(
   from: number,
   to: number,
   tr: Transaction,

@@ -23,7 +23,6 @@ import {
   type Placement,
   landingTarget,
   quickEdit,
-  relocate,
 } from '../src/ai/quick/place';
 import {
   CONTEXT_BEFORE,
@@ -32,6 +31,7 @@ import {
   quickPrompt,
 } from '../src/ai/quick/prompt';
 import type { NyaEditor } from '../src/editor/editor';
+import { placesPlugin } from '../src/editor/plugins/ai-places';
 import { proposalsPlugin } from '../src/editor/plugins/ai-proposals';
 import {
   type AiEditMode,
@@ -235,6 +235,7 @@ describe('where the reply goes', () => {
     selection: null,
     caret: 8,
     block: { from: 0, to: 8, empty: false },
+    kept: null,
     ...over,
   });
 
@@ -265,84 +266,62 @@ describe('where the reply goes', () => {
     }
   });
 
-  test('is found again after the user typed elsewhere', () => {
-    const before = 'Alpha beta gamma.\n\nDelta epsilon.\n';
-    const from = before.indexOf('beta');
-    const to = from + 4;
-    expect(relocate(before, before, from, to)).toEqual({ from, to });
-    // Typed after it.
-    expect(relocate(before, `${before}More.\n`, from, to)).toEqual({
-      from,
-      to,
-    });
-    // Typed before it.
-    const ahead = `New start.\n\n${before}`;
-    expect(relocate(before, ahead, from, to)).toEqual({
-      from: from + 12,
-      to: to + 12,
-    });
-    // Typed on both sides.
-    const both = `X ${before.replace('Delta', 'Delta!')}`;
-    expect(relocate(before, both, from, to)).toEqual({
-      from: from + 2,
-      to: to + 2,
-    });
-  });
-
-  test('is lost when the text there changed or repeats', () => {
-    const before = 'ab one cd\n';
-    expect(relocate(before, 'X one Y one Z\n', 3, 6)).toBeNull();
-    const twice = 'ab repeated words cd\n';
-    expect(
-      relocate(twice, 'X repeated words Y repeated words Z\n', 3, 17)
-    ).toBeNull();
-  });
+  /** `reply` put in `text` where `landing` takes it, nothing typed since. */
+  const put = (
+    over: Partial<Placement>,
+    landing: 'replace' | 'continue' | 'blocks',
+    reply: string
+  ) => {
+    const at = placement(over);
+    return quickEdit(at, at, landing, reply).next;
+  };
 
   test('replaces the selection with the reply', () => {
-    const text = 'One two.\n\nThree.\n';
-    const edit = quickEdit(text, text, { from: 4, to: 7, blocks: false }, '2');
-    expect(edit.next).toBe('One 2.\n\nThree.\n');
+    expect(put({ selection: { from: 4, to: 7 } }, 'replace', '2')).toBe(
+      'One 2.\n\nThree.\n'
+    );
   });
 
   test('carries on from the caret, spaced as words are', () => {
-    const text = 'It was late\n';
-    const edit = quickEdit(
-      text,
-      text,
-      { from: 11, to: 11, blocks: false },
-      'and dark.'
-    );
-    expect(edit.next).toBe('It was late and dark.\n');
+    const line = {
+      text: 'It was late\n',
+      caret: 11,
+      block: { from: 0, to: 11, empty: false },
+    };
+    expect(put(line, 'continue', 'and dark.')).toBe('It was late and dark.\n');
   });
 
   test('goes in as blocks of its own after the caret’s', () => {
     const text = 'First.\n\nLast.\n';
     expect(
-      quickEdit(text, text, { from: 6, to: 6, blocks: true }, '\nMiddle.\n')
-        .next
+      put(
+        { text, block: { from: 0, to: 6, empty: false } },
+        'blocks',
+        '\nMiddle.\n'
+      )
     ).toBe('First.\n\nMiddle.\n\nLast.\n');
     expect(
-      quickEdit(text, text, { from: 15, to: 15, blocks: true }, 'End.').next
-    ).toBe('First.\n\nLast.\n\nEnd.');
+      put({ text, block: { from: 8, to: 13, empty: false } }, 'blocks', 'End.')
+    ).toBe('First.\n\nLast.\n\nEnd.\n\n');
     expect(
-      quickEdit('Lone', 'Lone', { from: 4, to: 4, blocks: true }, 'Next.').next
+      put(
+        { text: 'Lone', block: { from: 0, to: 4, empty: false } },
+        'blocks',
+        'Next.'
+      )
     ).toBe('Lone\n\nNext.');
   });
 
   test('takes an empty line’s place', () => {
     const text = 'Above.\n\n<br />\n\nBelow.\n';
     const from = text.indexOf('<br />');
-    const edit = quickEdit(
-      text,
-      text,
-      { from, to: from + 6, blocks: true },
-      'Written.'
+    const block = { from, to: from + 6, empty: true };
+    expect(put({ text, block }, 'blocks', 'Written.')).toBe(
+      'Above.\n\nWritten.\n\nBelow.\n'
     );
-    expect(edit.next).toBe('Above.\n\nWritten.\n\nBelow.\n');
   });
 
   test('says when it cannot go in, or changes nothing', () => {
-    const text = 'Same.\n';
     const caught = (run: () => unknown) => {
       try {
         run();
@@ -351,16 +330,17 @@ describe('where the reply goes', () => {
       }
       return null;
     };
-    expect(
-      caught(() =>
-        quickEdit(text, text, { from: 0, to: 5, blocks: false }, 'Same.')
-      )
-    ).toBe('no_change');
-    expect(
-      caught(() =>
-        quickEdit(text, 'Other.\n', { from: 0, to: 5, blocks: false }, 'New.')
-      )
-    ).toBe('not_found');
+    const before = placement({
+      text: 'Same.\n',
+      selection: { from: 0, to: 5 },
+    });
+    expect(caught(() => quickEdit(before, before, 'replace', 'Same.'))).toBe(
+      'no_change'
+    );
+    const now = placement({ text: 'Other.\n', selection: { from: 0, to: 6 } });
+    expect(caught(() => quickEdit(before, now, 'replace', 'New.'))).toBe(
+      'not_found'
+    );
   });
 });
 
@@ -376,7 +356,7 @@ function setup(text: string, mode: AiEditMode = 'review') {
   const view = {
     state: EditorState.create({
       doc: parse(text),
-      plugins: [history(), proposalsPlugin()],
+      plugins: [history(), proposalsPlugin(), placesPlugin()],
     }),
     composing: false,
     isDestroyed: false,
@@ -473,6 +453,57 @@ describe('an edit of the AI menu', () => {
     const told = await controller.notices();
     expect(told).not.toContain(`edit ${report.edit}`);
     expect(told).toContain('The text differs from how you last saw it');
+  });
+
+  test('lands where the command ran, the user having written on', async () => {
+    const { view, controller, select, text } = setup(TEXT, 'auto');
+    // "two".
+    select(5, 8);
+    const placement = await controller.placement();
+    view.dispatch(view.state.tr.insertText('Zero, ', 1));
+    view.dispatch(
+      view.state.tr.insertText('more ', view.state.doc.content.size - 10)
+    );
+    const { report } = await controller.placeReply(placement, 'replace', 'TWO');
+    expect(report.status).toBe('applied');
+    expect(text()).toBe('Zero, one TWO three\n\nsecond more paragraph\n');
+  });
+
+  test('carries on after what the user typed at the caret', async () => {
+    const { view, controller, select, text } = setup(TEXT, 'auto');
+    // After "three".
+    select(14);
+    const placement = await controller.placement();
+    view.dispatch(view.state.tr.insertText(' and', 14));
+    await controller.placeReply(placement, 'continue', 'four.');
+    expect(text()).toBe('one two three and four.\n\nsecond paragraph\n');
+  });
+
+  test('is not put in where the user changed or deleted the text', async () => {
+    const { view, controller, select, text } = setup(TEXT, 'auto');
+    select(5, 8);
+    const changed = await controller.placement();
+    view.dispatch(view.state.tr.insertText('X', 6));
+    await expect(
+      controller.placeReply(changed, 'replace', 'TWO')
+    ).rejects.toMatchObject({ code: 'not_found' });
+    select(14);
+    const deleted = await controller.placement();
+    view.dispatch(view.state.tr.delete(0, view.state.doc.child(0).nodeSize));
+    await expect(
+      controller.placeReply(deleted, 'continue', 'four.')
+    ).rejects.toMatchObject({ code: 'not_found' });
+    expect(text()).toBe('second paragraph\n');
+  });
+
+  test('lets the place go when the menu is done with it', async () => {
+    const { controller, select } = setup(TEXT, 'auto');
+    select(5, 8);
+    const placement = await controller.placement();
+    controller.forget(placement);
+    await expect(
+      controller.placeReply(placement, 'replace', 'TWO')
+    ).rejects.toMatchObject({ code: 'not_found' });
   });
 
   test('goes in at once in automatic mode', async () => {

@@ -10,8 +10,14 @@ import {
   type Node as ProseNode,
   Slice,
 } from '@milkdown/kit/prose/model';
+import type { EditorState } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { NyaEditor } from '../../editor/editor';
+import {
+  dropPlace,
+  keepPlace,
+  keptPlace,
+} from '../../editor/plugins/ai-places';
 import {
   type Hunk,
   type ProposalMeta,
@@ -27,7 +33,7 @@ import {
 import { type BlockSpan, sourceOffset } from '../../editor/source-caret';
 import type { AiEditMode } from '../../state/ai-settings';
 import type { DocumentSnapshot } from '../agent/document-text';
-import type { Placement } from '../quick/place';
+import { type Landing, type Placement, quickEdit } from '../quick/place';
 import { type EditEnv, applyHunks, proposeEdit } from './propose';
 import { renderHunk } from './render';
 import {
@@ -330,17 +336,62 @@ export class EditController {
         selection: null,
         caret: end,
         block: { from: end, to: end, empty: true },
+        kept: null,
       };
     }
+    const { view, range } = shown;
+    const kept = keepPlace(view, range.from, range.to);
+    return { ...this.placeIn(shown), kept };
+  }
+
+  /**
+   * Puts the reply to a command of the AI or slash menu in where `before`
+   * was taken, the user's edits since followed.
+   */
+  placeReply(
+    before: Placement,
+    landing: Landing,
+    reply: string
+  ): Promise<EditResult> {
+    return this.edit(() => {
+      const view = this.host.editor.getView();
+      const range =
+        view && before.kept != null ? keptPlace(view.state, before.kept) : null;
+      if (!view || !range) {
+        throw new EditError(
+          'not_found',
+          'The text changed where the reply was to go.'
+        );
+      }
+      const now = this.placeIn(this.shownAt(view.state, range));
+      return quickEdit(before, { ...now, kept: before.kept }, landing, reply);
+    }, false);
+  }
+
+  /** Lets go of the place `placement` kept. */
+  forget(placement: Placement) {
+    const view = this.host.editor.getView();
+    if (view && !view.isDestroyed && placement.kept != null) {
+      dropPlace(view, placement.kept);
+    }
+  }
+
+  /** The selection and the caret's block in `shown`'s text. */
+  private placeIn(shown: {
+    doc: ProseNode;
+    text: string;
+    from: number;
+    to: number;
+  }): Omit<Placement, 'kept'> {
     const { doc, text, from, to } = shown;
-    const spans = editor.blockSpans(text);
+    const spans = this.host.editor.blockSpans(text);
     let selection: Placement['selection'] = null;
     if (from < to) {
       const start = sourceOffset(doc, from, text, spans, 1);
       const end = Math.max(start, sourceOffset(doc, to, text, spans, -1));
       if (start < end) {
         const covered = doc.textBetween(from, to, '', leafText);
-        const read = editor.parseMarkdown(text.slice(start, end));
+        const read = this.host.editor.parseMarkdown(text.slice(start, end));
         selection =
           read && bare(read.textContent) === bare(covered)
             ? { from: start, to: end }
@@ -374,13 +425,20 @@ export class EditController {
     const inSource = this.host.sourceSelection();
     const view = editor.getView();
     if (!view) return null;
-    const hunks = proposalState(view.state)?.hunks ?? [];
-    const shown = hunks.length ? applyHunks(view.state.doc, hunks) : null;
-    const doc = shown?.doc ?? view.state.doc;
-    const text = shown ? editor.serializeDoc(doc) : editor.getMarkdown();
-    const selection = inSource ?? view.state.selection;
-    const from = shown ? shown.mapping.map(selection.from, 1) : selection.from;
-    const to = shown ? shown.mapping.map(selection.to, -1) : selection.to;
+    const { from, to } = inSource ?? view.state.selection;
+    const range = { from, to };
+    return { ...this.shownAt(view.state, range), view, range };
+  }
+
+  /** The document of `state` with its proposals in, and `range` in it. */
+  private shownAt(state: EditorState, range: { from: number; to: number }) {
+    const { editor } = this.host;
+    const hunks = proposalState(state)?.hunks ?? [];
+    const shown = hunks.length ? applyHunks(state.doc, hunks) : null;
+    const doc = shown?.doc ?? state.doc;
+    const text = editor.serializeDoc(doc);
+    const from = shown ? shown.mapping.map(range.from, 1) : range.from;
+    const to = shown ? shown.mapping.map(range.to, -1) : range.to;
     return { doc, text, from, to };
   }
 

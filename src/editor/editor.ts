@@ -57,6 +57,7 @@ import { type DocCounts, DocStats } from './doc-stats';
 import { languageList, linkBoxes } from './floating';
 import { headingId, headingIds, headingLabel, pageId } from './heading-anchor';
 import { afterFirstFrame, openInParts } from './open-in-parts';
+import { aiPlaces } from './plugins/ai-places';
 import {
   ORIGIN_META,
   aiProposals,
@@ -378,6 +379,7 @@ export class NyaEditor {
     crepe.editor.use(tabFocus);
     crepe.editor.use(searchPlugin);
     crepe.editor.use(aiProposals);
+    crepe.editor.use(aiPlaces);
     crepe.editor.use(this.docChangedPlugin());
 
     crepe.editor.config((ctx) => {
