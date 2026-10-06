@@ -76,21 +76,18 @@ function explain(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
-/** A data URL's bytes, typed as it says. */
-export function dataUrlBlob(src: string): Blob | null {
-  const match = /^data:([^,;]*)((?:;[^,;]*)*?)(;base64)?,(.*)$/is.exec(src);
-  if (!match) return null;
-  const [, type, , base64, payload] = match;
+/** A data URL's bytes, typed as it says, decoded the way fetch does. */
+export async function dataUrlBlob(src: string): Promise<Blob | null> {
+  let url: URL;
   try {
-    if (base64) {
-      const binary = atob(payload.replace(/\s+/g, ''));
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index++) {
-        bytes[index] = binary.charCodeAt(index);
-      }
-      return new Blob([bytes], { type });
-    }
-    return new Blob([decodeURIComponent(payload)], { type });
+    url = new URL(src);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'data:') return null;
+  try {
+    const response = await fetch(url.href);
+    return response.ok ? await response.blob() : null;
   } catch {
     return null;
   }
@@ -106,7 +103,7 @@ export function imageTools(host: ImageHost) {
 
   const load = async (src: string) => {
     if (/^data:/i.test(src)) {
-      const blob = dataUrlBlob(src);
+      const blob = await dataUrlBlob(src);
       if (!blob) throw failure('not-an-image');
       return { key: src, image: await host.prepare(blob, 'image') };
     }

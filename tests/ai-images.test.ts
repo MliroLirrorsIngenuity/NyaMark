@@ -141,18 +141,22 @@ describe('images as the services take them', () => {
   });
 
   test('reads data URLs, encoded either way', async () => {
-    const base64 = dataUrlBlob('data:image/png;base64,iVBO\nRw0K');
+    const base64 = await dataUrlBlob('data:image/png;base64,iVBO\nRw0K');
     expect(base64?.type).toBe('image/png');
     expect([...new Uint8Array((await base64?.arrayBuffer()) ?? [])]).toEqual([
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a,
     ]);
-    const svg = dataUrlBlob(
+    const svg = await dataUrlBlob(
       'data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C/svg%3E'
     );
-    expect(svg?.type).toBe('image/svg+xml');
+    expect(svg?.type).toBe('image/svg+xml;charset=utf-8');
     expect(await svg?.text()).toBe('<svg></svg>');
-    expect(dataUrlBlob('data:image/png;base64,***')).toBeNull();
-    expect(dataUrlBlob('not a data url')).toBeNull();
+    // A % that starts no escape stays as it is.
+    const percent = await dataUrlBlob('data:text/plain,100%25 and 5%');
+    expect(await percent?.text()).toBe('100% and 5%');
+    expect(await dataUrlBlob('data:image/png;base64,***')).toBeNull();
+    expect(await dataUrlBlob('not a data url')).toBeNull();
+    expect(await dataUrlBlob('https://example.com/a.png')).toBeNull();
   });
 });
 

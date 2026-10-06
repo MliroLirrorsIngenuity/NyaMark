@@ -317,7 +317,7 @@ export function mcpTools(host: McpToolHost): Record<string, Tool> {
         const { prepare, show } = host;
         for (const [index, image] of read.images.entries()) {
           if (!prepare || !show || shown >= MAX_TOOL_IMAGES) break;
-          const blob = dataUrlBlob(
+          const blob = await dataUrlBlob(
             `data:${image.mediaType};base64,${image.data}`
           );
           if (!blob) continue;
