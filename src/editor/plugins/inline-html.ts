@@ -10,6 +10,7 @@
  */
 
 import { $remark } from '@milkdown/kit/utils';
+import { Parser } from 'htmlparser2';
 
 type MdNode = {
   type: string;
@@ -30,57 +31,32 @@ const PHRASING_PARENTS = new Set([
   'linkReference',
 ]);
 
-const VOID_ELEMENTS = new Set([
-  'area',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'source',
-  'track',
-  'wbr',
-]);
-
-type Tag = { kind: 'open' | 'close' | 'other'; name: string };
-
-/** What a node of HTML in running text is: one tag, or a comment. */
-function tagOf(node: MdNode): Tag | null {
-  if (node.type !== 'html') return null;
-  const value = node.value ?? '';
-  const close = /^<\/([A-Za-z][A-Za-z0-9-]*)\s*>$/.exec(value);
-  if (close) return { kind: 'close', name: close[1].toLowerCase() };
-  const open = /^<([A-Za-z][A-Za-z0-9-]*)[\s/>]/.exec(value);
-  if (!open || !value.endsWith('>')) return { kind: 'other', name: '' };
-  const name = open[1].toLowerCase();
-  const empty = VOID_ELEMENTS.has(name) || value.endsWith('/>');
-  return { kind: empty ? 'other' : 'open', name };
-}
-
 /**
  * The index of the last node of the HTML that starts with an opening tag at
- * `start`, or -1. It runs on while a tag is open, and past the point all
- * are closed while tags follow with no text between, as the empty anchor
- * written before a back link does.
+ * `start`, or -1. It runs on while an element is open, as an HTML parser
+ * reads the tags, and past the point all are closed while tags follow with
+ * no text between, as the empty anchor written before a back link does.
  */
 function runEnd(children: MdNode[], start: number): number {
-  if (tagOf(children[start])?.kind !== 'open') return -1;
-  const open: string[] = [];
+  let open = 0;
+  const parser = new Parser({
+    onopentag: () => {
+      open += 1;
+    },
+    onclosetag: () => {
+      open -= 1;
+    },
+  });
   let end = -1;
   for (let index = start; index < children.length; index += 1) {
-    const tag = tagOf(children[index]);
-    if (!tag) {
-      if (!open.length) break;
+    const node = children[index];
+    if (node.type !== 'html') {
+      if (!open) break;
       continue;
     }
-    if (tag.kind === 'open') open.push(tag.name);
-    if (tag.kind === 'close') {
-      const at = open.lastIndexOf(tag.name);
-      if (at < 0) break;
-      open.length = at;
-    }
-    if (!open.length) end = index;
+    parser.write(node.value ?? '');
+    if (!open && index === start) return -1;
+    if (!open) end = index;
   }
   return end;
 }

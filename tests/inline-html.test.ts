@@ -109,6 +109,17 @@ describe('HTML in running text', () => {
     expect(htmlIn('**<b>x**</b>\n')).toEqual(['<b>', '</b>']);
   });
 
+  test('reads the tags as an HTML parser does', () => {
+    for (const [markdown, html] of [
+      ['a <span/>b</span> c\n', '<span/>b</span>'],
+      ['a <b>x</i>y</b> c\n', '<b>x</i>y</b>'],
+      ['a <SUP>1</sup > c\n', '<SUP>1</sup >'],
+    ]) {
+      expect(htmlIn(markdown)).toEqual([html]);
+      expect(save(markdown)).toBe(markdown);
+    }
+  });
+
   test('leaves an element written over lines', () => {
     const markdown = '> <span>a\n> b</span>\n';
     expect(htmlIn(markdown)).toEqual(['<span>', '</span>']);
