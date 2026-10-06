@@ -17,9 +17,10 @@
 
 use std::{
     collections::HashMap,
+    fmt::Display,
     fs,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Mutex, PoisonError},
 };
 
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -71,11 +72,37 @@ pub struct SecretStatus {
     pub storage: Storage,
 }
 
+/// Why a key could not be saved or read, as the page reads it:
+/// `{ kind, … }`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum SecretError {
+    /// Not a profile id the page makes.
+    BadProfile,
+    /// The service's address is not an http or https one.
+    BadUrl { url: String },
+    /// The address moved to another site, and the saved key stays with the
+    /// old one: it has to be entered again.
+    KeyNeeded,
+    /// The credential store, or the file standing in for it, failed.
+    Store { message: String },
+}
+
+fn store_error(error: impl Display) -> SecretError {
+    SecretError::Store {
+        message: error.to_string(),
+    }
+}
+
 /// A place secrets are kept under an account name.
 pub trait SecretStore: Send + Sync {
-    fn get(&self, account: &str) -> Result<Option<String>, String>;
-    fn set(&self, account: &str, value: &str) -> Result<(), String>;
-    fn delete(&self, account: &str) -> Result<(), String>;
+    fn get(&self, account: &str) -> Result<Option<String>, SecretError>;
+    fn set(&self, account: &str, value: &str) -> Result<(), SecretError>;
+    fn delete(&self, account: &str) -> Result<(), SecretError>;
 }
 
 /// The keys read since launch, so a request does not start a process.
@@ -92,24 +119,22 @@ const PREFIX: &str = "nyamark-b64:";
 
 /// The record as stored: base64 behind a prefix, so the store holds plain
 /// ASCII that `security` prints back as it was given.
-pub fn encode_record(record: &SecretRecord) -> Result<String, String> {
-    let json = serde_json::to_vec(record).map_err(|error| error.to_string())?;
+pub fn encode_record(record: &SecretRecord) -> Result<String, SecretError> {
+    let json = serde_json::to_vec(record).map_err(store_error)?;
     Ok(format!("{PREFIX}{}", STANDARD.encode(json)))
 }
 
-pub fn decode_record(stored: &str) -> Result<SecretRecord, String> {
+pub fn decode_record(stored: &str) -> Result<SecretRecord, SecretError> {
     let encoded = stored
         .trim()
         .strip_prefix(PREFIX)
-        .ok_or_else(|| "The saved key is not one NyaMark wrote".to_string())?;
-    let json = STANDARD
-        .decode(encoded)
-        .map_err(|error| error.to_string())?;
-    serde_json::from_slice(&json).map_err(|error| error.to_string())
+        .ok_or_else(|| store_error("The saved key is not one NyaMark wrote"))?;
+    let json = STANDARD.decode(encoded).map_err(store_error)?;
+    serde_json::from_slice(&json).map_err(store_error)
 }
 
 /// A profile id names a keychain item, so it is kept to plain characters.
-pub fn account_for(profile: &str) -> Result<String, String> {
+pub fn account_for(profile: &str) -> Result<String, SecretError> {
     let plain = !profile.is_empty()
         && profile.len() <= 64
         && profile
@@ -118,17 +143,16 @@ pub fn account_for(profile: &str) -> Result<String, String> {
     if plain {
         Ok(format!("profile-{profile}"))
     } else {
-        Err(format!("Not a profile id: {profile}"))
+        Err(SecretError::BadProfile)
     }
 }
 
-/// `scheme://host[:port]` of an address, the form a key is saved for.
-pub fn origin_of(url: &str) -> Result<String, String> {
-    let parsed = url::Url::parse(url).map_err(|error| format!("{url}: {error}"))?;
-    if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
-        return Err(format!("Not a web address: {url}"));
-    }
-    Ok(parsed.origin().ascii_serialization())
+/// `scheme://host[:port]` of an address, the form a key is saved for; none
+/// for what is not an http or https address.
+pub fn origin_of(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+    let web = matches!(parsed.scheme(), "http" | "https") && parsed.host_str().is_some();
+    web.then(|| parsed.origin().ascii_serialization())
 }
 
 /// Keys in a JSON file in the app's data folder, readable by the user only.
@@ -141,47 +165,47 @@ impl FileStore {
         Self { path }
     }
 
-    fn load(&self) -> Result<HashMap<String, String>, String> {
+    fn load(&self) -> Result<HashMap<String, String>, SecretError> {
         match fs::read(&self.path) {
-            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| error.to_string()),
+            Ok(bytes) => serde_json::from_slice(&bytes).map_err(store_error),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
-            Err(error) => Err(error.to_string()),
+            Err(error) => Err(store_error(error)),
         }
     }
 
-    fn save(&self, entries: &HashMap<String, String>) -> Result<(), String> {
+    fn save(&self, entries: &HashMap<String, String>) -> Result<(), SecretError> {
         if let Some(parent) = self.path.parent() {
-            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            fs::create_dir_all(parent).map_err(store_error)?;
         }
-        let bytes = serde_json::to_vec_pretty(entries).map_err(|error| error.to_string())?;
-        crate::document::write_atomically(&self.path, &bytes).map_err(|error| error.to_string())?;
+        let bytes = serde_json::to_vec_pretty(entries).map_err(store_error)?;
+        crate::document::write_atomically(&self.path, &bytes).map_err(store_error)?;
         restrict_to_owner(&self.path)
     }
 }
 
 #[cfg(unix)]
-fn restrict_to_owner(path: &Path) -> Result<(), String> {
+fn restrict_to_owner(path: &Path) -> Result<(), SecretError> {
     use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|error| error.to_string())
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(store_error)
 }
 
 #[cfg(not(unix))]
-fn restrict_to_owner(_path: &Path) -> Result<(), String> {
+fn restrict_to_owner(_path: &Path) -> Result<(), SecretError> {
     Ok(())
 }
 
 impl SecretStore for FileStore {
-    fn get(&self, account: &str) -> Result<Option<String>, String> {
+    fn get(&self, account: &str) -> Result<Option<String>, SecretError> {
         Ok(self.load()?.remove(account))
     }
 
-    fn set(&self, account: &str, value: &str) -> Result<(), String> {
+    fn set(&self, account: &str, value: &str) -> Result<(), SecretError> {
         let mut entries = self.load()?;
         entries.insert(account.to_string(), value.to_string());
         self.save(&entries)
     }
 
-    fn delete(&self, account: &str) -> Result<(), String> {
+    fn delete(&self, account: &str) -> Result<(), SecretError> {
         let mut entries = self.load()?;
         if entries.remove(account).is_some() {
             self.save(&entries)?;
@@ -197,7 +221,7 @@ mod keychain {
         process::{Command, Stdio},
     };
 
-    use super::SecretStore;
+    use super::{store_error, SecretError, SecretStore};
 
     const SECURITY: &str = "/usr/bin/security";
     /// `security`'s exit status for an item that is not there.
@@ -215,7 +239,7 @@ mod keychain {
     }
 
     impl SecretStore for Keychain {
-        fn get(&self, account: &str) -> Result<Option<String>, String> {
+        fn get(&self, account: &str) -> Result<Option<String>, SecretError> {
             let output = Command::new(SECURITY)
                 .args([
                     "find-generic-password",
@@ -226,12 +250,12 @@ mod keychain {
                     "-w",
                 ])
                 .output()
-                .map_err(|error| error.to_string())?;
+                .map_err(store_error)?;
             if output.status.code() == Some(NOT_FOUND) {
                 return Ok(None);
             }
             if !output.status.success() {
-                return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+                return Err(store_error(String::from_utf8_lossy(&output.stderr).trim()));
             }
             Ok(Some(
                 String::from_utf8_lossy(&output.stdout)
@@ -240,36 +264,34 @@ mod keychain {
             ))
         }
 
-        fn set(&self, account: &str, value: &str) -> Result<(), String> {
+        fn set(&self, account: &str, value: &str) -> Result<(), SecretError> {
             let mut child = Command::new(SECURITY)
                 .arg("-i")
                 .stdin(Stdio::piped())
                 .stdout(Stdio::null())
                 .stderr(Stdio::piped())
                 .spawn()
-                .map_err(|error| error.to_string())?;
+                .map_err(store_error)?;
             if let Some(mut stdin) = child.stdin.take() {
                 stdin
                     .write_all(add_command(&self.service, account, value).as_bytes())
-                    .map_err(|error| error.to_string())?;
+                    .map_err(store_error)?;
             }
-            let output = child
-                .wait_with_output()
-                .map_err(|error| error.to_string())?;
+            let output = child.wait_with_output().map_err(store_error)?;
             // `security -i` exits 0 when a command in it failed and tells
             // only on standard error.
             let errors = String::from_utf8_lossy(&output.stderr).trim().to_string();
             if !output.status.success() || !errors.is_empty() {
-                return Err(if errors.is_empty() {
+                return Err(store_error(if errors.is_empty() {
                     format!("security exited with {}", output.status)
                 } else {
                     errors
-                });
+                }));
             }
             Ok(())
         }
 
-        fn delete(&self, account: &str) -> Result<(), String> {
+        fn delete(&self, account: &str) -> Result<(), SecretError> {
             let output = Command::new(SECURITY)
                 .args([
                     "delete-generic-password",
@@ -279,11 +301,11 @@ mod keychain {
                     account,
                 ])
                 .output()
-                .map_err(|error| error.to_string())?;
+                .map_err(store_error)?;
             if output.status.success() || output.status.code() == Some(NOT_FOUND) {
                 Ok(())
             } else {
-                Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                Err(store_error(String::from_utf8_lossy(&output.stderr).trim()))
             }
         }
     }
@@ -291,7 +313,7 @@ mod keychain {
 
 #[cfg(any(windows, target_os = "linux"))]
 mod keychain {
-    use super::SecretStore;
+    use super::{store_error, SecretError, SecretStore};
 
     pub struct Keychain {
         pub service: String,
@@ -302,30 +324,30 @@ mod keychain {
             keyring::Entry::store_status().is_ok()
         }
 
-        fn entry(&self, account: &str) -> Result<keyring::Entry, String> {
-            keyring::Entry::new(&self.service, account).map_err(|error| error.to_string())
+        fn entry(&self, account: &str) -> Result<keyring::Entry, SecretError> {
+            keyring::Entry::new(&self.service, account).map_err(store_error)
         }
     }
 
     impl SecretStore for Keychain {
-        fn get(&self, account: &str) -> Result<Option<String>, String> {
+        fn get(&self, account: &str) -> Result<Option<String>, SecretError> {
             match self.entry(account)?.get_password() {
                 Ok(value) => Ok(Some(value)),
                 Err(keyring::Error::NoEntry) => Ok(None),
-                Err(error) => Err(error.to_string()),
+                Err(error) => Err(store_error(error)),
             }
         }
 
-        fn set(&self, account: &str, value: &str) -> Result<(), String> {
+        fn set(&self, account: &str, value: &str) -> Result<(), SecretError> {
             self.entry(account)?
                 .set_password(value)
-                .map_err(|error| error.to_string())
+                .map_err(store_error)
         }
 
-        fn delete(&self, account: &str) -> Result<(), String> {
+        fn delete(&self, account: &str) -> Result<(), SecretError> {
             match self.entry(account)?.delete_credential() {
                 Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-                Err(error) => Err(error.to_string()),
+                Err(error) => Err(store_error(error)),
             }
         }
     }
@@ -333,23 +355,20 @@ mod keychain {
 
 /// The store this system offers, and which kind it is.
 #[cfg(target_os = "macos")]
-fn store<R: Runtime>(app: &AppHandle<R>) -> Result<(Box<dyn SecretStore>, Storage), String> {
+fn store<R: Runtime>(app: &AppHandle<R>) -> Result<(Box<dyn SecretStore>, Storage), SecretError> {
     let service = format!("{}.ai", app.config().identifier);
     Ok((Box::new(keychain::Keychain { service }), Storage::Keychain))
 }
 
 /// The store this system offers, and which kind it is.
 #[cfg(not(target_os = "macos"))]
-fn store<R: Runtime>(app: &AppHandle<R>) -> Result<(Box<dyn SecretStore>, Storage), String> {
+fn store<R: Runtime>(app: &AppHandle<R>) -> Result<(Box<dyn SecretStore>, Storage), SecretError> {
     #[cfg(any(windows, target_os = "linux"))]
     if keychain::Keychain::available() {
         let service = format!("{}.ai", app.config().identifier);
         return Ok((Box::new(keychain::Keychain { service }), Storage::Keychain));
     }
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?;
+    let dir = app.path().app_data_dir().map_err(store_error)?;
     Ok((
         Box::new(FileStore::new(dir.join("ai").join("keys.json"))),
         Storage::File,
@@ -360,9 +379,9 @@ fn store<R: Runtime>(app: &AppHandle<R>) -> Result<(Box<dyn SecretStore>, Storag
 fn saved_record<R: Runtime>(
     app: &AppHandle<R>,
     account: &str,
-) -> Result<Option<SecretRecord>, String> {
+) -> Result<Option<SecretRecord>, SecretError> {
     let cache = app.state::<SecretCache>();
-    if let Some(cached) = cache.0.lock().map_err(|e| e.to_string())?.get(account) {
+    if let Some(cached) = lock(&cache.0).get(account) {
         return Ok(cached.clone());
     }
     let (store, _) = store(app)?;
@@ -370,12 +389,14 @@ fn saved_record<R: Runtime>(
         .get(account)?
         .map(|stored| decode_record(&stored))
         .transpose()?;
-    cache
-        .0
-        .lock()
-        .map_err(|e| e.to_string())?
-        .insert(account.to_string(), record.clone());
+    lock(&cache.0).insert(account.to_string(), record.clone());
     Ok(record)
+}
+
+/// The maps here are replaced an entry at a time, so one a panic left
+/// poisoned is still sound.
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The record a window's requests use for a profile: what its settings
@@ -384,13 +405,9 @@ pub fn record<R: Runtime>(
     app: &AppHandle<R>,
     window: &str,
     profile: &str,
-) -> Result<Option<SecretRecord>, String> {
+) -> Result<Option<SecretRecord>, SecretError> {
     let account = account_for(profile)?;
-    let staged = app
-        .state::<StagedSecrets>()
-        .0
-        .lock()
-        .map_err(|e| e.to_string())?
+    let staged = lock(&app.state::<StagedSecrets>().0)
         .get(&(window.to_string(), account.clone()))
         .cloned();
     match staged {
@@ -408,7 +425,7 @@ pub fn next_record(
     auth: AuthScheme,
     key: Option<String>,
     keep_key: bool,
-) -> Result<SecretRecord, String> {
+) -> Result<SecretRecord, SecretError> {
     let key = match key {
         Some(key) => {
             let key = key.trim().to_string();
@@ -416,7 +433,7 @@ pub fn next_record(
         }
         None if keep_key => match previous {
             Some(previous) if previous.key.is_some() && previous.origin != origin => {
-                return Err("key-needed".to_string());
+                return Err(SecretError::KeyNeeded);
             }
             Some(previous) => previous.key.clone(),
             None => None,
@@ -445,13 +462,8 @@ fn stage<R: Runtime>(
     window: &str,
     account: String,
     record: Option<SecretRecord>,
-) -> Result<(), String> {
-    app.state::<StagedSecrets>()
-        .0
-        .lock()
-        .map_err(|e| e.to_string())?
-        .insert((window.to_string(), account), record);
-    Ok(())
+) {
+    lock(&app.state::<StagedSecrets>().0).insert((window.to_string(), account), record);
 }
 
 /// Set where a profile's requests may go, and with which key, for the
@@ -465,14 +477,14 @@ pub fn ai_secret_set(
     auth: AuthScheme,
     key: Option<String>,
     keep_key: bool,
-) -> Result<SecretStatus, String> {
+) -> Result<SecretStatus, SecretError> {
     let account = account_for(&profile)?;
-    let origin = origin_of(&base_url)?;
+    let origin = origin_of(&base_url).ok_or(SecretError::BadUrl { url: base_url })?;
     let previous = record(&app, window.label(), &profile)?;
     let next = next_record(previous.as_ref(), origin, auth, key, keep_key)?;
     let (_, storage) = store(&app)?;
     let status = status_of(Some(&next), storage);
-    stage(&app, window.label(), account, Some(next))?;
+    stage(&app, window.label(), account, Some(next));
     Ok(status)
 }
 
@@ -481,7 +493,7 @@ pub fn ai_secret_status(
     app: AppHandle,
     window: Window,
     profile: String,
-) -> Result<SecretStatus, String> {
+) -> Result<SecretStatus, SecretError> {
     let (_, storage) = store(&app)?;
     Ok(status_of(
         record(&app, window.label(), &profile)?.as_ref(),
@@ -491,9 +503,14 @@ pub fn ai_secret_status(
 
 /// Forget a profile's key, once the window's settings dialog is confirmed.
 #[tauri::command(async)]
-pub fn ai_secret_delete(app: AppHandle, window: Window, profile: String) -> Result<(), String> {
+pub fn ai_secret_delete(
+    app: AppHandle,
+    window: Window,
+    profile: String,
+) -> Result<(), SecretError> {
     let account = account_for(&profile)?;
-    stage(&app, window.label(), account, None)
+    stage(&app, window.label(), account, None);
+    Ok(())
 }
 
 type Staged = HashMap<(String, String), Option<SecretRecord>>;
@@ -513,27 +530,21 @@ fn drain_window(staged: &mut Staged, window: &str) -> Vec<(String, Option<Secret
 fn take_staged<R: Runtime>(
     app: &AppHandle<R>,
     window: &str,
-) -> Result<Vec<(String, Option<SecretRecord>)>, String> {
-    let state = app.state::<StagedSecrets>();
-    let mut staged = state.0.lock().map_err(|e| e.to_string())?;
-    Ok(drain_window(&mut staged, window))
+) -> Vec<(String, Option<SecretRecord>)> {
+    drain_window(&mut lock(&app.state::<StagedSecrets>().0), window)
 }
 
 /// Keep what the window's settings dialog changed.
 #[tauri::command(async)]
-pub fn ai_secrets_commit(app: AppHandle, window: Window) -> Result<(), String> {
+pub fn ai_secrets_commit(app: AppHandle, window: Window) -> Result<(), SecretError> {
     let (store, _) = store(&app)?;
     let mut failed = None;
-    for (account, record) in take_staged(&app, window.label())? {
+    for (account, record) in take_staged(&app, window.label()) {
         let written = match &record {
             Some(record) => encode_record(record).and_then(|value| store.set(&account, &value)),
             None => store.delete(&account),
         };
-        app.state::<SecretCache>()
-            .0
-            .lock()
-            .map_err(|e| e.to_string())?
-            .remove(&account);
+        lock(&app.state::<SecretCache>().0).remove(&account);
         if let Err(error) = written {
             failed.get_or_insert(error);
         }
@@ -543,13 +554,13 @@ pub fn ai_secrets_commit(app: AppHandle, window: Window) -> Result<(), String> {
 
 /// Drop what the window's settings dialog changed.
 #[tauri::command(async)]
-pub fn ai_secrets_discard(app: AppHandle, window: Window) -> Result<(), String> {
-    take_staged(&app, window.label()).map(|_| ())
+pub fn ai_secrets_discard(app: AppHandle, window: Window) {
+    take_staged(&app, window.label());
 }
 
 /// A closed window's dialog can no longer be confirmed.
 pub fn forget_window<R: Runtime>(app: &AppHandle<R>, window: &str) {
-    let _ = take_staged(app, window);
+    take_staged(app, window);
 }
 
 #[cfg(test)]
@@ -590,18 +601,18 @@ mod tests {
     fn the_origin_leaves_the_path_out() {
         assert_eq!(
             origin_of("https://api.openai.com/v1/"),
-            Ok("https://api.openai.com".into())
+            Some("https://api.openai.com".into())
         );
         assert_eq!(
             origin_of("http://127.0.0.1:11434/v1"),
-            Ok("http://127.0.0.1:11434".into())
+            Some("http://127.0.0.1:11434".into())
         );
         assert_eq!(
             origin_of("https://example.com:443/x"),
-            Ok("https://example.com".into())
+            Some("https://example.com".into())
         );
-        assert!(origin_of("file:///etc/passwd").is_err());
-        assert!(origin_of("not a url").is_err());
+        assert_eq!(origin_of("file:///etc/passwd"), None);
+        assert_eq!(origin_of("not a url"), None);
     }
 
     #[test]
@@ -622,7 +633,7 @@ mod tests {
             None,
             true,
         );
-        assert_eq!(moved, Err("key-needed".into()));
+        assert_eq!(moved, Err(SecretError::KeyNeeded));
         let cleared = next_record(
             Some(&previous),
             "https://b.example".into(),

@@ -9,6 +9,7 @@ import {
   describeFailure,
   replyText,
 } from '../src/ai/agent/session';
+import { AiFetchError } from '../src/bridge/ipc/ai';
 
 type DoStream = MockLanguageModelV4['doStream'];
 type StreamPart = Awaited<
@@ -363,13 +364,19 @@ describe('describeFailure', () => {
   });
 
   test('knows the app’s own refusals', () => {
-    expect(describeFailure(new TypeError('not-connected')).code).toBe(
-      'not-connected'
-    );
-    expect(describeFailure('key-needed: the address changed').code).toBe(
+    expect(
+      describeFailure(new AiFetchError({ kind: 'not-connected' })).code
+    ).toBe('not-connected');
+    expect(describeFailure(new AiFetchError({ kind: 'key-needed' })).code).toBe(
       'key-needed'
     );
-    expect(describeFailure(new TypeError('Load failed')).code).toBe('network');
-    expect(describeFailure(new Error('odd')).code).toBe('other');
+    const reset = new AiFetchError({ kind: 'network', message: 'reset' });
+    expect(
+      describeFailure(new TypeError('fetch failed', { cause: reset })).code
+    ).toBe('network');
+    expect(describeFailure(new TypeError('x is not a function')).code).toBe(
+      'other'
+    );
+    expect(describeFailure('key-needed').code).toBe('other');
   });
 });

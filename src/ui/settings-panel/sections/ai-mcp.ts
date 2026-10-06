@@ -8,7 +8,9 @@
 import { isComplete, mcpHub } from '../../../ai/mcp/hub';
 import {
   type AiSecretStatus,
+  type McpStartFailure,
   type McpStatus,
+  SecretError,
   deleteAiSecret,
   getAiSecretStatus,
   setAiSecret,
@@ -140,22 +142,42 @@ export function formatPairs(
   return pairs.map(([name, value]) => `${name}${join}${value}`).join('\n');
 }
 
-const ERRORS: Record<string, string> = {
-  spawn: 'settings.ai.mcp.error.spawn',
-  'bad-cwd': 'settings.ai.mcp.error.badCwd',
-  'bad-url': 'settings.ai.mcp.error.badUrl',
-  'not-connected': 'settings.ai.mcp.error.noKey',
-  timeout: 'settings.ai.mcp.error.timeout',
-  exited: 'settings.ai.mcp.error.exited',
-};
-
-/** Why a server failed, in the user's words where the app knows them. */
-export function mcpErrorText(error: string): string {
-  const at = error.indexOf(':');
-  const code = (at < 0 ? error : error.slice(0, at)).trim();
-  const detail = at < 0 ? '' : error.slice(at + 1).trim();
-  const key = ERRORS[code];
-  return key ? i18next.t(key, { detail }) : error;
+/** Why a server failed, in the user's words. */
+export function mcpErrorText(failure: McpStartFailure): string {
+  const text = (key: string, detail = '') =>
+    i18next.t(`settings.ai.mcp.error.${key}`, { detail });
+  switch (failure.kind) {
+    case 'spawn':
+      return text('spawn', failure.message);
+    case 'bad-cwd':
+      return text('badCwd', failure.path);
+    case 'command-not-found':
+      return text('commandNotFound', failure.command);
+    case 'bad-url':
+      return text('badUrl', failure.url);
+    case 'unsupported-scheme':
+      return i18next.t('settings.ai.badUrl');
+    case 'bad-header':
+      return text('badHeader', failure.name);
+    case 'not-connected':
+      return text('noKey');
+    case 'key-needed':
+      return i18next.t('settings.ai.keyNeeded');
+    case 'bad-profile':
+      return text('keyStore', failure.kind);
+    case 'store':
+      return text('keyStore', failure.message);
+    case 'bad-proxy':
+      return text('badProxy', failure.message);
+    case 'timeout':
+      return text('timeout');
+    case 'exited':
+      return text('exited');
+    case 'server':
+      return text('server', failure.message);
+    case 'connection':
+      return text('connection', failure.message);
+  }
 }
 
 function textarea(rows: number) {
@@ -250,7 +272,9 @@ export function renderMcpSection({
       keyNeeded.delete(server.id);
       if (key !== null) keyChanged.add(server.id);
     } catch (error) {
-      if (String(error).includes('key-needed')) keyNeeded.add(server.id);
+      if (error instanceof SecretError && error.failure.kind === 'key-needed') {
+        keyNeeded.add(server.id);
+      }
       throw error;
     } finally {
       refreshers.get(server.id)?.();
@@ -382,9 +406,9 @@ export function renderMcpSection({
 
     const update = () => {
       const status = statusOf(server);
-      const failed = status?.state === 'failed' && Boolean(status.error);
-      error.hidden = !failed;
-      error.textContent = failed ? mcpErrorText(status?.error ?? '') : '';
+      const failure = status?.state === 'failed' ? status.error : null;
+      error.hidden = !failure;
+      error.textContent = failure ? mcpErrorText(failure) : '';
       const lines = status?.stderr ?? [];
       log.hidden = lines.length === 0;
       const text = lines.join('\n');
@@ -394,7 +418,7 @@ export function renderMcpSection({
         logText.textContent = text;
         if (atEnd) logText.scrollTop = logText.scrollHeight;
       }
-      if (!logTouched) log.open = failed;
+      if (!logTouched) log.open = Boolean(failure);
       restartLine.hidden = !status;
       drawTools(status);
     };

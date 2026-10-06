@@ -19,10 +19,11 @@ import {
   serverConfig,
 } from '../src/ai/mcp/hub';
 import { toolLabel } from '../src/ai/ui/tool-labels';
-import type {
-  McpServerConfig,
-  McpStatus,
-  McpToolResult,
+import {
+  McpCallError,
+  type McpServerConfig,
+  type McpStatus,
+  type McpToolResult,
 } from '../src/bridge/ipc/ai';
 import { i18next } from '../src/i18n';
 import en from '../src/i18n/locales/en.json';
@@ -168,13 +169,23 @@ describe('MCP servers in the settings', () => {
   });
 
   test('say why a server failed in words the user reads', () => {
-    expect(mcpErrorText('spawn: No such file or directory (os error 2)')).toBe(
+    expect(
+      mcpErrorText({
+        kind: 'spawn',
+        message: 'No such file or directory (os error 2)',
+      })
+    ).toBe(
       'Could not start the command: No such file or directory (os error 2)'
     );
-    expect(mcpErrorText('not-connected')).toBe(
+    expect(mcpErrorText({ kind: 'not-connected' })).toBe(
       'No key is saved for this server.'
     );
-    expect(mcpErrorText('handshake failed')).toBe('handshake failed');
+    expect(mcpErrorText({ kind: 'command-not-found', command: 'npx' })).toBe(
+      'The command was not found: npx'
+    );
+    expect(
+      mcpErrorText({ kind: 'connection', message: 'handshake failed' })
+    ).toBe('Could not connect to the server: handshake failed');
   });
 });
 
@@ -525,9 +536,15 @@ describe('MCP tools', () => {
     await expect(failed.run('mcp__Files__read', {})).rejects.toThrow(
       'tool-error: no such file'
     );
-    const gone = toolHost({ result: new Error('not-ready') });
+    const gone = toolHost({ result: new McpCallError({ kind: 'not-ready' }) });
     await expect(gone.run('mcp__Files__read', {})).rejects.toThrow(
       /^not-ready: The server is starting/
+    );
+    const refused = toolHost({
+      result: new McpCallError({ kind: 'server', message: 'no such tool' }),
+    });
+    await expect(refused.run('mcp__Files__read', {})).rejects.toThrow(
+      'server: The server refused the call. (no such tool)'
     );
   });
 

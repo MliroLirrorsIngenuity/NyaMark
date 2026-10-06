@@ -15,6 +15,7 @@ import {
   stepCountIs,
   streamText,
 } from 'ai';
+import { AiFetchError } from '../../bridge/ipc/ai';
 import { type ChatImage, userMessage } from '../images/image';
 
 /** What a turn is sent with, read again for each turn and each retry. */
@@ -147,6 +148,16 @@ function serviceMessage(error: APICallError): string {
   return error.message;
 }
 
+/**
+ * The app's reason a request failed: thrown as it is, or as the cause of
+ * the `fetch` or SDK error it became.
+ */
+function fetchFailure(error: unknown): AiFetchError | null {
+  if (error instanceof AiFetchError) return error;
+  const cause = error instanceof Error ? error.cause : undefined;
+  return cause instanceof AiFetchError ? cause : null;
+}
+
 /** Sorts a failed turn's error into what the panel can say about it. */
 export function describeFailure(error: unknown): ChatFailure {
   if (error instanceof ChatFailureError) return error.failure;
@@ -165,12 +176,17 @@ export function describeFailure(error: unknown): ChatFailure {
     return { code: 'other', message, status };
   }
   const message = errorMessage(cause);
-  if (/\bnot-connected\b/.test(message)) {
-    return { code: 'not-connected', message };
+  switch (fetchFailure(cause)?.failure.kind) {
+    case 'not-connected':
+      return { code: 'not-connected', message };
+    case 'key-needed':
+      return { code: 'key-needed', message };
+    case 'network':
+    case 'bad-proxy':
+      return { code: 'network', message };
+    default:
+      return { code: 'other', message };
   }
-  if (/\bkey-needed\b/.test(message)) return { code: 'key-needed', message };
-  if (cause instanceof TypeError) return { code: 'network', message };
-  return { code: 'other', message };
 }
 
 /** A message put into a turn's messages after the response message `at`. */

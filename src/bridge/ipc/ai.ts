@@ -58,10 +58,30 @@ export type AiFetchHead = {
   headers: [string, string][];
 };
 
+/** Why a request through the app failed (see `src-tauri/src/ai/http.rs`). */
+export type FetchFailure =
+  | {
+      kind:
+        | 'not-connected'
+        | 'key-needed'
+        | 'bad-profile'
+        | 'too-many-redirects'
+        | 'aborted';
+    }
+  | { kind: 'bad-url'; url: string }
+  | {
+      kind: 'bad-request' | 'bad-proxy' | 'store' | 'network';
+      message: string;
+    };
+
+export class AiFetchError extends AiCommandError<FetchFailure> {}
+
+const fetchCommand = commands(AiFetchError);
+
 export type AiFetchEvent =
   | { type: 'chunk'; text: string }
   | { type: 'end' }
-  | { type: 'error'; message: string };
+  | { type: 'error'; failure: FetchFailure };
 
 /**
  * Send a request through the app, which puts in the saved key of the
@@ -73,12 +93,25 @@ export async function aiFetch(
 ): Promise<AiFetchHead> {
   const channel = new Channel<AiFetchEvent>();
   channel.onmessage = onEvent;
-  return await invoke<AiFetchHead>('ai_fetch', { request, onEvent: channel });
+  return await fetchCommand<AiFetchHead>('ai_fetch', {
+    request,
+    onEvent: channel,
+  });
 }
 
 export async function aiFetchAbort(id: string): Promise<void> {
   await invoke('ai_fetch_abort', { id });
 }
+
+/** Why a key could not be saved or read (see `src-tauri/src/ai/secrets.rs`). */
+export type SecretFailure =
+  | { kind: 'bad-profile' | 'key-needed' }
+  | { kind: 'bad-url'; url: string }
+  | { kind: 'store'; message: string };
+
+export class SecretError extends AiCommandError<SecretFailure> {}
+
+const secretCommand = commands(SecretError);
 
 /** What the settings show of a saved key; the key itself never comes back. */
 export type AiSecretStatus = {
@@ -105,23 +138,23 @@ export async function setAiSecret(options: {
   key: string | null;
   keepKey: boolean;
 }): Promise<AiSecretStatus> {
-  return await invoke<AiSecretStatus>('ai_secret_set', options);
+  return await secretCommand<AiSecretStatus>('ai_secret_set', options);
 }
 
 export async function getAiSecretStatus(
   profile: string
 ): Promise<AiSecretStatus> {
-  return await invoke<AiSecretStatus>('ai_secret_status', { profile });
+  return await secretCommand<AiSecretStatus>('ai_secret_status', { profile });
 }
 
 /** Forget a profile's key, once `commitAiSecrets` confirms it. */
 export async function deleteAiSecret(profile: string): Promise<void> {
-  await invoke('ai_secret_delete', { profile });
+  await secretCommand('ai_secret_delete', { profile });
 }
 
 /** Keep the key changes this window made. */
 export async function commitAiSecrets(): Promise<void> {
-  await invoke('ai_secrets_commit');
+  await secretCommand('ai_secrets_commit');
 }
 
 /** Drop the key changes this window made. */
@@ -342,11 +375,48 @@ export type McpTool = {
 
 export type McpState = 'starting' | 'ready' | 'failed' | 'stopped';
 
+/** Why a server failed to start or stopped (see `src-tauri/src/ai/mcp.rs`). */
+export type McpStartFailure =
+  | {
+      kind:
+        | 'not-connected'
+        | 'key-needed'
+        | 'bad-profile'
+        | 'timeout'
+        | 'exited';
+    }
+  | { kind: 'bad-cwd'; path: string }
+  | { kind: 'command-not-found'; command: string }
+  | { kind: 'bad-url'; url: string }
+  | { kind: 'unsupported-scheme'; scheme: string }
+  | { kind: 'bad-header'; name: string }
+  | {
+      kind: 'spawn' | 'bad-proxy' | 'store' | 'server' | 'connection';
+      message: string;
+    };
+
+/** Why a tool could not be called. */
+export type McpCallFailure =
+  | {
+      kind:
+        | 'unknown-server'
+        | 'not-ready'
+        | 'bad-arguments'
+        | 'unexpected-response'
+        | 'timeout'
+        | 'exited';
+    }
+  | { kind: 'server' | 'connection'; message: string };
+
+export class McpCallError extends AiCommandError<McpCallFailure> {}
+
+const mcpCommand = commands(McpCallError);
+
 export type McpStatus = {
   id: string;
   name: string;
   state: McpState;
-  error: string | null;
+  error: McpStartFailure | null;
   tools: McpTool[];
   /** What a local server last wrote to stderr, oldest first. */
   stderr: string[];
@@ -375,7 +445,7 @@ export async function mcpStatus(): Promise<McpStatus[]> {
 }
 
 export async function mcpRestart(id: string): Promise<McpStatus> {
-  return await invoke<McpStatus>('mcp_restart', { id });
+  return await mcpCommand<McpStatus>('mcp_restart', { id });
 }
 
 export async function mcpCallTool(
@@ -383,7 +453,7 @@ export async function mcpCallTool(
   tool: string,
   args: Record<string, unknown> | null
 ): Promise<McpToolResult> {
-  return await invoke<McpToolResult>('mcp_call_tool', {
+  return await mcpCommand<McpToolResult>('mcp_call_tool', {
     server,
     tool,
     arguments: args,

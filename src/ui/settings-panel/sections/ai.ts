@@ -15,6 +15,7 @@ import {
 import {
   type AiSecretStatus,
   type ProxySetting,
+  SecretError,
   deleteAiSecret,
   getAiSecretStatus,
   setAiSecret,
@@ -676,7 +677,9 @@ export function renderAiSection(
       keyNeeded.delete(provider.id);
       noteStorage(status);
     } catch (error) {
-      if (String(error).includes('key-needed')) keyNeeded.add(provider.id);
+      if (error instanceof SecretError && error.failure.kind === 'key-needed') {
+        keyNeeded.add(provider.id);
+      }
       throw error;
     } finally {
       refresh(provider.id);

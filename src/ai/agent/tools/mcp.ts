@@ -7,7 +7,14 @@
  */
 
 import { type Tool, dynamicTool, jsonSchema } from 'ai';
-import type { McpStatus, McpTool, McpToolResult } from '../../../bridge/ipc/ai';
+import {
+  type InvokeFailure,
+  McpCallError,
+  type McpCallFailure,
+  type McpStatus,
+  type McpTool,
+  type McpToolResult,
+} from '../../../bridge/ipc/ai';
 import type { AiMcpServer } from '../../../state/ai-settings';
 import type { ChatImage } from '../../images/image';
 import type { Approvals } from '../approvals';
@@ -196,24 +203,31 @@ export function readResult(result: McpToolResult): ReadResult {
   return { text, images };
 }
 
-/** What the app's error codes mean, for the assistant. */
-const EXPLAINED: Record<string, string> = {
+/** What the app's failures mean, for the assistant. */
+const EXPLAINED: Record<(McpCallFailure | InvokeFailure)['kind'], string> = {
   'unknown-server':
     'The server is no longer running: the user turned it off or removed it.',
   'not-ready':
     'The server is starting, or failed to start. Tell the user if it keeps failing; they can see why in the AI settings.',
+  'bad-arguments': 'The arguments must be a JSON object.',
+  'unexpected-response':
+    'The server answered with something other than a tool result.',
   timeout: 'The tool took too long and was stopped.',
   exited: 'The server stopped while the tool ran.',
-  'bad-arguments': 'The arguments must be a JSON object.',
-  'not-connected':
-    'The server needs a key, and none is saved for it. Ask the user to add one in the AI settings.',
+  server: 'The server refused the call.',
+  connection: 'The connection to the server failed.',
+  invoke: 'The app could not make the call.',
 };
 
 function failure(error: unknown): Error {
-  const raw = error instanceof Error ? error.message : String(error);
-  const code = raw.split(':')[0].trim();
-  const explained = EXPLAINED[code];
-  return new Error(explained ? `${code}: ${explained}` : raw);
+  if (!(error instanceof McpCallError)) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+  const { kind } = error.failure;
+  const detail = 'message' in error.failure ? error.failure.message : '';
+  return new Error(
+    `${kind}: ${EXPLAINED[kind]}${detail ? ` (${detail.slice(0, 500)})` : ''}`
+  );
 }
 
 /** Rejects when the turn is stopped; the server's own timeout ends the call. */

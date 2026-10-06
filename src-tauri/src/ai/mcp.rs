@@ -19,7 +19,7 @@ use rmcp::{
         CallToolRequest, CallToolRequestParams, CallToolResult, ClientCapabilities, ClientRequest,
         Implementation, InitializeRequestParams, JsonObject, ProtocolVersion, ServerResult, Tool,
     },
-    service::{NotificationContext, PeerRequestOptions, RunningService},
+    service::{ClientInitializeError, NotificationContext, PeerRequestOptions, RunningService},
     transport::{
         streamable_http_client::StreamableHttpClientTransportConfig, StreamableHttpClientTransport,
         TokioChildProcess,
@@ -32,8 +32,9 @@ use tauri::{async_runtime::JoinHandle, AppHandle, Manager, Runtime, Window};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 
 use super::{
-    http::{self, ProxySetting},
-    secrets,
+    blocking,
+    http::{self, AuthError, ClientError, ProxySetting},
+    secrets::{self, SecretError},
 };
 
 /// npx may download the server first.
@@ -150,13 +151,170 @@ impl From<&Tool> for McpTool {
     }
 }
 
+/// Why a server failed to start or stopped, as the page reads it:
+/// `{ kind, … }`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum McpStartError {
+    BadCwd {
+        path: String,
+    },
+    CommandNotFound {
+        command: String,
+    },
+    Spawn {
+        message: String,
+    },
+    BadUrl {
+        url: String,
+    },
+    UnsupportedScheme {
+        scheme: String,
+    },
+    BadHeader {
+        name: String,
+    },
+    /// It is to send a key and none is saved for it.
+    NotConnected,
+    /// The key saved was for another address.
+    KeyNeeded,
+    BadProfile,
+    BadProxy {
+        message: String,
+    },
+    Store {
+        message: String,
+    },
+    Timeout,
+    Exited,
+    /// The server answered with an error of its own.
+    Server {
+        message: String,
+    },
+    Connection {
+        message: String,
+    },
+}
+
+impl From<SecretError> for McpStartError {
+    fn from(error: SecretError) -> Self {
+        match error {
+            SecretError::BadProfile => Self::BadProfile,
+            SecretError::BadUrl { url } => Self::BadUrl { url },
+            SecretError::KeyNeeded => Self::KeyNeeded,
+            SecretError::Store { message } => Self::Store { message },
+        }
+    }
+}
+
+impl From<AuthError> for McpStartError {
+    fn from(error: AuthError) -> Self {
+        match error {
+            AuthError::NotConnected => Self::NotConnected,
+            AuthError::KeyNeeded => Self::KeyNeeded,
+            AuthError::BadUrl { url } => Self::BadUrl { url },
+        }
+    }
+}
+
+impl From<ClientError> for McpStartError {
+    fn from(error: ClientError) -> Self {
+        match error {
+            ClientError::BadProxy { message } => Self::BadProxy { message },
+            ClientError::Build { message } => Self::Connection { message },
+        }
+    }
+}
+
+// Only the read from the credential store runs on a thread of its own.
+impl From<tauri::Error> for McpStartError {
+    fn from(error: tauri::Error) -> Self {
+        Self::Store {
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<ClientInitializeError> for McpStartError {
+    fn from(error: ClientInitializeError) -> Self {
+        match error {
+            ClientInitializeError::JsonRpcError(error) => Self::Server {
+                message: error.message.into(),
+            },
+            ClientInitializeError::ConnectionClosed(_) => Self::Exited,
+            other => Self::Connection {
+                message: other.to_string(),
+            },
+        }
+    }
+}
+
+impl From<ServiceError> for McpStartError {
+    fn from(error: ServiceError) -> Self {
+        match error {
+            ServiceError::Timeout { .. } => Self::Timeout,
+            ServiceError::TransportClosed => Self::Exited,
+            ServiceError::McpError(error) => Self::Server {
+                message: error.message.into(),
+            },
+            other => Self::Connection {
+                message: other.to_string(),
+            },
+        }
+    }
+}
+
+/// Why a tool could not be called, as the page reads it: `{ kind, … }`.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum McpCallError {
+    /// No server by that id: it was turned off or removed.
+    UnknownServer,
+    /// Starting, or failed to start.
+    NotReady,
+    BadArguments,
+    UnexpectedResponse,
+    Timeout,
+    Exited,
+    Server {
+        message: String,
+    },
+    Connection {
+        message: String,
+    },
+}
+
+impl From<ServiceError> for McpCallError {
+    fn from(error: ServiceError) -> Self {
+        match error {
+            ServiceError::Timeout { .. } => Self::Timeout,
+            ServiceError::TransportClosed => Self::Exited,
+            ServiceError::McpError(error) => Self::Server {
+                message: error.message.into(),
+            },
+            ServiceError::UnexpectedResponse => Self::UnexpectedResponse,
+            other => Self::Connection {
+                message: other.to_string(),
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpStatus {
     pub id: String,
     pub name: String,
     pub state: McpState,
-    pub error: Option<String>,
+    pub error: Option<McpStartError>,
     pub tools: Vec<McpTool>,
     /// What a local server last wrote to stderr, oldest first.
     pub stderr: Vec<String>,
@@ -223,7 +381,7 @@ struct Entry {
     config: McpServerConfig,
     generation: u64,
     state: McpState,
-    error: Option<String>,
+    error: Option<McpStartError>,
     tools: Vec<McpTool>,
     stderr: Arc<Mutex<StderrRing>>,
     service: Option<RunningService<RoleClient, Watcher>>,
@@ -270,7 +428,7 @@ impl Entry {
             .is_some_and(|service| service.peer().is_transport_closed());
         if self.state == McpState::Ready && exited {
             self.state = McpState::Failed;
-            self.error = Some("exited".into());
+            self.error = Some(McpStartError::Exited);
         }
     }
 
@@ -331,7 +489,7 @@ impl Registry {
         &self,
         id: &str,
         generation: u64,
-        result: Result<(RunningService<RoleClient, Watcher>, Vec<Tool>), String>,
+        result: Result<(RunningService<RoleClient, Watcher>, Vec<Tool>), McpStartError>,
     ) {
         let mut servers = self.servers();
         let Some(entry) = servers
@@ -360,16 +518,16 @@ impl Registry {
         }
     }
 
-    fn peer(&self, id: &str) -> Result<Peer<RoleClient>, String> {
+    fn peer(&self, id: &str) -> Result<Peer<RoleClient>, McpCallError> {
         let mut servers = self.servers();
         let entry = servers
             .entries
             .get_mut(id)
-            .ok_or_else(|| "unknown-server".to_string())?;
+            .ok_or(McpCallError::UnknownServer)?;
         entry.notice_exit();
         match (&entry.service, entry.state) {
             (Some(service), McpState::Ready) => Ok(service.peer().clone()),
-            _ => Err("not-ready".into()),
+            _ => Err(McpCallError::NotReady),
         }
     }
 }
@@ -453,29 +611,18 @@ async fn run(
 async fn handshake<T, E, A>(
     watcher: Watcher,
     transport: T,
-) -> Result<(RunningService<RoleClient, Watcher>, Vec<Tool>), String>
+) -> Result<(RunningService<RoleClient, Watcher>, Vec<Tool>), McpStartError>
 where
     T: rmcp::transport::IntoTransport<RoleClient, E, A>,
     E: std::error::Error + Send + Sync + 'static,
 {
     let service = tokio::time::timeout(INITIALIZE_TIMEOUT, rmcp::serve_client(watcher, transport))
         .await
-        .map_err(|_| "timeout".to_string())?
-        .map_err(|error| error.to_string())?;
+        .map_err(|_| McpStartError::Timeout)??;
     let tools = tokio::time::timeout(INITIALIZE_TIMEOUT, service.peer().list_all_tools())
         .await
-        .map_err(|_| "timeout".to_string())?
-        .map_err(describe)?;
+        .map_err(|_| McpStartError::Timeout)??;
     Ok((service, tools))
-}
-
-fn describe(error: ServiceError) -> String {
-    match error {
-        ServiceError::Timeout { .. } => "timeout".into(),
-        ServiceError::TransportClosed => "exited".into(),
-        ServiceError::McpError(error) => error.message.to_string(),
-        other => other.to_string(),
-    }
 }
 
 /// Our side of the connection; it only listens for the tools changing.
@@ -556,22 +703,28 @@ async fn spawn_local(
     args: &[String],
     env: &[[String; 2]],
     cwd: Option<&str>,
-) -> Result<(TokioChildProcess, Option<tokio::process::ChildStderr>), String> {
+) -> Result<(TokioChildProcess, Option<tokio::process::ChildStderr>), McpStartError> {
     let cwd = cwd
         .map(str::trim)
         .filter(|cwd| !cwd.is_empty())
         .map(expand_home);
     if let Some(cwd) = &cwd {
         if !cwd.is_dir() {
-            return Err(format!("bad-cwd: {}", cwd.display()));
+            return Err(McpStartError::BadCwd {
+                path: cwd.display().to_string(),
+            });
         }
     }
     let path = match env.iter().find(|[name, _]| is_path_variable(name)) {
         Some([_, path]) => path.clone(),
         None => login_path().await,
     };
-    let program = find_program(&expand_home(command.trim()), &path, cwd.as_deref())
-        .ok_or_else(|| format!("command-not-found: {command}"))?;
+    let program =
+        find_program(&expand_home(command.trim()), &path, cwd.as_deref()).ok_or_else(|| {
+            McpStartError::CommandNotFound {
+                command: command.to_string(),
+            }
+        })?;
 
     let mut process = tokio::process::Command::new(program);
     process.args(args).env("PATH", &path);
@@ -597,7 +750,9 @@ async fn spawn_local(
     TokioChildProcess::builder(process)
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| format!("spawn: {error}"))
+        .map_err(|error| McpStartError::Spawn {
+            message: error.to_string(),
+        })
 }
 
 /// Where a command runs from: a path as given, against the server's folder
@@ -730,10 +885,13 @@ async fn remote(
     headers: &[[String; 2]],
     use_key: bool,
     proxy: &ProxySetting,
-) -> Result<StreamableHttpClientTransport<reqwest::Client>, String> {
-    let parsed = url::Url::parse(url.trim()).map_err(|error| format!("bad-url: {error}"))?;
+) -> Result<StreamableHttpClientTransport<reqwest::Client>, McpStartError> {
+    let url = url.trim();
+    let parsed = url::Url::parse(url).map_err(|_| McpStartError::BadUrl { url: url.into() })?;
     if !matches!(parsed.scheme(), "http" | "https") {
-        return Err(format!("unsupported-scheme: {}", parsed.scheme()));
+        return Err(McpStartError::UnsupportedScheme {
+            scheme: parsed.scheme().into(),
+        });
     }
     let mut headers: Vec<(String, String)> = headers
         .iter()
@@ -746,9 +904,8 @@ async fn remote(
         let profile = format!("mcp-{id}");
         // The keychain may ask the user, so it is read off the async threads.
         let record =
-            tauri::async_runtime::spawn_blocking(move || secrets::record(&app, &window, &profile))
-                .await
-                .map_err(|error| error.to_string())??;
+            blocking(move || secrets::record(&app, &window, &profile).map_err(McpStartError::from))
+                .await?;
         headers = http::authorize(parsed.as_str(), headers, record.as_ref())?;
     }
     let mut custom = HashMap::new();
@@ -756,10 +913,9 @@ async fn remote(
         if RESERVED_HEADERS.contains(&name.to_ascii_lowercase().as_str()) {
             continue;
         }
-        let header = reqwest::header::HeaderName::from_bytes(name.as_bytes())
-            .map_err(|_| format!("bad-header: {name}"))?;
-        let value = reqwest::header::HeaderValue::from_str(value.trim())
-            .map_err(|_| format!("bad-header: {name}"))?;
+        let bad = || McpStartError::BadHeader { name: name.clone() };
+        let header = reqwest::header::HeaderName::from_bytes(name.as_bytes()).map_err(|_| bad())?;
+        let value = reqwest::header::HeaderValue::from_str(value.trim()).map_err(|_| bad())?;
         custom.insert(header, value);
     }
     Ok(StreamableHttpClientTransport::with_client(
@@ -772,15 +928,14 @@ async fn remote(
 /// other AI requests go, and following redirects only within the server's
 /// origin, so its key and headers stay with it. No read timeout: the event
 /// stream may stay quiet for a long time.
-fn http_client(proxy: &ProxySetting) -> Result<reqwest::Client, String> {
+fn http_client(proxy: &ProxySetting) -> Result<reqwest::Client, McpStartError> {
     http::install_crypto_provider();
-    http::finish_client(
+    Ok(http::finish_client(
         reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(15))
             .redirect(http::same_origin_redirects()),
         proxy,
-    )
-    .map_err(|error| error.to_string())
+    )?)
 }
 
 /// Lets a stopped server close in its own time.
@@ -852,7 +1007,7 @@ pub async fn mcp_sync(
     window: Window,
     servers: Vec<McpServerConfig>,
     proxy: Option<ProxySetting>,
-) -> Result<Vec<McpStatus>, String> {
+) -> Vec<McpStatus> {
     let proxy = proxy.unwrap_or_default();
     let servers: Vec<McpServerConfig> = servers
         .into_iter()
@@ -884,7 +1039,7 @@ pub async fn mcp_sync(
         state.order = plan.order;
     }
     stopping.into_iter().for_each(stop);
-    Ok(registry.statuses())
+    registry.statuses()
 }
 
 #[tauri::command]
@@ -893,7 +1048,11 @@ pub fn mcp_status(app: AppHandle) -> Vec<McpStatus> {
 }
 
 #[tauri::command]
-pub async fn mcp_restart(app: AppHandle, window: Window, id: String) -> Result<McpStatus, String> {
+pub async fn mcp_restart(
+    app: AppHandle,
+    window: Window,
+    id: String,
+) -> Result<McpStatus, McpCallError> {
     let registry = Arc::clone(&app.state::<McpServers>().0);
     let previous = {
         let mut state = registry.servers();
@@ -901,13 +1060,11 @@ pub async fn mcp_restart(app: AppHandle, window: Window, id: String) -> Result<M
             .entries
             .get(&id)
             .map(|entry| entry.config.clone())
-            .ok_or_else(|| "unknown-server".to_string())?;
+            .ok_or(McpCallError::UnknownServer)?;
         start(&registry, &mut state, &app, window.label(), config)
     };
     stop(previous);
-    registry
-        .status(&id)
-        .ok_or_else(|| "unknown-server".to_string())
+    registry.status(&id).ok_or(McpCallError::UnknownServer)
 }
 
 #[tauri::command]
@@ -916,11 +1073,11 @@ pub async fn mcp_call_tool(
     server: String,
     tool: String,
     arguments: Option<Value>,
-) -> Result<McpToolResult, String> {
+) -> Result<McpToolResult, McpCallError> {
     let arguments = match arguments {
         None | Some(Value::Null) => None,
         Some(Value::Object(arguments)) => Some(arguments),
-        Some(_) => return Err("bad-arguments".into()),
+        Some(_) => return Err(McpCallError::BadArguments),
     };
     let peer = app.state::<McpServers>().0.peer(&server)?;
     call_tool(&peer, tool, arguments, CALL_TIMEOUT).await
@@ -932,7 +1089,7 @@ async fn call_tool(
     tool: String,
     arguments: Option<JsonObject>,
     timeout: Duration,
-) -> Result<McpToolResult, String> {
+) -> Result<McpToolResult, McpCallError> {
     let mut params = CallToolRequestParams::new(tool);
     if let Some(arguments) = arguments {
         params = params.with_arguments(arguments);
@@ -942,11 +1099,10 @@ async fn call_tool(
             ClientRequest::CallToolRequest(CallToolRequest::new(params)),
             PeerRequestOptions::with_timeout(timeout),
         )
-        .await
-        .map_err(describe)?;
-    match request.await_response().await.map_err(describe)? {
+        .await?;
+    match request.await_response().await? {
         ServerResult::CallToolResult(result) => Ok(result.into()),
-        _ => Err("unexpected-response".into()),
+        _ => Err(McpCallError::UnexpectedResponse),
     }
 }
 
@@ -1332,7 +1488,7 @@ mod tests {
             assert!(failed.is_error);
 
             let hung = call_tool(&peer, "hang".into(), None, Duration::from_millis(100)).await;
-            assert_eq!(hung.unwrap_err(), "timeout");
+            assert_eq!(hung.unwrap_err(), McpCallError::Timeout);
 
             call_tool(&peer, "change".into(), None, CALL_TIMEOUT)
                 .await
@@ -1345,7 +1501,10 @@ mod tests {
             }
             assert_eq!(tool_names(&registry), ["echo", "fail", "added"]);
 
-            assert_eq!(registry.peer("other").unwrap_err(), "unknown-server");
+            assert_eq!(
+                registry.peer("other").unwrap_err(),
+                McpCallError::UnknownServer
+            );
             let running = registry
                 .servers()
                 .entries
@@ -1381,7 +1540,7 @@ mod tests {
             let status = registry.status("fake").unwrap();
             assert_eq!(status.state, McpState::Starting);
             assert!(status.tools.is_empty());
-            assert_eq!(registry.peer("fake").unwrap_err(), "not-ready");
+            assert_eq!(registry.peer("fake").unwrap_err(), McpCallError::NotReady);
         });
     }
 
@@ -1395,7 +1554,30 @@ mod tests {
                 id: "fake".into(),
                 generation: 1,
             };
-            assert!(handshake(watcher, ours).await.is_err());
+            assert!(matches!(
+                handshake(watcher, ours).await,
+                Err(McpStartError::Connection { .. })
+            ));
         });
+    }
+
+    #[test]
+    fn a_failure_reaches_the_page_by_kind() {
+        let mut entry = Entry::new(stdio("fake", "Fake", "x"), 1);
+        entry.state = McpState::Failed;
+        entry.error = Some(McpStartError::CommandNotFound {
+            command: "npx".into(),
+        });
+        assert_eq!(
+            serde_json::to_value(entry.status()).unwrap()["error"],
+            json!({"kind": "command-not-found", "command": "npx"})
+        );
+        assert_eq!(
+            serde_json::to_value(McpCallError::Server {
+                message: "no such tool".into()
+            })
+            .unwrap(),
+            json!({"kind": "server", "message": "no such tool"})
+        );
     }
 }

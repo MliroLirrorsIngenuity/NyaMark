@@ -422,7 +422,13 @@
           "badUrl": "That address is not valid: {{detail}}",
           "noKey": "No key is saved for this server.",
           "timeout": "The server did not answer in time.",
-          "exited": "The server stopped."
+          "exited": "The server stopped.",
+          "commandNotFound": "The command was not found: {{detail}}",
+          "badHeader": "This request header is not valid: {{detail}}",
+          "keyStore": "The saved key could not be read: {{detail}}",
+          "badProxy": "The proxy address is not valid: {{detail}}",
+          "server": "The server reported an error: {{detail}}",
+          "connection": "Could not connect to the server: {{detail}}"
         }
       },
       "quick": {

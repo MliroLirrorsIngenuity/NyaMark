@@ -1,16 +1,21 @@
 import { describe, expect, test } from 'bun:test';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { APICallError, generateText } from 'ai';
+import { describeFailure } from '../src/ai/agent/session';
 import { type AiFetchBridge, createRustFetch } from '../src/ai/transport/fetch';
-import type {
-  AiFetchEvent,
-  AiFetchHead,
-  AiFetchRequest,
+import {
+  AiFetchError,
+  type AiFetchEvent,
+  type AiFetchHead,
+  type AiFetchRequest,
+  type FetchFailure,
 } from '../src/bridge/ipc/ai';
 
 type Call = {
   request: AiFetchRequest;
   emit: (event: AiFetchEvent) => void;
   respond: (head: AiFetchHead) => void;
-  fail: (message: string) => void;
+  fail: (failure: FetchFailure) => void;
 };
 
 /** A native side the test answers by hand. */
@@ -24,7 +29,7 @@ function fakeBridge() {
           request,
           emit: onEvent,
           respond: resolve,
-          fail: (message) => reject(message),
+          fail: (failure) => reject(new AiFetchError(failure)),
         });
       });
     },
@@ -113,9 +118,25 @@ describe('createRustFetch', () => {
     const fetch = createRustFetch(bridge, 'p', () => ({ mode: 'system' }));
     const pending = fetch('https://a.example/x');
     await tick();
-    calls[0]?.fail('error sending request: connection refused');
-    expect(pending).rejects.toThrow(TypeError);
-    expect(pending).rejects.toThrow('connection refused');
+    calls[0]?.fail({ kind: 'network', message: 'connection refused' });
+    const error = await pending.catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(TypeError);
+    expect(error).toMatchObject({ message: 'fetch failed' });
+    expect((error as TypeError).cause).toBeInstanceOf(AiFetchError);
+    expect((error as TypeError).cause).toMatchObject({
+      failure: { kind: 'network', message: 'connection refused' },
+    });
+  });
+
+  test('a request the app refused fails as itself', async () => {
+    const { bridge, calls } = fakeBridge();
+    const fetch = createRustFetch(bridge, 'p', () => ({ mode: 'system' }));
+    const pending = fetch('https://a.example/x');
+    await tick();
+    calls[0]?.fail({ kind: 'key-needed' });
+    const error = await pending.catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(AiFetchError);
+    expect(error).toMatchObject({ failure: { kind: 'key-needed' } });
   });
 
   test('a body that breaks off fails its reader', async () => {
@@ -126,8 +147,15 @@ describe('createRustFetch', () => {
     calls[0]?.respond(ok());
     const response = await pending;
     calls[0]?.emit({ type: 'chunk', text: 'part' });
-    calls[0]?.emit({ type: 'error', message: 'connection reset' });
-    expect(response.text()).rejects.toThrow('connection reset');
+    calls[0]?.emit({
+      type: 'error',
+      failure: { kind: 'network', message: 'connection reset' },
+    });
+    const error = await response.text().catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(TypeError);
+    expect((error as TypeError).cause).toMatchObject({
+      failure: { kind: 'network', message: 'connection reset' },
+    });
   });
 
   test('stopping before the answer rejects and stops the native request', async () => {
@@ -193,5 +221,39 @@ describe('createRustFetch', () => {
     const response = await pending;
     expect(response.status).toBe(204);
     expect(response.body).toBeNull();
+  });
+});
+
+describe('the SDK reading what the app fetch failed with', () => {
+  /** Asks a model whose every request fails with `failure`. */
+  const ask = (failure: FetchFailure) => {
+    const bridge: AiFetchBridge = {
+      fetch: () => Promise.reject(new AiFetchError(failure)),
+      abort: async () => {},
+    };
+    const fetch = createRustFetch(bridge, 'p', () => ({ mode: 'system' }));
+    const model = createOpenAICompatible({
+      name: 'test',
+      baseURL: 'https://a.example/v1',
+      apiKey: 'nyamark-key',
+      fetch,
+    }).chatModel('m');
+    return generateText({ model, prompt: 'Hi', maxRetries: 0 }).then(
+      () => null,
+      (error: unknown) => error
+    );
+  };
+
+  test('a connection that failed is one it may retry', async () => {
+    const error = await ask({ kind: 'network', message: 'connection refused' });
+    expect(APICallError.isInstance(error)).toBe(true);
+    expect((error as APICallError).isRetryable).toBe(true);
+    expect(describeFailure(error).code).toBe('network');
+  });
+
+  test('a request the app refused is not retried and says why', async () => {
+    const error = await ask({ kind: 'not-connected' });
+    expect(APICallError.isInstance(error)).toBe(false);
+    expect(describeFailure(error).code).toBe('not-connected');
   });
 });

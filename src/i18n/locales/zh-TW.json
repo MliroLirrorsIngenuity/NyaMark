@@ -418,7 +418,13 @@
           "badUrl": "位址無效：{{detail}}",
           "noKey": "這個伺服器還沒有儲存金鑰。",
           "timeout": "伺服器沒有及時回應。",
-          "exited": "伺服器已停止。"
+          "exited": "伺服器已停止。",
+          "commandNotFound": "找不到指令：{{detail}}",
+          "badHeader": "請求標頭無效：{{detail}}",
+          "keyStore": "讀不出儲存的金鑰：{{detail}}",
+          "badProxy": "代理位址無效：{{detail}}",
+          "server": "伺服器回報錯誤：{{detail}}",
+          "connection": "無法連線到伺服器：{{detail}}"
         }
       },
       "quick": {

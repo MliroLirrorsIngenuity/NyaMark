@@ -1,17 +1,33 @@
 // The small pieces the AI tab of the settings builds itself from.
+import { AiFetchError, SecretError } from '../../../bridge/ipc/ai';
 import { i18next } from '../../../i18n';
+
+/**
+ * What the app said went wrong with a key or a request: thrown as it is, or
+ * as the cause of the `fetch` or SDK error it became.
+ */
+function appFailure(error: unknown) {
+  const cause = error instanceof Error ? error.cause : undefined;
+  for (const candidate of [error, cause]) {
+    if (candidate instanceof SecretError || candidate instanceof AiFetchError) {
+      return candidate.failure;
+    }
+  }
+  return null;
+}
 
 /** The text of a failure, for a line in the settings. */
 export function failureText(error: unknown): string {
-  const message =
-    error instanceof Error ? error.message : String(error ?? 'error');
-  if (message.includes('not-connected')) {
-    return i18next.t('settings.ai.notConnected');
+  switch (appFailure(error)?.kind) {
+    case 'not-connected':
+      return i18next.t('settings.ai.notConnected');
+    case 'key-needed':
+      return i18next.t('settings.ai.keyNeeded');
+    case 'bad-url':
+      return i18next.t('settings.ai.badUrl');
+    default:
+      return error instanceof Error ? error.message : String(error ?? 'error');
   }
-  if (message.includes('key-needed')) {
-    return i18next.t('settings.ai.keyNeeded');
-  }
-  return message;
 }
 
 export function el<K extends keyof HTMLElementTagNameMap>(

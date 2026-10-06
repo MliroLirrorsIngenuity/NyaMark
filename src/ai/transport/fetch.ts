@@ -9,14 +9,18 @@
  * network.
  */
 
-import type {
-  AiFetchEvent,
-  AiFetchHead,
-  AiFetchRequest,
-  ProxySetting,
+import {
+  AiFetchError,
+  type AiFetchEvent,
+  type AiFetchHead,
+  type AiFetchRequest,
+  type ProxySetting,
 } from '../../bridge/ipc/ai';
 
-/** The native calls, passed in so tests can stand in for them. */
+/**
+ * The native calls, passed in so tests can stand in for them. A failure
+ * rejects with an `AiFetchError`.
+ */
 export type AiFetchBridge = {
   fetch(
     request: AiFetchRequest,
@@ -30,6 +34,22 @@ const NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 304]);
 
 function abortError() {
   return new DOMException('The request was stopped.', 'AbortError');
+}
+
+/**
+ * What `fetch` fails with. A connection that failed does as the browser's
+ * `fetch` does, with the reason as its cause, which the SDK reads as one it
+ * may retry; a request the app refused fails as itself.
+ */
+function failed(error: AiFetchError): Error {
+  switch (error.failure.kind) {
+    case 'aborted':
+      return abortError();
+    case 'network':
+      return new TypeError('fetch failed', { cause: error });
+    default:
+      return error;
+  }
 }
 
 async function bodyText(body: BodyInit | null | undefined) {
@@ -92,7 +112,7 @@ export function createRustFetch(
         controller.close();
       } else {
         settled = true;
-        controller.error(new TypeError(event.message));
+        controller.error(failed(new AiFetchError(event.failure)));
       }
     };
 
@@ -124,7 +144,9 @@ export function createRustFetch(
             },
             onEvent
           )
-          .then(resolve, (error) => reject(new TypeError(String(error))));
+          .then(resolve, (error) =>
+            reject(error instanceof AiFetchError ? failed(error) : error)
+          );
       });
     } catch (error) {
       signal?.removeEventListener('abort', onAbort);

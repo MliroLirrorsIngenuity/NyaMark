@@ -418,7 +418,13 @@
           "badUrl": "地址无效：{{detail}}",
           "noKey": "这个服务器还没有保存密钥。",
           "timeout": "服务器没有及时响应。",
-          "exited": "服务器已停止。"
+          "exited": "服务器已停止。",
+          "commandNotFound": "找不到命令：{{detail}}",
+          "badHeader": "请求头无效：{{detail}}",
+          "keyStore": "读不出保存的密钥：{{detail}}",
+          "badProxy": "代理地址无效：{{detail}}",
+          "server": "服务器报错：{{detail}}",
+          "connection": "连不上服务器：{{detail}}"
         }
       },
       "quick": {

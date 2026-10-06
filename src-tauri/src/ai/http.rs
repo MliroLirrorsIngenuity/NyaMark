@@ -20,7 +20,10 @@ use serde::{Deserialize, Serialize};
 use tauri::{ipc::Channel, AppHandle, Manager, Runtime, Window};
 use tokio_util::sync::CancellationToken;
 
-use super::secrets::{self, AuthScheme, SecretRecord};
+use super::{
+    blocking,
+    secrets::{self, AuthScheme, SecretError, SecretRecord},
+};
 
 /// How requests reach the internet: the system's proxy settings (and the
 /// `HTTPS_PROXY` family), none, or one the user entered.
@@ -214,7 +217,99 @@ pub struct FetchHead {
 pub enum FetchEvent {
     Chunk { text: String },
     End,
-    Error { message: String },
+    Error { failure: FetchError },
+}
+
+/// Why a request for the page failed, as the page reads it: `{ kind, … }`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum FetchError {
+    /// Nothing is saved for the service: no address, no key.
+    NotConnected,
+    /// The request went somewhere other than the address its key was saved
+    /// for, which is where the settings pointed before.
+    KeyNeeded,
+    BadProfile,
+    BadUrl {
+        url: String,
+    },
+    /// A method or header reqwest cannot send.
+    BadRequest {
+        message: String,
+    },
+    BadProxy {
+        message: String,
+    },
+    /// The credential store failed.
+    Store {
+        message: String,
+    },
+    TooManyRedirects,
+    /// The connection failed or broke off.
+    Network {
+        message: String,
+    },
+    Aborted,
+}
+
+impl From<SecretError> for FetchError {
+    fn from(error: SecretError) -> Self {
+        match error {
+            SecretError::BadProfile => Self::BadProfile,
+            SecretError::BadUrl { url } => Self::BadUrl { url },
+            SecretError::KeyNeeded => Self::KeyNeeded,
+            SecretError::Store { message } => Self::Store { message },
+        }
+    }
+}
+
+impl From<AuthError> for FetchError {
+    fn from(error: AuthError) -> Self {
+        match error {
+            AuthError::NotConnected => Self::NotConnected,
+            AuthError::KeyNeeded => Self::KeyNeeded,
+            AuthError::BadUrl { url } => Self::BadUrl { url },
+        }
+    }
+}
+
+impl From<ClientError> for FetchError {
+    fn from(error: ClientError) -> Self {
+        match error {
+            ClientError::BadProxy { message } => Self::BadProxy { message },
+            ClientError::Build { message } => Self::Network { message },
+        }
+    }
+}
+
+impl From<reqwest::Error> for FetchError {
+    fn from(error: reqwest::Error) -> Self {
+        // The redirect policy fails a request only for too many redirects.
+        if error.is_redirect() {
+            Self::TooManyRedirects
+        } else if error.is_builder() {
+            Self::BadRequest {
+                message: describe(&error),
+            }
+        } else {
+            Self::Network {
+                message: describe(&error),
+            }
+        }
+    }
+}
+
+// Only the read from the credential store runs on a thread of its own.
+impl From<tauri::Error> for FetchError {
+    fn from(error: tauri::Error) -> Self {
+        Self::Store {
+            message: error.to_string(),
+        }
+    }
 }
 
 /// Headers that carry a key, whatever the page put in them.
@@ -223,20 +318,30 @@ const KEY_HEADERS: [&str; 4] = ["authorization", "x-api-key", "x-goog-api-key", 
 /// Headers the connection itself sets.
 const CONNECTION_HEADERS: [&str; 4] = ["host", "content-length", "connection", "transfer-encoding"];
 
+/// Why a request may not carry its service's key.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AuthError {
+    /// Nothing is saved for the service.
+    NotConnected,
+    /// The request goes somewhere other than the address the key was saved
+    /// for.
+    KeyNeeded,
+    BadUrl {
+        url: String,
+    },
+}
+
 /// The headers to send: the page's, with any key it put in taken out and the
 /// saved one put in, or an error when the address is not the one saved.
 pub fn authorize(
     url: &str,
     headers: Vec<(String, String)>,
     record: Option<&SecretRecord>,
-) -> Result<Vec<(String, String)>, String> {
-    let record = record.ok_or_else(|| "not-connected".to_string())?;
-    let origin = secrets::origin_of(url)?;
+) -> Result<Vec<(String, String)>, AuthError> {
+    let record = record.ok_or(AuthError::NotConnected)?;
+    let origin = secrets::origin_of(url).ok_or_else(|| AuthError::BadUrl { url: url.into() })?;
     if origin != record.origin {
-        return Err(format!(
-            "This service is set up for {}, and the request went to {origin}",
-            record.origin
-        ));
+        return Err(AuthError::KeyNeeded);
     }
     let mut headers: Vec<(String, String)> = headers
         .into_iter()
@@ -262,9 +367,11 @@ pub async fn send(
     url: &str,
     headers: Vec<(String, String)>,
     body: Option<String>,
-) -> Result<reqwest::Response, String> {
+) -> Result<reqwest::Response, FetchError> {
     let method =
-        reqwest::Method::from_bytes(method.as_bytes()).map_err(|error| error.to_string())?;
+        reqwest::Method::from_bytes(method.as_bytes()).map_err(|error| FetchError::BadRequest {
+            message: error.to_string(),
+        })?;
     let mut request = client.request(method, url);
     for (name, value) in headers {
         request = request.header(name, value);
@@ -272,7 +379,7 @@ pub async fn send(
     if let Some(body) = body {
         request = request.body(body);
     }
-    request.send().await.map_err(|error| describe(&error))
+    Ok(request.send().await?)
 }
 
 /// A reqwest error with its causes, which name what actually failed (a
@@ -376,7 +483,7 @@ pub async fn pump(
             }
             Some(Err(error)) => {
                 let _ = channel.send(FetchEvent::Error {
-                    message: describe(&error),
+                    failure: error.into(),
                 });
                 return;
             }
@@ -404,17 +511,16 @@ pub async fn ai_fetch(
     window: Window,
     request: FetchRequest,
     on_event: Channel<FetchEvent>,
-) -> Result<FetchHead, String> {
+) -> Result<FetchHead, FetchError> {
     let record = {
         let app = app.clone();
         let label = window.label().to_string();
         let profile = request.profile.clone();
-        tauri::async_runtime::spawn_blocking(move || secrets::record(&app, &label, &profile))
-            .await
-            .map_err(|error| error.to_string())??
+        // The keychain may ask the user, so it is read off the async threads.
+        blocking(move || secrets::record(&app, &label, &profile).map_err(FetchError::from)).await?
     };
     let headers = authorize(&request.url, request.headers, record.as_ref())?;
-    let client = client(&app, &request.proxy).map_err(|error| error.to_string())?;
+    let client = client(&app, &request.proxy)?;
     let token = CancellationToken::new();
     track(&app, &request.id, Some(token.clone()));
     let sent = token
@@ -434,7 +540,7 @@ pub async fn ai_fetch(
         }
         None => {
             track(&app, &request.id, None);
-            return Err("aborted".into());
+            return Err(FetchError::Aborted);
         }
     };
     let head = head_of(&response);
@@ -539,11 +645,21 @@ mod tests {
             "https://api.example.com.evil.example/v1",
             "file:///etc/passwd",
         ] {
-            assert!(authorize(url, vec![], Some(&saved)).is_err(), "{url}");
+            assert!(
+                matches!(
+                    authorize(url, vec![], Some(&saved)),
+                    Err(AuthError::KeyNeeded | AuthError::BadUrl { .. })
+                ),
+                "{url}"
+            );
         }
         assert_eq!(
+            authorize("https://evil.example/v1", vec![], Some(&saved)),
+            Err(AuthError::KeyNeeded)
+        );
+        assert_eq!(
             authorize("https://api.example.com/v1", vec![], None),
-            Err("not-connected".into())
+            Err(AuthError::NotConnected)
         );
     }
 
@@ -710,7 +826,30 @@ mod tests {
                 .await
                 .unwrap_err()
         });
-        assert!(error.to_lowercase().contains("connect"), "{error}");
+        let FetchError::Network { message } = error else {
+            panic!("{error:?}");
+        };
+        assert!(message.to_lowercase().contains("connect"), "{message}");
+    }
+
+    #[test]
+    fn a_failure_reaches_the_page_by_kind() {
+        let json = |event: FetchEvent| serde_json::to_value(event).unwrap();
+        assert_eq!(
+            json(FetchEvent::Error {
+                failure: FetchError::Network {
+                    message: "reset".into()
+                }
+            }),
+            serde_json::json!({
+                "type": "error",
+                "failure": { "kind": "network", "message": "reset" }
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(FetchError::NotConnected).unwrap(),
+            serde_json::json!({ "kind": "not-connected" })
+        );
     }
 
     #[test]
