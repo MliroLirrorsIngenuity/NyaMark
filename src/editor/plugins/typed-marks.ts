@@ -55,7 +55,6 @@ const MARKS: Record<string, string> = {
 const HOLE = '￼';
 const DELIMITERS = '`*_~';
 const HAS_DELIMITER = /[`*_~]/;
-const SETTLE_MS = 40;
 
 export const FLUSH = 'flush';
 const DONE = 'done';
@@ -438,11 +437,12 @@ export function typedMarksPlugin(parse: Parse) {
       handleDOMEvents: {
         compositionend(view) {
           clearTimeout(timer);
+          // Once ProseMirror has taken the event, as its input rules wait.
           timer = setTimeout(() => {
             if (view.isDestroyed || view.composing) return;
             if (!typedMarksKey.getState(view.state)?.pending?.open) return;
             view.dispatch(view.state.tr.setMeta(typedMarksKey, FLUSH));
-          }, SETTLE_MS);
+          });
           return false;
         },
       },

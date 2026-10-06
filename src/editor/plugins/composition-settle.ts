@@ -9,9 +9,6 @@
 import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
 
-/** Past ProseMirror's own end of the composition, 20ms after the event. */
-const SETTLE_MS = 40;
-
 export const compositionSettle = $prose(() => {
   // A change came while a word was being put together.
   let unseen = false;
@@ -32,11 +29,12 @@ export const compositionSettle = $prose(() => {
       handleDOMEvents: {
         compositionend(view) {
           clearTimeout(timer);
+          // Once ProseMirror has taken the event, as its input rules wait.
           timer = setTimeout(() => {
             if (!unseen || view.isDestroyed || view.composing) return;
             unseen = false;
             view.dispatch(view.state.tr);
-          }, SETTLE_MS);
+          });
           return false;
         },
       },
