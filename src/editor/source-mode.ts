@@ -50,6 +50,7 @@ import { continueMarkup } from './source-list-exit';
 import { sourceSearch } from './source-search';
 import { sourceSuggest } from './source-suggest';
 
+/** A pause in typing this long brings the preview up to date. */
 const SYNC_DELAY_MS = 180;
 
 type SourceAnchor = {
@@ -306,7 +307,7 @@ export class SourceModeController {
   /** Set while CodeMirror is being overwritten from the editor side. */
   private applyingEditorText = false;
   private active = false;
-  private lastScrollSource: HTMLElement | null = null;
+  /** The pane the reader last reached for; only it leads the other. */
   private activeScrollSource: HTMLElement | null = null;
   /** Aborts the scroll-sync listeners of the current source-mode session. */
   private scrollSyncAbort: AbortController | null = null;
@@ -623,6 +624,8 @@ export class SourceModeController {
     // this session and dropped on exit.
     this.scrollSyncAbort = new AbortController();
     const { signal } = this.scrollSyncAbort;
+    // The source pane opens with the focus, scrolled to the caret.
+    this.activeScrollSource = cmScroller;
 
     const userScrollEvents: Array<keyof HTMLElementEventMap> = [
       'pointerdown',
@@ -646,23 +649,13 @@ export class SourceModeController {
       );
     }
 
+    // A pane led by the other scrolls too; that scroll is not followed back.
     const sync = (source: HTMLElement, target: HTMLElement) => {
-      if (this.activeScrollSource && this.activeScrollSource !== source) {
-        return;
-      }
-
-      if (this.lastScrollSource && this.lastScrollSource !== source) {
-        return;
-      }
-
-      this.lastScrollSource = source;
+      if (this.activeScrollSource !== source) return;
 
       requestAnimationFrame(() => {
         this.ensureAnchors();
-        if (!this.cmView || !this.previewView) {
-          this.lastScrollSource = null;
-          return;
-        }
+        if (!this.cmView || !this.previewView) return;
         const cmView = this.cmView;
 
         const fromAnchors =
@@ -692,10 +685,6 @@ export class SourceModeController {
           fromAnchors,
           toAnchors
         );
-
-        requestAnimationFrame(() => {
-          this.lastScrollSource = null;
-        });
       });
     };
 
