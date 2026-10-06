@@ -18,8 +18,9 @@
  */
 
 import { closeHistory } from '@milkdown/kit/prose/history';
+import { undoInputRule } from '@milkdown/kit/prose/inputrules';
 import {
-  type EditorState,
+  EditorState,
   Plugin,
   PluginKey,
   type Transaction,
@@ -35,15 +36,11 @@ export function pasteApart(view: EditorView) {
   queueMicrotask(() => view.dispatch(closeHistory(view.state.tr)));
 }
 
-/** What an input rule did, as the rule records it. */
-type RuleMade = {
-  transform: Transform;
-  from: number;
-  to: number;
-  text: string;
-};
-/** The last rule's work and the changes put in after it at once. */
-export type Typed = { rule: RuleMade; after: Transform[] };
+/**
+ * The last rule's record, kept as its plugin wrote it, and the changes put in
+ * after it at once.
+ */
+export type Typed = { rules: Plugin; record: unknown; after: Transform[] };
 
 /**
  * The rule work Cmd+Z can still give back after `tr`: kept through changes
@@ -56,15 +53,15 @@ export function typedAfter(
   old: EditorState,
   state: EditorState
 ): Typed | null {
-  for (const plugin of state.plugins) {
-    if (!plugin.spec.isInputRules) continue;
-    const rule = tr.getMeta(plugin) as RuleMade | undefined;
-    if (rule) return { rule, after: [] };
+  for (const rules of state.plugins) {
+    if (!rules.spec.isInputRules) continue;
+    const record: unknown = tr.getMeta(rules);
+    if (record) return { rules, record, after: [] };
   }
   if (!typed) return null;
   if (tr.docChanged) {
     if (!tr.getMeta('appendedTransaction')) return null;
-    return { rule: typed.rule, after: [...typed.after, tr] };
+    return { ...typed, after: [...typed.after, tr] };
   }
   if (tr.selectionSet && !state.selection.eq(old.selection)) return null;
   return typed;
@@ -77,14 +74,27 @@ function takeBack(tr: Transaction, done: Transform) {
 }
 
 /** Undoes the rule and what came with it, and puts back what was typed. */
-export function giveBackTyped(state: EditorState, typed: Typed): Transaction {
+export function giveBackTyped(
+  state: EditorState,
+  typed: Typed
+): Transaction | null {
   const tr = state.tr;
   for (const done of [...typed.after].reverse()) takeBack(tr, done);
-  takeBack(tr, typed.rule.transform);
-  const { from, to, text } = typed.rule;
-  if (!text) return tr.delete(from, to);
-  const marks = tr.doc.resolve(from).marks();
-  return tr.replaceWith(from, to, state.schema.text(text, marks));
+  const ruled = EditorState.create({
+    doc: tr.doc,
+    selection: tr.selection,
+    plugins: [typed.rules],
+  });
+  let undone: Transaction | null = null;
+  undoInputRule(
+    ruled.apply(ruled.tr.setMeta(typed.rules, typed.record)),
+    (next) => {
+      undone = next;
+    }
+  );
+  if (!undone) return null;
+  for (const step of (undone as Transaction).steps) tr.step(step);
+  return tr;
 }
 
 function isUndo(event: KeyboardEvent): boolean {
@@ -112,12 +122,13 @@ export const undoByLine = $prose(
           keydown(view, event) {
             const typed = key.getState(view.state);
             if (!typed || !isUndo(event)) return false;
-            let tr: Transaction;
+            let tr: Transaction | null;
             try {
               tr = giveBackTyped(view.state, typed);
             } catch {
               return false;
             }
+            if (!tr) return false;
             view.dispatch(tr);
             event.preventDefault();
             return true;

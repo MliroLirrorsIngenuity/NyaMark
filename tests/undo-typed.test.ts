@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import {
-  type InputRule,
-  inputRules,
-  wrappingInputRule,
-} from '@milkdown/kit/prose/inputrules';
+import { inputRules, wrappingInputRule } from '@milkdown/kit/prose/inputrules';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
 import {
   EditorState,
@@ -12,6 +8,7 @@ import {
   TextSelection,
   type Transaction,
 } from '@milkdown/kit/prose/state';
+import type { EditorView } from '@milkdown/kit/prose/view';
 import {
   type Typed,
   giveBackTyped,
@@ -53,22 +50,28 @@ const record = new Plugin<Typed | null>({
 /** The space typed after `>`, as the rule takes it. */
 function typeQuote(): EditorState {
   const start = doc(p('>'));
-  const state = EditorState.create({
-    doc: start,
-    selection: TextSelection.create(start, 2),
-    plugins: [rules, trailing, record],
-  });
-  const handler = (rule as InputRule & { handler: unknown }).handler as (
-    state: EditorState,
-    match: RegExpExecArray,
-    from: number,
-    to: number
-  ) => Transaction;
-  const match = QUOTE.exec('> ');
-  if (!match) throw new Error('no match');
-  const tr = handler(state, match, 1, 2);
-  tr.setMeta(rules, { transform: tr, from: 2, to: 2, text: ' ' });
-  return state.apply(tr);
+  const view = {
+    state: EditorState.create({
+      doc: start,
+      selection: TextSelection.create(start, 2),
+      plugins: [rules, trailing, record],
+    }),
+    composing: false,
+    dispatch(tr: Transaction) {
+      view.state = view.state.apply(tr);
+    },
+  };
+  const insert = () => view.state.tr.insertText(' ', 2, 2);
+  const handled = rules.props.handleTextInput?.call(
+    rules,
+    view as unknown as EditorView,
+    2,
+    2,
+    ' ',
+    insert
+  );
+  if (!handled) throw new Error('no rule');
+  return view.state;
 }
 
 describe('Cmd+Z straight after Markdown became a block', () => {
@@ -77,7 +80,9 @@ describe('Cmd+Z straight after Markdown became a block', () => {
     expect(state.doc.childCount).toBe(2);
     const typed = key.getState(state);
     if (!typed) throw new Error('no record');
-    const back = state.apply(giveBackTyped(state, typed));
+    const tr = giveBackTyped(state, typed);
+    if (!tr) throw new Error('nothing given back');
+    const back = state.apply(tr);
     expect(back.doc.eq(doc(p('> ')))).toBe(true);
     expect(back.selection.head).toBe(3);
   });
