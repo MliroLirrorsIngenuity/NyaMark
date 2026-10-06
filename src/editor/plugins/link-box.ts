@@ -10,13 +10,14 @@
  * link. It went nowhere: the box put the link on the empty selection, closed,
  * and the address typed was lost.
  *
- * A website typed without its `https://`, as `example.com` or `www.…`, gets
- * one, and an email address its `mailto:`. The link was opened as a file of
- * that name beside the document, which was not there.
+ * An address typed as GFM links one in running text, `www.…` or an email
+ * address, gets the scheme GFM gives it: the link was opened as a file of
+ * that name beside the document, which was not there. Any other address
+ * without a scheme, `notes.md` or `example.com`, names a file, as in Markdown.
  */
 
 import { linkTooltipAPI } from '@milkdown/kit/component/link-tooltip';
-import { editorViewCtx } from '@milkdown/kit/core';
+import { editorViewCtx, remarkCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import {
@@ -29,8 +30,10 @@ import {
 import { AddMarkStep } from '@milkdown/kit/prose/transform';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { toString as plainText } from 'mdast-util-to-string';
 import { forInputMethod } from '../../ui/ime';
 import { marksAround } from './mark-cursor';
+import type { Parse } from './typed-blocks';
 
 /** The caret after the link `trs` put on all of the selection, if they did. */
 export function caretAfterLink(
@@ -55,21 +58,13 @@ export function caretAfterLink(
   return state.tr.setSelection(at).setStoredMarks(marksAround(at.$head)[1]);
 }
 
-// Endings of a name that is a website's rather than a file's.
-const WEB_ENDING =
-  /\.(com|net|org|edu|gov|io|dev|ai|co|me|moe|info|xyz|top|site|tech|cn|jp|uk|de|fr|tv|us)$/i;
-
-/** `typed` as the address of a link, with the scheme it was typed without. */
-export function linkAddress(typed: string): string {
+/** `typed` as the address of a link, with the scheme GFM reads it with. */
+export function linkAddress(typed: string, parse: Parse): string {
   const value = typed.trim();
-  if (/^[^\s@/:]+@[^\s@/]+\.[a-z]{2,}$/i.test(value)) return `mailto:${value}`;
-  const host = /^([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?::\d+)?(?:[/?#]|$)/i.exec(
-    value
-  );
-  if (host && (/^www\./i.test(host[1]) || WEB_ENDING.test(host[1]))) {
-    return `https://${value}`;
-  }
-  return value;
+  const [block, ...rest] = parse(value).children;
+  const [link, ...more] = block?.type === 'paragraph' ? block.children : [];
+  const whole = link?.type === 'link' && !rest.length && !more.length;
+  return whole && plainText(link) === value ? link.url : value;
 }
 
 /**
@@ -111,11 +106,11 @@ function confirmed(event: Event): HTMLInputElement | null {
  * the address the field holds as it is changed here. The caret moving off the
  * place the box was opened at closes it.
  */
-function linkTyped(view: EditorView, event: Event) {
+function linkTyped(view: EditorView, event: Event, parse: Parse) {
   const field = confirmed(event);
   const typed = field?.value.trim();
   if (!field || !typed) return;
-  const href = linkAddress(typed);
+  const href = linkAddress(typed, parse);
   if (href !== field.value) {
     field.value = href;
     field.dispatchEvent(new Event('input', { bubbles: true }));
@@ -178,7 +173,9 @@ export const linkBox = $prose(
       view(view) {
         const doc = view.dom.ownerDocument;
         const listen = (event: Event) => {
-          linkTyped(view, event);
+          linkTyped(view, event, (markdown) =>
+            ctx.get(remarkCtx).parse(markdown)
+          );
           cancelled(ctx, view, event);
         };
         doc.addEventListener('keydown', listen, true);

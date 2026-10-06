@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { Schema } from '@milkdown/kit/prose/model';
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import remarkGfm from 'remark-gfm';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import {
   caretAfterLink,
   linkAddress,
@@ -149,16 +152,15 @@ describe('linkAtCaret', () => {
   });
 });
 
-describe('linkAddress', () => {
-  test('gives a website typed bare its https', () => {
-    expect(linkAddress('example.com')).toBe('https://example.com');
-    expect(linkAddress(' www.a.org/b?c=1 ')).toBe('https://www.a.org/b?c=1');
-    expect(linkAddress('github.com/a/b.md')).toBe('https://github.com/a/b.md');
-    expect(linkAddress('a.cn:8080')).toBe('https://a.cn:8080');
-  });
+const reader = unified().use(remarkParse).use(remarkGfm);
+const address = (typed: string) =>
+  linkAddress(typed, (markdown) => reader.parse(markdown));
 
-  test('gives an email address its mailto', () => {
-    expect(linkAddress('me@a.moe')).toBe('mailto:me@a.moe');
+describe('linkAddress', () => {
+  test('gives what GFM reads as a link in text the scheme GFM gives it', () => {
+    expect(address(' www.a.org/b?c=1 ')).toBe('http://www.a.org/b?c=1');
+    expect(address('www.example.com')).toBe('http://www.example.com');
+    expect(address('me@a.moe')).toBe('mailto:me@a.moe');
   });
 
   test('leaves an address with a scheme, and a file, as typed', () => {
@@ -166,12 +168,16 @@ describe('linkAddress', () => {
       'https://a.com',
       'mailto:me@a.com',
       'notes.md',
+      'example.com',
       'img/a.png',
       './a.com',
       '#heading',
       'localhost:3000',
+      'www.a.org.',
+      '<https://a.com>',
+      'www.a.org and more',
     ]) {
-      expect(linkAddress(typed)).toBe(typed);
+      expect(address(typed)).toBe(typed);
     }
   });
 });
