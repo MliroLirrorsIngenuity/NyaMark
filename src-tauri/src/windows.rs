@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use tauri::utils::config::WindowConfig;
-use tauri::{AppHandle, Manager, Runtime, WebviewWindowBuilder, Window};
+use tauri::utils::config::{FrontendDist, WindowConfig};
+use tauri::{AppHandle, Manager, Runtime, Url, WebviewWindowBuilder, Window};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::sessions;
@@ -29,8 +29,9 @@ fn base_window_config<R: Runtime>(app: &AppHandle<R>) -> Result<WindowConfig> {
 /// command. See the `WebviewWindowBuilder` documentation ("On Windows, this
 /// function deadlocks when used in a synchronous command and event handlers").
 fn build_window<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Result<()> {
+    let app_url = app_url(app, config);
     let builder = WebviewWindowBuilder::from_config(app, config)?
-        .on_navigation(is_app_navigation)
+        .on_navigation(move |url| app_url.as_ref().is_some_and(|app| same_site(app, url)))
         // `platform/detect.ts` reads this; the webview's user agent is a guess.
         .initialization_script(format!(
             "window.__NYAMARK_PLATFORM__ = {:?};",
@@ -52,19 +53,44 @@ fn build_window<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Result
     Ok(())
 }
 
-/// Keep the webview on the app's own origin. Markdown that reaches the editor
-/// can carry raw HTML; a link that slipped past the click handlers must not be
-/// able to navigate the privileged window to an external site (which would
-/// also sever the IPC bridge). The frontend opens links through the opener
-/// plugin instead.
-fn is_app_navigation(url: &tauri::Url) -> bool {
-    match url.scheme() {
-        // Production on macOS / Linux.
-        "tauri" => true,
-        // Production on Windows (`tauri.localhost`) and the Vite dev server.
-        "http" | "https" => matches!(url.host_str(), Some("localhost" | "tauri.localhost")),
-        _ => false,
+/// Where the window's pages load from, as Tauri resolves an app URL: the
+/// dev server while developing, a frontend served from a URL, or else the
+/// protocol that serves the bundled pages (`tauri://localhost`, on Windows
+/// `http://tauri.localhost` or its https form).
+///
+/// The webview is kept there. Markdown that reaches the editor can carry raw
+/// HTML; a link that slipped past the click handlers must not be able to
+/// navigate the privileged window to another site (which would also sever the
+/// IPC bridge). The frontend opens links through the opener plugin instead.
+fn app_url<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Option<Url> {
+    let build = &app.config().build;
+    let configured = if tauri::is_dev() {
+        build.dev_url.as_ref()
+    } else {
+        match &build.frontend_dist {
+            Some(FrontendDist::Url(url)) => Some(url),
+            _ => None,
+        }
+    };
+    if let Some(url) = configured {
+        return Some(url.clone());
     }
+    let protocol = if !cfg!(windows) {
+        "tauri://localhost"
+    } else if config.use_https_scheme {
+        "https://tauri.localhost"
+    } else {
+        "http://tauri.localhost"
+    };
+    Url::parse(protocol).ok()
+}
+
+/// Same scheme, host and port: the origin, compared the same way for
+/// `tauri:`, whose origin the URL standard leaves opaque.
+fn same_site(a: &Url, b: &Url) -> bool {
+    a.scheme() == b.scheme()
+        && a.host() == b.host()
+        && a.port_or_known_default() == b.port_or_known_default()
 }
 
 /// The main window is declared with `create: false` in `tauri.conf.json` so it
@@ -332,5 +358,31 @@ pub fn set_title<R: Runtime>(window: &Window<R>, title: &str) -> Result<()> {
 fn restore_traffic_lights(ns_window: &objc2_app_kit::NSWindow) {
     if let Some(view) = ns_window.contentView() {
         view.setNeedsDisplay(true);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn url(text: &str) -> Url {
+        Url::parse(text).unwrap()
+    }
+
+    #[test]
+    fn the_window_stays_where_its_pages_load_from() {
+        let bundled = url("tauri://localhost");
+        assert!(same_site(&bundled, &url("tauri://localhost/index.html")));
+        assert!(!same_site(&bundled, &url("tauri://elsewhere/")));
+        assert!(!same_site(&bundled, &url("https://localhost/")));
+
+        let dev = url("http://localhost:1420");
+        assert!(same_site(&dev, &url("http://localhost:1420/src/main.ts")));
+        assert!(!same_site(&dev, &url("http://localhost:8080/")));
+        assert!(!same_site(&dev, &url("http://127.0.0.1:1420/")));
+
+        let windows = url("http://tauri.localhost");
+        assert!(same_site(&windows, &url("http://tauri.localhost:80/a")));
+        assert!(!same_site(&windows, &url("https://tauri.localhost/")));
     }
 }
