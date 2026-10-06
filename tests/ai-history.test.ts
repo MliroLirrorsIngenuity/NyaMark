@@ -456,12 +456,12 @@ function setup(text: string, editTag?: string) {
     serializeDoc: serialize,
     parseMarkdown: parse,
     blockSpans: env.blockSpans,
-    imageSource: (src: string) => src,
   } as unknown as NyaEditor;
   const controller = new EditController({
     editor,
     sourceSelection: () => null,
     flushSource: () => undefined,
+    localImage: async () => null,
     followSource: () => undefined,
     editMode: () => 'review',
     editTag,

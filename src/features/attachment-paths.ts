@@ -17,6 +17,10 @@ export function isAbsolutePath(path: string) {
   return /^(?:[A-Za-z]:\/|\/)/.test(normalizePathSeparators(path));
 }
 
+export function isNetworkPath(path: string) {
+  return /^[\\/]{2}/.test(path);
+}
+
 export function basenamePath(path: string) {
   const normalized = normalizePathSeparators(path).replace(/\/+$/, '');
   return normalized.split('/').pop() || normalized;

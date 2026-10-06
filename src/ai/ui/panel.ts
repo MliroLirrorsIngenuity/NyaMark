@@ -16,10 +16,14 @@ import {
   workspaceRoots,
   writeWorkspaceFile,
 } from '../../bridge/ipc/ai';
-import { resolveDocumentAssetPath } from '../../bridge/ipc/attachments';
+import {
+  resolveDocumentAssetPath,
+  toAssetUrl,
+} from '../../bridge/ipc/attachments';
 import { openImageFilesDialog } from '../../bridge/ipc/files';
 import { dragDropTarget, listenWindowFileDrop } from '../../bridge/ipc/windows';
 import type { NyaEditor } from '../../editor/editor';
+import { isNetworkPath } from '../../features/attachment-paths';
 import { IMAGE_EXTENSIONS } from '../../features/attachment-policy';
 import { i18next } from '../../i18n';
 import { translateDOM } from '../../i18n/dom';
@@ -191,6 +195,10 @@ export class AiPanel {
       flushSource: host.flushSource,
       followSource: host.followSource,
       editMode: () => getSettings().ai.editMode,
+      localImage: async (src) => {
+        const path = await resolveDocumentAssetPath(host.documentPath(), src);
+        return path && !isNetworkPath(path) ? toAssetUrl(path) : null;
+      },
       editTag: editTag(),
     });
     this.session = new ChatSession(() => this.prepareTurn());

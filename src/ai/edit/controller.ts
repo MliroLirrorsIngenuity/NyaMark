@@ -80,6 +80,7 @@ export type EditHost = {
   /** Has the source pane follow a change made to the editor from `before`. */
   followSource(before: ProseNode): void;
   editMode(): AiEditMode;
+  localImage(src: string): Promise<string | null>;
   /**
    * Set apart in each edit's id, so the edits of a conversation kept from
    * an earlier run are told apart from this run's.
@@ -121,7 +122,7 @@ export class EditController {
       renderHunk(view, hunk, {
         accept: (id) => this.accept([id]),
         reject: (id) => this.reject([id]),
-        imageSource: (src) => host.editor.imageSource(src),
+        localImage: (src) => host.localImage(src),
       })
     );
     const state = this.state();

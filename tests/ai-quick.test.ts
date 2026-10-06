@@ -385,12 +385,12 @@ function setup(text: string, mode: AiEditMode = 'review') {
     serializeDoc: serialize,
     parseMarkdown: parse,
     blockSpans: env.blockSpans,
-    imageSource: (src: string) => src,
   } as unknown as NyaEditor;
   const controller = new EditController({
     editor,
     sourceSelection: () => null,
     flushSource: () => undefined,
+    localImage: async () => null,
     followSource: () => undefined,
     editMode: () => mode,
   });

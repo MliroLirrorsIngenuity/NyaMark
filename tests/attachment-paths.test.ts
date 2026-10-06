@@ -3,6 +3,7 @@ import {
   dirnamePath,
   findSiteRootFile,
   formatAttachmentReference,
+  isNetworkPath,
   isSiteRootReference,
   isWithinDirectory,
   normalizePath,
@@ -249,6 +250,13 @@ describe('UNC paths', () => {
         { preferRelativePath: true, ensureDotSlash: false, escapePath: false }
       )
     ).toBe('../img.png');
+  });
+
+  test('isNetworkPath tells a share from a path on this computer', () => {
+    expect(isNetworkPath('//server/share/a.png')).toBe(true);
+    expect(isNetworkPath('\\\\server\\share\\a.png')).toBe(true);
+    expect(isNetworkPath('/Users/me/a.png')).toBe(false);
+    expect(isNetworkPath('C:/Users/me/a.png')).toBe(false);
   });
 });
 

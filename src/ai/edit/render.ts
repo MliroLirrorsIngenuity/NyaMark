@@ -16,14 +16,10 @@ import { ICONS } from '../ui/icons';
 export type HunkActions = {
   accept(id: number): void;
   reject(id: number): void;
-  /** The address the webview loads a document's image from. */
-  imageSource(src: string): string | Promise<string>;
+  localImage(src: string): Promise<string | null>;
 };
 
-/** An address on another computer: a scheme with `//`, or `//` alone. */
-const REMOTE = /^(?:[a-z][a-z0-9+.-]*:)?\/\//i;
-
-function tame(root: HTMLElement, actions: HunkActions) {
+function tame(root: ParentNode, actions: HunkActions) {
   for (const link of root.querySelectorAll('a')) {
     const href = link.getAttribute('href');
     link.removeAttribute('href');
@@ -31,27 +27,23 @@ function tame(root: HTMLElement, actions: HunkActions) {
   }
   for (const image of root.querySelectorAll('img')) {
     const src = image.getAttribute('src') ?? '';
-    if (!src || REMOTE.test(src)) {
-      const stand = document.createElement('span');
-      stand.className = 'ny-ai-ins__image';
-      stand.textContent = image.alt || src || '…';
-      stand.title = src;
-      image.replaceWith(stand);
-      continue;
-    }
-    image.loading = 'lazy';
-    const resolved = actions.imageSource(src);
-    if (typeof resolved === 'string') image.src = resolved;
-    else {
-      // Left blank until the file's address is known.
-      image.removeAttribute('src');
-      resolved.then(
-        (url) => {
-          image.src = url;
-        },
-        () => undefined
-      );
-    }
+    image.removeAttribute('src');
+    image.removeAttribute('srcset');
+    const stand = document.createElement('span');
+    stand.className = 'ny-ai-ins__image';
+    stand.textContent = image.alt || src || '…';
+    stand.title = src;
+    image.replaceWith(stand);
+    if (!src) continue;
+    actions.localImage(src).then(
+      (url) => {
+        if (!url || !stand.parentNode) return;
+        image.loading = 'lazy';
+        stand.replaceWith(image);
+        image.src = url;
+      },
+      () => undefined
+    );
   }
 }
 
@@ -91,13 +83,12 @@ export function renderHunk(
   if (hunk.insert.content.size > 0) {
     const content = document.createElement(block ? 'div' : 'ins');
     content.className = block ? 'ny-ai-ins-block' : 'ny-ai-ins';
-    content.append(
-      DOMSerializer.fromSchema(view.state.schema).serializeFragment(
-        hunk.insert.content,
-        { document }
-      )
-    );
-    tame(content, actions);
+    const inert = document.implementation.createHTMLDocument('');
+    const inserted = DOMSerializer.fromSchema(
+      view.state.schema
+    ).serializeFragment(hunk.insert.content, { document: inert });
+    tame(inserted, actions);
+    content.append(inserted);
     root.append(content);
   }
   const bar = document.createElement('span');
