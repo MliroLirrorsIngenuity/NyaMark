@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  addressUrl,
   dirnamePath,
   findSiteRootFile,
   formatAttachmentReference,
@@ -116,6 +117,19 @@ describe('resolveAttachmentPath', () => {
       '/docs/note.md',
       'https://example.com/image.png',
       null,
+    ],
+    [
+      'reads a reference from // as a host on the web',
+      '/docs/note.md',
+      '//example.com/image.png',
+      null,
+    ],
+    ['returns null for other schemes', '/docs/note.md', 'foo:a.png', null],
+    [
+      'reads a drive letter as a path',
+      '/docs/note.md',
+      'C:\\img\\a.png',
+      'C:/img/a.png',
     ],
     [
       'returns null for relative paths without a document',
@@ -252,6 +266,23 @@ describe('site-root references', () => {
         '/blog/public/images/my pic.png',
       ])
     ).toBe('/blog/public/images/my pic.png');
+  });
+});
+
+describe('addressUrl', () => {
+  test.each([
+    ['https://example.com/a.png', 'https://example.com/a.png'],
+    ['  //example.com/a.png ', 'https://example.com/a.png'],
+    ['file:///C:/a.png', 'file:///C:/a.png'],
+    ['mailto:a@b.c', 'mailto:a@b.c'],
+    ['C:\\a.png', null],
+    ['c:/a.png', null],
+    ['\\\\server\\share\\a.png', null],
+    ['./a.png', null],
+    ['/a.png', null],
+    ['a b.png', null],
+  ])('%s', (reference, href) => {
+    expect(addressUrl(reference)?.href ?? null).toBe(href);
   });
 });
 

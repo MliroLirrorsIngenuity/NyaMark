@@ -88,6 +88,7 @@ mock.module('../src/bridge/ipc/attachments', () => ({
     const markdownPath = `${targetDir}/${fileName}`;
     return { markdownPath, absolutePath: markdownPath };
   },
+  toAssetUrl: (path: string) => `asset://localhost${path}`,
 }));
 
 mock.module('../src/bridge/ipc/files', () => ({
@@ -400,5 +401,19 @@ describe('picking a file for an image', () => {
     bridge.pickedImage = '/pictures/cat.png';
     expect(await pick(elsewhere)).toEqual({ opened: false, given: [] });
     expect(await pick(text)).toEqual({ opened: false, given: [] });
+  });
+});
+
+describe('image previews', () => {
+  test.each([
+    ['./a.png', 'asset://localhost/notes/a.png'],
+    ['file:///pictures/a.png', 'asset://localhost/pictures/a.png'],
+    ['https://example.com/a.png', 'https://example.com/a.png'],
+    ['//example.com/a.png', 'https://example.com/a.png'],
+    ['data:image/png;base64,AAAA', 'data:image/png;base64,AAAA'],
+    ['', ''],
+  ])('%s', async (src, url) => {
+    const { controller } = await setup();
+    expect(await controller.resolvePreviewUrl(src)).toBe(url);
   });
 });

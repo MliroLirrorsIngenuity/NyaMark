@@ -133,12 +133,28 @@ export function fileUriToPath(uri: string): string | null {
   }
 }
 
+/** A Windows path's drive, which a URL parser reads as a scheme. */
+const WINDOWS_DRIVE = /^[a-z]:[\\/]/i;
+
+/** The URL `value` is, or `null` for a path. */
+function absoluteUrl(value: string): URL | null {
+  if (WINDOWS_DRIVE.test(value)) return null;
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Values that name something other than a local file. `file:` URIs are local
- * files and go through `fileUriToPath` instead.
+ * The URL a reference in a document is written as, or `null` for a path. One
+ * that starts with `//` names a host, as on the web: read against the
+ * document's own `file:` URL it named a Windows share, and showing a picture
+ * there opened a connection to that host.
  */
-export function looksLikeExternalResource(value: string) {
-  return /^(?:https?:|data:|blob:|asset:|mailto:|tel:)/i.test(value);
+export function addressUrl(reference: string): URL | null {
+  const value = reference.trim();
+  return absoluteUrl(value.startsWith('//') ? `https:${value}` : value);
 }
 
 // Leaves room under the common 255-byte limit for the `-1000` suffix that
@@ -225,12 +241,11 @@ export function resolveAttachmentPath(
   assetPath: string
 ) {
   const trimmed = assetPath.trim();
-  if (!trimmed || looksLikeExternalResource(trimmed)) {
-    return null;
-  }
+  if (!trimmed) return null;
 
-  if (/^file:/i.test(trimmed)) {
-    const path = fileUriToPath(trimmed);
+  const url = addressUrl(trimmed);
+  if (url) {
+    const path = url.protocol === 'file:' ? fileUriToPath(url.href) : null;
     return path ? normalizePath(path) : null;
   }
 
@@ -305,12 +320,14 @@ export function formatAttachmentReference(
   options: AttachmentReferenceOptions
 ) {
   const trimmed = assetPath.trim();
-  if (!trimmed || looksLikeExternalResource(trimmed)) {
+  // A path, where `//server/share` is a Windows share.
+  const url = absoluteUrl(trimmed);
+  if (!trimmed || (url && url.protocol !== 'file:')) {
     return trimmed;
   }
 
-  const localPath = /^file:/i.test(trimmed)
-    ? fileUriToPath(trimmed)
+  const localPath = url
+    ? fileUriToPath(url.href)
     : unescapeMarkdownPath(trimmed);
   if (!localPath) return trimmed;
 

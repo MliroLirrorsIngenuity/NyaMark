@@ -31,10 +31,10 @@ import {
 import { ImagePolicyDialog } from '../ui/image-policy-dialog';
 import { isModalOpen } from '../ui/modal';
 import {
+  addressUrl,
   basenamePath,
   dirnamePath,
   isWithinDirectory,
-  looksLikeExternalResource,
   resolveStorageDir,
 } from './attachment-paths';
 import {
@@ -192,7 +192,9 @@ export class AttachmentController {
   }
 
   async resolvePreviewUrl(src: string) {
-    if (!src || looksLikeExternalResource(src)) return src;
+    const url = addressUrl(src);
+    if (url && url.protocol !== 'file:') return url.href;
+    if (!src) return src;
 
     const absolutePath = await resolveDocumentAssetPath(
       this.options.getDocumentPath(),

@@ -13,6 +13,7 @@ import {
   type ImageReadFailure,
   type InvokeFailure,
 } from '../../../bridge/ipc/ai';
+import { addressUrl } from '../../../features/attachment-paths';
 import {
   type ChatImage,
   ImageError,
@@ -102,17 +103,16 @@ export function imageTools(host: ImageHost) {
   const opened = new Set<string>();
 
   const load = async (src: string) => {
-    if (/^data:/i.test(src)) {
+    const url = addressUrl(src);
+    if (url?.protocol === 'data:') {
       const blob = await dataUrlBlob(src);
       if (!blob) throw failure('not-an-image');
       return { key: src, image: await host.prepare(blob, 'image') };
     }
-    if (/^https?:/i.test(src)) throw failure('remote', src);
-    // A Windows drive letter starts a path; any other scheme names no file.
-    const scheme = /^[a-z][a-z0-9+.-]*:/i.test(src);
-    if (scheme && !/^file:/i.test(src) && !/^[a-z]:[\\/]/i.test(src)) {
-      throw failure('unsupported', src);
+    if (url?.protocol === 'http:' || url?.protocol === 'https:') {
+      throw failure('remote', src);
     }
+    if (url && url.protocol !== 'file:') throw failure('unsupported', src);
     const path = await host.resolve(src);
     if (!path) throw failure('no-file', src);
     if (opened.has(path)) return { key: path, image: null };

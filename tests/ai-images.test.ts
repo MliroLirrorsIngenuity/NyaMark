@@ -322,6 +322,9 @@ describe('view_image', () => {
     await expect(view(host, 'https://example.com/a.png')).rejects.toThrow(
       /^remote: .*alt text/
     );
+    await expect(view(host, '//example.com/a.png')).rejects.toThrow(
+      /^remote: /
+    );
     await expect(view(host, 'blob:abc')).rejects.toThrow(/^unsupported: /);
     await expect(view(host, 'asset://localhost/a.png')).rejects.toThrow(
       /^unsupported: /

@@ -65,19 +65,16 @@ export const htmlImageSource = $ctx<
   'nyamarkHtmlImageSource'
 >((src) => src, 'nyamarkHtmlImageSource');
 
-/** Addresses the webview loads as they are. */
-const LOADS_AS_IS = /^(?:https?:|data:|blob:|asset:)/i;
-
 /**
- * The images in `root` with an address beside the document, their `src`
- * taken off. Read against the app's own address, `<img src="img/logo.png">`
- * of a README showed as a broken image.
+ * The images in `root`, their `src` taken off for the resolver the image
+ * blocks use to set it. Read against the app's own address,
+ * `<img src="img/logo.png">` of a README showed as a broken image.
  */
-function holdLocalImages(root: ParentNode) {
+function holdImages(root: ParentNode) {
   const held: Array<[HTMLImageElement, string]> = [];
   for (const image of root.querySelectorAll('img')) {
     const src = image.getAttribute('src')?.trim();
-    if (!src || LOADS_AS_IS.test(src)) continue;
+    if (!src) continue;
     image.removeAttribute('src');
     held.push([image, src]);
   }
@@ -395,7 +392,7 @@ export const htmlBlockView = $view(htmlSchema.node, (ctx) => {
         block ? value : inlineHtml(value, syntax)
       );
       const source = ctx.get(htmlImageSource.key);
-      for (const [image, src] of holdLocalImages(template.content)) {
+      for (const [image, src] of holdImages(template.content)) {
         void Promise.resolve(source(src))
           .catch(() => src)
           .then((url) => {

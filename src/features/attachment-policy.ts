@@ -6,6 +6,7 @@ import type {
 } from '../state/image-settings';
 import {
   type AttachmentReferenceOptions,
+  addressUrl,
   decodeMarkdownPath,
   fileUriToPath,
   formatAttachmentReference,
@@ -130,33 +131,26 @@ export type LinkTarget =
   | { kind: 'local'; reference: string }
   | { kind: 'ignore' };
 
+/** The schemes the opener plugin's default scope hands to the OS. */
+const OPENED_BY_THE_SYSTEM = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
 /**
  * Decide what a clicked `href` may open. Only the schemes the opener plugin's
- * default scope accepts go to the OS; `file:` URIs become local paths; every
- * other scheme (`javascript:`, `data:`, `blob:`, custom handlers) is dropped
- * rather than handed to the system. Scheme-less values are document-relative
- * or absolute paths.
+ * default scope accepts go to the OS; a `file:` URI and a path name a file;
+ * every other scheme (`javascript:`, `data:`, `blob:`, custom handlers) is
+ * dropped rather than handed to the system.
  */
 export function classifyLinkTarget(href: string): LinkTarget {
   const value = href.trim();
   if (!value) return { kind: 'ignore' };
 
-  if (/^(https?|mailto|tel):/i.test(value)) {
-    return { kind: 'url', url: value };
+  const url = addressUrl(value);
+  if (!url || url.protocol === 'file:') {
+    return { kind: 'local', reference: value };
   }
-
-  if (/^file:/i.test(value)) {
-    const path = fileUriToPath(value);
-    return path ? { kind: 'local', reference: path } : { kind: 'ignore' };
-  }
-
-  // A Windows drive letter looks like a scheme; anything else with one is not
-  // something the OS should be asked to open.
-  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^[a-zA-Z]:[\\/]/.test(value)) {
-    return { kind: 'ignore' };
-  }
-
-  return { kind: 'local', reference: value };
+  return OPENED_BY_THE_SYSTEM.has(url.protocol)
+    ? { kind: 'url', url: url.href }
+    : { kind: 'ignore' };
 }
 
 /**
@@ -180,9 +174,8 @@ export function relocateLocalReference(
   const { path, suffix } = splitReference(value);
   // Fragments and queries point into the document itself.
   if (!path) return null;
-  // `file:` URIs are absolute by construction and stay in that form.
-  if (/^file:/i.test(value)) return null;
-  if (classifyLinkTarget(value).kind !== 'local') return null;
+  // An address, `file:` ones too, reads the same from anywhere.
+  if (addressUrl(value)) return null;
 
   const decoded = decodeMarkdownPath(unescapeMarkdownPath(path));
   const wasRelative = !isAbsolutePath(normalizePath(decoded));
