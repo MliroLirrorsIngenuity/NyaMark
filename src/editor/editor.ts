@@ -23,6 +23,7 @@ import {
   inlineCodeInputRule,
   insertImageInputRule,
   strongInputRule,
+  syncHeadingIdPlugin,
 } from '@milkdown/kit/preset/commonmark';
 import {
   keepTableAlignPlugin,
@@ -53,7 +54,7 @@ import {
 } from './doc-diff';
 import { type DocCounts, DocStats } from './doc-stats';
 import { languageList, linkBoxes } from './floating';
-import { anchorIndex, headingId, headingLabel, pageId } from './heading-anchor';
+import { headingId, headingIds, headingLabel, pageId } from './heading-anchor';
 import { afterFirstFrame, openingOf } from './open-in-parts';
 import {
   ORIGIN_META,
@@ -252,7 +253,7 @@ export class NyaEditor {
         stringLength: displayWidth,
         singleTilde: false,
       }));
-      // A heading of a formula or an image alone gets an id on the page too.
+      // Drawn before `headingIds` has given it one, a heading has its anchor.
       ctx.set(headingIdGenerator.key, headingId);
       ctx.update(linkTooltipConfig.key, (config) => ({
         ...config,
@@ -307,8 +308,10 @@ export class NyaEditor {
       strikethroughInputRule,
       keepTableAlignPlugin,
       listener,
+      syncHeadingIdPlugin,
     ]);
     crepe.editor.use(keepTableAlign);
+    crepe.editor.use(headingIds);
     crepe.editor.use(typedMarksInput);
     crepe.editor.use(markCursor);
     crepe.editor.use(inlineCodeText);
@@ -495,7 +498,7 @@ export class NyaEditor {
       const parsed = ctx.get(parserCtx)(markdown);
       if (!parsed) return null;
       const { shouldAppend, getNode } = ctx.get(trailingConfig.key);
-      return settleParsed(parsed, ctx.get(headingIdGenerator.key), (last) =>
+      return settleParsed(parsed, (last) =>
         shouldAppend(last, view.state) ? getNode(view.state) : undefined
       );
     });
@@ -624,20 +627,15 @@ export class NyaEditor {
    * anchor of its reference. False when nothing has that anchor.
    */
   scrollToAnchor(fragment: string): boolean {
-    const view = this.getView();
-    if (!view) return false;
-    const headings: ProseNode[] = [];
-    view.state.doc.descendants((node) => {
-      if (node.type.name === 'heading') headings.push(node);
-      return !node.isTextblock;
-    });
-    const index = anchorIndex(
-      headings.map((node) => node.textContent),
-      fragment
-    );
-    const heading = headings[index];
-    if (heading) {
-      this.scrollToHeading(pageId(heading));
+    let id = fragment;
+    try {
+      id = decodeURIComponent(fragment);
+    } catch {}
+    // GitHub's anchors are in lower case, and a link to one in any case
+    // finds it there.
+    const anchor = id.toLowerCase();
+    if (anchor && this.headingEnd(anchor) >= 0) {
+      this.scrollToHeading(anchor);
       return true;
     }
     return this.scrollToHtmlAnchor(fragment);

@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
+import { Transform } from '@milkdown/kit/prose/transform';
 import {
-  anchorIndex,
   headingId,
   headingLabel,
-  headingSlugs,
   pageId,
+  setHeadingIds,
 } from '../src/editor/heading-anchor';
 
 const schema = new Schema({
@@ -46,56 +46,60 @@ describe('headingLabel', () => {
 });
 
 describe('headingId', () => {
-  test('is made from the text as Milkdown makes it', () => {
-    expect(headingId(heading('Hello  World', math('x')))).toBe('hello-world');
+  test('is the anchor GitHub gives the text', () => {
+    expect(headingId(heading('Hello, World!', math('x')))).toBe('hello-world');
+    expect(headingId(heading('第二节：用法'))).toBe('第二节用法');
+    expect(headingId(heading('Q&A  time'))).toBe('qa--time');
   });
 
   test('is made from the label of a heading with no text', () => {
-    expect(headingId(heading(math('E = mc^2')))).toBe('e-=-mc^2');
+    expect(headingId(heading(math('E = mc^2')))).toBe('e--mc2');
     expect(headingId(heading(image('Logo')))).toBe('logo');
     expect(headingId(heading())).toBe('');
   });
 
-  test('gives way to the id Milkdown set', () => {
+  test('gives way to the id the heading has', () => {
     const set = schema.node('heading', { id: 'old' }, [math('x')]);
     expect(pageId(set)).toBe('old');
     expect(pageId(heading(math('x')))).toBe('x');
   });
 });
 
-describe('headingSlugs', () => {
-  test('lower case, punctuation dropped, spaces as hyphens', () => {
+describe('setHeadingIds', () => {
+  const ids = (...headings: Node[]) => {
+    const tr = setHeadingIds(new Transform(schema.node('doc', null, headings)));
+    return Array.from(
+      { length: tr.doc.childCount },
+      (_, index) => tr.doc.child(index).attrs.id
+    );
+  };
+
+  test('a name taken gets a number after it, as on GitHub', () => {
     expect(
-      headingSlugs(['Hello, World!', '第二节：用法', 'a_b c-d', 'Q&A  time'])
-    ).toEqual(['hello-world', '第二节用法', 'a_b-c-d', 'qa--time']);
+      ids(
+        heading('用法'),
+        heading('用法'),
+        heading('Intro'),
+        heading('用法-1'),
+        heading('用法')
+      )
+    ).toEqual(['用法', '用法-1', 'intro', '用法-1-1', '用法-2']);
   });
 
-  test('a name taken gets a number after it', () => {
-    expect(headingSlugs(['用法', '用法', 'Intro', '用法-1', '用法'])).toEqual([
-      '用法',
-      '用法-1',
-      'intro',
-      '用法-1-1',
-      '用法-2',
-    ]);
-  });
-});
-
-describe('anchorIndex', () => {
-  const texts = ['概述', 'Getting Started', '概述'];
-
-  test('finds the heading a fragment names', () => {
-    expect(anchorIndex(texts, 'getting-started')).toBe(1);
-    expect(anchorIndex(texts, '概述-1')).toBe(2);
+  test('a heading with nothing to show has no id', () => {
+    const stale = schema.node('heading', { id: 'old' }, [image('')]);
+    expect(ids(heading(), stale, heading(math('x')))).toEqual(['', '', 'x']);
   });
 
-  test('reads the fragment escaped and in any case', () => {
-    expect(anchorIndex(texts, encodeURIComponent('概述'))).toBe(0);
-    expect(anchorIndex(texts, 'Getting-Started')).toBe(1);
-  });
-
-  test('is -1 for a name no heading has', () => {
-    expect(anchorIndex(texts, 'missing')).toBe(-1);
-    expect(anchorIndex(texts, '%E0%A4%A')).toBe(-1);
+  test('leaves the headings that have their ids', () => {
+    const tr = setHeadingIds(
+      new Transform(
+        schema.node('doc', null, [
+          schema.node('heading', { id: 'a' }, [schema.text('A')]),
+          heading('B'),
+        ])
+      )
+    );
+    expect(tr.steps).toHaveLength(1);
   });
 });

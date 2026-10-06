@@ -139,17 +139,15 @@ describe('replaceChangedRuns', () => {
 
 describe('settleParsed', () => {
   const settle = (parsed: Node) =>
-    settleParsed(
-      parsed,
-      (heading) => heading.textContent.toLowerCase(),
-      (last) => (last?.type.name === 'paragraph' ? undefined : p(''))
+    settleParsed(parsed, (last) =>
+      last?.type.name === 'paragraph' ? undefined : p('')
     );
 
-  test('gives headings their ids, numbering repeats', () => {
+  test('gives headings their anchors, numbering repeats', () => {
     const settled = settle(doc(h('A'), h('a'), quote(h('B')), h(''), p('x')));
     expect(
       settled.eq(
-        doc(h('A', 'a'), h('a', 'a-#2'), quote(h('B', 'b')), h(''), p('x'))
+        doc(h('A', 'a'), h('a', 'a-1'), quote(h('B', 'b')), h(''), p('x'))
       )
     ).toBe(true);
   });

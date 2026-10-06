@@ -5,6 +5,7 @@
  * scroll positions, so the panes reach their top and bottom together.
  */
 
+import { slug } from 'github-slugger';
 import type { Nodes } from 'mdast';
 import { toString as plainText } from 'mdast-util-to-string';
 
@@ -30,12 +31,16 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * What pairs a heading in the source with the same heading on the page: the
+ * anchor of its text, with the spaces run together as the page shows them.
+ */
 export function headingKey(heading: Nodes | string) {
   const text =
     typeof heading === 'string'
       ? heading
       : plainText(heading, { includeImageAlt: false, includeHtml: false });
-  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+  return slug(text.replace(/\s+/g, ' ').trim());
 }
 
 /**

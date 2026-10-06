@@ -5,6 +5,7 @@ import {
 } from '@milkdown/kit/prose/model';
 import type { Transaction } from '@milkdown/kit/prose/state';
 import { Transform } from '@milkdown/kit/prose/transform';
+import { setHeadingIds } from './heading-anchor';
 import { matchPairs } from './myers';
 
 /**
@@ -111,29 +112,16 @@ function startsOf(fragment: Fragment) {
 
 /**
  * `parsed` as the editor's plugins leave a parsed document: each heading with
- * text carries the id `headingId` gives it, a repeat numbered `-#2`, `-#3` as
- * Milkdown's syncHeadingIdPlugin does, and `trailing` adds the empty
+ * its anchor for an id (see `setHeadingIds`), and `trailing` adds the empty
  * paragraph the trailing plugin puts after a last block of another kind.
  * Diffed without them, each sync from the source pane differed from the first
  * heading to the end and replaced all of it.
  */
 export function settleParsed(
   parsed: ProseMirrorNode,
-  headingId: (heading: ProseMirrorNode) => string,
   trailing: (last: ProseMirrorNode | null) => ProseMirrorNode | undefined
 ) {
-  const transform = new Transform(parsed);
-  const seen = new Map<string, number>();
-  parsed.descendants((node, pos) => {
-    if (node.type.name !== 'heading' || !node.textContent.trim()) return;
-    let id = headingId(node);
-    const count = (seen.get(id) ?? 0) + 1;
-    seen.set(id, count);
-    if (count > 1) id += `-#${count}`;
-    if (node.attrs.id !== id) {
-      transform.setNodeMarkup(pos, undefined, { ...node.attrs, id });
-    }
-  });
+  const transform = setHeadingIds(new Transform(parsed));
   const end = trailing(transform.doc.lastChild);
   if (end) transform.insert(transform.doc.content.size, end);
   return transform.doc;

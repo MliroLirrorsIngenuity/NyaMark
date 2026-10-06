@@ -41,6 +41,7 @@
     "codemirror": "^6.0.2",
     "dompurify": "^3.4.8",
     "entities": "^7.0.1",
+    "github-slugger": "^2.0.0",
     "htmlparser2": "^10.1.0",
     "i18next": "^26.0.10",
     "mdast-util-to-markdown-cjk-friendly": "1.0.0",
