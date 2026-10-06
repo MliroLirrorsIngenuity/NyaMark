@@ -43,7 +43,7 @@ import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
 import { textChange } from './doc-diff';
 import type { NyaEditor } from './editor';
-import { normalizeHeadingText, syncedScrollTop } from './scroll-sync';
+import { headingKey, syncedScrollTop } from './scroll-sync';
 import { docPosition, sourceOffset } from './source-caret';
 import { applyChanges, rewriteBlocks } from './source-follow';
 import { continueMarkup } from './source-list-exit';
@@ -249,37 +249,44 @@ function registerSourceModeStyles() {
   ensureStyle('editor-source-mode', css);
 }
 
-function isHeadingNodeName(name: string) {
-  return /^ATXHeading[1-6]$/.test(name) || /^SetextHeading[12]$/.test(name);
-}
+const HEADINGS = new Set([
+  'ATXHeading1',
+  'ATXHeading2',
+  'ATXHeading3',
+  'ATXHeading4',
+  'ATXHeading5',
+  'ATXHeading6',
+  'SetextHeading1',
+  'SetextHeading2',
+]);
 
-function buildSourceAnchors(state: EditorState): SourceAnchor[] {
+function buildSourceAnchors(
+  state: EditorState,
+  keyOf: (source: string) => string
+): SourceAnchor[] {
   const anchors: SourceAnchor[] = [];
-  const cursor = syntaxTree(state).cursor();
-
-  if (!cursor.firstChild()) return anchors;
-
-  do {
-    if (isHeadingNodeName(cursor.name)) {
-      anchors.push({
-        from: cursor.from,
-        key: normalizeHeadingText(
-          state.doc.sliceString(cursor.from, cursor.to)
-        ),
-      });
-    }
-  } while (cursor.nextSibling());
-
+  syntaxTree(state).iterate({
+    enter: (node) => {
+      if (!HEADINGS.has(node.name)) return;
+      const source = state.doc.sliceString(node.from, node.to);
+      anchors.push({ from: node.from, key: keyOf(source) });
+      return false;
+    },
+  });
   return anchors;
 }
 
 function buildPreviewAnchors(view: ProseMirrorEditorView): PreviewAnchor[] {
-  return Array.from(view.dom.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(
-    (dom) => ({
-      dom: dom as HTMLElement,
-      key: normalizeHeadingText(dom.textContent ?? ''),
-    })
-  );
+  const anchors: PreviewAnchor[] = [];
+  view.state.doc.descendants((node, pos) => {
+    if (node.type.name !== 'heading') return !node.isTextblock;
+    const dom = view.nodeDOM(pos);
+    if (dom instanceof HTMLElement) {
+      anchors.push({ dom, key: headingKey(node.textContent) });
+    }
+    return false;
+  });
+  return anchors;
 }
 
 function paneContentTop(scrollPane: HTMLElement, element: HTMLElement) {
@@ -306,6 +313,7 @@ export class SourceModeController {
   private anchorsDirty = true;
   private sourceAnchors: SourceAnchor[] = [];
   private previewAnchors: PreviewAnchor[] = [];
+  private headingKeys = new Map<string, string>();
 
   constructor(
     private readonly editorRoot: HTMLElement,
@@ -502,7 +510,15 @@ export class SourceModeController {
     if (!this.cmView || !this.previewView) return;
     if (!this.anchorsDirty) return;
 
-    this.sourceAnchors = buildSourceAnchors(this.cmView.state);
+    const known = this.headingKeys;
+    const keys = new Map<string, string>();
+    this.sourceAnchors = buildSourceAnchors(this.cmView.state, (source) => {
+      const key =
+        known.get(source) ?? headingKey(this.editor.markdownTree(source));
+      keys.set(source, key);
+      return key;
+    });
+    this.headingKeys = keys;
     this.previewAnchors = buildPreviewAnchors(this.previewView);
     this.anchorsDirty = false;
   }

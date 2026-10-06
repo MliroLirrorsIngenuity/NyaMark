@@ -5,6 +5,9 @@
  * scroll positions, so the panes reach their top and bottom together.
  */
 
+import type { Nodes } from 'mdast';
+import { toString as plainText } from 'mdast-util-to-string';
+
 /** How far down the viewport a shared heading lines up in both panes. */
 const SYNC_REFERENCE_RATIO = 0.28;
 
@@ -27,16 +30,12 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-export function normalizeHeadingText(text: string) {
-  const [firstLine] = text.trim().split(/\r?\n/);
-
-  return firstLine
-    .replace(/^#{1,6}\s*/, '')
-    .replace(/\s+#+\s*$/, '')
-    .replace(/`/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+export function headingKey(heading: Nodes | string) {
+  const text =
+    typeof heading === 'string'
+      ? heading
+      : plainText(heading, { includeImageAlt: false, includeHtml: false });
+  return text.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 /**

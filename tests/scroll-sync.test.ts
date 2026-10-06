@@ -1,21 +1,30 @@
 import { describe, expect, test } from 'bun:test';
+import remarkGfm from 'remark-gfm';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import {
   buildScrollGuidePoints,
+  headingKey,
   mapScrollTop,
-  normalizeHeadingText,
   syncedScrollTop,
 } from '../src/editor/scroll-sync';
 
-describe('normalizeHeadingText', () => {
+const reader = unified().use(remarkParse).use(remarkGfm);
+const parse = (markdown: string) => reader.parse(markdown);
+
+describe('headingKey', () => {
   test('gives a source heading and its rendering the same key', () => {
-    expect(normalizeHeadingText('## Install `nyamark`  ##')).toBe(
-      'install nyamark'
-    );
-    expect(normalizeHeadingText('Install nyamark')).toBe('install nyamark');
+    expect(
+      headingKey(
+        parse(
+          '## Install **`nyamark`** [here](https://x.y "t") \\* &amp; ![logo](a.png) <b>now</b>  ##'
+        )
+      )
+    ).toBe(headingKey('Install nyamark here * &  now'));
   });
 
-  test('keys a setext heading by its text line', () => {
-    expect(normalizeHeadingText('Overview\n========')).toBe('overview');
+  test('keys a setext heading by its text', () => {
+    expect(headingKey(parse('Overview\n========'))).toBe('overview');
   });
 });
 
