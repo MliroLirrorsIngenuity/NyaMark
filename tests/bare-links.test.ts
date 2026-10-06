@@ -3,7 +3,10 @@ import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
-import { markBareLinks, writeLink } from '../src/editor/plugins/bare-links';
+import {
+  bareLinkWriter,
+  markBareLinks,
+} from '../src/editor/plugins/bare-links';
 import {
   writeEmphasis,
   writeStrong,
@@ -11,11 +14,17 @@ import {
 
 type Tree = { type: string; value?: string; children?: Tree[] };
 
+const reader = unified().use(remarkParse).use(remarkGfm);
+
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
   .use(remarkStringify, {
-    handlers: { link: writeLink, strong: writeStrong, emphasis: writeEmphasis },
+    handlers: {
+      link: bareLinkWriter((markdown) => reader.parse(markdown)),
+      strong: writeStrong,
+      emphasis: writeEmphasis,
+    },
   });
 
 /** Parses `markdown` the way the editor does, edits it, and writes it. */

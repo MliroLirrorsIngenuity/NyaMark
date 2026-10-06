@@ -49,7 +49,7 @@
  * list.
  */
 
-import { remarkStringifyOptionsCtx } from '@milkdown/kit/core';
+import { remarkCtx, remarkStringifyOptionsCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
 import { $remark } from '@milkdown/kit/utils';
 import {
@@ -61,7 +61,7 @@ import {
 } from 'mdast-util-to-markdown';
 import { cjkFriendlyToMarkdown } from 'mdast-util-to-markdown-cjk-friendly';
 import type { Processor } from 'unified';
-import { noteFollowing, writeLink } from './bare-links';
+import { bareLinkWriter, noteFollowing } from './bare-links';
 import { frontMatterOnTop } from './front-matter';
 
 type MdNode = {
@@ -651,7 +651,7 @@ export function writeAsNotes(ctx: Ctx) {
     handlers: {
       ...options.handlers,
       text: writeText,
-      link: writeLink,
+      link: bareLinkWriter((markdown) => ctx.get(remarkCtx).parse(markdown)),
       emphasis: writeEmphasis,
       strong: writeStrong,
       thematicBreak: writeThematicBreak,

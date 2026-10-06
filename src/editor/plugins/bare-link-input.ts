@@ -14,86 +14,41 @@
  * typed, as it does after the other shortcuts.
  */
 
+import { remarkCtx } from '@milkdown/kit/core';
 import { InputRule, inputRules } from '@milkdown/kit/prose/inputrules';
 import type { EditorState, Transaction } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
+import { type Parse, bareLinksIn } from './bare-links';
 
 type Found = { from: number; to: number; href: string };
 
-/** Where each kind of address may start in a word, after what is before. */
-const STARTS = [
-  { kind: 'protocol', at: /(^|[^A-Za-z])https?:\/\//i },
-  { kind: 'www', at: /(^|[(*_[\]~])www\./i },
-  { kind: 'email', at: /(^|[^/+\-._A-Za-z0-9])[A-Za-z0-9+\-._]+@/ },
-] as const;
-
-// What GFM leaves off the end of an address: `)` only when unmatched.
-const TRAIL = /[!"'),*.:;?\]_~]$/;
-const ENTITY = /&[A-Za-z]+;$/;
 // Punctuation other than ASCII's, where a sentence goes on after a link.
 const WIDE_PUNCTUATION = /(?=\P{ASCII})\p{P}/u;
-// A domain runs to the first space or punctuation other than `-`, `.`, `_`.
-const DOMAIN = /^(?:[^\s\p{P}\p{S}]|[-._])+/u;
-const EMAIL =
-  /^[A-Za-z0-9+\-._]+@[A-Za-z0-9\-_]+(?:\.[A-Za-z0-9][A-Za-z0-9\-_]*)+/;
 
-function count(text: string, char: string) {
-  return text.split(char).length - 1;
-}
-
-function trimTrail(link: string): string {
-  let rest = link;
-  for (;;) {
-    const entity = rest.match(ENTITY);
-    if (entity) {
-      rest = rest.slice(0, -entity[0].length);
-      continue;
-    }
-    if (!TRAIL.test(rest)) return rest;
-    if (rest.endsWith(')') && count(rest, '(') >= count(rest, ')')) {
-      return rest;
-    }
-    rest = rest.slice(0, -1);
-  }
-}
-
-/** Whether `domain` is one GFM links: no `_` in its last two parts. */
-function linksDomain(domain: string) {
-  if (!/[^._]/.test(domain)) return false;
-  return !domain.split('.').slice(-2).join('.').includes('_');
+/** The first link `parse` reads bare in `text`. */
+function firstBareLink(text: string, parse: Parse): Found | null {
+  const [link] = bareLinksIn(parse(text), text);
+  const from = link?.position?.start?.offset;
+  const to = link?.position?.end?.offset;
+  if (from === undefined || to === undefined) return null;
+  return { from, to, href: link.url ?? '' };
 }
 
 /**
  * The address GFM reads in `word`, a run of text with no space or `<`, as
  * offsets into it and the address it links to; null when there is none.
  */
-export function bareLinkIn(word: string): Found | null {
-  let found: { kind: string; from: number } | null = null;
-  for (const { kind, at } of STARTS) {
-    const match = word.match(at);
-    if (!match || match.index === undefined) continue;
-    const from = match.index + (match[1]?.length ?? 0);
-    if (!found || from < found.from) found = { kind, from };
-  }
+export function bareLinkIn(word: string, parse: Parse): Found | null {
+  const found = firstBareLink(word, parse);
   if (!found) return null;
-  const { kind, from } = found;
-  const rest = word.slice(from);
-  if (kind === 'email') {
-    const email = rest.match(EMAIL)?.[0];
-    if (!email || !/[A-Za-z]$/.test(email)) return null;
-    return { from, to: from + email.length, href: `mailto:${email}` };
-  }
-  const wide = rest.search(WIDE_PUNCTUATION);
-  const link = trimTrail(wide < 0 ? rest : rest.slice(0, wide));
-  const prefix = kind === 'www' ? 4 : link.indexOf('//') + 2;
-  const domain = link.slice(prefix).match(DOMAIN)?.[0] ?? '';
-  if (!linksDomain(domain.replace(/[._]+$/, ''))) return null;
-  const href = kind === 'www' ? `http://${link}` : link;
-  return { from, to: from + link.length, href };
+  const wide = word.slice(found.from, found.to).search(WIDE_PUNCTUATION);
+  if (wide < 0) return found;
+  const cut = firstBareLink(word.slice(0, found.from + wide), parse);
+  return cut?.from === found.from ? cut : null;
 }
 
 /** The address that ends the text before `at`, as the link to put on it. */
-function linkBefore(state: EditorState, at: number) {
+function linkBefore(state: EditorState, at: number, parse: Parse) {
   const $at = state.doc.resolve(at);
   const line = $at.parent;
   const type = state.schema.marks.link;
@@ -101,7 +56,7 @@ function linkBefore(state: EditorState, at: number) {
   const before = line.textBetween(0, $at.parentOffset, undefined, '\ufffc');
   const word = before.match(/[^\s<]+$/)?.[0];
   if (!word) return null;
-  const found = bareLinkIn(word);
+  const found = bareLinkIn(word, parse);
   if (!found) return null;
   const start = at - word.length;
   // After a backtick still open: the text of a code span being typed.
@@ -124,7 +79,8 @@ export function typedSpaceAfterLink(
   state: EditorState,
   match: RegExpMatchArray,
   start: number,
-  end: number
+  end: number,
+  parse: Parse
 ): Transaction | null {
   const [last = '', space = ''] = [...match[0]];
   // Where the space goes, after the letter that ends the address.
@@ -132,7 +88,7 @@ export function typedSpaceAfterLink(
   if (state.doc.textBetween(start, at, undefined, '\ufffc') !== last) {
     return null;
   }
-  const link = linkBefore(state, at);
+  const link = linkBefore(state, at, parse);
   if (!link) return null;
   // The space first, so it takes the marks of the text and not the link's.
   return state.tr
@@ -140,10 +96,16 @@ export function typedSpaceAfterLink(
     .addMark(link.from, link.to, link.mark);
 }
 
-export const bareLinkInput = $prose(() => {
+export const bareLinkInput = $prose((ctx) => {
+  const parse: Parse = (markdown) => ctx.get(remarkCtx).parse(markdown);
   const plugin = inputRules({
     rules: [
-      new InputRule(/[^\s<]\s$/, typedSpaceAfterLink, { inCodeMark: false }),
+      new InputRule(
+        /[^\s<]\s$/,
+        (state, match, start, end) =>
+          typedSpaceAfterLink(state, match, start, end, parse),
+        { inCodeMark: false }
+      ),
     ],
   });
   // Enter ends the address as the space does, ahead of every Enter that
@@ -158,7 +120,8 @@ export const bareLinkInput = $prose(() => {
         return false;
       }
       const { selection } = view.state;
-      const link = selection.empty && linkBefore(view.state, selection.head);
+      const link =
+        selection.empty && linkBefore(view.state, selection.head, parse);
       if (link) {
         view.dispatch(view.state.tr.addMark(link.from, link.to, link.mark));
       }

@@ -1,10 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import remarkGfm from 'remark-gfm';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import {
-  bareLinkIn,
+  bareLinkIn as bareLinkInWith,
   typedSpaceAfterLink,
 } from '../src/editor/plugins/bare-link-input';
+
+const reader = unified().use(remarkParse).use(remarkGfm);
+const parse = (markdown: string) => reader.parse(markdown);
+const bareLinkIn = (word: string) => bareLinkInWith(word, parse);
 
 const schema = new Schema({
   nodes: {
@@ -49,7 +56,7 @@ function space(text: string) {
   });
   const match = `${text} `.match(/[^\s<]\s$/);
   if (!match) return null;
-  return typedSpaceAfterLink(state, match, end - 1, end)?.doc ?? null;
+  return typedSpaceAfterLink(state, match, end - 1, end, parse)?.doc ?? null;
 }
 
 describe('the address GFM reads in a word', () => {
@@ -68,6 +75,11 @@ describe('the address GFM reads in a word', () => {
     expect(bareLinkIn('(https://a.com/x)')).toMatchObject({ from: 1, to: 16 });
     expect(bareLinkIn('https://a.com/x_(y)')?.to).toBe(19);
     expect(bareLinkIn('https://a.com，然后')?.to).toBe(13);
+    expect(bareLinkIn('https://a.com/x，然后')?.to).toBe(15);
+    expect(bareLinkIn('（https://a.com/x）')).toMatchObject({
+      from: 1,
+      to: 16,
+    });
   });
 
   test('only where GFM starts one', () => {

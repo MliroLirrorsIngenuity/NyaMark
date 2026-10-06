@@ -23,6 +23,7 @@
 import type { Ctx } from '@milkdown/kit/ctx';
 import { linkSchema } from '@milkdown/kit/preset/commonmark';
 import { $remark } from '@milkdown/kit/utils';
+import type { Root } from 'mdast';
 import {
   type Handle,
   type Info,
@@ -35,37 +36,11 @@ type MdNode = {
   value?: string;
   url?: string;
   data?: { bare?: boolean };
-  position?: { start?: { offset?: number } };
+  position?: { start?: { offset?: number }; end?: { offset?: number } };
   children?: MdNode[];
 };
 
-// What a bare link ends before: GFM leaves stops and stars out of its end
-// when nothing but space follows them
-// (`micromark-extension-gfm-autolink-literal`).
-const ENDS = /^[!"&')*,.:;?\]_~]*(?:[\s<]|$)/;
-
-/** How the text of a bare link reads as `url`, or null when it does not. */
-function bareKind(text: string, url: string) {
-  if (url === text && /^https?:\/\//i.test(text)) return 'protocol';
-  if (url === `http://${text}` && /^www\./i.test(text)) return 'www';
-  if (url === `mailto:${text}` && text.includes('@')) return 'email';
-  return null;
-}
-
-/** Whether a reader takes a link of `kind` to begin after `before`. */
-function beginsAfter(kind: string, before: string) {
-  if (kind === 'protocol') return !/[A-Za-z]/.test(before);
-  if (kind === 'www') return before === '' || /[\s(*_[\]~]/.test(before);
-  return !/[/+\-._A-Za-z0-9]/.test(before);
-}
-
-/** Whether a reader ends a link of `kind` right before `after`. */
-function endsBefore(kind: string, after: string) {
-  // An email address ends at anything its domain cannot hold, `。` too, or
-  // at a stop that ends the sentence: `me@a.com.cn` reads on.
-  if (kind === 'email') return !/^\.?[-_A-Za-z0-9]/.test(after);
-  return ENDS.test(after);
-}
+export type Parse = (markdown: string) => Root;
 
 /** What follows each bold or italics being written, and what holds it. */
 const following = new WeakMap<object, { parent?: object; after: string }>();
@@ -166,8 +141,43 @@ function writtenAfter(
   return readOnFrom(last, parent as MdNode, last === node ? info.after : after);
 }
 
-/** The text `node` is written as, bare, or null when it must be spelt out. */
-export function bareLinkText(
+type Spans = { from: number; to: number; url: string }[];
+type Read = (source: string, pass: object) => Spans;
+
+/**
+ * The links `parse` reads bare in each source, kept from one pass of the
+ * writer to the next.
+ */
+function bareReader(parse: Parse): Read {
+  let current: object | null = null;
+  let known = new Map<string, Spans>();
+  let last = known;
+  return (source, pass) => {
+    if (pass !== current) {
+      current = pass;
+      last = known;
+      known = new Map();
+    }
+    const links =
+      known.get(source) ??
+      last.get(source) ??
+      bareLinksIn(parse(source), source).map((link) => ({
+        from: link.position?.start?.offset ?? -1,
+        to: link.position?.end?.offset ?? -1,
+        url: link.url ?? '',
+      }));
+    known.set(source, links);
+    return links;
+  };
+}
+
+/**
+ * The text `node` is written as, bare, between `before` and `after`: what
+ * reads there as the same link. Null when it must be spelt out.
+ */
+function bareLinkText(
+  read: Read,
+  pass: object,
   node: MdNode,
   before: string,
   after: string
@@ -177,58 +187,73 @@ export function bareLinkText(
     return null;
   }
   const text = child.value ?? '';
-  const kind = bareKind(text, node.url ?? '');
-  if (!kind || !beginsAfter(kind, before)) return null;
-  return endsBefore(kind, after) ? text : null;
+  const link = read(before + text + after, pass).find(
+    ({ from }) => from === before.length
+  );
+  return link?.url === node.url && link?.to === before.length + text.length
+    ? text
+    : null;
 }
 
 /** remark's handler for links, a bare one written as its text. */
-export const writeLink = Object.assign(
-  ((node, parent, state, info) => {
-    // A table cell is written between pipes, which end its text.
-    const cell = state.stack.includes('tableCell');
-    const edge = (char: string) => (cell && char === '|' ? '' : char);
-    const text = bareLinkText(node, edge(info.before), '');
-    const after = text && writtenAfter(node, parent, state, info, text);
-    return (
-      (after != null &&
-        bareLinkText(
-          node,
-          edge(info.before),
-          cell ? after.split('|')[0] : after
-        )) ||
-      defaultHandlers.link(node, parent, state, info)
-    );
-  }) satisfies Handle,
-  {
-    // The first character written, for the text before the link to escape:
-    // a `www.` link after `!` is written in brackets, and the `!` before them
-    // made it a picture.
-    peek: ((node, parent, state) => {
-      const siblings = (parent?.children ?? []) as MdNode[];
-      const previous = siblings[siblings.indexOf(node) - 1];
-      const before = previous?.type === 'text' ? (previous.value ?? '') : '';
+export function bareLinkWriter(parse: Parse) {
+  const read = bareReader(parse);
+  return Object.assign(
+    ((node, parent, state, info) => {
+      // A table cell is written between pipes, which end its text.
+      const cell = state.stack.includes('tableCell');
+      const before = cell && info.before === '|' ? '' : info.before;
+      const text = node.data?.bare && (node.children[0] as MdNode)?.value;
+      const after = text && writtenAfter(node, parent, state, info, text);
       return (
-        bareLinkText(node, before.slice(-1), '')?.charAt(0) ??
-        defaultHandlers.link.peek(node, parent, state)
+        (after != null &&
+          bareLinkText(
+            read,
+            state,
+            node,
+            before,
+            cell ? after.split('|')[0] : after
+          )) ||
+        defaultHandlers.link(node, parent, state, info)
       );
     }) satisfies Handle,
-  }
-);
+    {
+      // The first character written, for the text before the link to
+      // escape: a `www.` link after `!` is written in brackets, and the `!`
+      // before them made it a picture.
+      peek: ((node, parent, state) => {
+        const siblings = (parent?.children ?? []) as MdNode[];
+        const previous = siblings[siblings.indexOf(node) - 1];
+        const before = previous?.type === 'text' ? (previous.value ?? '') : '';
+        return (
+          bareLinkText(read, state, node, before.slice(-1), '')?.charAt(0) ??
+          defaultHandlers.link.peek(node, parent, state)
+        );
+      }) satisfies Handle,
+    }
+  );
+}
 
-/** Marks each link in `tree` that `source` spells bare. */
-export function markBareLinks(tree: MdNode, source: string) {
+/** The links in `tree` that `source` spells bare. */
+export function bareLinksIn(tree: object, source: string): MdNode[] {
+  const found: MdNode[] = [];
   const visit = (node: MdNode) => {
     const offset = node.position?.start?.offset;
     if (node.type === 'link' && offset !== undefined) {
       const opening = source.charAt(offset);
-      if (opening !== '[' && opening !== '<') {
-        node.data = { ...node.data, bare: true };
-      }
+      if (opening !== '[' && opening !== '<') found.push(node);
     }
     for (const child of node.children ?? []) visit(child);
   };
-  visit(tree);
+  visit(tree as MdNode);
+  return found;
+}
+
+/** Marks each link in `tree` that `source` spells bare. */
+export function markBareLinks(tree: MdNode, source: string) {
+  for (const link of bareLinksIn(tree, source)) {
+    link.data = { ...link.data, bare: true };
+  }
 }
 
 export const bareLinkParse = $remark(
