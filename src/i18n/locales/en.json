@@ -331,8 +331,7 @@
         "openai": "OpenAI (Responses)",
         "openai-compatible": "OpenAI-compatible (Chat Completions)",
         "anthropic": "Anthropic",
-        "google": "Google Gemini",
-        "deepseek": "DeepSeek"
+        "google": "Google Gemini"
       },
       "baseUrl": "Address",
       "badUrl": "Enter an address that starts with https:// or http://.",

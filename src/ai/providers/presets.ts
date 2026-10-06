@@ -45,7 +45,7 @@ export const AI_PRESETS: readonly AiPreset[] = [
   {
     id: 'deepseek',
     name: 'DeepSeek',
-    kind: 'deepseek',
+    kind: 'openai-compatible',
     baseUrl: 'https://api.deepseek.com',
     local: false,
     keyPage: 'https://platform.deepseek.com/api_keys',

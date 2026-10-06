@@ -328,8 +328,7 @@
         "openai": "OpenAI（Responses）",
         "openai-compatible": "OpenAI 相容（Chat Completions）",
         "anthropic": "Anthropic",
-        "google": "Google Gemini",
-        "deepseek": "DeepSeek"
+        "google": "Google Gemini"
       },
       "baseUrl": "位址",
       "badUrl": "請填寫以 https:// 或 http:// 開頭的位址。",

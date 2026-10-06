@@ -35,9 +35,12 @@ export function languageModel(
       return createAnthropic({ baseURL, apiKey, fetch })(modelId);
     case 'google':
       return createGoogle({ baseURL, apiKey, fetch })(modelId);
-    case 'deepseek':
-      return createDeepSeek({ baseURL, apiKey, fetch })(modelId);
     case 'openai-compatible':
+      // DeepSeek's Chat Completions has its own fields: the thinking switch,
+      // and the thinking sent back with each tool call. Its SDK speaks them.
+      if (provider.preset === 'deepseek') {
+        return createDeepSeek({ baseURL, apiKey, fetch })(modelId);
+      }
       // Models served this way often write their thinking into the reply,
       // between `<think>` tags; it is read out as reasoning.
       return wrapLanguageModel({

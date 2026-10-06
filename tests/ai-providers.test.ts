@@ -145,7 +145,11 @@ describe('AI settings', () => {
     const { ai } = normalizeSettings({
       ai: {
         providers: [
-          { id: 'p-1', kind: 'deepseek', models: [{ id: 'deepseek-chat' }] },
+          {
+            id: 'p-1',
+            kind: 'openai-compatible',
+            models: [{ id: 'deepseek-chat' }],
+          },
         ],
         chatModel: { provider: 'p-1', model: 'deepseek-chat' },
         quickModel: { provider: 'p-1', model: 'gone' },
@@ -153,6 +157,21 @@ describe('AI settings', () => {
     } as never);
     expect(ai.chatModel).toEqual({ provider: 'p-1', model: 'deepseek-chat' });
     expect(ai.quickModel).toBeNull();
+  });
+
+  test('read a DeepSeek service saved as a kind of its own', () => {
+    const { ai } = normalizeSettings({
+      ai: {
+        providers: [
+          { id: 'p-1', kind: 'deepseek', baseUrl: 'https://api.deepseek.com' },
+          { id: 'p-2', preset: 'deepseek', kind: 'deepseek' },
+        ],
+      },
+    } as never);
+    expect(ai.providers.map(({ kind, preset }) => ({ kind, preset }))).toEqual([
+      { kind: 'openai-compatible', preset: 'deepseek' },
+      { kind: 'openai-compatible', preset: 'deepseek' },
+    ]);
   });
 
   test('use the system proxy until a manual one has an address', () => {
@@ -199,7 +218,6 @@ describe('presets', () => {
     expect(authSchemeOf('google')).toBe('x-goog-api-key');
     expect(authSchemeOf('openai')).toBe('bearer');
     expect(authSchemeOf('openai-compatible')).toBe('bearer');
-    expect(authSchemeOf('deepseek')).toBe('bearer');
   });
 });
 
@@ -463,6 +481,19 @@ const streamed = (deltas: string[]) => () =>
   );
 
 describe('languageModel', () => {
+  test("speaks DeepSeek's dialect of Chat Completions for DeepSeek", () => {
+    const fetch = fakeFetch({});
+    const deepseek = languageModel(
+      provider({ preset: 'deepseek', baseUrl: 'https://api.deepseek.com' }),
+      'deepseek-chat',
+      fetch
+    );
+    expect(deepseek.provider).toStartWith('deepseek');
+    expect(languageModel(provider(), 'm', fetch).provider).toStartWith(
+      'compatible'
+    );
+  });
+
   test("reads a compatible model's thinking out of its reply", async () => {
     const model = languageModel(
       provider(),

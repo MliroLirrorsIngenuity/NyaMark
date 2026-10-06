@@ -7,15 +7,13 @@ export type AiProviderKind =
   | 'openai'
   | 'openai-compatible'
   | 'anthropic'
-  | 'google'
-  | 'deepseek';
+  | 'google';
 
 export const AI_PROVIDER_KINDS: readonly AiProviderKind[] = [
   'openai',
   'openai-compatible',
   'anthropic',
   'google',
-  'deepseek',
 ];
 
 export type AiModelInfo = {
@@ -222,9 +220,14 @@ function sanitizeModel(value: unknown): AiModelInfo | null {
 
 function sanitizeProvider(value: unknown): AiProvider | null {
   if (!isRecord(value) || !isAiProfileId(value.id)) return null;
-  const kind = AI_PROVIDER_KINDS.includes(value.kind as AiProviderKind)
-    ? (value.kind as AiProviderKind)
-    : null;
+  // DeepSeek was once a kind of its own; it speaks Chat Completions, and
+  // its preset says which service it is.
+  const legacyDeepSeek = value.kind === 'deepseek';
+  const kind = legacyDeepSeek
+    ? 'openai-compatible'
+    : AI_PROVIDER_KINDS.includes(value.kind as AiProviderKind)
+      ? (value.kind as AiProviderKind)
+      : null;
   if (!kind) return null;
   const models: AiModelInfo[] = [];
   for (const entry of Array.isArray(value.models) ? value.models : []) {
@@ -236,7 +239,7 @@ function sanitizeProvider(value: unknown): AiProvider | null {
   return {
     id: value.id,
     name: text(value.name, 100).trim() || value.id,
-    preset: text(value.preset, 64) || 'custom',
+    preset: text(value.preset, 64) || (legacyDeepSeek ? 'deepseek' : 'custom'),
     kind,
     baseUrl: text(value.baseUrl, 2000).trim(),
     models: models.slice(0, 1000),
