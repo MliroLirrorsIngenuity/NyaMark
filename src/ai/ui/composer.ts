@@ -29,7 +29,11 @@ export class Composer {
   private readonly attach: HTMLButtonElement;
   private busy = false;
 
-  constructor(private readonly actions: ComposerActions) {
+  /** `tools` stand in the bar under the text, between attach and send. */
+  constructor(
+    private readonly actions: ComposerActions,
+    tools: HTMLElement[] = []
+  ) {
     this.element = document.createElement('div');
     this.element.className = 'ny-ai__composer';
 
@@ -48,15 +52,11 @@ export class Composer {
 
     const bar = document.createElement('div');
     bar.className = 'ny-ai__composer-bar';
-    const hint = document.createElement('span');
-    hint.className = 'ny-ai__hint';
-    hint.textContent = 'Enter to send · Shift+Enter for a new line';
-    hint.setAttribute('data-i18n', 'ai.hint');
 
     this.attach = document.createElement('button');
     this.attach.type = 'button';
-    this.attach.className = 'ny-ai__icon ny-ai__attach';
-    this.attach.innerHTML = ICONS.image;
+    this.attach.className = 'ny-ai__attach';
+    this.attach.innerHTML = ICONS.plus;
     this.attach.addEventListener('click', () => this.actions.attach());
 
     this.button = document.createElement('button');
@@ -66,7 +66,7 @@ export class Composer {
       if (this.busy) this.actions.stop();
       else this.submit();
     });
-    bar.append(this.attach, hint, this.button);
+    bar.append(this.attach, ...tools, this.button);
 
     this.element.append(this.images.element, this.input, bar);
     this.drawButton();

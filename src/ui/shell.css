@@ -49,6 +49,32 @@
   --ny-kbd-text: #53758a;
   --ny-warning: #d97706;
   --ny-shadow-float: 0 16px 40px rgba(15, 23, 42, 0.12);
+  /* The accent as text on its soft fill. */
+  --ny-accent-ink: color-mix(in srgb, var(--ny-accent), #000 42%);
+  /* The accent as a border, as round a card that asks for an answer. */
+  --ny-accent-line: color-mix(in srgb, var(--ny-accent) 30%, transparent);
+  /* Text taken out, as in a proposed change. */
+  --ny-del-soft: #fbeceb;
+  --ny-del-ink: #a23b33;
+  /* Done, kept, connected. */
+  --ny-ok: #2f7d62;
+  /* The strongest fill, kept for the one action a card asks for. */
+  --ny-ink: #1f2a33;
+  --ny-on-ink: #ffffff;
+  /* A quiet fill for the chips, tiles and bars inside a card. */
+  --ny-fill-soft: color-mix(in srgb, var(--ny-text-primary) 5%, transparent);
+  /* The border of a card or a control inside a card or a dialog. */
+  --ny-line: color-mix(in srgb, var(--ny-text-primary) 11%, transparent);
+  --ny-menu-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  /* The cards docked beside the document: the outline and the assistant. */
+  --ny-dock-gap: 10px;
+  --ny-dock-radius: 18px;
+  --ny-dock-bg: #ffffff;
+  --ny-dock-border: rgba(15, 23, 42, 0.07);
+  --ny-dock-shadow: 0 18px 48px rgba(15, 23, 42, 0.1), 0 2px 6px
+    rgba(15, 23, 42, 0.04);
+  --ny-outline-width: clamp(200px, 22vw, 280px);
+  --ny-ai-width: clamp(320px, 32vw, 460px);
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -79,6 +105,17 @@
   --ny-kbd-text: #c6dce8;
   --ny-warning: #f3ba67;
   --ny-shadow-float: 0 20px 48px rgba(0, 0, 0, 0.38);
+  --ny-accent-ink: var(--ny-accent);
+  --ny-del-soft: rgba(214, 104, 92, 0.16);
+  --ny-del-ink: #eba29a;
+  --ny-ok: #7cc6a6;
+  --ny-ink: #e6edf3;
+  --ny-on-ink: #10151b;
+  --ny-dock-bg: #18202a;
+  --ny-dock-border: rgba(255, 255, 255, 0.07);
+  --ny-dock-shadow: 0 18px 48px rgba(0, 0, 0, 0.42), 0 2px 6px
+    rgba(0, 0, 0, 0.24);
+  --ny-menu-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
 }
 
 :root[data-platform="linux"] .ny-editor-root .milkdown {
@@ -185,6 +222,7 @@ body {
   --ny-surface-ghost: rgba(255, 255, 255, 0.36);
   --ny-titlebar-bg: transparent;
   --ny-statusbar-bg: transparent;
+  --ny-dock-bg: var(--ny-surface-elevated);
   /* Ink at a strength: a solid grey went into the glass over a dark backdrop. */
   --ny-text-muted: rgba(15, 23, 42, 0.52);
 }
@@ -655,6 +693,113 @@ body {
   display: flex;
   flex-direction: column;
   scroll-padding-top: 40px;
+  /* The document makes room for the cards docked beside it. */
+  margin-right: var(--ny-dock-room, 0px);
+}
+
+/* The room the docked cards take at the window's right edge. */
+:root.ny-outline-open {
+  --ny-dock-room: calc(var(--ny-outline-width) + 2 * var(--ny-dock-gap));
+}
+
+:root.ny-ai-open {
+  --ny-dock-room: calc(var(--ny-ai-width) + 2 * var(--ny-dock-gap));
+}
+
+:root.ny-ai-open.ny-outline-open {
+  --ny-dock-room: calc(
+    var(--ny-ai-width) +
+    var(--ny-outline-width) +
+    3 *
+    var(--ny-dock-gap)
+  );
+}
+
+/*
+ * A card docked beside the document, between the titlebar and the status
+ * bar: the outline, and the assistant at the window's edge with the outline
+ * to its left. Each has a header of a title and its buttons, then what it
+ * scrolls.
+ */
+.ny-dock {
+  position: fixed;
+  top: 46px;
+  right: var(--ny-dock-gap);
+  bottom: calc(32px + var(--ny-dock-gap));
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border: 1px solid var(--ny-dock-border);
+  border-radius: var(--ny-dock-radius);
+  background: var(--ny-dock-bg);
+  box-shadow: var(--ny-dock-shadow);
+  color: var(--ny-text-primary);
+}
+
+.ny-dock[hidden] {
+  display: none;
+}
+
+:root.ny-ai-open .ny-dock.ny-outline {
+  right: calc(var(--ny-ai-width) + 2 * var(--ny-dock-gap));
+}
+
+.ny-dock__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 48px;
+  padding: 0 8px 0 18px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ny-dock__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ny-dock__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ny-text-secondary);
+  cursor: default;
+}
+
+.ny-dock__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ny-dock__icon:hover:not(:disabled),
+.ny-dock__icon[aria-expanded="true"] {
+  background: var(--ny-fill-soft);
+  color: var(--ny-text-primary);
+}
+
+.ny-dock__icon:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 50%);
+  outline-offset: -2px;
+}
+
+.ny-dock__icon:disabled {
+  opacity: 0.4;
 }
 
 #ny-editor-container {

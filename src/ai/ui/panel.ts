@@ -27,7 +27,7 @@ import { isNetworkPath } from '../../features/attachment-paths';
 import { IMAGE_EXTENSIONS } from '../../features/attachment-policy';
 import { i18next } from '../../i18n';
 import { translateDOM } from '../../i18n/dom';
-import type { AiEditMode, AiSettings } from '../../state/ai-settings';
+import type { AiSettings } from '../../state/ai-settings';
 import {
   getSettings,
   subscribeSettings,
@@ -54,15 +54,18 @@ import { type WorkspaceApi, workspaceTools } from '../agent/tools/workspace';
 import { EditController } from '../edit/controller';
 import proposalStyles from '../edit/proposals.css?inline';
 import { ConversationKeeper } from '../history/keeper';
+import { conversationTitle } from '../history/saved';
 import { prepareImage } from '../images/prepare';
 import { mcpHub } from '../mcp/hub';
 import { connectModel } from '../providers/connect';
 import { nativeSearchTool } from '../providers/native-search';
+import { AI_PRESETS } from '../providers/presets';
 import { QuickMenu, type QuickMode } from '../quick/popover';
 import { Composer } from './composer';
 import { HistoryMenu } from './history-menu';
 import { ICONS } from './icons';
 import { MessageList } from './messages';
+import { ModeMenu } from './mode-menu';
 import { ModelPicker } from './model-picker';
 import panelStyles from './panel.css?inline';
 
@@ -76,8 +79,11 @@ export type AiPanelHost = {
   followSource: (before: ProseNode) => void;
   /** The open document's path, `null` while it is unsaved. */
   documentPath: () => string | null;
-  /** Opens the AI section of the settings. */
-  openSettings: () => void;
+  /**
+   * Opens the AI section of the settings; with `service`, the service set
+   * up from that preset, to fill in.
+   */
+  openSettings: (service?: string) => void;
 };
 
 const WIDTH_KEY = 'nyamark.ai.width';
@@ -124,10 +130,13 @@ const fileName = (path: string) => path.split(/[\\/]/).pop() || path;
 /** Four letters that set this run's edits apart from those kept before. */
 const editTag = () => Math.random().toString(36).slice(2, 6).padEnd(4, '0');
 
-const MODE_TEXT: Record<AiEditMode, { key: string; title: string }> = {
-  review: { key: 'ai.edit.modeReview', title: 'ai.edit.modeReviewTitle' },
-  auto: { key: 'ai.edit.modeAuto', title: 'ai.edit.modeAutoTitle' },
-};
+/** What an empty conversation offers to ask, each sent as it reads. */
+const SUGGESTIONS = [
+  { icon: ICONS.summary, key: 'ai.empty.summarize' },
+  { icon: ICONS.proofread, key: 'ai.empty.proofread' },
+  { icon: ICONS.pen, key: 'ai.empty.continue' },
+  { icon: ICONS.heading, key: 'ai.empty.nameIt' },
+];
 
 const WORKSPACE: WorkspaceApi = {
   roots: workspaceRoots,
@@ -140,10 +149,15 @@ const WORKSPACE: WorkspaceApi = {
 
 const WEB: WebApi = { search: webSearch, fetch: webFetch };
 
-function iconButton(icon: string, key: string, fallback: string) {
+function iconButton(
+  icon: string,
+  key: string,
+  fallback: string,
+  className = 'ny-ai__icon'
+) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'ny-ai__icon';
+  button.className = className;
   button.innerHTML = icon;
   button.title = fallback;
   button.setAttribute('aria-label', fallback);
@@ -178,7 +192,8 @@ export class AiPanel {
   private quick: QuickMenu | null = null;
   private readonly review: HTMLElement;
   private readonly reviewCount: HTMLElement;
-  private readonly mode: HTMLButtonElement;
+  private readonly title: HTMLElement;
+  private readonly mode: ModeMenu;
   private readonly newChat: HTMLButtonElement;
   private ai: AiSettings = getSettings().ai;
   private visible = false;
@@ -212,7 +227,7 @@ export class AiPanel {
     });
 
     this.root = document.createElement('aside');
-    this.root.className = 'ny-ai';
+    this.root.className = 'ny-dock ny-ai';
     this.root.hidden = true;
     this.root.setAttribute('aria-label', 'AI assistant');
     this.root.setAttribute('data-i18n-aria-label', 'ai.title');
@@ -224,14 +239,21 @@ export class AiPanel {
     this.bindResize(resize);
 
     const header = document.createElement('div');
-    header.className = 'ny-ai__header';
+    header.className = 'ny-dock__header';
+    this.title = document.createElement('h2');
+    this.title.className = 'ny-dock__title';
     this.picker = new ModelPicker({
       choose: (ref) => {
         void updateSettings({ ai: { chatModel: ref } }).catch(console.error);
       },
       manage: () => this.host.openSettings(),
     });
-    this.newChat = iconButton(ICONS.newChat, 'ai.newChat', 'New chat');
+    this.newChat = iconButton(
+      ICONS.newChat,
+      'ai.newChat',
+      'New chat',
+      'ny-dock__icon'
+    );
     this.newChat.addEventListener('click', () => {
       this.keeper.startNew();
       this.composer.focus();
@@ -243,39 +265,18 @@ export class AiPanel {
       remove: (id) => this.keeper.remove(id),
     });
     this.history.element.hidden = !this.ai.keepHistory;
-    this.mode = document.createElement('button');
-    this.mode.type = 'button';
-    this.mode.className = 'ny-ai__mode';
-    this.mode.addEventListener('click', () => {
-      const editMode = this.ai.editMode === 'auto' ? 'review' : 'auto';
+    this.mode = new ModeMenu((editMode) => {
       void updateSettings({ ai: { editMode } }).catch(console.error);
     });
-    const close = iconButton(ICONS.close, 'ai.close', 'Close');
+    const close = iconButton(ICONS.close, 'ai.close', 'Close', 'ny-dock__icon');
     close.addEventListener('click', () => this.hide());
-    header.append(
-      this.picker.element,
-      this.mode,
-      this.history.element,
-      this.newChat,
-      close
-    );
+    header.append(this.title, this.history.element, this.newChat, close);
 
     this.scroller = document.createElement('div');
     this.scroller.className = 'ny-ai__body';
 
-    this.setup = this.stateCard(
-      'ai.setup.title',
-      'Connect an AI service',
-      'ai.setup.body',
-      'Add a service and a model in Settings to start.',
-      { key: 'ai.setup.action', fallback: 'Open AI settings' }
-    );
-    this.empty = this.stateCard(
-      'ai.empty.title',
-      'What shall we write?',
-      'ai.empty.body',
-      'Ask about this document, or ask for a draft, a rewrite or ideas.'
-    );
+    this.setup = this.setupState();
+    this.empty = this.emptyState();
 
     const jump = document.createElement('button');
     jump.type = 'button';
@@ -295,6 +296,10 @@ export class AiPanel {
         accept: (edit) => this.edits.acceptEdit(edit),
         reject: (edit) => this.edits.rejectEdit(edit),
         reveal: (edit) => this.edits.revealEdit(edit),
+        documentName: () => {
+          const path = this.host.documentPath();
+          return path ? fileName(path) : null;
+        },
       },
       approvals: {
         request: (id) => this.approvals.request(id),
@@ -303,25 +308,26 @@ export class AiPanel {
     });
     this.scroller.append(this.setup, this.empty, this.list.element, jump);
 
-    this.composer = new Composer({
-      send: (text, images) => void this.session.send(text, images),
-      stop: () => this.session.stop(),
-      leave: () => this.host.editor.focus(),
-      attach: () => void this.pickImages(),
-      paste: (files) => void this.attachImages(files),
-    });
+    this.composer = new Composer(
+      {
+        send: (text, images) => void this.session.send(text, images),
+        stop: () => this.session.stop(),
+        leave: () => this.host.editor.focus(),
+        attach: () => void this.pickImages(),
+        paste: (files) => void this.attachImages(files),
+      },
+      [this.picker.element, this.mode.element]
+    );
 
     this.reviewCount = document.createElement('span');
     this.reviewCount.className = 'ny-ai__review-count';
     this.review = this.reviewBar();
 
-    this.root.append(
-      resize,
-      header,
-      this.scroller,
-      this.review,
-      this.composer.element
-    );
+    const foot = document.createElement('div');
+    foot.className = 'ny-ai__foot';
+    foot.append(this.review, this.composer.element);
+
+    this.root.append(resize, header, this.scroller, foot);
     document.body.append(this.root);
     translateDOM(this.root);
 
@@ -335,7 +341,8 @@ export class AiPanel {
       this.picker.update(this.ai);
       this.list.redraw(this.session.entries);
       this.composer.redraw();
-      this.drawMode();
+      this.mode.redraw();
+      this.drawTitle();
       this.drawReview();
     };
     i18next.on('languageChanged', onLanguage);
@@ -377,6 +384,7 @@ export class AiPanel {
     const hadFocus = this.hasFocus;
     this.visible = false;
     this.picker.destroy();
+    this.mode.destroy();
     this.history.destroy();
     this.keeper.flush();
     keepReadingPosition(this.host.editor.getView(), () => {
@@ -431,33 +439,89 @@ export class AiPanel {
       ?.setAttribute('aria-pressed', String(pressed));
   }
 
-  private stateCard(
-    titleKey: string,
-    title: string,
-    textKey: string,
-    text: string,
-    action?: { key: string; fallback: string }
-  ) {
+  /** Before any model is set up: where to set one up, and what can be. */
+  private setupState() {
     const card = document.createElement('div');
-    card.className = 'ny-ai__state';
-    const heading = document.createElement('p');
+    card.className = 'ny-ai__state ny-ai__state--setup';
+    const tile = document.createElement('span');
+    tile.className = 'ny-ai__tile ny-ai__tile--large';
+    tile.innerHTML = ICONS.mark;
+    const heading = document.createElement('h3');
     heading.className = 'ny-ai__state-title';
-    heading.textContent = title;
-    heading.setAttribute('data-i18n', titleKey);
+    heading.textContent = 'Connect an AI service';
+    heading.setAttribute('data-i18n', 'ai.setup.title');
     const body = document.createElement('p');
     body.className = 'ny-ai__state-text';
-    body.textContent = text;
-    body.setAttribute('data-i18n', textKey);
-    card.append(heading, body);
-    if (action) {
+    body.textContent = 'Add a service and a model in Settings to start.';
+    body.setAttribute('data-i18n', 'ai.setup.body');
+    // Each service opens in the settings, added and waiting for its key.
+    const services = document.createElement('ul');
+    services.className = 'ny-ai__services';
+    for (const preset of AI_PRESETS) {
+      if (preset.id === 'custom') continue;
+      const service = document.createElement('button');
+      service.type = 'button';
+      service.className = 'ny-ai-service';
+      const name = document.createElement('span');
+      name.className = 'ny-ai-service__name';
+      name.textContent = preset.name;
+      service.append(name);
+      service.insertAdjacentHTML('beforeend', ICONS.plus);
+      service.addEventListener('click', () =>
+        this.host.openSettings(preset.id)
+      );
+      const item = document.createElement('li');
+      item.append(service);
+      services.append(item);
+    }
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'ny-ai__button ny-ai__button--ink ny-ai__button--wide';
+    open.textContent = 'Open AI settings';
+    open.setAttribute('data-i18n', 'ai.setup.action');
+    open.addEventListener('click', () => this.host.openSettings());
+    const note = document.createElement('p');
+    note.className = 'ny-ai__state-note';
+    note.textContent =
+      'Any other service with an OpenAI-compatible API works too.';
+    note.setAttribute('data-i18n', 'ai.setup.more');
+    card.append(tile, heading, body, services, open, note);
+    return card;
+  }
+
+  /** An empty conversation: what to ask, with a few things to ask at once. */
+  private emptyState() {
+    const card = document.createElement('div');
+    card.className = 'ny-ai__state ny-ai__state--empty';
+    const tile = document.createElement('span');
+    tile.className = 'ny-ai__tile';
+    tile.innerHTML = ICONS.mark;
+    const heading = document.createElement('h3');
+    heading.className = 'ny-ai__state-title';
+    heading.textContent = 'What shall we write?';
+    heading.setAttribute('data-i18n', 'ai.empty.title');
+    const body = document.createElement('p');
+    body.className = 'ny-ai__state-text';
+    body.textContent =
+      'Ask about this document, or ask for a draft, a rewrite or ideas.';
+    body.setAttribute('data-i18n', 'ai.empty.body');
+    const list = document.createElement('div');
+    list.className = 'ny-ai__suggestions';
+    for (const suggestion of SUGGESTIONS) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'ny-ai__button ny-ai__button--primary';
-      button.textContent = action.fallback;
-      button.setAttribute('data-i18n', action.key);
-      button.addEventListener('click', () => this.host.openSettings());
-      card.append(button);
+      button.className = 'ny-ai__suggestion';
+      button.innerHTML = suggestion.icon;
+      const label = document.createElement('span');
+      label.setAttribute('data-i18n', suggestion.key);
+      button.append(label);
+      button.addEventListener('click', () => {
+        if (this.session.busy) return;
+        void this.session.send(i18next.t(suggestion.key), []);
+      });
+      list.append(button);
     }
+    card.append(tile, heading, body, list);
     return card;
   }
 
@@ -633,7 +697,7 @@ export class AiPanel {
     this.picker.update(ai);
     this.history.element.hidden = !ai.keepHistory;
     if (!ai.keepHistory) this.history.destroy();
-    this.drawMode();
+    this.mode.update(ai.editMode);
     this.drawState();
     this.drawVision();
   }
@@ -648,23 +712,33 @@ export class AiPanel {
     const bar = document.createElement('div');
     bar.className = 'ny-ai__review';
     bar.hidden = true;
+    const dot = document.createElement('span');
+    dot.className = 'ny-ai__review-dot';
     const prev = iconButton(ICONS.chevronUp, 'ai.edit.prev', 'Previous change');
     prev.addEventListener('click', () => this.edits.step(-1));
     const next = iconButton(ICONS.chevron, 'ai.edit.next', 'Next change');
     next.addEventListener('click', () => this.edits.step(1));
-    const button = (key: string, fallback: string, primary = false) => {
+    const button = (key: string, fallback: string, className: string) => {
       const element = document.createElement('button');
       element.type = 'button';
-      element.className = `ny-ai__button ny-ai__button--small${primary ? ' ny-ai__button--primary' : ''}`;
+      element.className = className;
       element.textContent = fallback;
       element.setAttribute('data-i18n', key);
       return element;
     };
-    const reject = button('ai.edit.rejectAll', 'Reject all');
+    const reject = button(
+      'ai.edit.rejectAll',
+      'Reject all',
+      'ny-ai__review-button'
+    );
     reject.addEventListener('click', () => this.edits.reject());
-    const accept = button('ai.edit.acceptAll', 'Accept all', true);
+    const accept = button(
+      'ai.edit.acceptAll',
+      'Accept all',
+      'ny-ai__review-button ny-ai__review-button--raised'
+    );
     accept.addEventListener('click', () => this.edits.accept());
-    bar.append(this.reviewCount, prev, next, reject, accept);
+    bar.append(dot, this.reviewCount, prev, next, reject, accept);
     return bar;
   }
 
@@ -678,11 +752,11 @@ export class AiPanel {
       : i18next.t('ai.edit.pending', { count });
   }
 
-  private drawMode() {
-    const text = MODE_TEXT[this.ai.editMode];
-    this.mode.textContent = i18next.t(text.key);
-    this.mode.title = i18next.t(text.title);
-    this.mode.dataset.mode = this.ai.editMode;
+  /** The conversation's title, from what the user first asked. */
+  private drawTitle() {
+    const title = conversationTitle(this.session.entries);
+    this.title.textContent = title || i18next.t('ai.title');
+    this.title.title = title;
   }
 
   /** Setting up, an empty conversation, or the conversation. */
@@ -693,6 +767,7 @@ export class AiPanel {
     this.empty.hidden = !ready || !empty;
     this.composer.element.hidden = !ready && empty;
     this.newChat.disabled = empty;
+    this.drawTitle();
   }
 
   private bindResize(handle: HTMLElement) {
@@ -700,10 +775,9 @@ export class AiPanel {
     const move = (event: PointerEvent) => {
       if (!dragging) return;
       const limit = Math.min(MAX_WIDTH, window.innerWidth * MAX_SHARE);
-      const width = Math.max(
-        MIN_WIDTH,
-        Math.min(limit, window.innerWidth - event.clientX)
-      );
+      // From the card's right edge, which keeps its gap to the window's.
+      const right = this.root.getBoundingClientRect().right;
+      const width = Math.max(MIN_WIDTH, Math.min(limit, right - event.clientX));
       applyWidth(width);
     };
     const end = (event: PointerEvent) => {

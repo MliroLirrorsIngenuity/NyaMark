@@ -73,7 +73,8 @@
   },
   "outline": {
     "title": "Outline",
-    "empty": "No headings found"
+    "empty": "No headings found",
+    "close": "Close outline"
   },
   "editor": {
     "image": {
@@ -480,20 +481,30 @@
     "jump": "Scroll to the end",
     "setup": {
       "title": "Connect an AI service",
-      "body": "Add a service and a model in Settings to start. Your key stays in the system keychain.",
-      "action": "Open AI settings"
+      "body": "Use your own API key or a model on this computer. The key stays in the system keychain and goes only to the address you enter.",
+      "action": "Open AI settings",
+      "more": "Any other service with an OpenAI-compatible API works too."
     },
     "empty": {
       "title": "What shall we write?",
-      "body": "Ask about this document, or ask for a draft, a rewrite or ideas."
+      "body": "I can read this document and the notes in its folder, and draft, rewrite or suggest.",
+      "summarize": "Summarize this document",
+      "proofread": "Check spelling and grammar",
+      "continue": "Continue with the next paragraph",
+      "nameIt": "Suggest a title"
     },
     "placeholder": "Message the assistant",
-    "hint": "Enter to send · Shift+Enter for a new line",
     "send": "Send",
     "stop": "Stop",
     "waiting": "Waiting for the reply",
     "thinking": "Thoughts",
     "thinkingNow": "Thinking…",
+    "steps": {
+      "done_one": "Ran {{count}} step",
+      "done_other": "Ran {{count}} steps",
+      "failed_one": "Ran {{count}} step · it failed",
+      "failed_other": "Ran {{count}} steps · some failed"
+    },
     "copy": "Copy",
     "copied": "Copied",
     "retry": "Retry",
@@ -591,9 +602,10 @@
       "someReplaced_one": "{{count}} redone later",
       "someReplaced_other": "{{count}} redone later",
       "modeReview": "Review",
-      "modeReviewTitle": "Edits wait for you to accept or reject them. Click to apply them right away.",
       "modeAuto": "Auto",
-      "modeAutoTitle": "Edits go into the document right away. Click to review them first."
+      "modeReviewNote": "Edits wait in the document for you to accept or reject.",
+      "modeAutoNote": "Edits go into the document right away; undo takes each back.",
+      "thisDocument": "This document"
     },
     "approval": {
       "create": "Create {{file}}?",

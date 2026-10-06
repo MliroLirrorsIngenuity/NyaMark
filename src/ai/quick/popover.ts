@@ -248,9 +248,12 @@ export class QuickMenu {
     root.style.top = `${Math.round(Math.max(MARGIN, top))}px`;
   }
 
-  private draw(...children: HTMLElement[]) {
+  /** The bar, with what goes under it on a card of its own. */
+  private draw(bar: HTMLElement, ...below: HTMLElement[]) {
     if (!this.root) return;
-    this.root.replaceChildren(...children);
+    const card = el('div', 'ny-ai-quick__card');
+    card.append(...below);
+    this.root.replaceChildren(bar, card);
     this.position();
   }
 
@@ -592,10 +595,10 @@ export class QuickMenu {
     const close = button(i18next.t('ai.close'));
     close.addEventListener('click', () => this.close());
     actions.append(close);
-    const children: HTMLElement[] = [this.bar(head)];
-    if (!preview.hidden) children.push(preview);
-    children.push(note, actions);
-    this.draw(...children);
+    const below: HTMLElement[] = [];
+    if (!preview.hidden) below.push(preview);
+    below.push(note, actions);
+    this.draw(this.bar(head), ...below);
     (actions.querySelector('button') as HTMLButtonElement | null)?.focus();
   }
 }

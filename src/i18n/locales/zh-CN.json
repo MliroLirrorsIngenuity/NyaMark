@@ -71,7 +71,8 @@
   },
   "outline": {
     "title": "大纲",
-    "empty": "未找到标题"
+    "empty": "未找到标题",
+    "close": "关闭大纲"
   },
   "editor": {
     "image": {
@@ -476,20 +477,28 @@
     "jump": "滚动到底部",
     "setup": {
       "title": "连接 AI 服务",
-      "body": "在设置里添加服务和模型后即可开始。密钥保存在系统钥匙串里。",
-      "action": "打开 AI 设置"
+      "body": "用你自己的 API Key 或本机模型。密钥保存在系统钥匙串里，只发往你填写的地址。",
+      "action": "打开 AI 设置",
+      "more": "其他兼容 OpenAI 接口的服务也可以用。"
     },
     "empty": {
       "title": "想写点什么？",
-      "body": "可以问这篇文档的问题，也可以让它起草、改写、出主意。"
+      "body": "我能读这篇文档和同一文件夹里的笔记，帮你起草、改写、出主意。",
+      "summarize": "总结这篇文档",
+      "proofread": "检查错别字和语病",
+      "continue": "续写下一段",
+      "nameIt": "给全文起个标题"
     },
     "placeholder": "给助手发消息",
-    "hint": "Enter 发送 · Shift+Enter 换行",
     "send": "发送",
     "stop": "停止",
     "waiting": "等待回复",
     "thinking": "思考过程",
     "thinkingNow": "思考中…",
+    "steps": {
+      "done": "已完成 {{count}} 步",
+      "failed": "执行了 {{count}} 步 · 有步骤失败"
+    },
     "copy": "复制",
     "copied": "已复制",
     "retry": "重试",
@@ -574,9 +583,10 @@
       "someDropped": "{{count}} 处已失效",
       "someReplaced": "{{count}} 处被后续修改取代",
       "modeReview": "审阅",
-      "modeReviewTitle": "修改先等你接受或拒绝。点击改为直接应用。",
       "modeAuto": "自动",
-      "modeAutoTitle": "修改直接写入文档。点击改为先审阅。"
+      "modeReviewNote": "修改先标在正文里，等你接受或拒绝。",
+      "modeAutoNote": "修改直接写入文档，可以逐次撤销。",
+      "thisDocument": "当前文档"
     },
     "approval": {
       "create": "新建 {{file}}？",

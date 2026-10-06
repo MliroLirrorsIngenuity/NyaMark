@@ -9,7 +9,7 @@ const searchStyles = `
 .ny-search {
   position: fixed;
   top: 48px;
-  right: 32px;
+  right: calc(var(--ny-dock-room, 0px) + 32px);
   z-index: var(--ny-layer-floating-panel);
   display: flex;
   align-items: center;

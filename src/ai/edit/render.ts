@@ -93,9 +93,10 @@ export function renderHunk(
   }
   const bar = document.createElement('span');
   bar.className = 'ny-ai-hunk__actions';
+  // In the panel's order: reject first, accept at the end.
   bar.append(
-    button('accept', hunk, actions.accept),
-    button('reject', hunk, actions.reject)
+    button('reject', hunk, actions.reject),
+    button('accept', hunk, actions.accept)
   );
   root.append(bar);
   return root;

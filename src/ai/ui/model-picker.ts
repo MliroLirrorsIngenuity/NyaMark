@@ -19,15 +19,15 @@ export class ModelPicker {
     }
   ) {
     this.element = document.createElement('div');
-    this.element.className = 'ny-ai__model';
+    this.element.className = 'ny-ai__pick ny-ai__model';
 
     this.button = document.createElement('button');
     this.button.type = 'button';
-    this.button.className = 'ny-ai__model-button';
+    this.button.className = 'ny-ai__pick-button';
     this.button.setAttribute('aria-haspopup', 'menu');
     this.button.setAttribute('aria-expanded', 'false');
     this.label = document.createElement('span');
-    this.label.className = 'ny-ai__model-name';
+    this.label.className = 'ny-ai__pick-name';
     this.button.append(this.label);
     this.button.insertAdjacentHTML('beforeend', ICONS.chevron);
     this.button.addEventListener('click', (event) => {
@@ -36,7 +36,7 @@ export class ModelPicker {
     });
 
     this.menu = document.createElement('div');
-    this.menu.className = 'ny-ai-menu';
+    this.menu.className = 'ny-ai-menu ny-ai-menu--up';
     this.menu.setAttribute('role', 'menu');
     this.menu.hidden = true;
     this.menu.addEventListener('keydown', this.onMenuKey);

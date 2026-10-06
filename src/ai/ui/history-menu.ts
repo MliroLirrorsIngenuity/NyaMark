@@ -44,7 +44,7 @@ export class HistoryMenu {
 
     this.button = document.createElement('button');
     this.button.type = 'button';
-    this.button.className = 'ny-ai__icon';
+    this.button.className = 'ny-dock__icon';
     this.button.innerHTML = ICONS.history;
     this.button.title = 'Conversations';
     this.button.setAttribute('aria-label', 'Conversations');

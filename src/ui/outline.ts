@@ -18,42 +18,10 @@ import {
 } from './reading-position';
 
 const outlineStyles = `
-:root {
-  --ny-outline-width: clamp(200px, 22vw, 280px);
-}
-
-:root.ny-outline-open .ny-shell__body {
-  margin-right: var(--ny-outline-width);
-}
-
 .ny-outline {
-  position: fixed;
-  top: 40px;
-  right: 0;
-  bottom: 32px;
   width: var(--ny-outline-width);
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  border-left: 1px solid var(--ny-border-strong);
-  background: color-mix(in srgb, var(--ny-text-primary) 2.5%, transparent);
-  z-index: 1;
   user-select: none;
   -webkit-user-select: none;
-}
-
-.ny-outline[hidden] {
-  display: none;
-}
-
-.ny-outline__header {
-  flex: none;
-  padding: 14px 18px 8px;
-  color: var(--ny-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .ny-outline__list {
@@ -61,19 +29,19 @@ const outlineStyles = `
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 8px 16px;
+  padding: 0 8px 12px;
 }
 
 .ny-outline__empty {
   padding: 4px 10px;
   color: var(--ny-text-muted);
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 .ny-outline__item {
   position: relative;
-  padding: 4px 8px 4px calc(10px + var(--outline-indent, 0px));
-  border-radius: 6px;
+  padding: 5px 10px 5px calc(10px + var(--outline-indent, 0px));
+  border-radius: 8px;
   color: var(--ny-text-secondary);
   font-size: 13px;
   line-height: 20px;
@@ -92,7 +60,7 @@ const outlineStyles = `
 }
 
 .ny-outline__item[data-depth="0"]:not(:first-child) {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .ny-outline__item:is([data-depth="2"], [data-depth="3"], [data-depth="4"]) {
@@ -100,26 +68,18 @@ const outlineStyles = `
 }
 
 .ny-outline__item:hover {
-  background: color-mix(in srgb, var(--ny-text-primary) 5%, transparent);
+  background: var(--ny-fill-soft);
   color: var(--ny-text-primary);
 }
 
 .ny-outline__item.is-active {
-  background: color-mix(in srgb, var(--ny-accent) 13%, transparent);
-  color: var(--ny-accent);
-}
-
-.ny-outline__item.is-active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--ny-accent);
+  background: var(--ny-accent-soft);
+  color: var(--ny-accent-ink);
 }
 `;
+
+const CLOSE_ICON =
+  '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>';
 
 /** Pause after the last document change before the list is refreshed. */
 const RENDER_DELAY_MS = 150;
@@ -152,13 +112,27 @@ export class OutlinePanel {
     ensureStyle('outline-panel', outlineStyles);
 
     this.elPanel = document.createElement('div');
-    this.elPanel.className = 'ny-outline';
+    this.elPanel.className = 'ny-dock ny-outline';
     this.elPanel.hidden = true;
 
     const header = document.createElement('div');
-    header.className = 'ny-outline__header';
-    header.textContent = 'Outline';
-    header.setAttribute('data-i18n', 'outline.title');
+    header.className = 'ny-dock__header';
+    const title = document.createElement('h2');
+    title.className = 'ny-dock__title';
+    title.textContent = 'Outline';
+    title.setAttribute('data-i18n', 'outline.title');
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'ny-dock__icon';
+    close.innerHTML = CLOSE_ICON;
+    close.title = 'Close outline';
+    close.setAttribute('aria-label', 'Close outline');
+    close.setAttribute('data-i18n-title', 'outline.close');
+    close.setAttribute('data-i18n-aria-label', 'outline.close');
+    // The caret stays in the document, as after a click in the list.
+    close.addEventListener('mousedown', (event) => event.preventDefault());
+    close.addEventListener('click', () => this.hide());
+    header.append(title, close);
 
     this.elList = document.createElement('div');
     this.elList.className = 'ny-outline__list';

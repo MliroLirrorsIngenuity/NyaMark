@@ -1,4 +1,5 @@
 import { openExternalUrl } from '../../bridge/ipc/attachments';
+import { basenamePath } from '../../features/attachment-paths';
 import { i18next } from '../../i18n';
 import type { ApprovalAnswer, ApprovalRequest } from '../agent/approvals';
 import type { DiffRow } from '../agent/line-diff';
@@ -42,15 +43,44 @@ const TOOL_ICONS: Record<ToolPart['state'], string> = {
   stopped: ICONS.dash,
 };
 
+/**
+ * The reasoning and tool calls between two runs of text, folded into one
+ * line; the questions and edits they raise sit under it, out of the fold.
+ */
+/** A fold's icon, by what its steps came to; a live one spins instead. */
+const STEP_ICONS: Record<string, string> = {
+  done: ICONS.check,
+  error: ICONS.alert,
+  stopped: ICONS.dash,
+  thought: ICONS.sparkle,
+};
+
+type StepGroup = {
+  root: HTMLElement;
+  fold: HTMLDetailsElement;
+  head: HTMLElement;
+  icon: HTMLElement;
+  label: HTMLElement;
+  list: HTMLElement;
+  cards: HTMLElement;
+  /** Where its parts are in the reply. */
+  indexes: number[];
+  shown: string;
+};
+
 type PartView = {
   type: ChatPart['type'];
   root: HTMLElement;
   body: HTMLElement;
-  /** A reasoning part's summary line, or a tool part's state icon. */
+  /** A reasoning part's label, or a tool part's state icon. */
   summary: HTMLElement | null;
   shown: string;
-  /** The edit a tool part proposed, and its row of what became of it. */
-  edit?: { id: string; row: HTMLElement; shown: string };
+  /** The fold a reasoning or tool part is in. */
+  group?: StepGroup;
+  /** Where a tool part's question and edit go, under the fold. */
+  slot?: HTMLElement;
+  /** The edit a tool part proposed, and its card. */
+  edit?: { id: string; card: HTMLElement; shown: string };
   /** A tool part's call id, and the question it waits on the user for. */
   toolId?: string;
   approval?: { request: ApprovalRequest; card: HTMLElement };
@@ -64,6 +94,7 @@ type EntryView = {
   root: HTMLElement;
   content: HTMLElement;
   parts: PartView[];
+  groups: StepGroup[];
   pending: HTMLElement | null;
   status: HTMLElement;
   foot: HTMLElement;
@@ -77,6 +108,8 @@ export type EditCardActions = {
   accept(edit: string): void;
   reject(edit: string): void;
   reveal(edit: string): void;
+  /** The open document's file name; null while it is unsaved. */
+  documentName(): string | null;
 };
 
 export type MessageListActions = {
@@ -239,9 +272,10 @@ export class MessageList {
       const view = this.views.get(entry.id);
       if (entry.role !== 'assistant' || !view) continue;
       view.shownState = '';
+      for (const group of view.groups) group.shown = '';
       for (const part of view.parts) {
         part.shown = '\u0000';
-        if (part.edit) part.edit.shown = '';
+        if (part.edit) part.edit.shown = '\u0000';
         part.approval?.card.remove();
         part.approval = undefined;
       }
@@ -334,14 +368,19 @@ export class MessageList {
 
   private assistantView(): EntryView {
     const root = el('div', 'ny-ai-msg ny-ai-msg--assistant');
+    const avatar = el('span', 'ny-ai-msg__avatar');
+    avatar.innerHTML = ICONS.mark;
+    const main = el('div', 'ny-ai-msg__main');
     const content = el('div', 'ny-ai-msg__content');
     const status = el('div', 'ny-ai-msg__status');
     const foot = el('div', 'ny-ai-msg__foot');
-    root.append(content, status, foot);
+    main.append(content, status, foot);
+    root.append(avatar, main);
     return {
       root,
       content,
       parts: [],
+      groups: [],
       pending: null,
       status,
       foot,
@@ -351,25 +390,31 @@ export class MessageList {
 
   private draw(entry: AssistantEntry, view: EntryView) {
     const streaming = entry.status === 'streaming';
-    entry.parts.forEach((part, index) => {
-      let shown = view.parts[index];
-      if (!shown || shown.type !== part.type) {
-        shown = this.partView(part.type);
-        view.parts[index]?.root.replaceWith(shown.root);
-        if (!view.parts[index]) view.content.append(shown.root);
-        view.parts[index] = shown;
-      }
+    // A reply's parts only grow; any other change draws it afresh.
+    const changed =
+      view.parts.length > entry.parts.length ||
+      view.parts.some(
+        (shown, index) => shown.type !== entry.parts[index]?.type
+      );
+    if (changed) {
+      view.content.replaceChildren();
+      view.parts = [];
+      view.groups = [];
+      view.pending = null;
+    }
+    for (const [index, part] of entry.parts.entries()) {
+      const shown = view.parts[index] ?? this.place(view, part.type, index);
       if (part.type === 'tool') {
         this.drawTool(part, shown, entry.id);
-        return;
+        continue;
       }
-      if (shown.summary) {
+      if (part.type === 'reasoning' && shown.summary) {
         const thinking = streaming && index === entry.parts.length - 1;
         shown.summary.textContent = i18next.t(
           thinking ? 'ai.thinkingNow' : 'ai.thinking'
         );
       }
-      if (shown.shown === part.text) return;
+      if (shown.shown === part.text) continue;
       shown.shown = part.text;
       if (part.type === 'reasoning') {
         shown.body.textContent = part.text;
@@ -377,7 +422,8 @@ export class MessageList {
         shown.body.innerHTML = renderChatMarkdown(part.text);
         this.addCodeCopyButtons(shown.body);
       }
-    });
+    }
+    for (const group of view.groups) this.drawGroup(entry, group);
 
     // Waiting for the first word, or for what the model makes of a tool's
     // result.
@@ -413,6 +459,122 @@ export class MessageList {
     this.drawFoot(entry, view.foot);
   }
 
+  /**
+   * A new part's view, put in place: text in the reply, any other part in
+   * the fold of the steps just before it, or in a new one.
+   */
+  private place(
+    view: EntryView,
+    type: ChatPart['type'],
+    index: number
+  ): PartView {
+    const shown = this.partView(type);
+    view.parts[index] = shown;
+    if (type === 'text') {
+      view.content.append(shown.root);
+      return shown;
+    }
+    const group = view.parts[index - 1]?.group ?? this.stepGroup(view);
+    group.list.append(shown.root);
+    group.indexes.push(index);
+    shown.group = group;
+    if (type === 'tool') {
+      shown.slot = el('div', 'ny-ai-steps__slot');
+      group.cards.append(shown.slot);
+    }
+    return shown;
+  }
+
+  private stepGroup(view: EntryView): StepGroup {
+    const root = el('div', 'ny-ai-steps');
+    const fold = el('details', 'ny-ai-steps__fold');
+    const head = el('summary', 'ny-ai-steps__head');
+    const icon = el('span', 'ny-ai-steps__icon');
+    const label = el('span', 'ny-ai-steps__label');
+    const chevron = el('span', 'ny-ai-steps__chevron');
+    chevron.innerHTML = ICONS.chevronRight;
+    head.append(icon, label, chevron);
+    // One step with nothing under it has nothing to unfold.
+    head.addEventListener('click', (event) => {
+      if (root.classList.contains('is-flat')) event.preventDefault();
+    });
+    const list = el('div', 'ny-ai-steps__list');
+    fold.append(head, list);
+    const cards = el('div', 'ny-ai-steps__cards');
+    root.append(fold, cards);
+    view.content.append(root);
+    const group: StepGroup = {
+      root,
+      fold,
+      head,
+      icon,
+      label,
+      list,
+      cards,
+      indexes: [],
+      shown: '',
+    };
+    view.groups.push(group);
+    return group;
+  }
+
+  /** The fold's line: what is going on now, or what the steps came to. */
+  private drawGroup(entry: AssistantEntry, group: StepGroup) {
+    const parts = group.indexes.map((index) => entry.parts[index]);
+    const tools = parts.filter(
+      (part): part is ToolPart => part?.type === 'tool'
+    );
+    const lastIndex = group.indexes[group.indexes.length - 1] ?? -1;
+    const streaming = entry.status === 'streaming';
+    const running = streaming
+      ? tools.find((tool) => tool.state === 'running')
+      : undefined;
+    const thinking =
+      streaming &&
+      lastIndex === entry.parts.length - 1 &&
+      entry.parts[lastIndex]?.type === 'reasoning';
+    const failed = tools.some(
+      (tool) => tool.state === 'error' || tool.state === 'denied'
+    );
+    const stopped = tools.some((tool) => tool.state === 'stopped');
+
+    let label: string;
+    if (running) label = toolLabel(running);
+    else if (thinking) label = i18next.t('ai.thinkingNow');
+    else if (tools.length === 0) label = i18next.t('ai.thinking');
+    else if (tools.length === 1) {
+      label = toolLabel(tools[0] as ToolPart);
+      if (parts.length > 1) label += ` · ${i18next.t('ai.thinking')}`;
+    } else {
+      label = i18next.t(failed ? 'ai.steps.failed' : 'ai.steps.done', {
+        count: tools.length,
+      });
+    }
+    let state = 'done';
+    if (running || thinking) state = 'live';
+    else if (failed) state = 'error';
+    else if (stopped) state = 'stopped';
+    else if (tools.length === 0) state = 'thought';
+
+    const single = parts.length === 1;
+    const only = single ? group.list.firstElementChild : null;
+    const flat =
+      single &&
+      tools.length === 1 &&
+      !only?.querySelector('.ny-ai-sources, .ny-ai-tool__image');
+    const key = [label, state, single, flat, i18next.language].join('\u0000');
+    if (group.shown === key) return;
+    group.shown = key;
+    group.label.textContent = label;
+    group.head.title = label;
+    group.root.dataset.state = state;
+    group.root.classList.toggle('is-single', single);
+    group.root.classList.toggle('is-flat', flat);
+    group.head.tabIndex = flat ? -1 : 0;
+    if (flat) group.fold.open = false;
+    group.icon.innerHTML = STEP_ICONS[state] ?? '';
+  }
+
   private partView(type: ChatPart['type']): PartView {
     if (type === 'text') {
       const body = el('div', 'ny-ai-md');
@@ -420,13 +582,15 @@ export class MessageList {
     }
     if (type === 'tool') {
       const root = el('div', 'ny-ai-tool');
+      const line = el('div', 'ny-ai-tool__line');
       const icon = el('span', 'ny-ai-tool__icon');
       const body = el('span', 'ny-ai-tool__label');
-      root.append(icon, body);
+      line.append(icon, body);
+      root.append(line);
       return { type, root, body, summary: icon, shown: '\u0000' };
     }
-    const root = el('details', 'ny-ai-reasoning');
-    const summary = el('summary', '');
+    const root = el('div', 'ny-ai-reasoning');
+    const summary = el('div', 'ny-ai-reasoning__label');
     const body = el('div', 'ny-ai-reasoning__text');
     root.append(summary, body);
     return { type, root, body, summary, shown: '\u0000' };
@@ -447,125 +611,127 @@ export class MessageList {
     if (view.summary) view.summary.innerHTML = TOOL_ICONS[part.state];
     const edit = this.actions.edits ? proposedEdit(part) : null;
     if (edit !== (view.edit?.id ?? null)) {
-      view.edit?.row.remove();
+      view.edit?.card.remove();
       view.edit = undefined;
-      if (edit) {
-        const row = el('div', 'ny-ai-tool__edit');
-        row.dataset.edit = edit;
-        view.root.append(row);
-        view.edit = { id: edit, row, shown: '' };
+      if (edit && view.slot) {
+        const card = el('div', 'ny-ai-edit');
+        card.dataset.edit = edit;
+        card.hidden = true;
+        view.slot.append(card);
+        view.edit = { id: edit, card, shown: '\u0000' };
       }
     }
     if (view.edit) this.drawEdit(view);
   }
 
-  /** The question a tool waits on the user for, under its line. */
+  /** The question a tool waits on the user for, under the fold. */
   private drawApproval(view: PartView) {
     const id = view.toolId;
     const request = id ? (this.actions.approvals?.request(id) ?? null) : null;
     if (request === (view.approval?.request ?? null)) return;
     view.approval?.card.remove();
     view.approval = undefined;
-    if (!id || !request) return;
+    if (!id || !request || !view.slot) return;
     const card = el('div', 'ny-ai-approval');
     card.dataset.approval = id;
-    const button = (answer: ApprovalAnswer, key: string, primary = false) => {
+    card.setAttribute('role', 'group');
+    const head = el('div', 'ny-ai-approval__head');
+    const button = (answer: ApprovalAnswer, key: string) => {
       const element = el(
         'button',
-        `ny-ai__button ny-ai__button--small${primary ? ' ny-ai__button--primary' : ''}`,
+        `ny-ai__button${answer === 'allow' ? ' ny-ai__button--primary' : ''}`,
         i18next.t(key)
       );
       element.type = 'button';
       element.dataset.approvalAnswer = answer;
       return element;
     };
+    const note = (text: string) => el('div', 'ny-ai-approval__note', text);
     const actions = el('div', 'ny-ai-approval__actions');
+    let box: HTMLElement | null = null;
+    let title: string;
     if (request.kind === 'folder') {
-      card.append(
-        el('div', 'ny-ai-approval__title', i18next.t('ai.approval.folder')),
-        el('div', 'ny-ai-approval__reason', request.reason)
-      );
+      title = i18next.t('ai.approval.folder');
+      head.append(note(request.reason));
       actions.append(
-        button('allow', 'ai.approval.chooseFolder', true),
-        button('deny', 'ai.approval.notNow')
+        button('deny', 'ai.approval.notNow'),
+        button('allow', 'ai.approval.chooseFolder')
       );
     } else if (request.kind === 'page') {
-      const url = el('div', 'ny-ai-approval__path', request.url);
-      url.title = request.url;
-      card.append(
-        el('div', 'ny-ai-approval__title', i18next.t('ai.approval.page')),
-        url,
-        el(
-          'div',
-          'ny-ai-approval__reason',
-          i18next.t('ai.approval.pageNote', { host: request.host })
-        )
+      title = i18next.t('ai.approval.page');
+      head.append(
+        note(i18next.t('ai.approval.pageNote', { host: request.host }))
       );
+      box = el('div', 'ny-ai-approval__box ny-ai-approval__url', request.url);
+      box.title = request.url;
       actions.append(
-        button('allow', 'ai.approval.open', true),
-        button('deny', 'ai.approval.deny')
+        button('deny', 'ai.approval.deny'),
+        button('allow', 'ai.approval.open')
       );
     } else if (request.kind === 'tool') {
-      card.append(
-        el(
-          'div',
-          'ny-ai-approval__title',
-          i18next.t('ai.approval.tool', {
-            tool: request.tool,
-            server: request.serverName,
-          })
-        ),
-        el('pre', 'ny-ai-approval__input', request.input),
-        el('div', 'ny-ai-approval__reason', i18next.t('ai.approval.toolNote'))
-      );
+      title = i18next.t('ai.approval.tool', {
+        tool: request.tool,
+        server: request.serverName,
+      });
+      head.append(note(i18next.t('ai.approval.toolNote')));
+      box = el('pre', 'ny-ai-approval__box', request.input);
       actions.append(
-        button('allow', 'ai.approval.allow', true),
+        button('deny', 'ai.approval.deny'),
         button('always', 'ai.approval.alwaysTool'),
-        button('deny', 'ai.approval.deny')
+        button('allow', 'ai.approval.allow')
       );
     } else {
-      const title = el(
-        'div',
-        'ny-ai-approval__title',
-        i18next.t(
-          request.created ? 'ai.approval.create' : 'ai.approval.change',
-          { file: request.path.split(/[\\/]/).pop() || request.path }
-        )
+      title = i18next.t(
+        request.created ? 'ai.approval.create' : 'ai.approval.change',
+        { file: basenamePath(request.path) }
       );
-      const path = el('div', 'ny-ai-approval__path', request.path);
-      path.title = request.path;
       const { diff } = request;
-      const counts = el('div', 'ny-ai-approval__counts');
-      counts.append(
+      const meta = el('div', 'ny-ai-approval__meta');
+      // The path is cut from its start, to keep the file in view; in its
+      // own left-to-right run, its slashes stay in order under that cut.
+      const path = el('span', 'ny-ai-approval__path');
+      const run = el('bdi', '', request.path);
+      run.dir = 'ltr';
+      path.append(run);
+      path.title = request.path;
+      meta.append(
+        path,
         el('span', 'is-added', `+${diff.added}`),
         el('span', 'is-removed', `−${diff.removed}`)
       );
-      const rows = el('div', 'ny-ai-diff');
+      head.append(meta);
+      box = el('div', 'ny-ai-approval__box ny-ai-diff');
       for (const row of diff.rows) {
-        rows.append(
-          el(
-            'div',
-            `ny-ai-diff__row is-${row.kind}`,
-            row.kind === 'gap'
-              ? i18next.t('ai.approval.gap', { count: Number(row.text) })
-              : `${DIFF_MARKS[row.kind]} ${row.text}`
-          )
-        );
+        const line = el('div', `ny-ai-diff__row is-${row.kind}`);
+        if (row.kind === 'gap') {
+          line.textContent = i18next.t('ai.approval.gap', {
+            count: Number(row.text),
+          });
+        } else {
+          line.append(
+            el('span', 'ny-ai-diff__mark', DIFF_MARKS[row.kind]),
+            el('span', 'ny-ai-diff__text', row.text)
+          );
+        }
+        box.append(line);
       }
       if (diff.truncated) {
-        rows.append(
+        box.append(
           el('div', 'ny-ai-diff__row is-gap', i18next.t('ai.approval.more'))
         );
       }
-      card.append(title, path, counts, rows);
       actions.append(
-        button('allow', 'ai.approval.allow', true),
+        button('deny', 'ai.approval.deny'),
         button('always', 'ai.approval.always'),
-        button('deny', 'ai.approval.deny')
+        button('allow', 'ai.approval.allow')
       );
     }
+    head.prepend(el('div', 'ny-ai-approval__title', title));
+    card.setAttribute('aria-label', title);
+    card.append(head);
+    if (box) card.append(box);
     card.append(actions);
-    view.root.append(card);
+    view.slot.prepend(card);
     view.approval = { request, card };
   }
 
@@ -582,18 +748,21 @@ export class MessageList {
     if (images.length === 0) return;
     const row = el('div', 'ny-ai-tool__image');
     for (const image of images) row.append(this.thumbnail(entryId, image));
-    view.root.insertBefore(row, view.edit?.row ?? view.approval?.card ?? null);
+    view.root.append(row);
     view.image = row;
   }
 
-  /** The pages a finished web search found, folded under its line. */
+  /** The pages a finished web search found, under its line in the fold. */
   private drawSources(view: PartView, part: ToolPart) {
     view.sources?.remove();
     view.sources = undefined;
     const sources = part.state === 'done' ? searchSources(part) : [];
     if (sources.length === 0) return;
-    const details = el('details', 'ny-ai-sources');
-    const list = el('ol', 'ny-ai-sources__list');
+    const list = el('ol', 'ny-ai-sources');
+    list.setAttribute(
+      'aria-label',
+      i18next.t('ai.tool.sources', { count: sources.length })
+    );
     for (const source of sources) {
       let host = source.url;
       try {
@@ -612,58 +781,72 @@ export class MessageList {
       item.append(link);
       list.append(item);
     }
-    details.append(
-      el(
-        'summary',
-        '',
-        i18next.t('ai.tool.sources', { count: sources.length })
-      ),
-      list
-    );
-    // Above the edit row and the question, which come and go.
-    view.root.insertBefore(
-      details,
-      view.edit?.row ?? view.approval?.card ?? null
-    );
-    view.sources = details;
+    view.root.insertBefore(list, view.image ?? null);
+    view.sources = list;
   }
 
   /**
-   * The row under an edit's line: buttons for its changes while any are
-   * pending, then what became of them.
+   * The card of an edit to the document: which file, what is pending or
+   * became of it, and buttons for its changes while any are pending.
    */
   private drawEdit(view: PartView) {
     const edit = view.edit;
-    const outcome = edit && this.actions.edits?.outcome(edit.id);
-    if (!edit) return;
-    const key = outcome ? `${JSON.stringify(outcome)}${i18next.language}` : '';
+    const edits = this.actions.edits;
+    if (!edit || !edits) return;
+    const outcome = edits.outcome(edit.id);
+    const name = edits.documentName();
+    const key = outcome
+      ? [JSON.stringify(outcome), name, i18next.language].join('\u0000')
+      : '';
     if (edit.shown === key) return;
     edit.shown = key;
-    edit.row.replaceChildren();
+    edit.card.replaceChildren();
+    edit.card.hidden = !outcome;
     if (!outcome) return;
-    if (outcome.pending === 0) {
-      edit.row.append(el('span', 'ny-ai-tool__outcome', outcomeText(outcome)));
-      return;
+    const pending = outcome.pending > 0;
+    edit.card.classList.toggle('is-settled', !pending);
+    // While any change is pending, the card finds them in the document.
+    const open = el(pending ? 'button' : 'div', 'ny-ai-edit__open');
+    if (open instanceof HTMLButtonElement) {
+      open.type = 'button';
+      open.dataset.editAction = 'reveal';
+      open.title = i18next.t('ai.edit.show');
     }
-    const button = (action: string, key: string) => {
+    const tile = el('span', 'ny-ai-edit__tile');
+    tile.innerHTML = ICONS.file;
+    const text = el('span', 'ny-ai-edit__text');
+    text.append(
+      el('span', 'ny-ai-edit__name', name ?? i18next.t('ai.edit.thisDocument')),
+      el(
+        'span',
+        'ny-ai-edit__meta',
+        pending
+          ? i18next.t('ai.edit.pending', { count: outcome.pending })
+          : outcomeText(outcome)
+      )
+    );
+    open.append(tile, text);
+    edit.card.append(open);
+    if (!pending) return;
+    const button = (
+      action: string,
+      key: string,
+      title: string,
+      ink = false
+    ) => {
       const element = el(
         'button',
-        'ny-ai__button ny-ai__button--small',
+        `ny-ai__button ny-ai__button--small${ink ? ' ny-ai__button--ink' : ''}`,
         i18next.t(key)
       );
       element.type = 'button';
+      element.title = i18next.t(title);
       element.dataset.editAction = action;
       return element;
     };
-    edit.row.append(
-      el(
-        'span',
-        'ny-ai-tool__outcome',
-        i18next.t('ai.edit.pending', { count: outcome.pending })
-      ),
-      button('accept', 'ai.edit.acceptAll'),
-      button('reject', 'ai.edit.rejectAll'),
-      button('reveal', 'ai.edit.show')
+    edit.card.append(
+      button('reject', 'ai.edit.reject', 'ai.edit.rejectAll'),
+      button('accept', 'ai.edit.accept', 'ai.edit.acceptAll', true)
     );
   }
 

@@ -35,6 +35,27 @@ export const ICONS = {
   trash: svg(
     '<path d="M3 4.5h10" /><path d="M6.25 4.5V3.25a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 .75.75V4.5" /><path d="M4.25 4.5l.6 8.1a1 1 0 0 0 1 .9h4.3a1 1 0 0 0 1-.9l.6-8.1" />'
   ),
+  plus: svg('<path d="M8 3.25v9.5M3.25 8h9.5" />'),
+  /** The assistant's mark beside its replies, drawn solid. */
+  mark: svg(
+    '<path fill="currentColor" stroke="none" d="M8 1.75c.4 2.9 1.35 3.85 4.25 4.25-2.9.4-3.85 1.35-4.25 4.25C7.6 7.35 6.65 6.4 3.75 6c2.9-.4 3.85-1.35 4.25-4.25Z" /><path fill="currentColor" stroke="none" d="M12.5 10.25c.18 1.3.6 1.72 1.75 1.9-1.15.18-1.57.6-1.75 1.9-.18-1.3-.6-1.72-1.75-1.9 1.15-.18 1.57-.6 1.75-1.9Z" />'
+  ),
+  chevronRight: svg('<path d="M6.25 4.5 9.75 8l-3.5 3.5" />'),
+  file: svg(
+    '<path d="M4 1.75h5.25L12 4.5v9.75H4Z" /><path d="M9.25 1.75V4.5H12" />'
+  ),
+  /** Edits wait to be reviewed. */
+  eye: svg(
+    '<path d="M1.75 8S4 3.75 8 3.75 14.25 8 14.25 8 12 12.25 8 12.25 1.75 8 1.75 8Z" /><circle cx="8" cy="8" r="1.9" />'
+  ),
+  /** Edits go in at once. */
+  bolt: svg('<path d="M8.75 1.75 3.5 9h4l-.75 5.25L12.5 7h-4l.25-5.25Z" />'),
+  summary: svg('<path d="M3 4.5h10M3 8h10M3 11.5h6" />'),
+  proofread: svg(
+    '<path d="M2.5 11.5 5.25 4.5 8 11.5M3.5 9h3.5" /><path d="m9.5 10 1.6 1.6 2.9-3.35" />'
+  ),
+  pen: svg('<path d="M10.75 2.75l2.5 2.5L6 12.5l-3.25.75.75-3.25Z" />'),
+  heading: svg('<path d="M4 3v10M12 3v10M4 8h8" />'),
   image: svg(
     '<rect x="2.25" y="3" width="11.5" height="10" rx="1.5" /><circle cx="5.75" cy="6.25" r="1.1" /><path d="m2.75 11.75 3.5-3.5 2.5 2.5 1.75-1.75 2.75 2.75" />'
   ),
