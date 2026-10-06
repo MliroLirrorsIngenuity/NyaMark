@@ -1,7 +1,8 @@
 import DOMPurify, { type Config } from 'dompurify';
 import { micromark } from 'micromark';
 import { gfm, gfmHtml } from 'micromark-extension-gfm';
-import { math, mathHtml } from 'micromark-extension-math';
+import { math } from 'micromark-extension-math';
+import { markdownHtmlExtensions } from '../../editor/markdown-html';
 
 /**
  * What a reply may hold once it is HTML: no scripts, forms, frames or styles,
@@ -37,7 +38,7 @@ export function chatMarkdownHtml(markdown: string): string {
   try {
     return micromark(markdown, {
       extensions: [gfm(), math()],
-      htmlExtensions: [gfmHtml(), mathHtml({ throwOnError: false })],
+      htmlExtensions: markdownHtmlExtensions(),
     });
   } catch {
     return micromark(markdown, {

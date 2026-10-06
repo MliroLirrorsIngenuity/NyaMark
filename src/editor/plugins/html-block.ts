@@ -1,3 +1,4 @@
+import { remarkCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
 import { htmlSchema } from '@milkdown/kit/preset/commonmark';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
@@ -11,9 +12,10 @@ import {
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $ctx, $prose, $remark, $view } from '@milkdown/kit/utils';
 import DOMPurify, { type Config } from 'dompurify';
-import { micromark } from 'micromark';
+import { type Options, micromark } from 'micromark';
 import { ensureStyle } from '../../style/register';
 import { forInputMethod } from '../../ui/ime';
+import { markdownHtmlExtensions } from '../markdown-html';
 
 /**
  * Raw HTML blocks come straight from the opened markdown file, which may be
@@ -108,12 +110,24 @@ function holdLocalImages(root: ParentNode) {
   return held;
 }
 
+type Syntax = NonNullable<Options['extensions']>;
+
+/**
+ * A tag that starts the text opens no block of HTML, as it opens none in the
+ * line: `<div>**x**</div>` among words is bold.
+ */
+const IN_A_LINE: Syntax[number] = { disable: { null: ['htmlFlow'] } };
+
 /**
  * The HTML a piece of running text makes: its tags, and the Markdown between
- * them read as the line it stands in reads it.
+ * them read with `syntax`, the editor's, as the line it stands in reads it.
  */
-function inlineHtml(value: string): string {
-  const html = micromark(value, { allowDangerousHtml: true });
+export function inlineHtml(value: string, syntax: Syntax): string {
+  const html = micromark(value, {
+    allowDangerousHtml: true,
+    extensions: [...syntax, IN_A_LINE],
+    htmlExtensions: markdownHtmlExtensions(),
+  });
   return /^<p>([\s\S]*)<\/p>\s*$/.exec(html)?.[1] ?? html;
 }
 
@@ -399,7 +413,13 @@ export const htmlBlockView = $view(htmlSchema.node, (ctx) => {
       // Parsed in a template, where nothing loads, so a local image never
       // asks the app's own address for itself first.
       const template = document.createElement('template');
-      template.innerHTML = sanitizeHtmlBlock(block ? value : inlineHtml(value));
+      // The extensions the editor's plugins give its reader, there once
+      // it is frozen, as reading a file freezes it.
+      const reader = ctx.get(remarkCtx).freeze();
+      const syntax = reader.data('micromarkExtensions') ?? [];
+      template.innerHTML = sanitizeHtmlBlock(
+        block ? value : inlineHtml(value, syntax)
+      );
       const source = ctx.get(htmlImageSource.key);
       for (const [image, src] of holdLocalImages(template.content)) {
         void Promise.resolve(source(src))

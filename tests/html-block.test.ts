@@ -10,6 +10,7 @@ import {
   parser,
   parserCtx,
   pasteRule,
+  remarkCtx,
   schema,
   serializer,
   serializerCtx,
@@ -19,8 +20,13 @@ import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import {
+  cjkEmphasis,
+  cjkStrikethrough,
+} from '../src/editor/plugins/cjk-emphasis';
+import {
   htmlFlowParse,
   htmlReferencesMapped,
+  inlineHtml,
   isHtmlBlock,
   keepHtmlBlocks,
 } from '../src/editor/plugins/html-block';
@@ -33,6 +39,7 @@ import {
 
 let open: (markdown: string) => ProseNode;
 let save: (markdown: string) => string;
+let show: (value: string) => string;
 
 beforeAll(async () => {
   const ctx = new Ctx(new Container(), new Clock());
@@ -50,6 +57,8 @@ beforeAll(async () => {
     editorState,
     commonmark,
     gfm,
+    cjkEmphasis,
+    cjkStrikethrough,
     markdownOutput,
     linkDefinitions,
     htmlFlowParse,
@@ -62,6 +71,8 @@ beforeAll(async () => {
   const write = ctx.get(serializerCtx);
   open = (markdown) => parse(markdown);
   save = (markdown) => write(parse(markdown));
+  const syntax = ctx.get(remarkCtx).freeze().data('micromarkExtensions') ?? [];
+  show = (value) => inlineHtml(value, syntax);
 });
 
 /** Each piece of HTML in the document, and whether it shows as a block. */
@@ -108,6 +119,23 @@ describe('an HTML block', () => {
 
 const moved = (reference: string) =>
   /^[a-z]+:|^#/i.test(reference) ? null : `../notes/${reference}`;
+
+describe('HTML in running text, shown', () => {
+  test('reads the Markdown in it as the editor reads it', () => {
+    expect(
+      show('<span style="color:red">~~旧价~~ 见 https://a.com</span>')
+    ).toBe(
+      '<span style="color:red"><del>旧价</del> 见 <a href="https://a.com">https://a.com</a></span>'
+    );
+    expect(show('<span>这是**“引用”**的</span>')).toBe(
+      '<span>这是<strong>“引用”</strong>的</span>'
+    );
+  });
+
+  test('reads a tag that opens a block elsewhere as one in a line', () => {
+    expect(show('<div>**x**</div>')).toBe('<div><strong>x</strong></div>');
+  });
+});
 
 describe('htmlReferencesMapped', () => {
   test('moves the image and link addresses beside the document', () => {
