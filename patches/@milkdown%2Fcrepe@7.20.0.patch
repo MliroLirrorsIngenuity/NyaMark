@@ -102,10 +102,18 @@ index 8c5bb0c76c33b6228fb6c1748f62ecb081220852..4f705b879ebfb22843c6e1f80d3a4ff3
      this.update(view);
      ctx.set(menuAPI.key, {
 diff --git a/lib/cjs/feature/latex/index.js b/lib/cjs/feature/latex/index.js
-index 5a778f6ba74b0b238ce4b6f7c9b1f3591138bef6..b6588b0cf35082251cf9806f7cb63cb9b4d0e46f 100644
+index 5a778f6ba74b0b238ce4b6f7c9b1f3591138bef6..db4233d8083aeb4efdc6613c2b4c49826648d711 100644
 --- a/lib/cjs/feature/latex/index.js
 +++ b/lib/cjs/feature/latex/index.js
-@@ -330,7 +330,8 @@ class LatexInlineTooltip {
+@@ -15,6 +15,7 @@ var view = require('@milkdown/kit/prose/view');
+ var vue = require('vue');
+ var component = require('@milkdown/kit/component');
+ var inputrules = require('@milkdown/kit/prose/inputrules');
++var core = require('@milkdown/kit/core');
+ var remarkMath = require('remark-math');
+ var unistUtilVisit = require('unist-util-visit');
+ 
+@@ -330,7 +331,8 @@ class LatexInlineTooltip {
        offset: 10,
        floatingUIOptions: {
          placement: "bottom"
@@ -115,6 +123,34 @@ index 5a778f6ba74b0b238ce4b6f7c9b1f3591138bef6..b6588b0cf35082251cf9806f7cb63cb9
      }));
      __privateGet(this, _provider).update(view$1);
      __privateSet(this, _dom, document.createElement("div"));
+@@ -346,13 +348,20 @@ _onHide = new WeakMap();
+ _shouldShow = new WeakMap();
+ 
+ const mathInlineInputRule = utils.$inputRule(
+-  (ctx) => prose.nodeRule(/(?:\$)([^$]+)(?:\$)$/, mathInlineSchema.type(ctx), {
+-    getAttr: (match) => {
+-      var _a;
+-      return {
+-        value: (_a = match[1]) != null ? _a : ""
+-      };
+-    }
++  (ctx) => new inputrules.InputRule(/\$([^$\ufffc]+)\$$/, (state, match, start, end) => {
++    // NyaMark: the dollars typed make math where the file, opened, reads math:
++    // `$5 和 $` stays text both ways. A line break, image or formula before the
++    // caret reads as "\ufffc" and goes into no math, and none is made in
++    // inline code (Milkdown's input rules pass over no code mark).
++    let inCode = (state.storedMarks || state.doc.resolve(end).marks()).some((mark) => mark.type.spec.code);
++    state.doc.nodesBetween(start, end, (node) => {
++      inCode || (inCode = node.marks.some((mark) => mark.type.spec.code));
++    });
++    if (inCode) return null;
++    const line = ctx.get(core.parserCtx)(match[0]).firstChild;
++    const math = (line == null ? void 0 : line.childCount) === 1 ? line.firstChild : null;
++    if ((math == null ? void 0 : math.type) !== mathInlineSchema.type(ctx)) return null;
++    return state.tr.replaceRangeWith(start, end, math);
+   })
+ );
+ const mathBlockInputRule = utils.$inputRule(
 diff --git a/lib/cjs/feature/toolbar/index.js b/lib/cjs/feature/toolbar/index.js
 index c5069d95686d9c90e24a69366fdbe46402d91cea..8640be1270c27d7f4ce8ae3de9965586b8df68f6 100644
 --- a/lib/cjs/feature/toolbar/index.js
@@ -157,7 +193,7 @@ index 771177d0e3c09f3274aaeb63db0affd377c81115..a8edb705420a358672e9d901acb143e6
        return /* @__PURE__ */ vue.h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
 diff --git a/lib/cjs/index.js b/lib/cjs/index.js
-index 9726836fbea853e8be52f11df9b14b5589d457b3..3e4963ffb4efbaa90cde8f3771cf34b42396916c 100644
+index 9726836fbea853e8be52f11df9b14b5589d457b3..fd4acf05ef33a0535b662e040649396277f11afb 100644
 --- a/lib/cjs/index.js
 +++ b/lib/cjs/index.js
 @@ -1183,6 +1183,14 @@ const Menu = vue.defineComponent({
@@ -269,7 +305,35 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..3e4963ffb4efbaa90cde8f3771cf34b4
      }));
      __privateGet$3(this, _provider).update(view);
      __privateSet$3(this, _dom, document.createElement("div"));
-@@ -2303,7 +2345,13 @@ class ToolbarView {
+@@ -1931,13 +1973,20 @@ _onHide = new WeakMap();
+ _shouldShow = new WeakMap();
+ 
+ const mathInlineInputRule = utils.$inputRule(
+-  (ctx) => prose.nodeRule(/(?:\$)([^$]+)(?:\$)$/, mathInlineSchema.type(ctx), {
+-    getAttr: (match) => {
+-      var _a;
+-      return {
+-        value: (_a = match[1]) != null ? _a : ""
+-      };
+-    }
++  (ctx) => new inputrules.InputRule(/\$([^$\ufffc]+)\$$/, (state, match, start, end) => {
++    // NyaMark: the dollars typed make math where the file, opened, reads math:
++    // `$5 和 $` stays text both ways. A line break, image or formula before the
++    // caret reads as "\ufffc" and goes into no math, and none is made in
++    // inline code (Milkdown's input rules pass over no code mark).
++    let inCode = (state.storedMarks || state.doc.resolve(end).marks()).some((mark) => mark.type.spec.code);
++    state.doc.nodesBetween(start, end, (node) => {
++      inCode || (inCode = node.marks.some((mark) => mark.type.spec.code));
++    });
++    if (inCode) return null;
++    const line = ctx.get(core.parserCtx)(match[0]).firstChild;
++    const math = (line == null ? void 0 : line.childCount) === 1 ? line.firstChild : null;
++    if ((math == null ? void 0 : math.type) !== mathInlineSchema.type(ctx)) return null;
++    return state.tr.replaceRangeWith(start, end, math);
+   })
+ );
+ const mathBlockInputRule = utils.$inputRule(
+@@ -2303,7 +2352,13 @@ class ToolbarView {
      __privateAdd$2(this, _selection);
      __privateAdd$2(this, _show, vue.ref(false));
      this.update = (view, prevState) => {
@@ -284,7 +348,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..3e4963ffb4efbaa90cde8f3771cf34b4
        __privateGet$2(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
-@@ -2331,6 +2379,7 @@ class ToolbarView {
+@@ -2331,6 +2386,7 @@ class ToolbarView {
        content: __privateGet$2(this, _content),
        debounce: 20,
        offset: 10,
@@ -292,7 +356,7 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..3e4963ffb4efbaa90cde8f3771cf34b4
        shouldShow(view2) {
          const { doc, selection } = view2.state;
          const { empty, from, to } = selection;
-@@ -2706,6 +2755,9 @@ const TopBar = vue.defineComponent({
+@@ -2706,6 +2762,9 @@ const TopBar = vue.defineComponent({
      return () => {
        const view = isReady() ? ctx.get(core.editorViewCtx) : null;
        const isReadonly = view ? !view.editable : false;
@@ -406,10 +470,20 @@ index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..a987357971f34027698f5142f6606526
      this.update(view);
      ctx.set(menuAPI.key, {
 diff --git a/lib/esm/feature/latex/index.js b/lib/esm/feature/latex/index.js
-index f3db789ee13e883f723b3c24b457a55192104824..8cdd1c0a8a72a76eee1e87634658da9fa30e95bb 100644
+index f3db789ee13e883f723b3c24b457a55192104824..9d9ea83dca8304e174bcf424dddea2c4cf5cfc6d 100644
 --- a/lib/esm/feature/latex/index.js
 +++ b/lib/esm/feature/latex/index.js
-@@ -328,7 +328,8 @@ class LatexInlineTooltip {
+@@ -12,7 +12,8 @@ import { Schema } from '@milkdown/kit/prose/model';
+ import { EditorView } from '@milkdown/kit/prose/view';
+ import { defineComponent, h, shallowRef, createApp } from 'vue';
+ import { Icon } from '@milkdown/kit/component';
+-import { textblockTypeInputRule } from '@milkdown/kit/prose/inputrules';
++import { textblockTypeInputRule, InputRule } from '@milkdown/kit/prose/inputrules';
++import { parserCtx } from '@milkdown/kit/core';
+ import remarkMath from 'remark-math';
+ import { visit } from 'unist-util-visit';
+ 
+@@ -328,7 +329,8 @@ class LatexInlineTooltip {
        offset: 10,
        floatingUIOptions: {
          placement: "bottom"
@@ -419,6 +493,34 @@ index f3db789ee13e883f723b3c24b457a55192104824..8cdd1c0a8a72a76eee1e87634658da9f
      }));
      __privateGet(this, _provider).update(view);
      __privateSet(this, _dom, document.createElement("div"));
+@@ -344,13 +346,20 @@ _onHide = new WeakMap();
+ _shouldShow = new WeakMap();
+ 
+ const mathInlineInputRule = $inputRule(
+-  (ctx) => nodeRule(/(?:\$)([^$]+)(?:\$)$/, mathInlineSchema.type(ctx), {
+-    getAttr: (match) => {
+-      var _a;
+-      return {
+-        value: (_a = match[1]) != null ? _a : ""
+-      };
+-    }
++  (ctx) => new InputRule(/\$([^$\ufffc]+)\$$/, (state, match, start, end) => {
++    // NyaMark: the dollars typed make math where the file, opened, reads math:
++    // `$5 和 $` stays text both ways. A line break, image or formula before the
++    // caret reads as "\ufffc" and goes into no math, and none is made in
++    // inline code (Milkdown's input rules pass over no code mark).
++    let inCode = (state.storedMarks || state.doc.resolve(end).marks()).some((mark) => mark.type.spec.code);
++    state.doc.nodesBetween(start, end, (node) => {
++      inCode || (inCode = node.marks.some((mark) => mark.type.spec.code));
++    });
++    if (inCode) return null;
++    const line = ctx.get(parserCtx)(match[0]).firstChild;
++    const math = (line == null ? void 0 : line.childCount) === 1 ? line.firstChild : null;
++    if ((math == null ? void 0 : math.type) !== mathInlineSchema.type(ctx)) return null;
++    return state.tr.replaceRangeWith(start, end, math);
+   })
+ );
+ const mathBlockInputRule = $inputRule(
 diff --git a/lib/esm/feature/toolbar/index.js b/lib/esm/feature/toolbar/index.js
 index fb4d168a050811dc53bd55bcad0ce05c603233b4..d416e8df40b6c475733118bb4096ad82f904be55 100644
 --- a/lib/esm/feature/toolbar/index.js
@@ -461,9 +563,27 @@ index dc55498f949c44e7848b15398c96d55b54c81a87..b8fe19a2a7ac50cfd0f010782728d42d
        return /* @__PURE__ */ h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
 diff --git a/lib/esm/index.js b/lib/esm/index.js
-index ea68de6cfb124faa35d9f047d82788a1043d255c..c27a4dabb783875c6978dd55dcdfafaa2a0fc266 100644
+index ea68de6cfb124faa35d9f047d82788a1043d255c..97c234bcb4f942a6eadb0271e26871d0b2411acb 100644
 --- a/lib/esm/index.js
 +++ b/lib/esm/index.js
+@@ -3,7 +3,7 @@ import { languages } from '@codemirror/language-data';
+ import { oneDark } from '@codemirror/theme-one-dark';
+ import { blockConfig, block, BlockProvider } from '@milkdown/kit/plugin/block';
+ import { createSlice } from '@milkdown/kit/ctx';
+-import { commandsCtx, editorViewCtx, editorCtx, EditorStatus, Editor, rootCtx, defaultValueCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
++import { commandsCtx, editorViewCtx, editorCtx, EditorStatus, Editor, rootCtx, defaultValueCtx, editorViewOptionsCtx, parserCtx } from '@milkdown/kit/core';
+ import { paragraphSchema, clearTextInCurrentBlockCommand, setBlockTypeCommand, headingSchema, blockquoteSchema, wrapInBlockTypeCommand, hrSchema, addBlockTypeCommand, bulletListSchema, orderedListSchema, listItemSchema, codeBlockSchema, selectTextNearPosCommand, toggleStrongCommand, isMarkSelectedCommand, strongSchema, toggleEmphasisCommand, emphasisSchema, toggleInlineCodeCommand, inlineCodeSchema, isNodeSelectedCommand, linkSchema, commonmark } from '@milkdown/kit/preset/commonmark';
+ import { findParent, findNodeInSelection, nodeRule } from '@milkdown/kit/prose';
+ import { TextSelection, NodeSelection, EditorState, Plugin, PluginKey } from '@milkdown/kit/prose/state';
+@@ -26,7 +26,7 @@ import { redo, undo } from '@milkdown/kit/prose/history';
+ import { keymap as keymap$1 } from '@milkdown/kit/prose/keymap';
+ import { Schema } from '@milkdown/kit/prose/model';
+ import { EditorView, DecorationSet, Decoration } from '@milkdown/kit/prose/view';
+-import { textblockTypeInputRule } from '@milkdown/kit/prose/inputrules';
++import { textblockTypeInputRule, InputRule } from '@milkdown/kit/prose/inputrules';
+ import remarkMath from 'remark-math';
+ import { visit } from 'unist-util-visit';
+ import { configureLinkTooltip, linkTooltipConfig, linkTooltipPlugin, toggleLinkCommand } from '@milkdown/kit/component/link-tooltip';
 @@ -1181,6 +1181,14 @@ const Menu = defineComponent({
        if (size === 0 && show.value) hide();
        else if (hoverIndex.value >= size) hoverIndex.value = 0;
@@ -573,7 +693,35 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c27a4dabb783875c6978dd55dcdfafaa
      }));
      __privateGet$3(this, _provider).update(view);
      __privateSet$3(this, _dom, document.createElement("div"));
-@@ -2301,7 +2343,13 @@ class ToolbarView {
+@@ -1929,13 +1971,20 @@ _onHide = new WeakMap();
+ _shouldShow = new WeakMap();
+ 
+ const mathInlineInputRule = $inputRule(
+-  (ctx) => nodeRule(/(?:\$)([^$]+)(?:\$)$/, mathInlineSchema.type(ctx), {
+-    getAttr: (match) => {
+-      var _a;
+-      return {
+-        value: (_a = match[1]) != null ? _a : ""
+-      };
+-    }
++  (ctx) => new InputRule(/\$([^$\ufffc]+)\$$/, (state, match, start, end) => {
++    // NyaMark: the dollars typed make math where the file, opened, reads math:
++    // `$5 和 $` stays text both ways. A line break, image or formula before the
++    // caret reads as "\ufffc" and goes into no math, and none is made in
++    // inline code (Milkdown's input rules pass over no code mark).
++    let inCode = (state.storedMarks || state.doc.resolve(end).marks()).some((mark) => mark.type.spec.code);
++    state.doc.nodesBetween(start, end, (node) => {
++      inCode || (inCode = node.marks.some((mark) => mark.type.spec.code));
++    });
++    if (inCode) return null;
++    const line = ctx.get(parserCtx)(match[0]).firstChild;
++    const math = (line == null ? void 0 : line.childCount) === 1 ? line.firstChild : null;
++    if ((math == null ? void 0 : math.type) !== mathInlineSchema.type(ctx)) return null;
++    return state.tr.replaceRangeWith(start, end, math);
+   })
+ );
+ const mathBlockInputRule = $inputRule(
+@@ -2301,7 +2350,13 @@ class ToolbarView {
      __privateAdd$2(this, _selection);
      __privateAdd$2(this, _show, ref(false));
      this.update = (view, prevState) => {
@@ -588,7 +736,7 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c27a4dabb783875c6978dd55dcdfafaa
        __privateGet$2(this, _selection).value = view.state.selection;
      };
      this.destroy = () => {
-@@ -2329,6 +2377,7 @@ class ToolbarView {
+@@ -2329,6 +2384,7 @@ class ToolbarView {
        content: __privateGet$2(this, _content),
        debounce: 20,
        offset: 10,
@@ -596,7 +744,7 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..c27a4dabb783875c6978dd55dcdfafaa
        shouldShow(view2) {
          const { doc, selection } = view2.state;
          const { empty, from, to } = selection;
-@@ -2704,6 +2753,9 @@ const TopBar = defineComponent({
+@@ -2704,6 +2760,9 @@ const TopBar = defineComponent({
      return () => {
        const view = isReady() ? ctx.get(editorViewCtx) : null;
        const isReadonly = view ? !view.editable : false;

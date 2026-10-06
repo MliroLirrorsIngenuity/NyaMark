@@ -5,16 +5,14 @@
  * prices turned into a formula, "5 和 ", when the file was opened, and the
  * same happened as the second one was typed. Math between dollars starts and
  * ends with something other than a space, as Pandoc and Typora read it;
- * dollars around a space at either end stay text, both typed and opened.
- * Dollars typed in inline code stay text as well.
+ * dollars around a space at either end stay text. Crepe's rule for dollars
+ * as they are typed asks the parser, so it keeps them as text there too.
  *
  * Saving such a paragraph writes its dollars as they were typed: see
  * `markdown-output`, where remark would escape every one of them.
  */
 
-import { InputRule, inputRules } from '@milkdown/kit/prose/inputrules';
-import type { EditorState } from '@milkdown/kit/prose/state';
-import { $prose, $remark } from '@milkdown/kit/utils';
+import { $remark } from '@milkdown/kit/utils';
 import type { Processor } from 'unified';
 
 type MdNode = {
@@ -28,37 +26,6 @@ type MdNode = {
 export function isDollarText(between: string): boolean {
   return /^\s|\s$/.test(between);
 }
-
-/** Crepe's rule for inline math, as the closing dollar is typed. */
-export const TYPED_MATH = /\$([^$]+)\$$/;
-
-/**
- * What ProseMirror's input rules read a line break, image or formula in the
- * text before the caret as.
- */
-const INLINE_NODE = '\ufffc';
-
-/** The closing dollar typed as text when what it closes is no math, or code. */
-export function keepDollar(
-  state: EditorState,
-  match: RegExpMatchArray,
-  start: number,
-  end: number
-) {
-  const [typed, between = ''] = match;
-  // Typed into inline code, Crepe made math of it there too.
-  const marks = state.storedMarks ?? state.doc.resolve(end).marks();
-  const inCode = marks.some((mark) => mark.type.spec.code);
-  // Across a line break or an image, the math took it in as a stray
-  // character and the break or image was gone.
-  const across = between.includes(INLINE_NODE);
-  if (!inCode && !across && !isDollarText(between)) return null;
-  return state.tr.insertText('$', start + typed.length - 1, end);
-}
-
-export const dollarInput = $prose(() =>
-  inputRules({ rules: [new InputRule(TYPED_MATH, keepDollar)] })
-);
 
 /**
  * What the dollars and the text between them read as, the math left out.

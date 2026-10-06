@@ -19,7 +19,7 @@ jobs:
       - run: bun install
       - run: bun x @biomejs/biome ci .
       - run: bun x tsc
-      - run: bun test
+      - run: bun test --isolate
 
   # macOS so the macOS-only modules (menu, quit) are linted and tested too.
   rust-check:

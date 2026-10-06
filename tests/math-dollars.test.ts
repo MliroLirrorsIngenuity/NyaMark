@@ -1,6 +1,5 @@
-import { describe, expect, test } from 'bun:test';
-import { Schema } from '@milkdown/kit/prose/model';
-import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import { afterAll, describe, expect, test } from 'bun:test';
+import { parseHTML } from 'linkedom';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
@@ -10,39 +9,77 @@ import {
   writeText,
 } from '../src/editor/plugins/markdown-output';
 import {
-  TYPED_MATH,
   dollarText,
-  keepDollar,
+  dollarTextParse,
 } from '../src/editor/plugins/math-dollars';
 
-const schema = new Schema({
-  nodes: {
-    doc: { content: 'block+' },
-    paragraph: { group: 'block', content: 'inline*' },
-    text: { group: 'inline' },
-  },
+// Crepe in a page of linkedom's, for its rule for dollars as they are typed.
+// Vue takes the document there is as it loads, so Crepe is loaded once the
+// page is in place, and the test files each run on their own (`--isolate`).
+const page = parseHTML('<!doctype html><html><body></body></html>');
+const stand = {
+  window: page.window,
+  document: page.document,
+  navigator: page.navigator,
+  Node: page.Node,
+  Element: page.Element,
+  HTMLElement: page.HTMLElement,
+  SVGElement: page.SVGElement ?? class {},
+  MutationObserver: page.MutationObserver,
+  getComputedStyle: () => ({}),
+  requestAnimationFrame: (run: () => void) => setTimeout(run),
+  cancelAnimationFrame: clearTimeout,
+};
+const had = Object.fromEntries(
+  Object.keys(stand).map((key) => [key, Reflect.get(globalThis, key)])
+);
+afterAll(() => {
+  for (const [key, value] of Object.entries(had)) {
+    if (value === undefined) Reflect.deleteProperty(globalThis, key);
+    else Reflect.set(globalThis, key, value);
+  }
 });
 
-/** A `$` typed at the end of a paragraph holding `before`. */
-function typeDollar(before: string) {
-  const doc = schema.node('doc', null, [
-    schema.node('paragraph', null, schema.text(before)),
-  ]);
-  const end = before.length + 1;
-  const state = EditorState.create({
-    doc,
-    selection: TextSelection.create(doc, end),
-  });
-  const match = `${before}$`.match(TYPED_MATH);
-  if (!match) return null;
-  const start = end - (match[0].length - 1);
-  return keepDollar(state, match, start, end);
+/**
+ * The line in `markdown` after a `$` is typed at `at` in its text, or at its
+ * end: its text, its formulas' values, the names of its other nodes.
+ */
+async function typeDollar(markdown: string, at?: number) {
+  Object.assign(globalThis, stand);
+  // linkedom keeps no selection.
+  Object.assign(page.document, { getSelection: () => null });
+  const { Crepe, CrepeFeature } = await import('@milkdown/crepe');
+  const { editorViewCtx } = await import('@milkdown/kit/core');
+  const root = page.document.createElement('div');
+  page.document.body.append(root);
+  const features = Object.fromEntries(
+    Object.values(CrepeFeature).map((name) => [
+      name,
+      name === CrepeFeature.Latex || name === CrepeFeature.CodeMirror,
+    ])
+  );
+  const crepe = new Crepe({ root, defaultValue: markdown, features });
+  crepe.editor.use(dollarTextParse);
+  await crepe.create();
+  const view = crepe.editor.ctx.get(editorViewCtx);
+  const line = view.state.doc.firstChild;
+  const pos = 1 + (at ?? line?.content.size ?? 0);
+  const handled = view.someProp('handleTextInput', (handle) =>
+    handle(view, pos, pos, '$', () => view.state.tr.insertText('$', pos))
+  );
+  if (!handled) view.dispatch(view.state.tr.insertText('$', pos));
+  const typed = view.state.doc.firstChild;
+  const parts: (string | string[])[] = [];
+  for (let index = 0; index < (typed?.childCount ?? 0); index += 1) {
+    const node = typed?.child(index);
+    if (node?.isText) parts.push(node.text ?? '');
+    else if (node?.type.name === 'math_inline') parts.push([node.attrs.value]);
+    else if (node) parts.push(node.type.name);
+  }
+  await crepe.destroy();
+  root.remove();
+  return parts;
 }
-
-const codeSchema = new Schema({
-  nodes: schema.spec.nodes,
-  marks: { code: { code: true } },
-});
 
 type Tree = { type: string; value?: string; children?: Tree[] };
 
@@ -70,61 +107,30 @@ function roundTrip(markdown: string) {
   );
 }
 
-describe('keepDollar', () => {
-  test('types the dollar after a price as text', () => {
-    const tr = typeDollar('价格 $5 和 ');
-    expect(tr?.doc.textContent).toBe('价格 $5 和 $');
+describe('dollars typed', () => {
+  test('make math of what opens as math', async () => {
+    expect(await typeDollar('设 $x')).toEqual(['设 ', ['x']]);
+    expect(await typeDollar('设 $x^2')).toEqual(['设 ', ['x^2']]);
   });
 
-  test('leaves a dollar right after one to the rule for math', () => {
-    expect(typeDollar('设 $x')).toBeNull();
-    expect(typeDollar('设 $x^2')).toBeNull();
+  test('stay text after a price', async () => {
+    expect(await typeDollar('价格 $5 和 买', 8)).toEqual(['价格 $5 和 $买']);
   });
 
-  test('types it as text in inline code', () => {
-    const code = codeSchema.text('设 $x', [codeSchema.mark('code')]);
-    const doc = codeSchema.node('doc', null, [
-      codeSchema.node('paragraph', null, code),
+  test('stay text where the math would open on a space', async () => {
+    expect(await typeDollar('$ x')).toEqual(['$ x$']);
+  });
+
+  test('stay text in inline code', async () => {
+    expect(await typeDollar('`设 $x 后`', 4)).toEqual(['设 $x$ 后']);
+  });
+
+  test('leave a line break between them where it is', async () => {
+    expect(await typeDollar('设 $a\\\nb')).toEqual([
+      '设 $a',
+      'hardbreak',
+      'b$',
     ]);
-    const state = EditorState.create({
-      doc,
-      selection: TextSelection.create(doc, 5),
-    });
-    const match = '设 $x$'.match(TYPED_MATH);
-    if (!match) throw new Error('no match');
-    expect(keepDollar(state, match, 3, 5)?.doc.textContent).toBe('设 $x$');
-  });
-
-  test('types it as text when the math would open on a space', () => {
-    expect(typeDollar('$ x')?.doc.textContent).toBe('$ x$');
-  });
-
-  test('types it as text across a line break', () => {
-    const breakSchema = new Schema({
-      nodes: schema.spec.nodes.addToEnd('hard_break', {
-        group: 'inline',
-        inline: true,
-      }),
-    });
-    const doc = breakSchema.node('doc', null, [
-      breakSchema.node('paragraph', null, [
-        breakSchema.text('设 $a'),
-        breakSchema.node('hard_break'),
-        breakSchema.text('b'),
-      ]),
-    ]);
-    const state = EditorState.create({
-      doc,
-      selection: TextSelection.create(doc, 7),
-    });
-    const typed = `${doc.textBetween(1, 7, null, '\ufffc')}$`;
-    const match = typed.match(TYPED_MATH);
-    if (!match) throw new Error('no match');
-    const tr = keepDollar(state, match, 7 - (match[0].length - 1), 7);
-    const line = tr?.doc.firstChild;
-    expect(line?.childCount).toBe(3);
-    expect(line?.child(1).type.name).toBe('hard_break');
-    expect(line?.textContent).toBe('设 $ab$');
   });
 });
 

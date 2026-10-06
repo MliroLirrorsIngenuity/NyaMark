@@ -130,7 +130,7 @@ import {
   markdownOutput,
   writeAsNotes,
 } from './plugins/markdown-output';
-import { dollarInput, dollarTextParse } from './plugins/math-dollars';
+import { dollarTextParse } from './plugins/math-dollars';
 import { mathInlineKeys } from './plugins/math-inline-keys';
 import {
   bindMermaidThemeListener,
@@ -293,7 +293,6 @@ export class NyaEditor {
     crepe.editor.use(quoteInput);
     crepe.editor.use(headingInput);
     crepe.editor.use(typedBlocks);
-    crepe.editor.use(dollarInput);
     // Removed before the editor is created, so at once.
     void crepe.editor.remove([
       strongInputRule,

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "bun test",
+    "test": "bun test --isolate",
     "tauri": "tauri"
   },
   "dependencies": {
