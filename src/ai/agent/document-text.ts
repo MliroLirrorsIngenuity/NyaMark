@@ -4,6 +4,9 @@
  * so it is the same whichever mode the editor is in.
  */
 
+import type { Heading as HeadingNode, Nodes, Root } from 'mdast';
+import { toString as plainText } from 'mdast-util-to-string';
+
 export type DocumentSnapshot = {
   /** The document as Markdown. */
   text: string;
@@ -34,6 +37,8 @@ export type LineRead = {
 export type Heading = { line: number; level: number; text: string };
 
 export type SearchRead = { text: string; count: number };
+
+export type MarkdownTree = (markdown: string) => Root;
 
 /** The document's lines; the newline that ends the last is no line of its own. */
 export function documentLines(text: string): string[] {
@@ -110,51 +115,29 @@ export function numberedText(text: string): string {
     .join('\n');
 }
 
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
-const ATX = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$/;
-const CLOSING_HASHES = /(?:^|[ \t]+)#+$/;
-
-/** The document's headings, past front matter and outside code and math. */
-export function headings(text: string): Heading[] {
-  const lines = documentLines(text);
-  const found: Heading[] = [];
-  let start = 0;
-  const opener = lines[0];
-  if (opener === '---' || opener === '+++') {
-    const end = lines.indexOf(opener, 1);
-    if (end > 0) start = end + 1;
-  }
-  let fence: string | null = null;
-  let math = false;
-  for (let i = start; i < lines.length; i++) {
-    const line = lines[i];
-    const fenceMark = FENCE.exec(line)?.[1];
-    if (fence) {
-      if (
-        fenceMark &&
-        fenceMark[0] === fence[0] &&
-        fenceMark.length >= fence.length &&
-        !line.trim().slice(fenceMark.length).trim()
-      ) {
-        fence = null;
-      }
-      continue;
-    }
-    if (fenceMark) {
-      fence = fenceMark;
-      continue;
-    }
-    if (/^ {0,3}\$\$\s*$/.test(line)) {
-      math = !math;
-      continue;
-    }
-    if (math) continue;
-    const atx = ATX.exec(line);
-    if (!atx) continue;
-    const title = (atx[2] ?? '').replace(CLOSING_HASHES, '').trim();
-    found.push({ line: i + 1, level: atx[1].length, text: title });
-  }
+function headingNodes(root: Root): HeadingNode[] {
+  const found: HeadingNode[] = [];
+  const walk = (node: Nodes) => {
+    if (node.type === 'heading') found.push(node);
+    else if ('children' in node) for (const child of node.children) walk(child);
+  };
+  walk(root);
   return found;
+}
+
+function headingOf(node: HeadingNode, text: string): Heading {
+  const first = node.children[0]?.position?.start.offset;
+  const last = node.children[node.children.length - 1]?.position?.end.offset;
+  return {
+    line: node.position?.start.line ?? 1,
+    level: node.depth,
+    text: first != null && last != null ? text.slice(first, last) : '',
+  };
+}
+
+/** The document's headings, as the editor reads them. */
+export function headings(text: string, tree: MarkdownTree): Heading[] {
+  return headingNodes(tree(text)).map((node) => headingOf(node, text));
 }
 
 /** The outline as the model is given it: one heading a line, indented by level. */
@@ -172,14 +155,16 @@ export function outlineText(list: Heading[], limit = Number.POSITIVE_INFINITY) {
   return shown.join('\n');
 }
 
-/** A heading's words, without the markup around them, for matching. */
-function plain(heading: string): string {
-  return heading
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/[*_`~]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLocaleLowerCase();
+/** Words as they are compared: one space between them, in lower case. */
+function plain(words: string): string {
+  return words.replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+}
+
+function wordsOf(heading: string, tree: MarkdownTree): string {
+  const first = tree(heading).children[0];
+  return plain(
+    plainText(first?.type === 'heading' ? first : tree(`# ${heading}`))
+  );
 }
 
 /**
@@ -188,20 +173,21 @@ function plain(heading: string): string {
  */
 export function readSection(
   text: string,
+  tree: MarkdownTree,
   heading: string,
   line?: number
 ): LineRead & { heading: Heading } {
-  const list = headings(text);
+  const nodes = headingNodes(tree(text));
+  const list = nodes.map((node) => headingOf(node, text));
   let matches: Heading[];
   if (line != null) {
     matches = list.filter((candidate) => candidate.line === line);
   } else {
-    const wanted = plain(heading.replace(/^\s*#+\s*/, ''));
-    matches = list.filter((candidate) => plain(candidate.text) === wanted);
+    const words = nodes.map((node) => plain(plainText(node)));
+    const wanted = wordsOf(heading, tree);
+    matches = list.filter((_, index) => words[index] === wanted);
     if (matches.length === 0 && wanted) {
-      matches = list.filter((candidate) =>
-        plain(candidate.text).includes(wanted)
-      );
+      matches = list.filter((_, index) => words[index].includes(wanted));
     }
   }
   if (matches.length === 0) {

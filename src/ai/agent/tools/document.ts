@@ -9,6 +9,7 @@ import { z } from 'zod';
 import {
   type DocumentSnapshot,
   MAX_READ_LINES,
+  type MarkdownTree,
   headings,
   outlineText,
   readLines,
@@ -26,6 +27,7 @@ const LINE_NOTE =
 
 export function documentTools(
   read: DocumentReader,
+  tree: MarkdownTree,
   notices: DocumentNotices = async () => null
 ) {
   /** What `result` gives, the notices before its text. */
@@ -68,7 +70,7 @@ export function documentTools(
       inputSchema: z.object({}),
       execute: () =>
         told(({ text }) => {
-          const list = headings(text);
+          const list = headings(text, tree);
           return { text: outlineText(list), count: list.length };
         }),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
@@ -90,7 +92,7 @@ export function documentTools(
           ),
       }),
       execute: ({ heading, line }) =>
-        told(({ text }) => readSection(text, heading, line)),
+        told(({ text }) => readSection(text, tree, heading, line)),
       toModelOutput: ({ output }) => ({ type: 'text', value: output.text }),
     }),
 

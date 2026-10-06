@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { MockLanguageModelV4 } from 'ai/test';
+import type { Root } from 'mdast';
+import remarkFrontmatter from 'remark-frontmatter';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import {
   type DocumentSnapshot,
   MAX_READ_CHARS,
@@ -19,6 +25,13 @@ import {
 } from '../src/ai/agent/instructions';
 import { ChatSession, type ToolPart } from '../src/ai/agent/session';
 import { documentTools } from '../src/ai/agent/tools/document';
+
+const reader = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkFrontmatter)
+  .use(remarkMath);
+const tree = (markdown: string): Root => reader.parse(markdown);
 
 const DOC = `---
 title: Notes
@@ -99,7 +112,7 @@ describe('readLines', () => {
 
 describe('headings', () => {
   test('skips front matter, code and math', () => {
-    expect(headings(DOC)).toEqual([
+    expect(headings(DOC, tree)).toEqual([
       { line: 6, level: 1, text: 'Intro' },
       { line: 10, level: 2, text: 'Setup' },
       { line: 17, level: 2, text: 'Use **it**' },
@@ -108,14 +121,39 @@ describe('headings', () => {
   });
 
   test('takes closing hashes off', () => {
-    expect(headings('## Title ##\n#\n#hashtag')).toEqual([
+    expect(headings('## Title ##\n#\n#hashtag', tree)).toEqual([
       { line: 1, level: 2, text: 'Title' },
       { line: 2, level: 1, text: '' },
     ]);
   });
 
+  test('reads headings as Markdown does', () => {
+    const text = [
+      'Title',
+      '=====',
+      '',
+      '    # indented code',
+      '',
+      '> ## Quoted',
+      '',
+      '<div>',
+      '# in html',
+      '</div>',
+      '',
+      '## See [the docs](https://x.y)',
+      '',
+    ].join('\n');
+    expect(headings(text, tree)).toEqual([
+      { line: 1, level: 1, text: 'Title' },
+      { line: 6, level: 2, text: 'Quoted' },
+      { line: 12, level: 2, text: 'See [the docs](https://x.y)' },
+    ]);
+    expect(readSection(text, tree, 'See the docs').heading.line).toBe(12);
+    expect(readSection(text, tree, '## See *the* docs').heading.line).toBe(12);
+  });
+
   test('lists the outline indented by level', () => {
-    expect(outlineText(headings(DOC), 2)).toBe(
+    expect(outlineText(headings(DOC, tree), 2)).toBe(
       '# Intro (line 6)\n  ## Setup (line 10)\n… and 2 more headings.'
     );
     expect(outlineText([])).toBe('The document has no headings.');
@@ -124,7 +162,7 @@ describe('headings', () => {
 
 describe('readSection', () => {
   test('reads down to the next heading of its level', () => {
-    const read = readSection(DOC, 'setup');
+    const read = readSection(DOC, tree, 'setup');
     expect(read.heading.line).toBe(10);
     expect(read).toMatchObject({ from: 10, to: 16 });
     expect(read.text).toContain('npm install');
@@ -132,18 +170,20 @@ describe('readSection', () => {
   });
 
   test('matches the words without their markup', () => {
-    expect(readSection(DOC, 'Use it').heading.line).toBe(17);
-    expect(readSection(DOC, '## Use it').heading.line).toBe(17);
+    expect(readSection(DOC, tree, 'Use it').heading.line).toBe(17);
+    expect(readSection(DOC, tree, '## Use it').heading.line).toBe(17);
   });
 
   test('asks which of several headings is meant', () => {
-    expect(() => readSection(DOC, 'Intro')).toThrow('line 6');
-    const read = readSection(DOC, 'Intro', 23);
+    expect(() => readSection(DOC, tree, 'Intro')).toThrow('line 6');
+    const read = readSection(DOC, tree, 'Intro', 23);
     expect(read).toMatchObject({ from: 23, to: 25 });
   });
 
   test('lists the headings when none matches', () => {
-    expect(() => readSection(DOC, 'Missing')).toThrow('## Setup (line 10)');
+    expect(() => readSection(DOC, tree, 'Missing')).toThrow(
+      '## Setup (line 10)'
+    );
   });
 });
 
@@ -209,7 +249,7 @@ describe('buildInstructions with the document', () => {
       documentPath: null,
       custom: '',
       today,
-      document: { text: '# Hi\n\nThere\n', selection: null },
+      document: { text: '# Hi\n\nThere\n', selection: null, tree },
     });
     expect(text).toContain(`<document>\n${numberedText('# Hi\n\nThere\n')}`);
     expect(text).toContain('Nothing is selected');
@@ -221,7 +261,7 @@ describe('buildInstructions with the document', () => {
       documentPath: null,
       custom: '',
       today,
-      document: { text: body, selection: null },
+      document: { text: body, selection: null, tree },
     });
     expect(text).not.toContain('<document>');
     expect(text).toContain('# Big (line 1)');
@@ -326,7 +366,7 @@ function toolSession(model: MockLanguageModelV4, text = DOC) {
     model,
     modelLabel: 'mock',
     instructions: '',
-    tools: documentTools(async () => ({ text, selection: null })),
+    tools: documentTools(async () => ({ text, selection: null }), tree),
   }));
 }
 

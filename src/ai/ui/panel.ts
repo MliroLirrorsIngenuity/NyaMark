@@ -37,6 +37,7 @@ import { ensureStyle } from '../../style/register';
 import { isModalOpen } from '../../ui/modal';
 import { keepReadingPosition } from '../../ui/reading-position';
 import { Approvals } from '../agent/approvals';
+import type { MarkdownTree } from '../agent/document-text';
 import { buildInstructions } from '../agent/instructions';
 import {
   ChatFailureError,
@@ -545,6 +546,7 @@ export class AiPanel {
     const notices = await this.edits.notices();
     const document = await this.edits.read();
     const read = () => this.edits.read();
+    const tree: MarkdownTree = (text) => this.host.editor.markdownTree(text);
     const folders = await workspaceRoots().catch(() => []);
     const native = ai.search.native ? nativeSearchTool(provider) : null;
     const hub = mcpHub();
@@ -558,7 +560,7 @@ export class AiPanel {
       instructions: buildInstructions({
         documentPath: this.host.documentPath(),
         custom: ai.instructions,
-        document,
+        document: { ...document, tree },
         editMode: ai.editMode,
         notices,
         folders,
@@ -577,7 +579,7 @@ export class AiPanel {
             ? (caption, images) => this.session.showModel(caption, images)
             : undefined,
         }),
-        ...documentTools(read, () => this.edits.notices()),
+        ...documentTools(read, tree, () => this.edits.notices()),
         ...editTools(this.edits),
         ...workspaceTools({
           api: WORKSPACE,

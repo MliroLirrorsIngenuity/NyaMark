@@ -7,6 +7,7 @@
 import type { AiEditMode } from '../../state/ai-settings';
 import {
   type DocumentSnapshot,
+  type MarkdownTree,
   documentLines,
   headings,
   numberedText,
@@ -20,7 +21,7 @@ export type InstructionContext = {
   /** What the user wants the assistant always to keep in mind. */
   custom: string;
   /** The document as the turn begins. */
-  document?: DocumentSnapshot;
+  document?: DocumentSnapshot & { tree: MarkdownTree };
   /** Whether the assistant's edits wait for the user or go in at once. */
   editMode?: AiEditMode;
   /** What became of earlier edits, and where the text changed since. */
@@ -75,8 +76,10 @@ function fileName(path: string): string {
 }
 
 /** What the turn begins knowing of the document's text. */
-function documentContext(snapshot: DocumentSnapshot): string {
-  const { text } = snapshot;
+function documentContext(
+  snapshot: DocumentSnapshot & { tree: MarkdownTree }
+): string {
+  const { text, tree } = snapshot;
   const lines = documentLines(text);
   if (lines.length === 0 || !text.trim()) return 'The document is empty.';
   const size = `It has ${lines.length} lines (${text.length} characters).`;
@@ -87,7 +90,7 @@ function documentContext(snapshot: DocumentSnapshot): string {
     );
   } else {
     parts.push(
-      `${size} It is too long to show here; read it with the tools. Its outline:\n${outlineText(headings(text), OUTLINE_HEADINGS)}`
+      `${size} It is too long to show here; read it with the tools. Its outline:\n${outlineText(headings(text, tree), OUTLINE_HEADINGS)}`
     );
   }
   const selection = readSelection(snapshot, SELECTION_CHARS);

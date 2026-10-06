@@ -40,6 +40,7 @@ import {
   TextSelection,
 } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
+import type { Root } from 'mdast';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { buildCrepeConfig } from './config';
@@ -458,6 +459,13 @@ export class NyaEditor {
     if (!this.crepe) return [];
     return this.crepe.editor.action((ctx) =>
       sourceSpans(ctx.get(remarkCtx), markdown)
+    );
+  }
+
+  markdownTree(markdown: string): Root {
+    if (!this.crepe) return { type: 'root', children: [] };
+    return this.crepe.editor.action((ctx) =>
+      ctx.get(remarkCtx).parse(markdown)
     );
   }
 
