@@ -339,6 +339,21 @@ describe('normalizeOutput', () => {
     );
     expect(displayWidth('a，b😀')).toBe(6);
   });
+
+  test('takes an emoji for two columns, and a mark for none', () => {
+    for (const emoji of ['🚀', '✅', '❤️', '👍🏽', '🇨🇳', '👨‍👩‍👧', '1️⃣']) {
+      expect([emoji, displayWidth(emoji)]).toEqual([emoji, 2]);
+    }
+    expect(displayWidth('e\u0301')).toBe(1);
+    const processor = unified()
+      .use(remarkParse)
+      .use(remarkGfm, { stringLength: displayWidth })
+      .use(remarkStringify);
+    const table = '| 状态 | 项 |\n| --- | --- |\n| 🚀 | 👨‍👩‍👧 |\n';
+    expect(processor.processSync(table).toString()).toBe(
+      '| 状态 | 项 |\n| ---- | -- |\n| 🚀   | 👨‍👩‍👧 |\n'
+    );
+  });
 });
 
 describe('joinInTightItem', () => {

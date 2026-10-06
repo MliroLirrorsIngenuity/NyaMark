@@ -33,8 +33,9 @@
  * Tables: the pipes of a saved table are lined up by padding each cell, and
  * remark measured a cell by its character count. A Chinese character takes two
  * columns in a monospace editor, so a CJK table came out ragged, with odd
- * gaps after short cells. `displayWidth` counts wide characters as two, the
- * way Prettier does; it goes to remark-gfm as `stringLength`.
+ * gaps after short cells. `displayWidth` measures a cell as Prettier does, by
+ * emoji-regex and get-east-asian-width; it goes to remark-gfm as
+ * `stringLength`.
  *
  * Blocks in an item of a tight list: remark writes them line after line, and
  * opened again some ran into the next. Text under a table read as another
@@ -52,6 +53,8 @@
 import { remarkCtx, remarkStringifyOptionsCtx } from '@milkdown/kit/core';
 import type { Ctx } from '@milkdown/kit/ctx';
 import { $remark } from '@milkdown/kit/utils';
+import emojiRegex from 'emoji-regex';
+import { eastAsianWidth } from 'get-east-asian-width';
 import {
   type Handle,
   type Join,
@@ -76,10 +79,8 @@ type MdNode = {
 };
 
 const LINE_BREAK = /^<br\s*\/?>$/i;
-// East Asian wide and fullwidth ranges: CJK, kana, Hangul, fullwidth forms,
-// and the emoji blocks terminals draw two columns wide.
-const WIDE =
-  /[\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6\u{1f300}-\u{1f64f}\u{1f900}-\u{1f9ff}\u{20000}-\u{3fffd}]/u;
+// Marks, joiners and control characters take no column of their own.
+const ZERO_WIDTH = /[\p{Mn}\p{Me}\p{Cf}\p{Cc}]/u;
 
 function normalizeList(list: MdNode) {
   const loose = list.spread === true || list.spread === 'true';
@@ -428,10 +429,20 @@ export const forgetBullet: Join = (_left, right, _parent, state) => {
   return undefined;
 };
 
-/** Columns `value` takes in a monospace font. */
+/**
+ * Columns `value` takes in a monospace font: two for an emoji, and for any
+ * other character what Unicode's East Asian Width gives it.
+ */
 export function displayWidth(value: string): number {
   let width = 0;
-  for (const char of value) width += WIDE.test(char) ? 2 : 1;
+  const rest = value.replace(emojiRegex(), () => {
+    width += 2;
+    return '';
+  });
+  for (const char of rest) {
+    if (!ZERO_WIDTH.test(char))
+      width += eastAsianWidth(char.codePointAt(0) ?? 0);
+  }
   return width;
 }
 
