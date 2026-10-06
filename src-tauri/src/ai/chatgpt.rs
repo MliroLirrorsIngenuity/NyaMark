@@ -421,11 +421,10 @@ struct Vault<'a> {
 
 impl<'a> Vault<'a> {
     fn of<R: Runtime>(app: &'a AppHandle<R>) -> Result<Self, ChatGptError> {
-        let (store, _) = secrets::store(app)?;
         Ok(Self {
             state: app.state::<ChatGpt>().inner(),
             shelf: Shelf {
-                store: Arc::from(store),
+                store: Arc::new(secrets::sealed_store(app)?),
             },
         })
     }
@@ -1329,7 +1328,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::ai::secrets::FileStore;
+    use crate::ai::secrets::{FileStore, SealedStore};
 
     /// A token as OpenAI's read, unsigned: nothing here checks a signature.
     fn jwt(claims: &Value) -> String {
@@ -1529,7 +1528,7 @@ mod tests {
             vault: Vault {
                 state,
                 shelf: Shelf {
-                    store: Arc::new(FileStore::new(dir.join("keys.json"))),
+                    store: Arc::new(shelf_store(dir)),
                 },
             },
             http: http::build_oauth_client(&ProxySetting::None).unwrap(),
@@ -1540,8 +1539,15 @@ mod tests {
         }
     }
 
+    fn shelf_store(dir: &Path) -> SealedStore {
+        SealedStore::new(
+            Box::new(FileStore::new(dir.join("keys.json"))),
+            dir.join("sealed"),
+        )
+    }
+
     fn saved(dir: &Path, profile: &str) -> Option<Credentials> {
-        FileStore::new(dir.join("keys.json"))
+        shelf_store(dir)
             .get(&format!("{PROFILE_ACCOUNT}{profile}"))
             .unwrap()
             .map(|stored| secrets::decode_record(&stored).unwrap())

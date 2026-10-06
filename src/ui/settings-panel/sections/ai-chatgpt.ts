@@ -136,6 +136,16 @@ export function chatGptFailureText(error: unknown): string | null {
       return i18next.t('settings.ai.chatgpt.error.browser', {
         message: failure.message,
       });
+    case 'store':
+      return i18next.t('settings.ai.chatgpt.error.store', {
+        message: failure.message,
+      });
+    case 'network':
+      return i18next.t('settings.ai.chatgpt.error.network', {
+        message: failure.message,
+      });
+    case 'bad-proxy':
+      return i18next.t('settings.ai.badProxy', { message: failure.message });
     default:
       return error.message;
   }

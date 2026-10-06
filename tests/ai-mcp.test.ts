@@ -175,17 +175,17 @@ describe('MCP servers in the settings', () => {
         message: 'No such file or directory (os error 2)',
       })
     ).toBe(
-      'Could not start the command: No such file or directory (os error 2)'
+      'Unable to start the command: No such file or directory (os error 2)'
     );
     expect(mcpErrorText({ kind: 'not-connected' })).toBe(
-      'No key is saved for this server.'
+      'No key has been saved for this server.'
     );
     expect(mcpErrorText({ kind: 'command-not-found', command: 'npx' })).toBe(
       'The command was not found: npx'
     );
     expect(
       mcpErrorText({ kind: 'connection', message: 'handshake failed' })
-    ).toBe('Could not connect to the server: handshake failed');
+    ).toBe('Unable to connect to the server: handshake failed');
   });
 });
 
@@ -649,12 +649,12 @@ describe('the line for an MCP call in the reply', () => {
         state: 'done',
         output: { text: '', server: 'My Files', tool: 'read.file' },
       })
-    ).toBe('Used read.file (My Files)');
+    ).toBe('Ran read.file (My Files)');
     expect(part({ state: 'denied', output: { denied: 'No.' } })).toBe(
       'Did not run read_file (My_Files)'
     );
     expect(part({ state: 'error', error: 'timeout: slow' })).toBe(
-      'read_file (My_Files) failed'
+      'read_file (My_Files) returned an error'
     );
   });
 });

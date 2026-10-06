@@ -38,6 +38,8 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tokio-util = "0.7"
 url = "2"
 base64 = "0.22"
+# Sealing the ChatGPT tokens; already in the tree through rustls.
+ring = "0.17"
 # Search result pages. Already in the tree through tauri's build tools, so its
 # html5ever and selectors come at no cost; scraper would bring second copies.
 dom_query = { version = "0.27", default-features = false }

@@ -28,6 +28,7 @@ dependencies = [
  "process-wrap",
  "regex",
  "reqwest",
+ "ring",
  "rmcp",
  "rustls",
  "serde",

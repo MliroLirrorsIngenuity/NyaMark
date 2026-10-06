@@ -24,6 +24,10 @@ use std::{
 };
 
 use base64::{engine::general_purpose::STANDARD, Engine};
+use ring::{
+    aead::{Aad, LessSafeKey, Nonce, UnboundKey, CHACHA20_POLY1305, NONCE_LEN},
+    rand::{SecureRandom, SystemRandom},
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime, Window};
 
@@ -140,14 +144,17 @@ pub fn decode_record<T: DeserializeOwned>(stored: &str) -> Result<T, SecretError
 
 const PROFILE_ACCOUNT: &str = "profile-";
 
+fn is_plain(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 /// A profile id names a keychain item, so it is kept to plain characters.
 pub fn account_for(profile: &str) -> Result<String, SecretError> {
-    let plain = !profile.is_empty()
-        && profile.len() <= 64
-        && profile
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-    if plain {
+    if is_plain(profile) {
         Ok(format!("{PROFILE_ACCOUNT}{profile}"))
     } else {
         Err(SecretError::BadProfile)
@@ -221,6 +228,113 @@ impl SecretStore for FileStore {
     }
 }
 
+/// Secrets longer than a credential store takes, such as a ChatGPT
+/// sign-in's tokens: `security -i` reads lines of up to 4095 bytes, which
+/// the value fills twice over as hex, and Windows keeps 2560. Each goes to
+/// a file of its own, sealed with a key the store keeps, the way Codex
+/// keeps its tokens; the file alone opens nowhere else.
+pub struct SealedStore {
+    keys: Box<dyn SecretStore>,
+    dir: PathBuf,
+}
+
+const SEALING_KEY: &str = "sealing-key";
+const SEALING_KEY_LEN: usize = 32;
+
+/// Two first saves at once would each make a key, and one would be lost.
+static SEALING: Mutex<()> = Mutex::new(());
+
+fn seal(key: &[u8], account: &str, value: &str) -> Result<Vec<u8>, SecretError> {
+    let key = UnboundKey::new(&CHACHA20_POLY1305, key).map_err(store_error)?;
+    let mut nonce = [0; NONCE_LEN];
+    SystemRandom::new().fill(&mut nonce).map_err(store_error)?;
+    let mut sealed = value.as_bytes().to_vec();
+    LessSafeKey::new(key)
+        .seal_in_place_append_tag(
+            Nonce::assume_unique_for_key(nonce),
+            Aad::from(account.as_bytes()),
+            &mut sealed,
+        )
+        .map_err(store_error)?;
+    Ok([nonce.as_slice(), &sealed].concat())
+}
+
+/// None for what this key did not seal for this account.
+fn open(key: &[u8], account: &str, sealed: &[u8]) -> Option<String> {
+    let key = LessSafeKey::new(UnboundKey::new(&CHACHA20_POLY1305, key).ok()?);
+    let (nonce, sealed) = sealed.split_at_checked(NONCE_LEN)?;
+    let nonce = Nonce::try_assume_unique_for_key(nonce).ok()?;
+    let mut opened = sealed.to_vec();
+    let value = key
+        .open_in_place(nonce, Aad::from(account.as_bytes()), &mut opened)
+        .ok()?;
+    String::from_utf8(value.to_vec()).ok()
+}
+
+impl SealedStore {
+    pub fn new(keys: Box<dyn SecretStore>, dir: PathBuf) -> Self {
+        Self { keys, dir }
+    }
+
+    fn path(&self, account: &str) -> Result<PathBuf, SecretError> {
+        if !is_plain(account) {
+            return Err(SecretError::BadProfile);
+        }
+        Ok(self.dir.join(format!("{account}.sealed")))
+    }
+
+    fn saved_key(&self) -> Result<Option<Vec<u8>>, SecretError> {
+        Ok(self
+            .keys
+            .get(SEALING_KEY)?
+            .and_then(|stored| STANDARD.decode(stored.trim()).ok())
+            .filter(|key| key.len() == SEALING_KEY_LEN))
+    }
+
+    /// The key, made and kept the first time something is sealed.
+    fn sealing_key(&self) -> Result<Vec<u8>, SecretError> {
+        let _making = lock(&SEALING);
+        if let Some(key) = self.saved_key()? {
+            return Ok(key);
+        }
+        let mut key = vec![0; SEALING_KEY_LEN];
+        SystemRandom::new().fill(&mut key).map_err(store_error)?;
+        self.keys.set(SEALING_KEY, &STANDARD.encode(&key))?;
+        Ok(key)
+    }
+}
+
+impl SecretStore for SealedStore {
+    fn get(&self, account: &str) -> Result<Option<String>, SecretError> {
+        let sealed = match fs::read(self.path(account)?) {
+            Ok(sealed) => sealed,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(store_error(error)),
+        };
+        // A file its key no longer opens is as good as none: the next save
+        // writes over it.
+        Ok(self
+            .saved_key()?
+            .and_then(|key| open(&key, account, &sealed)))
+    }
+
+    fn set(&self, account: &str, value: &str) -> Result<(), SecretError> {
+        let path = self.path(account)?;
+        let sealed = seal(&self.sealing_key()?, account, value)?;
+        fs::create_dir_all(&self.dir).map_err(store_error)?;
+        crate::document::write_atomically(&path, &sealed).map_err(store_error)?;
+        restrict_to_owner(&path)
+    }
+
+    fn delete(&self, account: &str) -> Result<(), SecretError> {
+        match fs::remove_file(self.path(account)?) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(store_error(error)),
+        }
+    }
+}
+
 #[cfg(target_os = "macos")]
 mod keychain {
     use std::{
@@ -233,6 +347,10 @@ mod keychain {
     const SECURITY: &str = "/usr/bin/security";
     /// `security`'s exit status for an item that is not there.
     const NOT_FOUND: i32 = 44;
+    /// The longest line `security -i` reads whole. It runs the rest of a
+    /// longer one as another command, and its error repeats that part:
+    /// some of the secret.
+    const LINE_MAX: usize = 4095;
 
     pub struct Keychain {
         pub service: String,
@@ -272,6 +390,12 @@ mod keychain {
         }
 
         fn set(&self, account: &str, value: &str) -> Result<(), SecretError> {
+            let command = add_command(&self.service, account, value);
+            if command.trim_end().len() > LINE_MAX {
+                return Err(store_error(
+                    "The value is too long for the keychain to save",
+                ));
+            }
             let mut child = Command::new(SECURITY)
                 .arg("-i")
                 .stdin(Stdio::piped())
@@ -280,9 +404,7 @@ mod keychain {
                 .spawn()
                 .map_err(store_error)?;
             if let Some(mut stdin) = child.stdin.take() {
-                stdin
-                    .write_all(add_command(&self.service, account, value).as_bytes())
-                    .map_err(store_error)?;
+                stdin.write_all(command.as_bytes()).map_err(store_error)?;
             }
             let output = child.wait_with_output().map_err(store_error)?;
             // `security -i` exits 0 when a command in it failed and tells
@@ -384,6 +506,14 @@ pub(crate) fn store<R: Runtime>(
         Box::new(FileStore::new(dir.join("ai").join("keys.json"))),
         Storage::File,
     ))
+}
+
+/// Sealed files in the app's data folder, under a key in this system's
+/// store.
+pub(crate) fn sealed_store<R: Runtime>(app: &AppHandle<R>) -> Result<SealedStore, SecretError> {
+    let (keys, _) = store(app)?;
+    let dir = app.path().app_data_dir().map_err(store_error)?;
+    Ok(SealedStore::new(keys, dir.join("ai").join("sealed")))
 }
 
 /// The record saved for a profile, read through the cache.
@@ -752,6 +882,67 @@ mod tests {
         }
     }
 
+    fn sealed_store(dir: &Path) -> SealedStore {
+        SealedStore::new(
+            Box::new(FileStore::new(dir.join("keys.json"))),
+            dir.join("sealed"),
+        )
+    }
+
+    #[test]
+    fn a_sealed_value_of_any_length_reads_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = sealed_store(dir.path());
+        let long = "token.".repeat(2000);
+        assert_eq!(store.get("chatgpt-a"), Ok(None));
+        assert_eq!(store.set("chatgpt-a", &long), Ok(()));
+        assert_eq!(store.set("chatgpt-b", "short"), Ok(()));
+        assert_eq!(store.get("chatgpt-a"), Ok(Some(long.clone())));
+        assert_eq!(store.get("chatgpt-b"), Ok(Some("short".into())));
+        let sealed = fs::read(dir.path().join("sealed").join("chatgpt-a.sealed")).unwrap();
+        assert!(!sealed.windows(6).any(|part| part == b"token."));
+        assert_eq!(store.delete("chatgpt-a"), Ok(()));
+        assert_eq!(store.delete("chatgpt-a"), Ok(()));
+        assert_eq!(store.get("chatgpt-a"), Ok(None));
+        assert_eq!(store.get("chatgpt-b"), Ok(Some("short".into())));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let path = dir.path().join("sealed").join("chatgpt-b.sealed");
+            let mode = fs::metadata(path).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+    }
+
+    #[test]
+    fn a_sealed_file_opens_only_with_its_key_and_account() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = sealed_store(dir.path());
+        store.set("chatgpt-a", "secret").unwrap();
+        let sealed_dir = dir.path().join("sealed");
+        fs::copy(
+            sealed_dir.join("chatgpt-a.sealed"),
+            sealed_dir.join("chatgpt-b.sealed"),
+        )
+        .unwrap();
+        assert_eq!(store.get("chatgpt-b"), Ok(None));
+        let keys = FileStore::new(dir.path().join("keys.json"));
+        keys.delete(SEALING_KEY).unwrap();
+        assert_eq!(store.get("chatgpt-a"), Ok(None));
+        // The next save makes a new key and writes over what it cannot open.
+        store.set("chatgpt-a", "again").unwrap();
+        assert_eq!(store.get("chatgpt-a"), Ok(Some("again".into())));
+        assert!(keys.get(SEALING_KEY).unwrap().is_some());
+    }
+
+    #[test]
+    fn a_sealed_account_is_a_plain_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = sealed_store(dir.path());
+        assert_eq!(store.set("../keys", "x"), Err(SecretError::BadProfile));
+        assert_eq!(store.get("a/b"), Err(SecretError::BadProfile));
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn the_keychain_command_carries_the_value_as_hex() {
@@ -760,6 +951,19 @@ mod tests {
             line,
             "add-generic-password -U -s svc.ai -a profile-a -l svc.ai -X 6b20223122\n"
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_keychain_refuses_a_value_too_long_to_save_whole() {
+        let keychain = keychain::Keychain {
+            service: "best.lolicon.nyamark.test.ai".into(),
+        };
+        let value = "secret".repeat(400);
+        let Err(SecretError::Store { message }) = keychain.set("profile-a", &value) else {
+            panic!("a value this long was saved");
+        };
+        assert!(!message.contains("secret") && !message.contains("736563726574"));
     }
 
     #[test]
