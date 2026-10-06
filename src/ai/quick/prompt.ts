@@ -5,6 +5,8 @@
  * and cleaned of what models still wrap it in.
  */
 
+import type { Root } from 'mdast';
+
 export type QuickTask =
   /** The selection changed as `instruction` says. */
   | { kind: 'transform'; instruction: string }
@@ -108,17 +110,24 @@ export function quickPrompt(
   };
 }
 
-const FENCED =
-  /^(`{3,}|~{3,})[ \t]*(?:markdown|md)?[ \t]*\n([\s\S]*?)\n\1[ \t]*$/i;
+/** Code fences that hold Markdown, or no language said. */
+const MARKDOWN_FENCE = new Set(['', 'md', 'markdown']);
 
 /**
  * The reply as it goes into the document: without a code fence around the
- * whole of it.
+ * whole of it, read as `parse` reads Markdown.
  */
-export function cleanReply(reply: string): string {
-  let text = reply.replace(/^\s*\n/, '').trimEnd();
-  const fenced = FENCED.exec(text.trim());
-  if (fenced) text = fenced[2];
+export function cleanReply(
+  reply: string,
+  parse: (markdown: string) => Root
+): string {
+  const text = reply.replace(/^\s*\n/, '').trimEnd();
+  const [only, ...rest] = parse(text).children;
+  const opening = text.charAt(only?.position?.start.offset ?? -1);
+  const fenced = only?.type === 'code' && (opening === '`' || opening === '~');
+  if (fenced && rest.length === 0) {
+    if (MARKDOWN_FENCE.has((only.lang ?? '').toLowerCase())) return only.value;
+  }
   return text;
 }
 

@@ -125,6 +125,10 @@ export class QuickMenu {
     ensureStyle('ai-quick', quickStyles);
   }
 
+  /** Reads Markdown as the editor does. */
+  private readonly parse = (markdown: string) =>
+    this.host.editor.markdownTree(markdown);
+
   get isOpen(): boolean {
     return this.root != null;
   }
@@ -466,7 +470,7 @@ export class QuickMenu {
     const drawPreview = () => {
       this.drawTimer = null;
       preview.hidden = latest.trim() === '';
-      preview.innerHTML = renderChatMarkdown(cleanReply(latest));
+      preview.innerHTML = renderChatMarkdown(cleanReply(latest, this.parse));
       preview.scrollTop = preview.scrollHeight;
       this.position();
     };
@@ -492,7 +496,7 @@ export class QuickMenu {
         latest = reply;
         if (this.drawTimer != null) window.clearTimeout(this.drawTimer);
         drawPreview();
-        return this.land(run, target, cleanReply(reply), preview);
+        return this.land(run, target, cleanReply(reply, this.parse), preview);
       })
       .catch((error) => {
         if (this.running !== controller) return;

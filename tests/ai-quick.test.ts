@@ -8,6 +8,9 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { MockLanguageModelV4 } from 'ai/test';
+import remarkGfm from 'remark-gfm';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import { EditController } from '../src/ai/edit/controller';
 import { EditError, replaceText } from '../src/ai/edit/text-edit';
 import {
@@ -184,19 +187,29 @@ describe('what a command asks the model', () => {
   });
 });
 
+const reader = unified().use(remarkParse).use(remarkGfm);
+const cleaned = (reply: string) =>
+  cleanReply(reply, (markdown) => reader.parse(markdown));
+
 describe('the reply as it goes in', () => {
   test('loses the fence around it', () => {
-    expect(cleanReply('\n\nHello.  \n')).toBe('Hello.');
-    expect(cleanReply('```markdown\n# Title\n\nText\n```')).toBe(
+    expect(cleaned('\n\nHello.  \n')).toBe('Hello.');
+    expect(cleaned('```markdown\n# Title\n\nText\n```')).toBe(
       '# Title\n\nText'
     );
-    expect(cleanReply('~~~\nplain\n~~~\n')).toBe('plain');
+    expect(cleaned('~~~\nplain\n~~~\n')).toBe('plain');
+    expect(cleaned('````md\nSee:\n\n```sh\nls\n```\n````')).toBe(
+      'See:\n\n```sh\nls\n```'
+    );
   });
 
   test('keeps a fence that is only part of it', () => {
     const reply = 'Run this:\n\n```sh\nls\n```';
-    expect(cleanReply(reply)).toBe(reply);
-    expect(cleanReply('```js\nlet a;\n```')).toBe('```js\nlet a;\n```');
+    expect(cleaned(reply)).toBe(reply);
+    expect(cleaned('```js\nlet a;\n```')).toBe('```js\nlet a;\n```');
+    const two = '```\na\n```\n\nThen:\n\n```\nb\n```';
+    expect(cleaned(two)).toBe(two);
+    expect(cleaned('    indented code')).toBe('    indented code');
   });
 
   test('puts a space between words the model ran together', () => {
