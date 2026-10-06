@@ -5,85 +5,100 @@
  * seconds. The editor starts on the opening of the text, and the rest
  * follows once the first frame is on screen.
  *
- * Only the opening is read before that frame. Read whole, an article that
- * long held the first screen back as long again as drawing it did.
+ * Only the opening, and as much again, is read before that frame. Read
+ * whole, an article that long held the first screen back as long again as
+ * drawing it did.
  *
  * The document stays closed to editing until it is all there, so that
  * nothing typed is taken for what the file held.
  */
 
+import {
+  ParserReady,
+  defaultValueCtx,
+  editorStateTimerCtx,
+  remarkCtx,
+} from '@milkdown/kit/core';
+import { type MilkdownPlugin, createTimer } from '@milkdown/kit/ctx';
+import type { Root } from 'mdast';
+
 /** Characters of Markdown drawn at once, a few screens of text. */
 const OPENING_SIZE = 6000;
-
-/** A fence of backticks, tildes or dollar signs, and what follows it. */
-const FENCE = /^\s*(`{3,}|~{3,}|\${2,})(.*)$/;
-
-/** A list item, which would go on with a list the opening ended. */
-const LIST_ITEM = /^(?:[-+*]|\d{1,9}[.)])(?:\s|$)/;
 
 /** A link or footnote defined on a line of its own. */
 const DEFINITION = /^ {0,3}\[[^\]\n]+\]:[ \t]*\S.*$/gm;
 
+export type Parse = (markdown: string) => Root;
+
 /**
- * The opening of `markdown`, up to the first block past `size` characters
- * that starts at the left margin after an empty line, or null when the text
- * is short enough to draw at once. Front matter, fenced code, math and HTML
- * comments are passed over whole: a line inside them starts no block.
+ * The opening of `markdown`, up to the first block that starts past `size`
+ * characters, or null when the text is short enough to draw at once. The
+ * blocks are the ones `parse` reads in the text from the top, twice `size`
+ * of it and more while no block starts past `size`: the blocks before one
+ * read there are the ones the whole text starts with.
  *
  * The links and notes defined further down follow the opening, so that the
- * ones it uses read as they do in the whole text. One defined over several
- * lines reads as written until the rest is drawn, which puts it right.
+ * ones it uses read as they do in the whole text. Their lines are looked for
+ * in the rest unread: one in a code block or over several lines reads
+ * otherwise until the rest is drawn, which puts it right.
  */
-export function openingOf(markdown: string, size = OPENING_SIZE) {
+export function openingOf(
+  markdown: string,
+  parse: Parse,
+  size = OPENING_SIZE
+): string | null {
   if (markdown.length < size * 2) return null;
-  /** What closes the block the line is in: a fence, `-->`, front matter. */
-  let closer: ((line: string) => boolean) | null = null;
-  let blank = false;
-  let start = 0;
-  if (/^---\r?\n/.test(markdown)) {
-    closer = (line) => line === '---' || line === '...';
-    start = markdown.indexOf('\n') + 1;
-  }
-  while (start < markdown.length) {
-    const end = markdown.indexOf('\n', start);
-    const next = end < 0 ? markdown.length : end + 1;
-    const line = markdown.slice(start, end < 0 ? undefined : end).trimEnd();
-    if (closer) {
-      if (closer(line)) closer = null;
-    } else if (
-      start >= size &&
-      blank &&
-      /^\S/.test(line) &&
-      !LIST_ITEM.test(line)
-    ) {
+  for (let read = size * 2; ; read *= 2) {
+    // Whole lines: a line cut short can read as more of the block above it.
+    const lineEnd = markdown.indexOf('\n', read);
+    const end = lineEnd < 0 ? markdown.length : lineEnd + 1;
+    const [, ...blocks] = parse(markdown.slice(0, end)).children;
+    const from = blocks
+      .map((block) => block.position?.start.offset ?? 0)
+      .find((offset) => offset >= size);
+    if (from !== undefined) {
+      const start = markdown.lastIndexOf('\n', from - 1) + 1;
       const opening = markdown.slice(0, start);
       const later = markdown.slice(start).match(DEFINITION);
       return later ? `${opening}${later.join('\n')}\n` : opening;
-    } else {
-      closer = opens(line);
     }
-    blank = line.trim() === '';
-    start = next;
+    if (end === markdown.length) return null;
   }
-  return null;
 }
 
-/** What closes a block that `line` opens and that runs past empty lines. */
-function opens(line: string): ((line: string) => boolean) | null {
-  const fence = FENCE.exec(line);
-  if (fence) {
-    const [, marker = '', after = ''] = fence;
-    const mark = marker.charAt(0);
-    // Backticks and dollar signs on the line make it a span of code or a
-    // formula, which ends where it starts.
-    if (mark !== '~' && after.includes(mark)) return null;
-    const close = new RegExp(`^\\s*\\${mark}{${marker.length},}\\s*$`);
-    return (next) => close.test(next);
-  }
-  if (/^\s{0,3}<!--/.test(line) && !line.includes('-->')) {
-    return (next) => next.includes('-->');
-  }
-  return null;
+/** Done once the editor's text is cut to its opening. */
+const OpeningReady = createTimer('NyamarkOpeningReady');
+
+/**
+ * Starts the editor on the opening of the text it is given, read by the
+ * editor's own remark, and tells `opened` that opening, or null for the
+ * whole text.
+ */
+export function openInParts(
+  opened: (opening: string | null) => void
+): MilkdownPlugin {
+  return (ctx) => {
+    ctx.record(OpeningReady);
+    ctx.update(editorStateTimerCtx, (timers) => [...timers, OpeningReady]);
+    return async () => {
+      await ctx.wait(ParserReady);
+      const markdown = ctx.get(defaultValueCtx);
+      const remark = ctx.get(remarkCtx);
+      const opening =
+        typeof markdown === 'string'
+          ? openingOf(markdown, (text) => remark.parse(text))
+          : null;
+      if (opening !== null) ctx.set(defaultValueCtx, opening);
+      opened(opening);
+      ctx.done(OpeningReady);
+      return () => {
+        ctx.update(editorStateTimerCtx, (timers) =>
+          timers.filter((timer) => timer !== OpeningReady)
+        );
+        ctx.clearTimer(OpeningReady);
+      };
+    };
+  };
 }
 
 /**

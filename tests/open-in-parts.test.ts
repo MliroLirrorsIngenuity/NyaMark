@@ -4,13 +4,17 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
-import { openingOf } from '../src/editor/open-in-parts';
+import { openingOf as cut } from '../src/editor/open-in-parts';
 
 const reader = unified()
   .use(remarkParse)
   .use(remarkFrontmatter)
   .use(remarkGfm)
   .use(remarkMath);
+
+/** The opening of `markdown`, its blocks read by remark. */
+const openingOf = (markdown: string, size: number) =>
+  cut(markdown, (text) => reader.parse(text), size);
 
 /** The top-level blocks remark reads in `markdown`, positions left out. */
 const blocks = (markdown: string) =>
@@ -94,6 +98,22 @@ describe('openingOf', () => {
     ].join('\n');
     const opening = openingOf(markdown, 1000);
     expect(opening?.includes('-->')).toBe(true);
+    expectReadAlike(markdown, opening);
+  });
+
+  test('passes over an HTML block with blank lines in it', () => {
+    const pre = ['<pre>', 'one', '', 'two at the margin', '', '</pre>'];
+    const markdown = [
+      paragraphs(9),
+      '',
+      ...Array.from({ length: 8 }, () => pre.join('\n'))
+        .join('\n\n')
+        .split('\n'),
+      '',
+      paragraphs(30, 9),
+    ].join('\n');
+    const opening = openingOf(markdown, 1000);
+    expect(opening?.trimEnd().endsWith('</pre>')).toBe(true);
     expectReadAlike(markdown, opening);
   });
 

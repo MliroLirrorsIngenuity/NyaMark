@@ -56,7 +56,7 @@ import {
 import { type DocCounts, DocStats } from './doc-stats';
 import { languageList, linkBoxes } from './floating';
 import { headingId, headingIds, headingLabel, pageId } from './heading-anchor';
-import { afterFirstFrame, openingOf } from './open-in-parts';
+import { afterFirstFrame, openInParts } from './open-in-parts';
 import {
   ORIGIN_META,
   aiProposals,
@@ -228,14 +228,10 @@ export class NyaEditor {
     showMermaidPictures(this.root);
     installDragSelectGuard(this.root);
 
-    // A long document opens on its first screens, and stays closed to
-    // editing until the rest is drawn (see open-in-parts).
-    const opening = openingOf(initialMarkdown);
-    let opened = opening === null;
     const crepe = new Crepe(
       buildCrepeConfig({
         root: this.root,
-        defaultValue: opening ?? initialMarkdown,
+        defaultValue: initialMarkdown,
         onUpload: async (file) => {
           const upload = this.options.onUploadFile;
           return upload ? upload(file) : URL.createObjectURL(file);
@@ -245,6 +241,14 @@ export class NyaEditor {
       })
     );
 
+    // A long document opens on its first screens, and stays closed to
+    // editing until the rest is drawn (see open-in-parts).
+    let opened = true;
+    crepe.editor.use(
+      openInParts((opening) => {
+        opened = opening === null;
+      })
+    );
     crepe.editor.config(writeAsNotes);
     crepe.editor.config((ctx) => {
       // Table pipes line up by display width (see markdown-output), and a
