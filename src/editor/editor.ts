@@ -5,6 +5,7 @@
  */
 
 import { Crepe } from '@milkdown/crepe';
+import { codeBlockConfig } from '@milkdown/kit/component/code-block';
 import { linkTooltipConfig } from '@milkdown/kit/component/link-tooltip';
 import {
   editorViewCtx,
@@ -51,7 +52,7 @@ import {
   settleParsed,
 } from './doc-diff';
 import { type DocCounts, DocStats } from './doc-stats';
-import { linkBoxes } from './floating';
+import { languageList, linkBoxes } from './floating';
 import { anchorIndex, headingId, headingLabel, pageId } from './heading-anchor';
 import { afterFirstFrame, openingOf } from './open-in-parts';
 import {
@@ -112,7 +113,6 @@ import { inlineCodeText } from './plugins/inline-code-text';
 import { inlineHtmlRuns } from './plugins/inline-html';
 import { caretPastSelectedBlock, insertBlocks } from './plugins/insert-blocks';
 import { languagePickerKeys } from './plugins/language-picker-keys';
-import { languagePickerRoom } from './plugins/language-picker-room';
 import { linkBox, restoreOnCancel } from './plugins/link-box';
 import { linkDefinitions } from './plugins/link-definitions';
 import { linkInput } from './plugins/link-input';
@@ -258,6 +258,10 @@ export class NyaEditor {
         ...config,
         tooltip: { floatingUIOptions: linkBoxes },
       }));
+      ctx.update(codeBlockConfig.key, (config) => ({
+        ...config,
+        languagePicker: languageList,
+      }));
     });
     crepe.editor.config(keepImageAlt);
     crepe.editor.config(keepBareLinks);
@@ -386,7 +390,6 @@ export class NyaEditor {
     keepFocusOffBar(this.root);
     closeHeadingListOnKeys(this.root);
     languagePickerKeys(this.root);
-    languagePickerRoom(this.root);
 
     if (view && !opened) {
       await afterFirstFrame();

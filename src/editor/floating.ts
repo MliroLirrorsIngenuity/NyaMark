@@ -1,7 +1,8 @@
 /**
  * Where the editor's popups stand: the selection toolbar, the link boxes, the
- * box a formula in a line is edited in and the slash menu. Crepe and its
- * components place them with floating-ui and take these options for it.
+ * box a formula in a line is edited in, the slash menu and a code block's
+ * language list. Crepe and its components place them with floating-ui and
+ * take these options for it.
  *
  * They keep a gutter's width inside the page. Crepe shifts them inside the
  * scrolling page, which runs to the edge of the window: at the default 860px
@@ -30,6 +31,10 @@ const GUTTER_PX = 8;
 const GAP_PX = 10;
 /** Shorter than this the slash menu is no use; it goes on past the edge instead. */
 const MENU_MIN_PX = 160;
+/** Between a code block's language button and its list. */
+const LIST_GAP_PX = 6;
+/** Shorter than this the language list is no use; it goes on past the edge instead. */
+const LIST_MIN_PX = 88;
 
 /** The window under the format bar, where it is shown. */
 function inPage({ elements }: MiddlewareState) {
@@ -93,6 +98,36 @@ export const slashMenu: Partial<ComputePositionConfig> = {
       apply({ availableHeight, elements }) {
         const height = Math.max(MENU_MIN_PX, Math.floor(availableHeight));
         elements.floating.style.maxHeight = `${height}px`;
+      },
+    })),
+  ],
+};
+
+/**
+ * A code block's language list opens under its button, or over it where
+ * there is more room there, its languages no taller than that room. It
+ * opened under the button always, and for a block near the foot of the
+ * window hung below the status bar, most of the languages out of sight and
+ * the arrow keys walking into them.
+ */
+export const languageList: Partial<ComputePositionConfig> = {
+  placement: 'bottom-end',
+  middleware: [
+    offset(LIST_GAP_PX),
+    flip(inPage),
+    size((state) => ({
+      ...inPage(state),
+      apply({ availableHeight, elements, placement }) {
+        const picker = elements.floating;
+        const list = picker.querySelector<HTMLElement>('.language-list');
+        if (!list) return;
+        const chrome = picker.offsetHeight - list.offsetHeight;
+        const room = Math.max(
+          LIST_MIN_PX,
+          Math.floor(availableHeight - chrome)
+        );
+        list.style.setProperty('--ny-language-list-room', `${room}px`);
+        list.toggleAttribute('data-ny-above', placement.startsWith('top'));
       },
     })),
   ],

@@ -1,8 +1,48 @@
+diff --git a/lib/code-block/config.d.ts b/lib/code-block/config.d.ts
+index dce68feb518272e03da1b1c7c2ea615e1b1d8ce4..1de2f7473054c26624f0d7de691b38d8146c8dac 100644
+--- a/lib/code-block/config.d.ts
++++ b/lib/code-block/config.d.ts
+@@ -1,5 +1,6 @@
+ import type { LanguageDescription } from '@codemirror/language';
+ import type { Extension } from '@codemirror/state';
++import type { ComputePositionConfig } from '@floating-ui/dom';
+ export interface CodeBlockConfig {
+     extensions: Extension[];
+     languages: LanguageDescription[];
+@@ -17,6 +18,7 @@ export interface CodeBlockConfig {
+     previewLabel: string;
+     previewOnlyByDefault?: boolean;
+     previewLoading: string | HTMLElement;
++    languagePicker?: Partial<ComputePositionConfig>;
+ }
+ export declare const defaultConfig: CodeBlockConfig;
+ export declare const codeBlockConfig: import("@milkdown/utils").$Ctx<CodeBlockConfig, "codeBlockConfigCtx">;
 diff --git a/lib/code-block/index.js b/lib/code-block/index.js
-index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..e168ef97e6296c6612bb5312106d10405430bb22 100644
+index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..44cb7f1229921e343d7c5a34b18617eac78264a3 100644
 --- a/lib/code-block/index.js
 +++ b/lib/code-block/index.js
-@@ -260,22 +260,33 @@ const LanguagePicker = defineComponent({
+@@ -232,14 +232,18 @@ const LanguagePicker = defineComponent({
+       const languageList = pickerRef.value;
+       if (!picker || !languageList) return;
+       computePosition(picker, languageList, {
+-        placement: "bottom-start"
++        placement: "bottom-start",
++        // NyaMark: placed by the options given in the config.
++        ...config.languagePicker
+       }).then(({ x, y }) => {
+         Object.assign(languageList.style, {
+           left: `${x}px`,
+           top: `${y}px`
+         });
+       }).catch(console.error);
+-    });
++      // NyaMark: once the list is drawn, for it to be measured where it would
++      // stand; the watch ran before, on the picker still empty.
++    }, { flush: "post" });
+     const onTogglePicker = (e) => {
+       e.preventDefault();
+       e.stopPropagation();
+@@ -260,22 +264,33 @@ const LanguagePicker = defineComponent({
      const onSearchKeydown = (e) => {
        if (e.key === "Escape") filter.value = "";
      };
@@ -48,7 +88,7 @@ index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..e168ef97e6296c6612bb5312106d1040
      });
      const clickHandler = (e) => {
        const target = e.target;
-@@ -346,7 +357,7 @@ const LanguagePicker = defineComponent({
+@@ -346,7 +361,7 @@ const LanguagePicker = defineComponent({
              role: "listitem",
              tabindex: "0",
              class: "language-list-item",
@@ -57,7 +97,7 @@ index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..e168ef97e6296c6612bb5312106d1040
              "data-language": languageInfo.name,
              onClick: () => {
                setLanguage(languageInfo.name);
-@@ -355,7 +366,7 @@ const LanguagePicker = defineComponent({
+@@ -355,7 +370,7 @@ const LanguagePicker = defineComponent({
            },
            config.renderLanguage(
              languageInfo.name,

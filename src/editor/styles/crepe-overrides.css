@@ -1089,8 +1089,7 @@
  * pops that block's pill on top of the list you are reading.
  */
 .ny-editor-root
-  [data-ny-language-open]
-  .milkdown
+  .milkdown:has(.language-button[data-expanded="true"])
   .milkdown-code-block:not(:has(.language-button[data-expanded="true"]))
   .tools {
   opacity: 0 !important;
@@ -1572,12 +1571,9 @@
   overflow: visible;
 }
 
-/* Anchored to the pill, which now sits at the block's right edge. */
+/* Placed by the editor's own options -- see `languageList` in `floating.ts`. */
 .ny-editor-root .milkdown .milkdown-code-block .language-picker {
   position: absolute !important;
-  top: calc(100% + 4px) !important;
-  right: 0 !important;
-  left: auto !important;
   width: max-content !important;
   padding-top: 0 !important;
   z-index: 30 !important;
@@ -1596,26 +1592,16 @@
   pointer-events: auto !important;
 }
 
-/* Over the pill, and shorter, where the room is -- see
-   `plugins/language-picker-room.ts`. */
-.ny-editor-root .milkdown .milkdown-code-block .language-picker[data-ny-above] {
-  top: auto !important;
-  bottom: calc(100% + 4px) !important;
-}
-
-/* Under the button the list is as short as what a search finds; over it,
-   the full height, which keeps the search box where it is as it shrinks. */
+/* No taller than the room on its side. Under the button the list is as
+   short as what a search finds; over it, the full height, which keeps the
+   search box where it is as it shrinks. */
 .ny-editor-root .milkdown .milkdown-code-block .language-list {
   height: auto !important;
-  max-height: var(--ny-language-list-height, 196px) !important;
+  max-height: min(196px, var(--ny-language-list-room, 196px)) !important;
 }
 
-.ny-editor-root
-  .milkdown
-  .milkdown-code-block
-  .language-picker[data-ny-above]
-  .language-list {
-  height: var(--ny-language-list-height, 196px) !important;
+.ny-editor-root .milkdown .milkdown-code-block .language-list[data-ny-above] {
+  height: min(196px, var(--ny-language-list-room, 196px)) !important;
 }
 
 /*
