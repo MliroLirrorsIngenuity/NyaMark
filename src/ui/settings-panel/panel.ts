@@ -53,16 +53,21 @@ const styles = `
   flex-shrink: 0;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  padding: 32px 32px 28px;
-  border: 1px solid var(--ny-border-strong);
-  border-radius: 28px;
-  background: var(--ny-surface-elevated);
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.22);
+  padding: 24px 24px 20px;
+  border: 1px solid var(--ny-dock-border);
+  border-radius: 20px;
+  background: var(--ny-dock-bg);
+  box-shadow: 0 32px 72px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.06);
   color: var(--ny-text-primary);
+  font-size: 13px;
   user-select: none;
   -webkit-user-select: none;
   transform-origin: center center;
   animation: ny-settings-dialog-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-theme="dark"] .ny-settings-dialog {
+  box-shadow: 0 32px 72px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .ny-settings-overlay.is-closing .ny-settings-dialog {
@@ -70,46 +75,58 @@ const styles = `
 }
 
 .ny-settings-dialog h3 {
-  margin: 0 0 6px;
-  font-size: 18px;
-  font-weight: 700;
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 650;
 }
 
 .ny-settings-dialog__subtitle {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   color: var(--ny-text-secondary);
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
+/* A segmented control, as the assistant's own switches. */
 .ny-settings-tabs {
   display: inline-flex;
   gap: 2px;
-  margin: 0 0 10px;
+  margin: 0 0 14px;
   padding: 3px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 30%);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), var(--ny-text-primary) 4%);
+  border-radius: 10px;
+  background: var(--ny-fill-soft);
 }
 
 .ny-settings-tabs__tab {
-  padding: 5px 14px;
+  min-width: 72px;
+  height: 28px;
+  padding: 0 14px;
   border: none;
-  border-radius: 999px;
+  border-radius: 8px;
   background: transparent;
   color: var(--ny-text-secondary);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
   cursor: default;
 }
 
-.ny-settings-tabs__tab[aria-selected="true"] {
-  background: var(--ny-surface-elevated);
+.ny-settings-tabs__tab:hover {
   color: var(--ny-text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.ny-settings-tabs__tab[aria-selected="true"] {
+  background: var(--ny-dock-bg);
+  color: var(--ny-text-primary);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--ny-line), 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+/* On the dark card the selected tab is lit, where the light one is white. */
+:root[data-theme="dark"] .ny-settings-tabs__tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--ny-text-primary) 12%, var(--ny-dock-bg));
 }
 
 .ny-settings-tabs__tab:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline: 2px solid var(--ny-accent-line);
   outline-offset: 1px;
 }
 
@@ -125,28 +142,30 @@ const styles = `
   padding: 0 8px;
 }
 
+/* Each section is a group on a quiet fill; its controls stand on it in the
+   card's own colour. */
 .ny-settings__section {
-  padding: 14px 0;
-  border-top: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 32%);
+  padding: 14px 16px 8px;
+  border-radius: 14px;
+  background: var(--ny-fill-soft);
 }
-.ny-settings__section:first-child {
-  border-top: none;
+
+.ny-settings__section + .ny-settings__section {
+  margin-top: 10px;
 }
 
 .ny-settings__section-title {
   margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 13.5px;
+  font-weight: 650;
   color: var(--ny-text-primary);
-  text-transform: uppercase;
 }
 
 .ny-settings__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 18px;
-  margin-bottom: 8px;
+  gap: 12px 16px;
+  margin-bottom: 10px;
 }
 
 .ny-settings__row[hidden] {
@@ -167,8 +186,10 @@ const styles = `
 .ny-settings__field--checkbox {
   flex-direction: row;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex: 0 1 auto;
+  color: var(--ny-text-primary);
+  font-size: 13px;
   cursor: pointer;
 }
 
@@ -178,18 +199,17 @@ const styles = `
   position: relative;
   width: 34px;
   height: 20px;
-  background: color-mix(in srgb, var(--ny-text-muted), transparent 82%);
+  background: color-mix(in srgb, var(--ny-text-primary) 18%, transparent);
   border-radius: 20px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 60%);
+  border: none;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   margin: 0;
 }
 
 .ny-settings__field--checkbox input[type="checkbox"]:checked {
   background: var(--ny-accent);
-  border-color: var(--ny-accent);
 }
 
 .ny-settings__field--checkbox input[type="checkbox"]::after {
@@ -197,11 +217,11 @@ const styles = `
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   background: #fff;
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -209,21 +229,35 @@ const styles = `
   transform: translateX(14px);
 }
 
-.ny-settings__field--checkbox:hover input[type="checkbox"] {
-  border-color: color-mix(in srgb, var(--ny-border-strong), transparent 20%);
+.ny-settings__field--checkbox:hover input[type="checkbox"]:not(:checked) {
+  background: color-mix(in srgb, var(--ny-text-primary) 24%, transparent);
 }
 
-.ny-settings__field--checkbox:hover input[type="checkbox"]:checked {
-  filter: brightness(1.05);
+.ny-settings__field--checkbox input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--ny-accent-line);
+  outline-offset: 2px;
 }
 
-.ny-settings__field input[type="number"] {
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
+/* The controls on a section: one height, one border, one focus ring. */
+.ny-settings__field input[type="number"],
+.ny-settings__select-trigger,
+.ny-settings__directory-path {
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ny-line);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
+  background: var(--ny-dock-bg);
   color: var(--ny-text-primary);
   font: inherit;
+  font-size: 13px;
+}
+
+.ny-settings__field input[type="number"]:focus-visible,
+.ny-settings__select-trigger:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--ny-accent) 60%, transparent);
+  box-shadow: 0 0 0 3px var(--ny-accent-soft);
 }
 
 .ny-settings__select {
@@ -236,18 +270,20 @@ const styles = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
-  color: var(--ny-text-primary);
-  font: inherit;
+  gap: 8px;
   cursor: pointer;
   text-align: left;
 }
 
-.ny-settings__select-trigger:hover {
-  border-color: color-mix(in srgb, var(--ny-border-strong), transparent 28%);
+.ny-settings__select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ny-settings__select-trigger:hover,
+.ny-settings__field input[type="number"]:hover:not(:focus) {
+  border-color: color-mix(in srgb, var(--ny-text-primary) 20%, transparent);
 }
 
 .ny-settings__directory,
@@ -259,14 +295,10 @@ const styles = `
 }
 
 .ny-settings__directory-path {
+  display: flex;
+  align-items: center;
   flex: 1 1 auto;
   min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
-  color: var(--ny-text-primary);
-  font-size: 12.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -275,7 +307,7 @@ const styles = `
 .ny-settings__version-number {
   flex: 1 1 auto;
   color: var(--ny-text-primary);
-  font-size: 12.5px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -286,19 +318,21 @@ const styles = `
 .ny-settings__directory-button,
 .ny-settings__version-button {
   flex: 0 0 auto;
-  padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--ny-line);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
+  background: var(--ny-dock-bg);
   color: var(--ny-text-primary);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
 }
 
 .ny-settings__directory-button:hover,
 .ny-settings__version-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--ny-border-strong), transparent 28%);
+  border-color: color-mix(in srgb, var(--ny-text-primary) 20%, transparent);
 }
 
 .ny-settings__version-button:disabled {
@@ -311,6 +345,7 @@ const styles = `
 }
 
 .ny-settings__select-icon {
+  flex: 0 0 auto;
   width: 16px;
   height: 16px;
   color: var(--ny-text-secondary);
@@ -323,53 +358,104 @@ const styles = `
 
 .ny-settings__select-menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   left: 0;
   right: 0;
   z-index: 150;
-  padding: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
   /* The surface tokens turn translucent with window transparency; a menu
      over other controls needs the opaque page colour. */
   background: var(--ny-app-bg-end);
-  border: 1px solid var(--ny-border-strong);
+  border: 1px solid var(--ny-line);
   border-radius: 12px;
-  box-shadow: var(--ny-shadow-float);
+  box-shadow: var(--ny-menu-shadow);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .ny-settings__select-menu[hidden] {
   display: none;
 }
 
+.ny-settings__select.is-up .ny-settings__select-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+/* A button that opens a menu of actions: as wide as its label, its menu as
+   wide as the longest action. */
+.ny-settings__select--menu {
+  width: fit-content;
+}
+
+.ny-settings__select--menu .ny-settings__select-trigger {
+  width: auto;
+  justify-content: flex-start;
+  padding: 0 10px 0 8px;
+  font-weight: 500;
+}
+
+.ny-settings__select--menu .ny-settings__select-menu {
+  right: auto;
+  min-width: 220px;
+}
+
+.ny-settings__select-lead {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--ny-text-secondary);
+}
+
+.ny-settings__select-separator {
+  flex: none;
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--ny-line);
+}
+
 .ny-settings__select-option {
+  flex: none;
   width: 100%;
+  min-height: 32px;
   text-align: left;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 0 10px;
+  border-radius: 8px;
   border: none;
   background: transparent;
   color: var(--ny-text-primary);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
   cursor: pointer;
 }
 
+/* The option the arrow keys are on is lit, where the dialog's controls
+   take a ring (shell.css); the selector outweighs that one. */
 .ny-settings__select-option:hover,
-.ny-settings__select-option:focus-visible {
-  background: color-mix(in srgb, var(--ny-border-strong), transparent 60%);
+.ny-settings__select .ny-settings__select-menu
+  .ny-settings__select-option:focus-visible:not(.is-selected) {
+  outline: none;
+  background: var(--ny-fill-soft);
+}
+
+.ny-settings__select .ny-settings__select-menu
+  .ny-settings__select-option.is-selected:focus-visible {
+  outline: none;
 }
 
 .ny-settings__select-option.is-selected {
-  background: color-mix(in srgb, var(--ny-accent), transparent 80%);
-  color: var(--ny-accent);
+  background: var(--ny-accent-soft);
+  color: var(--ny-accent-ink);
+  font-weight: 600;
 }
 
 .ny-settings__field input[type="number"]:invalid,
 .ny-settings__field[data-invalid="true"] input[type="number"] {
-  border-color: color-mix(in srgb, #d46a6a, var(--ny-border-strong) 26%);
-  box-shadow: 0 0 0 3px color-mix(in srgb, #d46a6a, transparent 82%);
+  border-color: color-mix(in srgb, var(--ny-del-ink) 60%, transparent);
+  box-shadow: 0 0 0 3px var(--ny-del-soft);
 }
 
 /* The range shows under its field in the space before the next row, so the
@@ -380,25 +466,26 @@ const styles = `
   left: 0;
   font-size: 11.5px;
   line-height: 1.35;
-  color: #c55f5f;
+  color: var(--ny-del-ink);
 }
 
+/* The section is the frame already; the legend reads as a field's label. */
 .ny-settings__fieldset {
   width: 100%;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 28%);
-  border-radius: 14px;
-  padding: 12px 14px;
+  border: none;
+  padding: 0;
   margin: 0;
 }
 .ny-settings__fieldset legend {
-  padding: 0 6px;
-  font-size: 12px;
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 12.5px;
   color: var(--ny-text-secondary);
 }
 
 .ny-settings__options {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .ny-settings__option {
@@ -406,15 +493,15 @@ const styles = `
   gap: 10px;
   align-items: flex-start;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 22%);
+  border: 1px solid var(--ny-line);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 28%);
+  background: var(--ny-dock-bg);
 }
 
 /* As the same choice looks in the dialog a pasted image asks it in. */
 .ny-settings__option:has(input:checked) {
-  border-color: color-mix(in srgb, var(--ny-accent), transparent 45%);
-  background: color-mix(in srgb, var(--ny-accent), transparent 90%);
+  border-color: var(--ny-accent-line);
+  box-shadow: 0 0 0 3px var(--ny-accent-soft);
 }
 
 .ny-settings__option input[type="radio"] {
@@ -426,6 +513,7 @@ const styles = `
   display: block;
   margin-bottom: 2px;
   font-size: 13px;
+  font-weight: 600;
   color: var(--ny-text-primary);
 }
 
@@ -441,49 +529,52 @@ const styles = `
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 36%);
+  margin-top: 16px;
 }
 
 .ny-settings-dialog__button {
-  min-width: 88px;
-  padding: 9px 14px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 8%);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 12%);
+  min-width: 80px;
+  height: 34px;
+  padding: 0 16px;
+  border: 1px solid var(--ny-line);
+  border-radius: 10px;
+  background: var(--ny-dock-bg);
   color: var(--ny-text-primary);
   font: inherit;
   font-size: 13px;
+  font-weight: 500;
   cursor: default;
 }
 
+.ny-settings-dialog__button:hover {
+  background: var(--ny-fill-soft);
+}
+
+/* The one action the dialog asks for, in ink, as in the assistant's cards. */
 .ny-settings-dialog__button--primary {
-  background: color-mix(in srgb, var(--ny-accent), var(--ny-surface-elevated) 14%);
-  color: var(--ny-on-accent);
+  border-color: transparent;
+  background: var(--ny-ink);
+  color: var(--ny-on-ink);
+  font-weight: 600;
+}
+
+.ny-settings-dialog__button--primary:hover {
+  background: color-mix(in srgb, var(--ny-ink) 86%, var(--ny-dock-bg));
 }
 
 .ny-settings-dialog__button--danger {
-  border-color: color-mix(in srgb, #cf5a5a, var(--ny-border-strong) 18%);
-  background: color-mix(in srgb, #cf5a5a, var(--ny-surface-elevated) 86%);
-  color: #a73d3d;
-}
-
-.ny-settings-dialog__button:hover {
-  border-color: color-mix(in srgb, var(--ny-accent), transparent 36%);
+  border-color: transparent;
+  background: var(--ny-del-soft);
+  color: var(--ny-del-ink);
 }
 
 .ny-settings-dialog__button--danger:hover {
-  border-color: color-mix(in srgb, #cf5a5a, transparent 24%);
+  background: color-mix(in srgb, var(--ny-del-ink) 16%, var(--ny-del-soft));
 }
 
 .ny-settings-dialog__button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 40%);
+  outline: 2px solid var(--ny-accent-line);
   outline-offset: 2px;
-}
-
-:root[data-theme="dark"] .ny-settings-dialog__button--danger {
-  color: #ef9a9a;
 }
 
 .ny-settings-dialog__button:disabled {
@@ -498,7 +589,7 @@ const styles = `
   align-items: center;
   justify-content: center;
   padding: 24px;
-  border-radius: 24px;
+  border-radius: 20px;
   background: color-mix(in srgb, var(--ny-app-bg-end), transparent 36%);
   backdrop-filter: blur(8px) saturate(1.04);
   -webkit-backdrop-filter: blur(8px) saturate(1.04);
@@ -513,10 +604,10 @@ const styles = `
 .ny-settings-confirm__panel {
   width: min(360px, calc(100vw - 96px));
   padding: 18px 18px 16px;
-  border: 1px solid color-mix(in srgb, #cf5a5a, var(--ny-border-strong) 36%);
-  border-radius: 18px;
-  background: var(--ny-surface-elevated);
-  box-shadow: var(--ny-shadow-float);
+  border: 1px solid var(--ny-line);
+  border-radius: 16px;
+  background: var(--ny-dock-bg);
+  box-shadow: var(--ny-menu-shadow);
   animation: ny-settings-dialog-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -526,8 +617,8 @@ const styles = `
 
 .ny-settings-confirm__title {
   margin: 0 0 8px;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 650;
   color: var(--ny-text-primary);
 }
 
@@ -541,7 +632,7 @@ const styles = `
 .ny-settings-confirm__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
   margin-top: 16px;
 }
 
@@ -602,7 +693,8 @@ export class SettingsPanel {
     ensureStyle('ny-settings-panel', styles);
   }
 
-  open(tab: SettingsTab = 'general') {
+  /** `addService` opens the AI tab's service set up from that preset. */
+  open(tab: SettingsTab = 'general', options: { addService?: string } = {}) {
     // Over another dialog, from the menu or the title bar's gear, it opened
     // beneath that one and took its focus.
     if (this.overlay || isModalOpen()) {
@@ -729,6 +821,7 @@ export class SettingsPanel {
       aiLoaded.catch((error) => {
         console.error('Failed to load the AI settings:', error);
       });
+      return aiLoaded;
     };
 
     const tabs = Array.from(
@@ -758,6 +851,14 @@ export class SettingsPanel {
       });
     }
     showTab(tab);
+    const service = options.addService;
+    if (service && tab === 'ai') {
+      // Logged by `loadAi` when it fails.
+      loadAi().then(
+        () => aiSection?.addService(service),
+        () => undefined
+      );
+    }
 
     const actions = document.createElement('div');
     actions.className = 'ny-settings-dialog__actions';

@@ -35,7 +35,7 @@ import {
   newAiProfileId,
 } from '../../../state/ai-settings';
 import { ensureStyle } from '../../../style/register';
-import { type SelectOption, renderSelect } from '../select';
+import { type SelectOption, renderMenuButton, renderSelect } from '../select';
 import { renderCompleteSection } from './ai-complete';
 import {
   button,
@@ -63,56 +63,73 @@ const styles = `
 
 .ny-settings__note--warn {
   margin: 0;
-  color: #b0702a;
+  color: var(--ny-warning);
 }
 
 .ny-settings__note--error {
   margin: 0;
-  color: #c55f5f;
+  color: var(--ny-del-ink);
 }
 
+/* As the dialog's own fields, in panel.ts. */
 .ny-settings__input,
 .ny-settings__textarea {
   box-sizing: border-box;
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ny-line);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
+  background: var(--ny-dock-bg);
   color: var(--ny-text-primary);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
   user-select: text;
   -webkit-user-select: text;
 }
 
 .ny-settings__textarea {
+  height: auto;
   min-height: 88px;
+  padding: 8px 10px;
   line-height: 1.5;
   resize: vertical;
 }
 
+.ny-settings__input:hover:not(:focus),
+.ny-settings__textarea:hover:not(:focus) {
+  border-color: color-mix(in srgb, var(--ny-text-primary) 20%, transparent);
+}
+
 .ny-settings__input:focus-visible,
 .ny-settings__textarea:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--ny-accent), transparent 50%);
-  outline-offset: 1px;
+  outline: none;
+  border-color: color-mix(in srgb, var(--ny-accent) 60%, transparent);
+  box-shadow: 0 0 0 3px var(--ny-accent-soft);
 }
 
 .ny-settings__button {
   flex: 0 0 auto;
-  padding: 6px 11px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 32%);
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--ny-line);
+  border-radius: 8px;
+  background: var(--ny-dock-bg);
   color: var(--ny-text-primary);
   font: inherit;
   font-size: 12.5px;
+  font-weight: 500;
   cursor: default;
   white-space: nowrap;
 }
 
 .ny-settings__button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--ny-accent), transparent 40%);
+  border-color: color-mix(in srgb, var(--ny-text-primary) 20%, transparent);
+}
+
+.ny-settings__button:focus-visible {
+  outline: 2px solid var(--ny-accent-line);
+  outline-offset: 1px;
 }
 
 .ny-settings__button:disabled {
@@ -122,8 +139,8 @@ const styles = `
 .ny-settings__button--link {
   border-color: transparent;
   background: transparent;
-  color: var(--ny-accent);
-  padding: 6px 4px;
+  color: var(--ny-accent-ink);
+  padding: 0 4px;
 }
 
 .ny-ai-presets {
@@ -132,18 +149,20 @@ const styles = `
   gap: 6px;
 }
 
+/* A card on the section, as the assistant's cards: the head, and what
+   opens under it. */
 .ny-ai-provider {
   margin-bottom: 8px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 22%);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--ny-surface-elevated), transparent 28%);
+  border: 1px solid var(--ny-line);
+  border-radius: 12px;
+  background: var(--ny-dock-bg);
 }
 
 .ny-ai-provider__head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 10px 9px 14px;
+  padding: 10px 10px 10px 14px;
 }
 
 .ny-ai-provider__title {
@@ -177,16 +196,16 @@ const styles = `
 }
 
 .ny-ai-provider__status.is-ok {
-  color: #3f8f5a;
+  color: var(--ny-ok);
 }
 
 .ny-ai-provider__status.is-missing {
-  color: #c55f5f;
+  color: var(--ny-del-ink);
 }
 
 .ny-ai-provider__body {
   padding: 4px 14px 12px;
-  border-top: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 40%);
+  border-top: 1px solid var(--ny-line);
 }
 
 .ny-ai-provider__body[hidden] {
@@ -220,11 +239,11 @@ const styles = `
 }
 
 .ny-ai-actions__result.is-ok {
-  color: #3f8f5a;
+  color: var(--ny-ok);
 }
 
 .ny-ai-actions__result.is-error {
-  color: #c55f5f;
+  color: var(--ny-del-ink);
 }
 
 .ny-ai-models {
@@ -266,8 +285,9 @@ const styles = `
 .ny-ai-model input[type="number"] {
   width: 100%;
   box-sizing: border-box;
-  padding: 3px 6px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 16%);
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--ny-line);
   border-radius: 7px;
   background: transparent;
   color: var(--ny-text-primary);
@@ -288,7 +308,7 @@ const styles = `
 }
 
 .ny-ai-model__remove:hover {
-  background: color-mix(in srgb, var(--ny-border-strong), transparent 60%);
+  background: var(--ny-fill-soft);
   color: var(--ny-text-primary);
 }
 
@@ -310,9 +330,10 @@ const styles = `
 .ny-ai-pick__list {
   max-height: 220px;
   overflow: auto;
-  padding: 4px 6px;
-  border: 1px solid color-mix(in srgb, var(--ny-border-strong), transparent 30%);
+  padding: 4px 8px;
+  border: 1px solid var(--ny-line);
   border-radius: 10px;
+  background: var(--ny-dock-bg);
 }
 
 .ny-ai-pick__item {
@@ -352,6 +373,11 @@ export type AiSection = {
   committed: () => void;
   /** The dialog closed. */
   destroy: () => void;
+  /**
+   * Opens the service set up from the preset `id` to fill in, adding it
+   * when there is none yet.
+   */
+  addService: (id: string) => void;
 };
 
 /** Where a model the service lists starts in the settings. */
@@ -448,21 +474,26 @@ export function renderAiSection(
   );
   storageNote.hidden = true;
   const list = el('div');
-  const addRow = el('div', 'ny-settings__row');
-  const addField = el('div', 'ny-settings__field');
-  const presets = el('div', 'ny-ai-presets');
-  for (const preset of AI_PRESETS) {
-    const chip =
-      preset.id === 'custom'
-        ? button('settings.ai.custom')
-        : el('button', 'ny-settings__button', preset.name);
-    chip.type = 'button';
-    chip.addEventListener('click', () => addProvider(preset));
-    presets.append(chip);
-  }
-  addField.append(translated('span', 'settings.ai.add'), presets);
-  addRow.append(addField);
-  services.append(storageNote, list, addRow);
+  const add = el('div', 'ny-settings__select');
+  renderMenuButton(
+    add,
+    { i18n: 'settings.ai.add', text: i18next.t('settings.ai.add') },
+    AI_PRESETS.map((preset, index) => {
+      const custom = preset.id === 'custom';
+      return {
+        value: preset.id,
+        label: custom ? i18next.t('settings.ai.custom') : preset.name,
+        i18n: custom ? 'settings.ai.custom' : undefined,
+        // The local services, and the one set up by hand, each a group.
+        group: custom || preset.local !== AI_PRESETS[index - 1]?.local,
+      };
+    }),
+    (id) => {
+      const preset = presetById(id);
+      if (preset) addProvider(preset);
+    }
+  );
+  services.append(storageNote, list, add);
 
   const noteStorage = (status: AiSecretStatus) => {
     if (status.storage === 'file') storageNote.hidden = false;
@@ -701,12 +732,33 @@ export function renderAiSection(
     providersChanged();
     renderList();
     if (provider.baseUrl) void bind(provider, null).catch(console.error);
+    focusFirstField(provider, preset);
+  };
+
+  // What a service needs first: its key, or where it runs.
+  const focusFirstField = (provider: AiProvider, preset: AiPreset) => {
     const field = provider.baseUrl && !preset.local ? 'key' : 'baseUrl';
     list
       .querySelector<HTMLElement>(
         `[data-provider="${provider.id}"] [data-key="${field}"]`
       )
       ?.focus();
+  };
+
+  const addService = (id: string) => {
+    const preset = presetById(id);
+    if (!preset) return;
+    const existing =
+      preset.id === 'custom'
+        ? undefined
+        : state.providers.find((provider) => provider.preset === preset.id);
+    if (!existing) {
+      addProvider(preset);
+      return;
+    }
+    editing = existing.id;
+    renderList();
+    focusFirstField(existing, preset);
   };
 
   const removeProvider = (provider: AiProvider) => {
@@ -1317,5 +1369,6 @@ export function renderAiSection(
     },
     committed: mcp.committed,
     destroy: mcp.destroy,
+    addService,
   };
 }

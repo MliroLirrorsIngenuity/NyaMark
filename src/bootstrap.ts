@@ -347,7 +347,8 @@ export class App {
           flushSource: () => this.sourceMode?.flush(),
           followSource: (before) => this.sourceMode?.followEditor(before),
           documentPath: () => store.getState().filePath,
-          openSettings: () => this.settingsPanel.open('ai'),
+          openSettings: (service) =>
+            this.settingsPanel.open('ai', { addService: service }),
         })
     );
     return this.aiPanel;

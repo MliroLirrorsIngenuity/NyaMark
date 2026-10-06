@@ -69,6 +69,116 @@ export function renderSelect(
   if (!trigger || !menu || !valueDisplay) return;
 
   let selected = current.value;
+  dropdown(host, trigger, menu, buttons, {
+    first: () => buttons.find((button) => button.dataset.value === selected),
+    pick: (button) => {
+      const next = button.dataset.value;
+      if (!next || next === selected) return;
+      selected = next;
+      for (const other of buttons) {
+        const isSelected = other === button;
+        other.classList.toggle('is-selected', isSelected);
+        other.setAttribute('aria-selected', String(isSelected));
+      }
+      valueDisplay.textContent = button.textContent?.trim() || '';
+      // The option text is already translated; the value span must not be
+      // re-translated to its old key on the next `translateDOM` pass.
+      if (button.dataset.i18n) valueDisplay.dataset.i18n = button.dataset.i18n;
+      else delete valueDisplay.dataset.i18n;
+      onSelect(next);
+    },
+  });
+}
+
+export type MenuItem = {
+  value: string;
+  label: string;
+  /** Translation key for the label; the label itself is the fallback. */
+  i18n?: string;
+  /** Starts a group of its own, set off from the items above. */
+  group?: boolean;
+};
+
+/**
+ * A button that opens a menu of actions, in the select's look (styled in
+ * `panel.ts`). Renders into `host`, which must carry the
+ * `ny-settings__select` class.
+ */
+export function renderMenuButton(
+  host: HTMLElement,
+  label: { i18n: string; text: string },
+  items: MenuItem[],
+  onPick: (value: string) => void
+) {
+  const menuId = `ny-select-${++selectSequence}`;
+  host.classList.add('ny-settings__select--menu');
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'ny-settings__select-trigger';
+  trigger.setAttribute('aria-haspopup', 'menu');
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.setAttribute('aria-controls', menuId);
+  trigger.innerHTML = `${PLUS}<span class="ny-settings__select-value"></span>${CHEVRON}`;
+  const text = trigger.querySelector<HTMLElement>('.ny-settings__select-value');
+  if (text) {
+    text.textContent = label.text;
+    text.dataset.i18n = label.i18n;
+  }
+
+  const menu = document.createElement('div');
+  menu.className = 'ny-settings__select-menu';
+  menu.id = menuId;
+  menu.setAttribute('role', 'menu');
+  menu.hidden = true;
+  const buttons: HTMLButtonElement[] = [];
+  for (const item of items) {
+    if (item.group && buttons.length > 0) {
+      const line = document.createElement('div');
+      line.className = 'ny-settings__select-separator';
+      line.setAttribute('role', 'separator');
+      menu.append(line);
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'ny-settings__select-option';
+    button.setAttribute('role', 'menuitem');
+    button.tabIndex = -1;
+    button.dataset.value = item.value;
+    button.textContent = item.label;
+    if (item.i18n) button.dataset.i18n = item.i18n;
+    buttons.push(button);
+    menu.append(button);
+  }
+  host.replaceChildren(trigger, menu);
+
+  dropdown(host, trigger, menu, buttons, {
+    first: () => buttons[0],
+    pick: (button) => {
+      if (button.dataset.value) onPick(button.dataset.value);
+    },
+  });
+}
+
+const CHEVRON = `<svg class="ny-settings__select-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>`;
+
+const PLUS = `<svg class="ny-settings__select-lead" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg>`;
+
+/**
+ * Opens and closes `menu` under `trigger`: arrow keys open it and move
+ * between its buttons, Enter or Space picks one, Escape and Tab close it,
+ * as does a click anywhere else.
+ */
+function dropdown(
+  host: HTMLElement,
+  trigger: HTMLButtonElement,
+  menu: HTMLElement,
+  buttons: HTMLButtonElement[],
+  how: {
+    /** The button to focus as the menu opens. */
+    first: () => HTMLButtonElement | undefined;
+    pick: (button: HTMLButtonElement) => void;
+  }
+) {
   let releaseEscape: (() => void) | null = null;
 
   const closeOnOutsideClick = (event: MouseEvent) => {
@@ -95,9 +205,21 @@ export function renderSelect(
     trigger.setAttribute('aria-expanded', 'true');
     document.addEventListener('click', closeOnOutsideClick);
     releaseEscape = pushEscapeLayer({ dismiss: () => close(true) });
-    (
-      buttons.find((button) => button.dataset.value === selected) ?? buttons[0]
-    )?.focus();
+    flip();
+    (how.first() ?? buttons[0])?.focus();
+  };
+  // Opens upward when the menu would run past the bottom of the scrolling
+  // dialog body and there is more room above.
+  const flip = () => {
+    host.classList.remove('is-up');
+    const bounds = host
+      .closest('.ny-settings-dialog__body')
+      ?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
+    const anchor = trigger.getBoundingClientRect();
+    const below = bounds.bottom - anchor.bottom;
+    const above = anchor.top - bounds.top;
+    const needed = menu.getBoundingClientRect().height + 6;
+    host.classList.toggle('is-up', needed > below && above > below);
   };
 
   trigger.addEventListener('click', (event) => {
@@ -128,23 +250,8 @@ export function renderSelect(
   for (const button of buttons) {
     button.addEventListener('click', (event) => {
       event.stopPropagation();
-      const next = button.dataset.value;
-      if (next && next !== selected) {
-        selected = next;
-        for (const other of buttons) {
-          const isSelected = other === button;
-          other.classList.toggle('is-selected', isSelected);
-          other.setAttribute('aria-selected', String(isSelected));
-        }
-        valueDisplay.textContent = button.textContent?.trim() || '';
-        // The option text is already translated; the value span must not be
-        // re-translated to its old key on the next `translateDOM` pass.
-        if (button.dataset.i18n)
-          valueDisplay.dataset.i18n = button.dataset.i18n;
-        else delete valueDisplay.dataset.i18n;
-        onSelect(next);
-      }
       close(true);
+      how.pick(button);
     });
   }
 }
