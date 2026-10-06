@@ -1,3 +1,4 @@
+import tauriConfig from '../../src-tauri/tauri.conf.json';
 import type {
   ImageInsertPolicy,
   PastedImagePolicy,
@@ -10,6 +11,7 @@ import {
   isAbsolutePath,
   normalizePath,
   resolveAttachmentPath,
+  splitReference,
   unescapeMarkdownPath,
 } from './attachment-paths';
 
@@ -38,6 +40,18 @@ const IMAGE_PATH_PATTERN = new RegExp(
 
 export function isImagePath(path: string) {
   return IMAGE_PATH_PATTERN.test(path);
+}
+
+export const MARKDOWN_EXTENSIONS: readonly string[] =
+  tauriConfig.bundle.fileAssociations.flatMap((association) => association.ext);
+
+const MARKDOWN_PATH_PATTERN = new RegExp(
+  `\\.(${MARKDOWN_EXTENSIONS.join('|')})$`,
+  'i'
+);
+
+export function isMarkdownPath(path: string) {
+  return MARKDOWN_PATH_PATTERN.test(path);
 }
 
 export function defaultPastedImageName(file: File) {
@@ -162,25 +176,26 @@ export function relocateLocalReference(
   options: AttachmentReferenceOptions
 ): string | null {
   const value = reference.trim();
+  const { path, suffix } = splitReference(value);
   // Fragments and queries point into the document itself.
-  if (!value || value.startsWith('#') || value.startsWith('?')) return null;
+  if (!path) return null;
   // `file:` URIs are absolute by construction and stay in that form.
   if (/^file:/i.test(value)) return null;
   if (classifyLinkTarget(value).kind !== 'local') return null;
 
-  const decoded = decodeMarkdownPath(unescapeMarkdownPath(value));
+  const decoded = decodeMarkdownPath(unescapeMarkdownPath(path));
   const wasRelative = !isAbsolutePath(normalizePath(decoded));
   // A reference written with `%20` (or the old `\ `) stays encoded even when
   // the settings leave spaces alone.
-  const encoded = decoded !== value;
-  const absolutePath = resolveAttachmentPath(fromDocument, value);
+  const encoded = decoded !== path;
+  const absolutePath = resolveAttachmentPath(fromDocument, path);
   if (!absolutePath) return null;
 
-  const next = formatAttachmentReference(toDocument, absolutePath, {
+  const next = `${formatAttachmentReference(toDocument, absolutePath, {
     ...options,
     preferRelativePath: options.preferRelativePath || wasRelative,
     escapePath: options.escapePath || encoded,
-  });
+  })}${suffix}`;
   return next === value ? null : next;
 }
 

@@ -94,13 +94,23 @@ export function decodeMarkdownPath(reference: string) {
   }
 }
 
+export function splitReference(reference: string) {
+  const end = reference.search(/[?#]/);
+  return end < 0
+    ? { path: reference, suffix: '' }
+    : { path: reference.slice(0, end), suffix: reference.slice(end) };
+}
+
 /**
- * The inverse of `decodeMarkdownPath` for the characters it is used for. This
- * is what `escapePath` writes: CommonMark has no escape for a space inside a
- * link destination, while `%20` reads back in every renderer and browser.
+ * The inverse of `decodeMarkdownPath` for the characters it is used for. `%`,
+ * `?` and `#` are always encoded, since a URL reads them as an escape, a query
+ * and a fragment. Spaces are what `escapePath` adds: CommonMark has no escape
+ * for a space inside a link destination, while `%20` reads back in every
+ * renderer and browser.
  */
-export function percentEncodeMarkdownPath(path: string) {
-  return path.replace(/%/g, '%25').replace(/ /g, '%20');
+export function percentEncodeMarkdownPath(path: string, spaces: boolean) {
+  const encoded = path.replace(/[%?#]/g, encodeURIComponent);
+  return spaces ? encoded.replace(/ /g, '%20') : encoded;
 }
 
 /**
@@ -224,8 +234,10 @@ export function resolveAttachmentPath(
     return path ? normalizePath(path) : null;
   }
 
+  const { path } = splitReference(trimmed);
+  if (!path) return null;
   const unescaped = normalizePath(
-    decodeMarkdownPath(unescapeMarkdownPath(trimmed))
+    decodeMarkdownPath(unescapeMarkdownPath(path))
   );
   if (isAbsolutePath(unescaped)) {
     return unescaped;
@@ -317,7 +329,7 @@ export function formatAttachmentReference(
     reference = `./${reference}`;
   }
 
-  return options.escapePath ? percentEncodeMarkdownPath(reference) : reference;
+  return percentEncodeMarkdownPath(reference, options.escapePath);
 }
 
 /** Whether `path` is `directory` itself or somewhere below it. */

@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  MARKDOWN_EXTENSIONS,
   classifyLinkTarget,
   extractClipboardFilePaths,
+  isMarkdownPath,
   relocateLocalReference,
 } from '../src/features/attachment-policy';
 
@@ -33,6 +35,20 @@ describe('classifyLinkTarget', () => {
   });
 });
 
+describe('isMarkdownPath', () => {
+  test('knows every extension the app opens', () => {
+    expect(MARKDOWN_EXTENSIONS[0]).toBe('md');
+    expect(MARKDOWN_EXTENSIONS).toContain('mdown');
+    for (const extension of MARKDOWN_EXTENSIONS) {
+      expect(isMarkdownPath(`/docs/a.${extension.toUpperCase()}`)).toBe(true);
+    }
+  });
+
+  test.each(['/docs/a.png', '/docs/md', '/docs/a.md.txt'])('%s', (path) => {
+    expect(isMarkdownPath(path)).toBe(false);
+  });
+});
+
 describe('relocateLocalReference', () => {
   const options = {
     preferRelativePath: true,
@@ -57,6 +73,31 @@ describe('relocateLocalReference', () => {
         options
       )
     ).toBe('../../shared/b.png');
+  });
+
+  test('keeps what follows the path', () => {
+    expect(
+      relocateLocalReference(
+        'other.md#usage',
+        '/docs/notes/one.md',
+        '/docs/two.md',
+        options
+      )
+    ).toBe('notes/other.md#usage');
+    expect(
+      relocateLocalReference(
+        'a.png?v=2',
+        '/docs/notes/one.md',
+        '/docs/two.md',
+        options
+      )
+    ).toBe('notes/a.png?v=2');
+    expect(
+      relocateLocalReference('#usage', '/docs/one.md', '/x/two.md', options)
+    ).toBeNull();
+    expect(
+      relocateLocalReference('?v=2', '/docs/one.md', '/x/two.md', options)
+    ).toBeNull();
   });
 
   test('keeps a relative reference relative even when settings prefer absolute', () => {

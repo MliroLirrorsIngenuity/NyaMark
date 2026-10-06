@@ -2,10 +2,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { dirname } from '@tauri-apps/api/path';
 import { ask, message, open, save } from '@tauri-apps/plugin-dialog';
 import { watch } from '@tauri-apps/plugin-fs';
+import { MARKDOWN_EXTENSIONS } from '../../features/attachment-policy';
 
 export async function openFileDialog(): Promise<string | null> {
   const result = await open({
-    filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+    filters: [{ name: 'Markdown', extensions: [...MARKDOWN_EXTENSIONS] }],
     multiple: false,
   });
   return result as string | null;
@@ -37,7 +38,7 @@ export async function openImageFilesDialog(
 
 export async function saveFileDialog(): Promise<string | null> {
   const result = await save({
-    filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+    filters: [{ name: 'Markdown', extensions: [...MARKDOWN_EXTENSIONS] }],
   });
   return result as string | null;
 }

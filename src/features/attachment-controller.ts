@@ -44,6 +44,7 @@ import {
   extractClipboardFilePaths,
   getDocumentCopyTarget,
   isImagePath,
+  isMarkdownPath,
   policyToInsertRule,
 } from './attachment-policy';
 
@@ -225,7 +226,7 @@ export class AttachmentController {
     );
     if (!absolutePath) return;
 
-    if (/\.(md|markdown)$/i.test(absolutePath)) {
+    if (isMarkdownPath(absolutePath)) {
       await openMarkdownInNewWindow(absolutePath);
       return;
     }

@@ -70,6 +70,13 @@ describe('formatAttachmentReference', () => {
       '../docs/image.png',
     ],
     [
+      'encodes what a URL would read as a query, fragment or escape',
+      '/docs/note.md',
+      '/docs/a#1 100%?.png',
+      options,
+      'a%231 100%25%3F.png',
+    ],
+    [
       'turns file URIs into relative paths',
       '/docs/note.md',
       'file:///docs/assets/My%20Image.png',
@@ -140,6 +147,25 @@ describe('resolveAttachmentPath', () => {
       '../img.png',
       '//server/share/img.png',
     ],
+    [
+      'ends the path at a fragment',
+      '/docs/note.md',
+      'notes/other.md#usage',
+      '/docs/notes/other.md',
+    ],
+    [
+      'ends the path at a query',
+      '/docs/note.md',
+      './a.png?v=2#x',
+      '/docs/a.png',
+    ],
+    [
+      'reads an encoded fragment mark as part of the name',
+      '/docs/note.md',
+      'a%231.md',
+      '/docs/a#1.md',
+    ],
+    ['returns null for a fragment alone', '/docs/note.md', '#usage', null],
     [
       'converts file URIs',
       '/docs/note.md',
