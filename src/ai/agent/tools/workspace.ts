@@ -18,6 +18,10 @@ import {
   type WorkspaceText,
   type WorkspaceWritten,
 } from '../../../bridge/ipc/ai';
+import {
+  MARKDOWN_EXTENSIONS,
+  isMarkdownPath,
+} from '../../../features/attachment-policy';
 import type { EditController } from '../../edit/controller';
 import { changedLines } from '../../edit/report';
 import { EditError, replaceText } from '../../edit/text-edit';
@@ -65,7 +69,7 @@ export type FileToolOutput = {
   status?: 'written' | 'created';
 };
 
-const NOTE_EXTENSIONS = /\.(md|markdown|mdx|txt)$/i;
+const NOTE_EXTENSIONS = MARKDOWN_EXTENSIONS.map((extension) => `.${extension}`);
 /** Lines a write's result shows either side of what it changed. */
 const SHOWN_LINES = 40;
 
@@ -78,8 +82,7 @@ const EXPLAINED: Record<Failure['kind'], string> = {
   'outside-workspace':
     'That path is outside the folders you may use, or in a hidden folder. list_files shows what you can reach.',
   'not-found': 'There is no such file. list_files shows what there is.',
-  'not-markdown':
-    'Only Markdown and text notes (.md, .markdown, .mdx, .txt) can be read and written; that path names a folder or another kind of file.',
+  'not-markdown': `Only Markdown notes (${NOTE_EXTENSIONS.join(', ')}) can be read and written; that path names a folder or another kind of file.`,
   exists:
     'A file of that name is already there. Read it, then change it with edit_file, or give write_file its version to replace it.',
   changed:
@@ -408,7 +411,7 @@ export function workspaceTools(host: WorkspaceHost) {
           .string()
           .min(1)
           .describe(
-            'Where the note goes: relative to the first folder, or in full. It has to end in .md, .markdown, .mdx or .txt.'
+            `Where the note goes: relative to the first folder, or in full. It has to end in ${NOTE_EXTENSIONS.join(', ')}.`
           ),
         text: z.string().describe('The whole note.'),
         version: z
@@ -422,8 +425,7 @@ export function workspaceTools(host: WorkspaceHost) {
         { path, text, version },
         { toolCallId, abortSignal }
       ): Promise<FileToolOutput> => {
-        if (!NOTE_EXTENSIONS.test(path))
-          throw explained({ kind: 'not-markdown' });
+        if (!isMarkdownPath(path)) throw explained({ kind: 'not-markdown' });
         const roots = await attempt(() => api.roots());
         if (roots.length === 0) throw explained({ kind: 'no-workspace' });
         let current: WorkspaceText | null = null;

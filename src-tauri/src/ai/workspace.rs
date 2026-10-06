@@ -4,15 +4,15 @@
 //! user picked for it. Every path the assistant names must first lie inside
 //! one of them by name alone, before anything on disk is asked about it;
 //! then it is resolved for real, symlinks included, and must still land
-//! inside one of them on a note: a markdown or text file outside hidden
-//! folders. Writes go through the same atomic, version-checked save the
+//! inside one of them on a note: a Markdown file, by the extensions the app
+//! opens, outside hidden folders. Writes go through the same atomic, version-checked save the
 //! editor uses, so a file changed since the assistant read it is left alone.
 
 use std::{
     collections::{HashMap, HashSet},
     fs, io,
     path::{Component, Path, PathBuf},
-    sync::Mutex,
+    sync::{Mutex, OnceLock},
     time::UNIX_EPOCH,
 };
 
@@ -27,7 +27,6 @@ use crate::{
     sessions,
 };
 
-const EXTENSIONS: [&str; 4] = ["md", "markdown", "mdx", "txt"];
 const MAX_DEPTH: usize = 8;
 /// Entries a listing or search looks at before it stops, so a workspace as
 /// big as a home folder still answers quickly.
@@ -181,11 +180,28 @@ pub fn forget_window<R: Runtime>(app: &AppHandle<R>, window: &str) {
     }
 }
 
+/// The extensions of a note: the Markdown file associations the app is
+/// built with, the list the system and the open dialog go by too.
+fn note_extensions() -> &'static [String] {
+    static EXTENSIONS: OnceLock<Vec<String>> = OnceLock::new();
+    EXTENSIONS.get_or_init(|| {
+        // The build parsed this file already, and a test reads it too.
+        serde_json::from_str::<tauri::Config>(include_str!("../../tauri.conf.json"))
+            .ok()
+            .and_then(|config| config.bundle.file_associations)
+            .into_iter()
+            .flatten()
+            .flat_map(|association| association.ext)
+            .map(|extension| extension.0)
+            .collect()
+    })
+}
+
 fn has_note_extension(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
-            EXTENSIONS
+            note_extensions()
                 .iter()
                 .any(|allowed| extension.eq_ignore_ascii_case(allowed))
         })
@@ -978,10 +994,20 @@ mod tests {
     }
 
     #[test]
+    fn notes_are_the_markdown_files_the_app_opens() {
+        let extensions = note_extensions();
+        assert!(extensions.iter().any(|extension| extension == "md"));
+        assert!(extensions.iter().any(|extension| extension == "markdown"));
+        assert!(has_note_extension(Path::new("a/b.Markdown")));
+        assert!(!has_note_extension(Path::new("a/b.txt")));
+    }
+
+    #[test]
     fn a_listing_skips_what_is_ignored_and_hidden() {
         let space = workspace(&[
             ("b.md", "b"),
-            ("a.txt", "a"),
+            ("a.mdown", "a"),
+            ("notes.txt", "t"),
             ("sub/c.MD", "c"),
             ("sub/skip.md", "s"),
             ("image.png", "i"),
@@ -992,7 +1018,7 @@ mod tests {
         ]);
         let roots = [space.root.clone()];
         let all = list(&roots, None, None).unwrap();
-        assert_eq!(relatives(&all), ["a.txt", "b.md", "sub/c.MD"]);
+        assert_eq!(relatives(&all), ["a.mdown", "b.md", "sub/c.MD"]);
         assert!(!all.truncated);
         assert_eq!(all.files[1].size, 1);
         assert!(all.files[1].modified.is_some());
@@ -1001,7 +1027,7 @@ mod tests {
         let markdown = list(&roots, Some("*.md"), None).unwrap();
         assert_eq!(relatives(&markdown), ["b.md", "sub/c.MD"]);
         let first = list(&roots, None, Some(1)).unwrap();
-        assert_eq!(relatives(&first), ["a.txt"]);
+        assert_eq!(relatives(&first), ["a.mdown"]);
         assert!(first.truncated);
         assert!(matches!(
             list(&roots, Some("[unclosed"), None),

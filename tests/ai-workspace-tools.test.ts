@@ -397,7 +397,7 @@ describe('the assistant writing notes whole', () => {
     expect(writes).toEqual([]);
   });
 
-  test('writes only Markdown and text notes', async () => {
+  test('writes only Markdown notes', async () => {
     const { tools, run, asked } = setup();
     await expect(
       run(tools.write_file, { path: 'script.sh', text: 'rm -rf ~\n' })
