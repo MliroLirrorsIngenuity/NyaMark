@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { type Node, Schema } from '@milkdown/kit/prose/model';
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import { ruleFromLine } from '../src/editor/plugins/hr-input';
 
 const schema = new Schema({
@@ -33,29 +35,32 @@ function enterIn(start: Node, line: string, offset = line.length) {
     doc: start,
     selection: TextSelection.create(start, at),
   });
-  const tr = ruleFromLine(state);
+  const tr = ruleFromLine(state, (markdown) =>
+    unified().use(remarkParse).parse(markdown)
+  );
   if (!tr) return null;
   const { $head } = tr.selection;
   return { doc: tr.doc, caret: `${$head.parent.type.name}@${$head.depth}` };
 }
 
-describe('stars or underscores alone on a line, then Enter', () => {
-  test('make a rule, the caret on a new line under it', () => {
-    for (const marks of ['***', '___']) {
+describe('a line that reads as a rule, then Enter', () => {
+  test('makes a rule, the caret on a new line under it', () => {
+    for (const marks of ['***', '___', '_ _ _', '****', '*** ']) {
       const out = enterIn(doc(p('a'), p(marks)), marks);
       expect(out?.doc.eq(doc(p('a'), hr(), p()))).toBe(true);
       expect(out?.caret).toBe('paragraph@1');
     }
   });
 
-  test('go under the item above in a list', () => {
+  test('goes under the item above in a list', () => {
     const out = enterIn(doc(list(item(p('a')), item(p('***')))), '***');
     expect(out?.doc.eq(doc(list(item(p('a'), hr(), p()))))).toBe(true);
   });
 
-  test('stay text with more on the line or the caret before the end', () => {
+  test('stays text with more on the line or the caret before the end', () => {
     expect(enterIn(doc(p('***a')), '***a')).toBeNull();
     expect(enterIn(doc(p('**')), '**')).toBeNull();
+    expect(enterIn(doc(p('*-*')), '*-*')).toBeNull();
     expect(enterIn(doc(p('***')), '***', 2)).toBeNull();
   });
 });

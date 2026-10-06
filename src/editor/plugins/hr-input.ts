@@ -2,21 +2,22 @@
  * `---` typed on a line of its own becomes a rule, and the caret goes on to
  * the line below it.
  *
- * Milkdown's own rule for it left the new rule selected as a node, so the
- * next letter typed replaced it: `---` and then a word gave the word with no
- * rule above it. This one runs first, for a paragraph, and puts the caret on
- * the line after the rule in the same step, so Backspace still turns it back
- * into the dashes typed. Anywhere else Milkdown's rule has it as before.
+ * It stands in for Milkdown's own rule, which left the new rule selected as
+ * a node, so the next letter typed replaced it: `---` and then a word gave
+ * the word with no rule above it. This one puts the caret on the line after
+ * the rule in the same step, so Backspace still turns it back into the
+ * dashes typed.
  *
  * In a list item, whose first line has to stay text, Milkdown's rule put the
  * rule under that line and left it as an empty bullet, saved as `<br />`. The
  * rule goes under the item above, as code typed there does.
  *
- * `***` or `___` alone on a line becomes a rule on Enter, as in Typora. Each
- * waits for a space in Milkdown's rule, as they open a bold or italic word
+ * A line that reads as a rule, `***` or `___`, becomes one on Enter, as in
+ * Typora. Typed, each waits for a space, as they open a bold or italic word
  * too, and with Enter they stayed text, saved escaped, `\*\*\*`.
  */
 
+import { remarkCtx } from '@milkdown/kit/core';
 import { InputRule, inputRules } from '@milkdown/kit/prose/inputrules';
 import { Fragment } from '@milkdown/kit/prose/model';
 import {
@@ -29,8 +30,9 @@ import {
 import { $prose } from '@milkdown/kit/utils';
 import { replaceLineWith } from './fence-input';
 import { caretBelowTypedBlock } from './typed-block-enter';
+import type { Parse } from './typed-blocks';
 
-/** Milkdown's own pattern: three dashes, or three underscores or stars and a space. */
+/** Three dashes, or three underscores or stars and a space. */
 const RULE = /^(?:---|___\s|\*\*\*\s)$/;
 
 export const hrInput = $prose(() =>
@@ -59,11 +61,11 @@ export const hrInput = $prose(() =>
   })
 );
 
-/** The stars or underscores Enter makes a rule of, alone on their line. */
-const RULE_LINE = /^(?:\*\*\*|___)$/;
-
-/** The caret's line, `***` or `___`, made a rule with a line under it. */
-export function ruleFromLine(state: EditorState): Transaction | null {
+/** The caret's line, when it reads as a rule, made one with a line under it. */
+export function ruleFromLine(
+  state: EditorState,
+  parse: Parse
+): Transaction | null {
   const hr = state.schema.nodes.hr;
   const { selection } = state;
   if (!hr || !(selection instanceof TextSelection)) return null;
@@ -72,7 +74,8 @@ export function ruleFromLine(state: EditorState): Transaction | null {
   if (!$head || line?.type.name !== 'paragraph') return null;
   if ($head.parentOffset !== line.content.size) return null;
   const text = (line.childCount === 1 && line.firstChild?.text) || '';
-  if (!RULE_LINE.test(text)) return null;
+  const [block, ...rest] = parse(text).children;
+  if (block?.type !== 'thematicBreak' || rest.length) return null;
   const placed = replaceLineWith(
     state,
     Fragment.from([hr.create(), line.type.create()])
@@ -83,7 +86,7 @@ export function ruleFromLine(state: EditorState): Transaction | null {
 }
 
 export const ruleOnEnter = $prose(
-  () =>
+  (ctx) =>
     new Plugin({
       key: new PluginKey('nyamark/rule-on-enter'),
       props: {
@@ -95,7 +98,9 @@ export const ruleOnEnter = $prose(
             }
             if (event.shiftKey || event.altKey || event.metaKey) return false;
             if (event.ctrlKey) return false;
-            const tr = ruleFromLine(view.state);
+            const tr = ruleFromLine(view.state, (markdown) =>
+              ctx.get(remarkCtx).parse(markdown)
+            );
             if (!tr) return false;
             view.dispatch(tr.scrollIntoView());
             event.preventDefault();
