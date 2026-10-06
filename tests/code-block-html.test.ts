@@ -1,9 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { Schema } from '@milkdown/kit/prose/model';
+import remarkMath from 'remark-math';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import {
   codeText,
   formulaAsMath,
   languageFromClasses,
+  markFences,
   writeCode,
 } from '../src/editor/plugins/code-block-html';
 
@@ -83,13 +87,17 @@ describe('formulaAsMath', () => {
       code_block: {
         content: 'text*',
         code: true,
-        attrs: { language: { default: '' } },
+        attrs: { language: { default: '' }, fenced: { default: false } },
       },
       text: {},
     },
   });
-  const block = (language: string, value: string) =>
-    schema.node('code_block', { language }, value ? schema.text(value) : []);
+  const block = (language: string, value: string, fenced = false) =>
+    schema.node(
+      'code_block',
+      { language, fenced },
+      value ? schema.text(value) : []
+    );
   const write = (node: ReturnType<typeof block>) => {
     const out: unknown[][] = [];
     const state = { addNode: (...args: unknown[]) => out.push(args) };
@@ -106,6 +114,33 @@ describe('formulaAsMath', () => {
   test('leaves other code to the code block', () => {
     expect(write(block('js', 'let a'))).toEqual([['code']]);
     expect(write(block('', 'x^2'))).toEqual([['code']]);
+  });
+
+  test('keeps LaTeX the file fenced as code', () => {
+    expect(write(block('latex', 'x^2', true))).toEqual([['code']]);
+  });
+});
+
+describe('markFences', () => {
+  test('marks the code blocks of the file, and no formula', () => {
+    const processor = unified()
+      .use(remarkParse)
+      .use(remarkMath)
+      .use(markFences);
+    const markdown = '```latex\nx^2\n```\n\n$$\ny^2\n$$\n\n    indented\n';
+    type Tree = {
+      type: string;
+      data?: { fenced?: boolean };
+      children?: Tree[];
+    };
+    const tree = processor.runSync(processor.parse(markdown)) as Tree;
+    expect(
+      tree.children?.map((node) => [node.type, node.data?.fenced === true])
+    ).toEqual([
+      ['code', true],
+      ['math', false],
+      ['code', true],
+    ]);
   });
 });
 

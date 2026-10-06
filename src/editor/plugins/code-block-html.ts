@@ -18,9 +18,11 @@
  * from was lost at the first save.
  */
 
+import { InitReady, remarkPluginsCtx } from '@milkdown/kit/core';
+import type { MilkdownPlugin } from '@milkdown/kit/ctx';
 import { codeBlockSchema } from '@milkdown/kit/preset/commonmark';
 import { type DOMOutputSpec, Fragment } from '@milkdown/kit/prose/model';
-import type { NodeSchema } from '@milkdown/kit/transformer';
+import type { NodeSchema, RemarkPlugin } from '@milkdown/kit/transformer';
 
 /** `language-js`, `lang-js`, GitHub's `highlight-source-js`, MDN's `brush: js`. */
 const LANGUAGE_CLASS =
@@ -79,7 +81,7 @@ type Runner = NodeSchema['toMarkdown']['runner'];
 export function formulaAsMath(write: Runner): Runner {
   return (state, node) => {
     const language = String(node.attrs.language ?? '').toLowerCase();
-    if (language !== 'latex') return write(state, node);
+    if (language !== 'latex' || node.attrs.fenced) return write(state, node);
     state.addNode('math', undefined, node.textContent);
   };
 }
@@ -92,18 +94,62 @@ export const writeCode: Runner = (state, node) => {
   });
 };
 
+declare module 'unist' {
+  interface Data {
+    fenced?: boolean;
+  }
+}
+
+type MdNode = {
+  type: string;
+  data?: Record<string, unknown>;
+  children?: MdNode[];
+};
+
+export function markFences() {
+  return (tree: MdNode) => {
+    const visit = (node: MdNode) => {
+      if (node.type === 'code') node.data = { ...node.data, fenced: true };
+      for (const child of node.children ?? []) visit(child);
+    };
+    visit(tree);
+  };
+}
+
+export const codeFences: MilkdownPlugin = (ctx) => async () => {
+  await ctx.wait(InitReady);
+  const plugin = { plugin: markFences, options: {} } as RemarkPlugin;
+  ctx.update(remarkPluginsCtx, (plugins) => [plugin, ...plugins]);
+  return () => {
+    ctx.update(remarkPluginsCtx, (plugins) =>
+      plugins.filter((each) => each !== plugin)
+    );
+  };
+};
+
 export const codeBlockFromHtml = codeBlockSchema.extendSchema(
   (prev) => (ctx) => {
     const schema = prev(ctx);
     return {
       ...schema,
-      attrs: { ...schema.attrs, meta: { default: '', validate: 'string' } },
+      attrs: {
+        ...schema.attrs,
+        meta: { default: '', validate: 'string' },
+        fenced: { default: false, validate: 'boolean' },
+      },
       toDOM: (node) => {
         const dom = schema.toDOM?.(node);
-        const { meta } = node.attrs;
-        if (!meta || !Array.isArray(dom)) return dom as DOMOutputSpec;
+        const { meta, fenced } = node.attrs;
+        if ((!meta && !fenced) || !Array.isArray(dom)) {
+          return dom as DOMOutputSpec;
+        }
         const [tag, attrs, ...rest] = dom;
-        return [tag, { ...attrs, 'data-meta': meta }, ...rest];
+        const marked = {
+          ...attrs,
+          ...(meta ? { 'data-meta': meta } : {}),
+          ...(fenced ? { 'data-fenced': 'true' } : {}),
+        };
+        return [tag, marked, ...rest];
       },
       parseDOM: schema.parseDOM?.map((rule) => ({
         ...rule,
@@ -119,7 +165,8 @@ export const codeBlockFromHtml = codeBlockSchema.extendSchema(
               dom.parentElement?.getAttribute('class'),
             ]);
           const meta = dom.dataset.meta ?? '';
-          return { ...attrs, language, meta };
+          const fenced = !fromEditor(dom) || dom.dataset.fenced === 'true';
+          return { ...attrs, language, meta, fenced };
         },
         getContent: (dom, schema) => {
           let text = codeText(dom);
@@ -133,6 +180,7 @@ export const codeBlockFromHtml = codeBlockSchema.extendSchema(
           state.openNode(type, {
             language: node.lang ?? '',
             meta: node.meta ?? '',
+            fenced: node.data?.fenced === true,
           });
           if (node.value) state.addText(String(node.value));
           state.closeNode();

@@ -68,6 +68,7 @@ import { blockSelection } from './plugins/block-selection';
 import { caretScroll } from './plugins/caret-scroll';
 import { cjkBreaks } from './plugins/cjk-breaks';
 import { cjkEmphasis, cjkStrikethrough } from './plugins/cjk-emphasis';
+import { codeFences } from './plugins/code-block-html';
 import { codeKey } from './plugins/code-key';
 import { fenceLanguageWord } from './plugins/code-language';
 import { codePreview } from './plugins/code-preview';
@@ -269,6 +270,7 @@ export class NyaEditor {
     crepe.editor.use(markdownOutput);
     crepe.editor.use(frontMatterSyntax);
     crepe.editor.use(linkDefinitions);
+    crepe.editor.use(codeFences);
     crepe.editor.use(cjkEmphasis);
     crepe.editor.use(cjkStrikethrough);
     crepe.editor.use(dollarTextParse);
