@@ -1,21 +1,36 @@
+import {
+  ImageReadError,
+  type ImageReadFailure,
+  type InvokeFailure,
+} from '../../bridge/ipc/ai';
 import { i18next } from '../../i18n';
-import { type ChatImage, ImageError, MAX_IMAGES } from '../images/image';
+import {
+  type ChatImage,
+  ImageError,
+  type ImageErrorCode,
+  MAX_IMAGES,
+} from '../images/image';
 import { ICONS } from './icons';
 
 /** What went wrong with an image, in the user's words. */
-const REASONS: Record<string, string> = {
+const REASONS: Record<
+  ImageErrorCode | (ImageReadFailure | InvokeFailure)['kind'],
+  string
+> = {
   'too-large': 'ai.image.reason.tooLarge',
   'not-an-image': 'ai.image.reason.notImage',
   forbidden: 'ai.image.reason.forbidden',
   'not-found': 'ai.image.reason.notFound',
+  io: 'ai.image.reason.other',
+  invoke: 'ai.image.reason.other',
 };
 
 function reasonOf(error: unknown): string {
-  const code =
-    error instanceof ImageError
-      ? error.code
-      : (error instanceof Error ? error.message : String(error)).trim();
-  return i18next.t(REASONS[code] ?? 'ai.image.reason.other');
+  if (error instanceof ImageError) return i18next.t(REASONS[error.code]);
+  if (error instanceof ImageReadError) {
+    return i18next.t(REASONS[error.failure.kind]);
+  }
+  return i18next.t('ai.image.reason.other');
 }
 
 /** A thumbnail's address, to be revoked when it is no longer shown. */

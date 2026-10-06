@@ -95,8 +95,54 @@ pub struct ConversationSummary {
     pub message_count: u32,
 }
 
+/// Why a history command failed, as the page reads it: `{ kind, … }`.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum HistoryError {
+    /// A conversation or image id that is not one plain name.
+    BadId,
+    NotFound,
+    /// The saved conversation is not JSON.
+    Corrupt {
+        message: String,
+    },
+    TooLarge,
+    NotAnImage,
+    /// The image the page sent is not base64.
+    BadImage {
+        message: String,
+    },
+    Io {
+        message: String,
+    },
+}
+
+impl From<io::Error> for HistoryError {
+    fn from(error: io::Error) -> Self {
+        if error.kind() == io::ErrorKind::NotFound {
+            Self::NotFound
+        } else {
+            Self::Io {
+                message: error.to_string(),
+            }
+        }
+    }
+}
+
+impl From<tauri::Error> for HistoryError {
+    fn from(error: tauri::Error) -> Self {
+        Self::Io {
+            message: error.to_string(),
+        }
+    }
+}
+
 /// Names that stay one plain path component on every system.
-pub fn check_id(id: &str) -> Result<(), String> {
+pub fn check_id(id: &str) -> Result<(), HistoryError> {
     let valid = (1..=64).contains(&id.len())
         && id
             .bytes()
@@ -104,7 +150,7 @@ pub fn check_id(id: &str) -> Result<(), String> {
     if valid {
         Ok(())
     } else {
-        Err("bad-id".into())
+        Err(HistoryError::BadId)
     }
 }
 
@@ -118,7 +164,7 @@ pub fn folder_name(document: &str) -> String {
         .collect()
 }
 
-fn folder(base: &Path, owner: Owner) -> Result<PathBuf, String> {
+fn folder(base: &Path, owner: Owner) -> Result<PathBuf, HistoryError> {
     match owner {
         Owner::Document(path) => Ok(base.join(folder_name(path))),
         Owner::Draft(draft) => {
@@ -128,38 +174,30 @@ fn folder(base: &Path, owner: Owner) -> Result<PathBuf, String> {
     }
 }
 
-fn conversation_file(base: &Path, owner: Owner, id: &str) -> Result<PathBuf, String> {
+fn conversation_file(base: &Path, owner: Owner, id: &str) -> Result<PathBuf, HistoryError> {
     check_id(id)?;
     Ok(folder(base, owner)?.join(format!("{id}.json")))
 }
 
 /// Where a conversation's images go.
-fn files_folder(base: &Path, owner: Owner, id: &str) -> Result<PathBuf, String> {
+fn files_folder(base: &Path, owner: Owner, id: &str) -> Result<PathBuf, HistoryError> {
     check_id(id)?;
     Ok(folder(base, owner)?.join(format!("{id}.files")))
 }
 
-fn io_error(error: io::Error) -> String {
-    if error.kind() == io::ErrorKind::NotFound {
-        "not-found".into()
-    } else {
-        format!("io: {error}")
-    }
-}
-
-fn remove_folder(folder: &Path) -> Result<(), String> {
+fn remove_folder(folder: &Path) -> Result<(), HistoryError> {
     match fs::remove_dir_all(folder) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(io_error(error)),
+        Err(error) => Err(error.into()),
     }
 }
 
-pub fn list(base: &Path, owner: Owner) -> Result<Vec<ConversationSummary>, String> {
+pub fn list(base: &Path, owner: Owner) -> Result<Vec<ConversationSummary>, HistoryError> {
     let entries = match fs::read_dir(folder(base, owner)?) {
         Ok(entries) => entries,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(io_error(error)),
+        Err(error) => return Err(error.into()),
     };
     let mut summaries: Vec<ConversationSummary> = entries
         .filter_map(Result::ok)
@@ -197,38 +235,47 @@ pub fn list(base: &Path, owner: Owner) -> Result<Vec<ConversationSummary>, Strin
     Ok(summaries)
 }
 
-pub fn read(base: &Path, owner: Owner, id: &str) -> Result<Value, String> {
-    let text = fs::read_to_string(conversation_file(base, owner, id)?).map_err(io_error)?;
-    serde_json::from_str(&text).map_err(|error| format!("corrupt: {error}"))
+pub fn read(base: &Path, owner: Owner, id: &str) -> Result<Value, HistoryError> {
+    let text = fs::read_to_string(conversation_file(base, owner, id)?)?;
+    serde_json::from_str(&text).map_err(|error| HistoryError::Corrupt {
+        message: error.to_string(),
+    })
 }
 
-pub fn write(base: &Path, owner: Owner, id: &str, conversation: &Value) -> Result<(), String> {
+pub fn write(
+    base: &Path,
+    owner: Owner,
+    id: &str,
+    conversation: &Value,
+) -> Result<(), HistoryError> {
     let file = conversation_file(base, owner, id)?;
     ensure_folder(base, owner)?;
-    let json = serde_json::to_vec(conversation).map_err(|error| error.to_string())?;
-    write_atomically(&file, &json).map_err(io_error)
+    let json = serde_json::to_vec(conversation).map_err(|error| HistoryError::Io {
+        message: error.to_string(),
+    })?;
+    write_atomically(&file, &json).map_err(HistoryError::from)
 }
 
 /// Makes the owner's folder, with the note of whose it is for a document.
-fn ensure_folder(base: &Path, owner: Owner) -> Result<PathBuf, String> {
+fn ensure_folder(base: &Path, owner: Owner) -> Result<PathBuf, HistoryError> {
     let folder = folder(base, owner)?;
-    fs::create_dir_all(&folder).map_err(io_error)?;
+    fs::create_dir_all(&folder)?;
     if let Owner::Document(document) = owner {
         let note = folder.join(DOCUMENT_NOTE);
         if fs::read_to_string(&note).ok().as_deref() != Some(document) {
-            write_atomically(&note, document.as_bytes()).map_err(io_error)?;
+            write_atomically(&note, document.as_bytes())?;
         }
     }
     Ok(folder)
 }
 
 /// Deleting what is already gone succeeds.
-pub fn delete(base: &Path, owner: Owner, id: &str) -> Result<(), String> {
+pub fn delete(base: &Path, owner: Owner, id: &str) -> Result<(), HistoryError> {
     let file = conversation_file(base, owner, id)?;
     match fs::remove_file(file) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(io_error(error)),
+        Err(error) => return Err(error.into()),
     }
     remove_folder(&files_folder(base, owner, id)?)
 }
@@ -236,7 +283,7 @@ pub fn delete(base: &Path, owner: Owner, id: &str) -> Result<(), String> {
 /// Conversations follow a document that was renamed, moved or first saved.
 /// Into a folder that already has some, they are added; a conversation of
 /// the same id is replaced by the one moved.
-pub fn move_conversations(base: &Path, from: Owner, to: Owner) -> Result<(), String> {
+pub fn move_conversations(base: &Path, from: Owner, to: Owner) -> Result<(), HistoryError> {
     let source = folder(base, from)?;
     if source == folder(base, to)? {
         if matches!(to, Owner::Document(_)) {
@@ -245,9 +292,9 @@ pub fn move_conversations(base: &Path, from: Owner, to: Owner) -> Result<(), Str
         return Ok(());
     }
     let entries = match fs::read_dir(&source) {
-        Ok(entries) => entries.collect::<Result<Vec<_>, _>>().map_err(io_error)?,
+        Ok(entries) => entries.collect::<Result<Vec<_>, _>>()?,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(io_error(error)),
+        Err(error) => return Err(error.into()),
     };
     let target = ensure_folder(base, to)?;
     for entry in entries {
@@ -257,14 +304,14 @@ pub fn move_conversations(base: &Path, from: Owner, to: Owner) -> Result<(), Str
         }
         let destination = target.join(&name);
         if destination.is_dir() {
-            fs::remove_dir_all(&destination).map_err(io_error)?;
+            fs::remove_dir_all(&destination)?;
         }
-        fs::rename(entry.path(), destination).map_err(io_error)?;
+        fs::rename(entry.path(), destination)?;
     }
-    fs::remove_dir_all(&source).map_err(io_error)
+    fs::remove_dir_all(&source).map_err(HistoryError::from)
 }
 
-pub fn clear(base: &Path) -> Result<(), String> {
+pub fn clear(base: &Path) -> Result<(), HistoryError> {
     remove_folder(base)
 }
 
@@ -276,24 +323,24 @@ pub fn save_image(
     id: &str,
     bytes: &[u8],
     mime: &str,
-) -> Result<String, String> {
+) -> Result<String, HistoryError> {
     if bytes.len() as u64 > MAX_IMAGE_BYTES {
-        return Err("too-large".into());
+        return Err(HistoryError::TooLarge);
     }
     // The bytes decide which type; the page's label only has to agree that
     // it is an image.
     if !mime.trim().to_ascii_lowercase().starts_with("image/") {
-        return Err("not-an-image".into());
+        return Err(HistoryError::NotAnImage);
     }
-    let kind = images::image_kind(bytes).ok_or_else(|| "not-an-image".to_string())?;
+    let kind = images::image_kind(bytes).ok_or(HistoryError::NotAnImage)?;
     let extension = IMAGE_TYPES
         .iter()
         .find(|(name, _)| *name == kind)
         .map(|(_, extension)| *extension)
-        .ok_or_else(|| "not-an-image".to_string())?;
+        .ok_or(HistoryError::NotAnImage)?;
     let folder = files_folder(base, owner, id)?;
     ensure_folder(base, owner)?;
-    fs::create_dir_all(&folder).map_err(io_error)?;
+    fs::create_dir_all(&folder)?;
     let digest = Sha256::digest(bytes);
     let image: String = digest
         .iter()
@@ -302,27 +349,34 @@ pub fn save_image(
         .collect();
     let file = folder.join(format!("{image}.{extension}"));
     if !file.is_file() {
-        write_atomically(&file, bytes).map_err(io_error)?;
+        write_atomically(&file, bytes)?;
     }
     Ok(image)
 }
 
-pub fn read_image(base: &Path, owner: Owner, id: &str, image: &str) -> Result<Vec<u8>, String> {
+pub fn read_image(
+    base: &Path,
+    owner: Owner,
+    id: &str,
+    image: &str,
+) -> Result<Vec<u8>, HistoryError> {
     check_id(image)?;
     let folder = files_folder(base, owner, id)?;
     IMAGE_TYPES
         .iter()
         .map(|(_, extension)| folder.join(format!("{image}.{extension}")))
         .find(|file| file.is_file())
-        .ok_or_else(|| "not-found".to_string())
-        .and_then(|file| fs::read(file).map_err(io_error))
+        .ok_or(HistoryError::NotFound)
+        .and_then(|file| fs::read(file).map_err(HistoryError::from))
 }
 
-fn base<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+fn base<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, HistoryError> {
     Ok(app
         .path()
         .app_data_dir()
-        .map_err(|error| error.to_string())?
+        .map_err(|error| HistoryError::Io {
+            message: error.to_string(),
+        })?
         .join("ai")
         .join("conversations"))
 }
@@ -332,8 +386,8 @@ fn base<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
 /// along with the next document saved.
 fn locked<R: Runtime, T>(
     app: &AppHandle<R>,
-    action: impl FnOnce(&Path, &mut Drafts) -> Result<T, String>,
-) -> Result<T, String> {
+    action: impl FnOnce(&Path, &mut Drafts) -> Result<T, HistoryError>,
+) -> Result<T, HistoryError> {
     let lock = app.state::<HistoryLock>();
     let mut drafts = lock
         .0
@@ -361,8 +415,8 @@ async fn with_owner<T: Send + 'static>(
     app: AppHandle,
     window: Window,
     document: Option<String>,
-    action: impl FnOnce(&Path, Owner) -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
+    action: impl FnOnce(&Path, Owner) -> Result<T, HistoryError> + Send + 'static,
+) -> Result<T, HistoryError> {
     let label = window.label().to_string();
     blocking(move || {
         locked(&app, |base, drafts| match document.as_deref() {
@@ -392,7 +446,7 @@ pub async fn history_list(
     app: AppHandle,
     window: Window,
     document: Option<String>,
-) -> Result<Vec<ConversationSummary>, String> {
+) -> Result<Vec<ConversationSummary>, HistoryError> {
     with_owner(app, window, document, list).await
 }
 
@@ -402,7 +456,7 @@ pub async fn history_read(
     window: Window,
     document: Option<String>,
     id: String,
-) -> Result<Value, String> {
+) -> Result<Value, HistoryError> {
     with_owner(app, window, document, move |base, owner| {
         read(base, owner, &id)
     })
@@ -416,7 +470,7 @@ pub async fn history_write(
     document: Option<String>,
     id: String,
     conversation: Value,
-) -> Result<(), String> {
+) -> Result<(), HistoryError> {
     with_owner(app, window, document, move |base, owner| {
         write(base, owner, &id, &conversation)
     })
@@ -429,7 +483,7 @@ pub async fn history_delete(
     window: Window,
     document: Option<String>,
     id: String,
-) -> Result<(), String> {
+) -> Result<(), HistoryError> {
     with_owner(app, window, document, move |base, owner| {
         delete(base, owner, &id)
     })
@@ -444,7 +498,7 @@ pub async fn history_move(
     window: Window,
     from: Option<String>,
     to: Option<String>,
-) -> Result<(), String> {
+) -> Result<(), HistoryError> {
     let label = window.label().to_string();
     blocking(move || {
         locked(&app, |base, drafts| {
@@ -460,7 +514,7 @@ pub async fn history_move(
 }
 
 #[tauri::command]
-pub async fn history_clear(app: AppHandle) -> Result<(), String> {
+pub async fn history_clear(app: AppHandle) -> Result<(), HistoryError> {
     blocking(move || locked(&app, |base, _| clear(base))).await
 }
 
@@ -473,11 +527,13 @@ pub async fn history_save_image(
     id: String,
     bytes: String,
     mime: String,
-) -> Result<String, String> {
+) -> Result<String, HistoryError> {
     let bytes = blocking(move || {
         base64::engine::general_purpose::STANDARD
             .decode(bytes.trim())
-            .map_err(|error| format!("bad-image: {error}"))
+            .map_err(|error| HistoryError::BadImage {
+                message: error.to_string(),
+            })
     })
     .await?;
     with_owner(app, window, document, move |base, owner| {
@@ -493,7 +549,7 @@ pub async fn history_read_image(
     document: Option<String>,
     id: String,
     image: String,
-) -> Result<tauri::ipc::Response, String> {
+) -> Result<tauri::ipc::Response, HistoryError> {
     with_owner(app, window, document, move |base, owner| {
         read_image(base, owner, &id, &image)
     })
@@ -534,10 +590,10 @@ mod tests {
             assert_eq!(check_id(id), Ok(()), "{id}");
         }
         for id in ["", "../x", "a/b", "a.json", "名", " a", &"x".repeat(65)] {
-            assert_eq!(check_id(id), Err("bad-id".into()), "{id}");
+            assert_eq!(check_id(id), Err(HistoryError::BadId), "{id}");
         }
         let base = Path::new("/base");
-        assert_eq!(folder(base, Owner::Draft("../x")), Err("bad-id".into()));
+        assert_eq!(folder(base, Owner::Draft("../x")), Err(HistoryError::BadId));
     }
 
     #[test]
@@ -594,8 +650,8 @@ mod tests {
             "/notes/a.md"
         );
         assert_eq!(read(base, A, "new").unwrap(), conversation("New", 5, 3));
-        assert_eq!(read(base, A, "gone"), Err("not-found".into()));
-        assert_eq!(read(base, A, "../x"), Err("bad-id".into()));
+        assert_eq!(read(base, A, "gone"), Err(HistoryError::NotFound));
+        assert_eq!(read(base, A, "../x"), Err(HistoryError::BadId));
     }
 
     #[test]
@@ -606,10 +662,10 @@ mod tests {
         let image = save_image(base, DRAFT, "c", PNG, "image/png").unwrap();
         assert_eq!(read_image(base, DRAFT, "c", &image).unwrap(), PNG);
         delete(base, DRAFT, "c").unwrap();
-        assert_eq!(read(base, DRAFT, "c"), Err("not-found".into()));
+        assert_eq!(read(base, DRAFT, "c"), Err(HistoryError::NotFound));
         assert_eq!(
             read_image(base, DRAFT, "c", &image),
-            Err("not-found".into())
+            Err(HistoryError::NotFound)
         );
         assert_eq!(delete(base, DRAFT, "c"), Ok(()));
     }
@@ -629,15 +685,15 @@ mod tests {
         );
         assert_eq!(
             save_image(base, DRAFT, "c", b"<svg/>", "image/svg+xml"),
-            Err("not-an-image".into())
+            Err(HistoryError::NotAnImage)
         );
         assert_eq!(
             save_image(base, DRAFT, "c", PNG, "text/plain"),
-            Err("not-an-image".into())
+            Err(HistoryError::NotAnImage)
         );
         assert_eq!(
             read_image(base, DRAFT, "c", "../../x"),
-            Err("bad-id".into())
+            Err(HistoryError::BadId)
         );
     }
 

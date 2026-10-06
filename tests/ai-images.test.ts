@@ -17,6 +17,7 @@ import {
   isSendableType,
   userMessage,
 } from '../src/ai/images/image';
+import { ImageReadError, type ImageReadFailure } from '../src/bridge/ipc/ai';
 
 type StreamPart = Awaited<
   ReturnType<MockLanguageModelV4['doStream']>
@@ -204,7 +205,7 @@ type FakeHost = ImageHost & {
 
 function fakeHost(
   options: {
-    files?: Record<string, Uint8Array | string>;
+    files?: Record<string, Uint8Array | ImageReadFailure>;
     documentFolder?: string | null;
     prepare?: (source: Blob | Uint8Array, name: string) => Promise<ChatImage>;
   } = {}
@@ -224,9 +225,8 @@ function fakeHost(
     read: async (path) => {
       host.reads.push(path);
       const file = files[path];
-      // The app's own errors come as their bare codes.
-      if (file == null) throw 'not-found';
-      if (typeof file === 'string') throw file;
+      if (file == null) throw new ImageReadError({ kind: 'not-found' });
+      if (!(file instanceof Uint8Array)) throw new ImageReadError(file);
       return file;
     },
     prepare: async (source, name) => {
@@ -309,9 +309,9 @@ describe('view_image', () => {
       expect(view(host, src)).rejects.toThrow();
     const host = fakeHost({
       files: {
-        '/notes/secret.png': 'forbidden',
-        '/notes/huge.png': 'too-large',
-        '/notes/odd.png': 'socket closed',
+        '/notes/secret.png': { kind: 'forbidden' },
+        '/notes/huge.png': { kind: 'too-large' },
+        '/notes/odd.png': { kind: 'io', message: 'socket closed' },
       },
     });
     await reject(host, 'https://example.com/a.png');
@@ -329,7 +329,9 @@ describe('view_image', () => {
       /^forbidden: .*outside the folders/
     );
     await expect(view(host, 'huge.png')).rejects.toThrow(/^too-large: /);
-    await expect(view(host, 'odd.png')).rejects.toThrow('socket closed');
+    await expect(view(host, 'odd.png')).rejects.toThrow(
+      /^io: .*\(socket closed\)/
+    );
     await expect(view(host, 'data:image/png;base64,***')).rejects.toThrow(
       /^not-an-image: /
     );

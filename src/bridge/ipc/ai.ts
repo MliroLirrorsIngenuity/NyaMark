@@ -1,4 +1,38 @@
-import { Channel, invoke } from '@tauri-apps/api/core';
+import { Channel, type InvokeArgs, invoke } from '@tauri-apps/api/core';
+
+/** A command the app could not run at all, as one sent bad arguments. */
+export type InvokeFailure = { kind: 'invoke'; message: string };
+
+/**
+ * A failure an AI command reported, as the native side typed it (see
+ * `src-tauri/src/ai`): each command family has its own kinds.
+ */
+abstract class AiCommandError<Failure extends { kind: string }> extends Error {
+  constructor(readonly failure: Failure | InvokeFailure) {
+    super(
+      'message' in failure
+        ? `${failure.kind}: ${failure.message}`
+        : failure.kind
+    );
+  }
+}
+
+/** Calls the commands of a family; a failure is thrown as its error. */
+function commands<Failure extends { kind: string }>(
+  Failed: new (failure: Failure | InvokeFailure) => AiCommandError<Failure>
+) {
+  return async <T>(command: string, args?: InvokeArgs): Promise<T> => {
+    try {
+      return await invoke<T>(command, args);
+    } catch (error) {
+      const typed =
+        typeof error === 'object' && error !== null && 'kind' in error;
+      throw new Failed(
+        typed ? (error as Failure) : { kind: 'invoke', message: String(error) }
+      );
+    }
+  };
+}
 
 /** How AI requests reach the internet. */
 export type ProxySetting =
@@ -124,28 +158,50 @@ export type WorkspaceMatches = {
 
 export type WorkspaceWritten = { path: string; version: string };
 
+export type WorkspaceFailure =
+  | {
+      kind:
+        | 'no-workspace'
+        | 'outside-workspace'
+        | 'not-found'
+        | 'not-markdown'
+        | 'exists'
+        | 'version-needed'
+        | 'changed'
+        | 'too-large'
+        | 'not-utf8'
+        | 'read-only'
+        | 'empty-query';
+    }
+  | { kind: 'bad-glob' | 'bad-regex' | 'io'; message: string };
+
+/** A workspace command failed (see `workspace.rs`). */
+export class WorkspaceError extends AiCommandError<WorkspaceFailure> {}
+
+const workspaceCommand = commands(WorkspaceError);
+
 /**
  * The folders the assistant may read and write notes in: the document's
  * folder first, then those the user picked for this window.
  */
 export async function workspaceRoots(): Promise<string[]> {
-  return await invoke<string[]>('workspace_roots');
+  return await workspaceCommand<string[]>('workspace_roots');
 }
 
 /** Asks the user for another folder; null when they chose none. */
 export async function pickWorkspaceRoot(): Promise<string | null> {
-  return await invoke<string | null>('workspace_pick_root');
+  return await workspaceCommand<string | null>('workspace_pick_root');
 }
 
 export async function listWorkspace(options: {
   glob?: string;
   limit?: number;
 }): Promise<WorkspaceList> {
-  return await invoke<WorkspaceList>('workspace_list', options);
+  return await workspaceCommand<WorkspaceList>('workspace_list', options);
 }
 
 export async function readWorkspaceFile(path: string): Promise<WorkspaceText> {
-  return await invoke<WorkspaceText>('workspace_read', { path });
+  return await workspaceCommand<WorkspaceText>('workspace_read', { path });
 }
 
 export async function searchWorkspace(options: {
@@ -154,7 +210,7 @@ export async function searchWorkspace(options: {
   caseSensitive?: boolean;
   limit?: number;
 }): Promise<WorkspaceMatches> {
-  return await invoke<WorkspaceMatches>('workspace_search', options);
+  return await workspaceCommand<WorkspaceMatches>('workspace_search', options);
 }
 
 /**
@@ -167,7 +223,7 @@ export async function writeWorkspaceFile(options: {
   expectedVersion?: string;
   create?: boolean;
 }): Promise<WorkspaceWritten> {
-  return await invoke<WorkspaceWritten>('workspace_write', options);
+  return await workspaceCommand<WorkspaceWritten>('workspace_write', options);
 }
 
 /** The engines web search reads; auto tries each in turn. */
@@ -214,6 +270,15 @@ export async function webFetch(request: {
   return await invoke<WebPage>('web_fetch', { request });
 }
 
+export type ImageReadFailure =
+  | { kind: 'forbidden' | 'not-found' | 'too-large' | 'not-an-image' }
+  | { kind: 'io'; message: string };
+
+/** An image could not be read for the assistant (see `images.rs`). */
+export class ImageReadError extends AiCommandError<ImageReadFailure> {}
+
+const imageCommand = commands(ImageReadError);
+
 /**
  * Reads an image for the assistant: in the window's folders of notes, or a
  * file the user opened, picked or dropped. A relative path is taken from
@@ -221,7 +286,7 @@ export async function webFetch(request: {
  */
 export async function readImageForAi(path: string): Promise<Uint8Array> {
   return new Uint8Array(
-    await invoke<ArrayBuffer>('read_image_for_ai', { path })
+    await imageCommand<ArrayBuffer>('read_image_for_ai', { path })
   );
 }
 
@@ -313,6 +378,15 @@ export type ConversationSummary = {
   messageCount: number;
 };
 
+export type HistoryFailure =
+  | { kind: 'bad-id' | 'not-found' | 'too-large' | 'not-an-image' }
+  | { kind: 'corrupt' | 'bad-image' | 'io'; message: string };
+
+/** A saved conversation could not be read or kept (see `history.rs`). */
+export class HistoryError extends AiCommandError<HistoryFailure> {}
+
+const historyCommand = commands(HistoryError);
+
 /**
  * Conversations are kept for the document at `document`, or for this
  * window's drafts while it has none.
@@ -320,14 +394,16 @@ export type ConversationSummary = {
 export async function listConversations(
   document: string | null
 ): Promise<ConversationSummary[]> {
-  return await invoke<ConversationSummary[]>('history_list', { document });
+  return await historyCommand<ConversationSummary[]>('history_list', {
+    document,
+  });
 }
 
 export async function readConversation(
   document: string | null,
   id: string
 ): Promise<unknown> {
-  return await invoke<unknown>('history_read', { document, id });
+  return await historyCommand<unknown>('history_read', { document, id });
 }
 
 export async function writeConversation(
@@ -335,14 +411,14 @@ export async function writeConversation(
   id: string,
   conversation: unknown
 ): Promise<void> {
-  await invoke('history_write', { document, id, conversation });
+  await historyCommand('history_write', { document, id, conversation });
 }
 
 export async function deleteConversation(
   document: string | null,
   id: string
 ): Promise<void> {
-  await invoke('history_delete', { document, id });
+  await historyCommand('history_delete', { document, id });
 }
 
 /** Conversations follow the window's document to `to`; null is its drafts. */
@@ -350,11 +426,11 @@ export async function moveConversations(
   from: string | null,
   to: string | null
 ): Promise<void> {
-  await invoke('history_move', { from, to });
+  await historyCommand('history_move', { from, to });
 }
 
 export async function clearConversations(): Promise<void> {
-  await invoke('history_clear');
+  await historyCommand('history_clear');
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -373,7 +449,7 @@ export async function saveConversationImage(
   bytes: Uint8Array,
   mime: string
 ): Promise<string> {
-  return await invoke<string>('history_save_image', {
+  return await historyCommand<string>('history_save_image', {
     document,
     id,
     bytes: toBase64(bytes),
@@ -387,6 +463,10 @@ export async function readConversationImage(
   image: string
 ): Promise<Uint8Array> {
   return new Uint8Array(
-    await invoke<ArrayBuffer>('history_read_image', { document, id, image })
+    await historyCommand<ArrayBuffer>('history_read_image', {
+      document,
+      id,
+      image,
+    })
   );
 }

@@ -13,10 +13,12 @@ pub mod workspace;
 /// Runs file work on a thread meant for blocking, so a slow disk or a
 /// network volume holds up only this command and not the async threads every
 /// other command and stream shares.
-pub(crate) async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|error| format!("io: {error}"))?
+pub(crate) async fn blocking<T, E>(
+    work: impl FnOnce() -> Result<T, E> + Send + 'static,
+) -> Result<T, E>
+where
+    T: Send + 'static,
+    E: From<tauri::Error> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(work).await?
 }

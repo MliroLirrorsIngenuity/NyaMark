@@ -9,11 +9,14 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import type {
-  WorkspaceList,
-  WorkspaceMatches,
-  WorkspaceText,
-  WorkspaceWritten,
+import {
+  type InvokeFailure,
+  WorkspaceError,
+  type WorkspaceFailure,
+  type WorkspaceList,
+  type WorkspaceMatches,
+  type WorkspaceText,
+  type WorkspaceWritten,
 } from '../../../bridge/ipc/ai';
 import type { EditController } from '../../edit/controller';
 import { changedLines } from '../../edit/report';
@@ -66,13 +69,17 @@ const NOTE_EXTENSIONS = /\.(md|markdown|mdx|txt)$/i;
 /** Lines a write's result shows either side of what it changed. */
 const SHOWN_LINES = 40;
 
-/** What the app's error codes mean, for the assistant. */
-const EXPLAINED: Record<string, string> = {
+type Failure = WorkspaceFailure | InvokeFailure;
+
+/** What each failure of the app's file commands means, for the assistant. */
+const EXPLAINED: Record<Failure['kind'], string> = {
   'no-workspace':
     'No folder is open to you: the document has not been saved in one, and the user has given you none. Ask them to save the document, or ask for a folder with request_folder.',
   'outside-workspace':
-    'That path is outside the folders you may use, in a hidden folder, or not a Markdown or text note (.md, .markdown, .mdx, .txt). list_files shows what you can reach.',
+    'That path is outside the folders you may use, or in a hidden folder. list_files shows what you can reach.',
   'not-found': 'There is no such file. list_files shows what there is.',
+  'not-markdown':
+    'Only Markdown and text notes (.md, .markdown, .mdx, .txt) can be read and written; that path names a folder or another kind of file.',
   exists:
     'A file of that name is already there. Read it, then change it with edit_file, or give write_file its version to replace it.',
   changed:
@@ -83,14 +90,23 @@ const EXPLAINED: Record<string, string> = {
   'version-needed':
     'The file is already there. Read it first, then write it with the version the read gave.',
   'empty-query': 'Give some text to look for.',
+  'bad-glob': 'That is not a pattern list_files can read.',
+  'bad-regex': 'That is not a regular expression search_files can read.',
+  io: 'The file could not be read or written.',
+  invoke: 'The app could not run the command.',
 };
+
+/** A failure told so the assistant can act. */
+function explained(failure: Failure): Error {
+  const detail =
+    'message' in failure ? ` (${failure.message.slice(0, 500)})` : '';
+  return new Error(`${failure.kind}: ${EXPLAINED[failure.kind]}${detail}`);
+}
 
 /** An error from the app's file commands, told so the assistant can act. */
 function failure(error: unknown): Error {
-  const raw = error instanceof Error ? error.message : String(error);
-  const code = raw.split(':', 1)[0];
-  const explained = EXPLAINED[code];
-  return new Error(explained ? `${code}: ${explained}` : raw);
+  if (error instanceof WorkspaceError) return explained(error.failure);
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 async function attempt<T>(work: () => Promise<T>): Promise<T> {
@@ -199,7 +215,7 @@ export function workspaceTools(host: WorkspaceHost) {
       }),
       execute: async ({ glob, limit }): Promise<FileToolOutput> => {
         const roots = await attempt(() => api.roots());
-        if (roots.length === 0) throw failure('no-workspace');
+        if (roots.length === 0) throw explained({ kind: 'no-workspace' });
         const list = await attempt(() => api.list({ glob, limit }));
         const documentPath = host.documentPath();
         const lines = list.files.map((file) => {
@@ -289,7 +305,7 @@ export function workspaceTools(host: WorkspaceHost) {
         limit,
       }): Promise<FileToolOutput> => {
         const roots = await attempt(() => api.roots());
-        if (roots.length === 0) throw failure('no-workspace');
+        if (roots.length === 0) throw explained({ kind: 'no-workspace' });
         const found = await attempt(() =>
           api.search({ query, regex, caseSensitive: case_sensitive, limit })
         );
@@ -406,16 +422,18 @@ export function workspaceTools(host: WorkspaceHost) {
         { path, text, version },
         { toolCallId, abortSignal }
       ): Promise<FileToolOutput> => {
-        if (!NOTE_EXTENSIONS.test(path)) throw failure('outside-workspace');
+        if (!NOTE_EXTENSIONS.test(path))
+          throw explained({ kind: 'not-markdown' });
         const roots = await attempt(() => api.roots());
-        if (roots.length === 0) throw failure('no-workspace');
+        if (roots.length === 0) throw explained({ kind: 'no-workspace' });
         let current: WorkspaceText | null = null;
         try {
           current = await api.read(path);
         } catch (error) {
-          if (failure(error).message.split(':', 1)[0] !== 'not-found') {
-            throw failure(error);
-          }
+          const missing =
+            error instanceof WorkspaceError &&
+            error.failure.kind === 'not-found';
+          if (!missing) throw failure(error);
         }
         if (current) {
           if (isOpenDocument(current.path, host.documentPath(), roots)) {
@@ -423,8 +441,8 @@ export function workspaceTools(host: WorkspaceHost) {
               'open-document: This is the document open in the editor; write it with write_document.'
             );
           }
-          if (!version) throw failure('exists');
-          if (version !== current.version) throw failure('changed');
+          if (!version) throw explained({ kind: 'exists' });
+          if (version !== current.version) throw explained({ kind: 'changed' });
         }
         const answer = await approvals.ask(
           toolCallId,

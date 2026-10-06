@@ -6,17 +6,62 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde::Serialize;
 use tauri::{AppHandle, Window};
 use tauri_plugin_fs::FsExt;
 
 use super::{
     blocking,
-    workspace::{self, error_code, is_remote_or_device, normalize_lexically},
+    workspace::{self, is_remote_or_device, normalize_lexically},
 };
-use crate::{document, sessions};
+use crate::{
+    document::{self, DocumentError},
+    sessions,
+};
 
 /// Larger than any service takes; a bigger file is not worth reading.
 pub const MAX_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
+
+/// Why an image could not be read for the assistant, as the page reads it:
+/// `{ kind, … }`.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum ImageError {
+    /// Outside the window's workspace and the places the editor may open.
+    Forbidden,
+    NotFound,
+    TooLarge,
+    NotAnImage,
+    Io {
+        message: String,
+    },
+}
+
+impl From<DocumentError> for ImageError {
+    fn from(error: DocumentError) -> Self {
+        match error {
+            DocumentError::Forbidden => Self::Forbidden,
+            DocumentError::TooLarge { .. } => Self::TooLarge,
+            DocumentError::Missing { .. } => Self::NotFound,
+            DocumentError::Io { message } => Self::Io { message },
+            other => Self::Io {
+                message: format!("{other:?}"),
+            },
+        }
+    }
+}
+
+impl From<tauri::Error> for ImageError {
+    fn from(error: tauri::Error) -> Self {
+        Self::Io {
+            message: error.to_string(),
+        }
+    }
+}
 
 /// The image type the bytes start like. The file name may say anything,
 /// so only the bytes count.
@@ -39,20 +84,20 @@ pub fn image_kind(bytes: &[u8]) -> Option<&'static str> {
 /// Where an image the page named lies by name alone: a relative path is
 /// taken from `folder`. Shares and device paths are refused as written,
 /// before anything on disk is asked about them.
-fn lexical_target(folder: Option<&Path>, path: &str) -> Result<PathBuf, String> {
+fn lexical_target(folder: Option<&Path>, path: &str) -> Result<PathBuf, ImageError> {
     if is_remote_or_device(path) {
-        return Err("forbidden".into());
+        return Err(ImageError::Forbidden);
     }
     let target = Path::new(path);
     let target = if target.is_relative() {
-        folder.ok_or_else(|| "not-found".to_string())?.join(target)
+        folder.ok_or(ImageError::NotFound)?.join(target)
     } else {
         target.to_path_buf()
     };
-    normalize_lexically(&target).ok_or_else(|| "forbidden".to_string())
+    normalize_lexically(&target).ok_or(ImageError::Forbidden)
 }
 
-fn image_for_ai(app: &AppHandle, window: &str, path: &str) -> Result<Vec<u8>, String> {
+fn image_for_ai(app: &AppHandle, window: &str, path: &str) -> Result<Vec<u8>, ImageError> {
     let folder = sessions::assigned_window_file(app, window)
         .and_then(|file| Path::new(&file).parent().map(Path::to_path_buf));
     let target = lexical_target(folder.as_deref(), path)?;
@@ -66,11 +111,11 @@ fn image_for_ai(app: &AppHandle, window: &str, path: &str) -> Result<Vec<u8>, St
             || app.fs_scope().is_allowed(path)
     };
     if !allowed(&target) {
-        return Err("forbidden".into());
+        return Err(ImageError::Forbidden);
     }
-    let target = fs::canonicalize(&target).map_err(|_| "not-found".to_string())?;
+    let target = fs::canonicalize(&target).map_err(|_| ImageError::NotFound)?;
     if !allowed(&target) {
-        return Err("forbidden".into());
+        return Err(ImageError::Forbidden);
     }
     read_image(&target)
 }
@@ -82,24 +127,24 @@ pub async fn read_image_for_ai(
     app: AppHandle,
     window: Window,
     path: String,
-) -> Result<tauri::ipc::Response, String> {
+) -> Result<tauri::ipc::Response, ImageError> {
     let label = window.label().to_string();
     blocking(move || image_for_ai(&app, &label, &path))
         .await
         .map(tauri::ipc::Response::new)
 }
 
-pub fn read_image(path: &Path) -> Result<Vec<u8>, String> {
-    let metadata = fs::metadata(path).map_err(|_| "not-found".to_string())?;
+pub fn read_image(path: &Path) -> Result<Vec<u8>, ImageError> {
+    let metadata = fs::metadata(path).map_err(|_| ImageError::NotFound)?;
     if !metadata.is_file() {
-        return Err("not-found".into());
+        return Err(ImageError::NotFound);
     }
     if metadata.len() > MAX_IMAGE_BYTES {
-        return Err("too-large".into());
+        return Err(ImageError::TooLarge);
     }
-    let bytes = document::read_limited(path, MAX_IMAGE_BYTES).map_err(error_code)?;
+    let bytes = document::read_limited(path, MAX_IMAGE_BYTES)?;
     if image_kind(&bytes).is_none() {
-        return Err("not-an-image".into());
+        return Err(ImageError::NotAnImage);
     }
     Ok(bytes)
 }
@@ -144,18 +189,18 @@ mod tests {
         assert_eq!(read_image(&png).unwrap().len(), 16);
         let fake = folder.path().join("b.png");
         fs::write(&fake, b"not an image").unwrap();
-        assert_eq!(read_image(&fake), Err("not-an-image".into()));
-        assert_eq!(read_image(folder.path()), Err("not-found".into()));
+        assert_eq!(read_image(&fake), Err(ImageError::NotAnImage));
+        assert_eq!(read_image(folder.path()), Err(ImageError::NotFound));
         assert_eq!(
             read_image(&folder.path().join("missing.png")),
-            Err("not-found".into())
+            Err(ImageError::NotFound)
         );
         let big = folder.path().join("big.png");
         fs::File::create(&big)
             .unwrap()
             .set_len(MAX_IMAGE_BYTES + 1)
             .unwrap();
-        assert_eq!(read_image(&big), Err("too-large".into()));
+        assert_eq!(read_image(&big), Err(ImageError::TooLarge));
     }
 
     #[test]
@@ -170,11 +215,11 @@ mod tests {
         ] {
             assert_eq!(
                 lexical_target(Some(folder), path),
-                Err("forbidden".into()),
+                Err(ImageError::Forbidden),
                 "{path}"
             );
         }
-        assert_eq!(lexical_target(None, "a.png"), Err("not-found".into()));
+        assert_eq!(lexical_target(None, "a.png"), Err(ImageError::NotFound));
         assert_eq!(
             lexical_target(Some(folder), "img/./a.png"),
             Ok(PathBuf::from("/notes/doc/img/a.png"))
@@ -185,7 +230,7 @@ mod tests {
         );
         assert_eq!(
             lexical_target(Some(folder), "../../../../a.png"),
-            Err("forbidden".into())
+            Err(ImageError::Forbidden)
         );
     }
 }

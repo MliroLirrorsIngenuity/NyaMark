@@ -11,7 +11,7 @@ import {
 } from '../src/ai/agent/tools/workspace';
 import type { EditController } from '../src/ai/edit/controller';
 import type { TextEdit } from '../src/ai/edit/text-edit';
-import type { WorkspaceText } from '../src/bridge/ipc/ai';
+import { WorkspaceError, type WorkspaceText } from '../src/bridge/ipc/ai';
 
 const ROOT = '/notes';
 const OPEN = `${ROOT}/open.md`;
@@ -47,7 +47,7 @@ function fakeApi(notes: Record<string, string>, roots = [ROOT]) {
     }),
     read: async (path) => {
       const found = files.get(full(path));
-      if (!found) throw 'not-found';
+      if (!found) throw new WorkspaceError({ kind: 'not-found' });
       return { path: full(path), ...found } satisfies WorkspaceText;
     },
     search: async ({ query }) => ({
@@ -71,9 +71,11 @@ function fakeApi(notes: Record<string, string>, roots = [ROOT]) {
       writes.push(options);
       const path = full(options.path);
       const found = files.get(path);
-      if (options.create && found) throw 'exists';
-      if (!options.create && !found) throw 'not-found';
-      if (found && options.expectedVersion !== found.version) throw 'changed';
+      if (options.create && found) throw new WorkspaceError({ kind: 'exists' });
+      if (!options.create && !found)
+        throw new WorkspaceError({ kind: 'not-found' });
+      if (found && options.expectedVersion !== found.version)
+        throw new WorkspaceError({ kind: 'changed' });
       const version = stamp();
       files.set(path, { text: options.text, version });
       return { path, version };
@@ -399,7 +401,7 @@ describe('the assistant writing notes whole', () => {
     const { tools, run, asked } = setup();
     await expect(
       run(tools.write_file, { path: 'script.sh', text: 'rm -rf ~\n' })
-    ).rejects.toThrow(/^outside-workspace: /);
+    ).rejects.toThrow(/^not-markdown: /);
     expect(asked).toEqual([]);
   });
 });

@@ -85,16 +85,69 @@ pub struct Written {
     pub version: String,
 }
 
-/// The error codes the page shows for a failed read or write.
-pub(crate) fn error_code(error: DocumentError) -> String {
-    match error {
-        DocumentError::NotUtf8 { .. } => "not-utf8".into(),
-        DocumentError::Forbidden => "outside-workspace".into(),
-        DocumentError::ReadOnly => "read-only".into(),
-        DocumentError::TooLarge { .. } => "too-large".into(),
-        DocumentError::Missing { .. } => "not-found".into(),
-        DocumentError::Changed => "changed".into(),
-        DocumentError::Io { message } => format!("io: {message}"),
+/// Why a workspace command failed, as the page reads it: `{ kind, … }`.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum WorkspaceError {
+    /// The document is not saved in a folder, and the user picked none.
+    NoWorkspace,
+    /// The path leads outside every folder, or into a hidden one.
+    OutsideWorkspace,
+    NotFound,
+    /// The path names a folder, or a file that is not a note.
+    NotMarkdown,
+    /// A new note was asked for where there is one.
+    Exists,
+    /// A note that is there was to be written without the version it was
+    /// read at.
+    VersionNeeded,
+    Changed,
+    TooLarge,
+    NotUtf8,
+    ReadOnly,
+    EmptyQuery,
+    BadGlob {
+        message: String,
+    },
+    BadRegex {
+        message: String,
+    },
+    Io {
+        message: String,
+    },
+}
+
+impl From<DocumentError> for WorkspaceError {
+    fn from(error: DocumentError) -> Self {
+        match error {
+            DocumentError::NotUtf8 { .. } => Self::NotUtf8,
+            DocumentError::Forbidden => Self::OutsideWorkspace,
+            DocumentError::ReadOnly => Self::ReadOnly,
+            DocumentError::TooLarge { .. } => Self::TooLarge,
+            DocumentError::Missing { .. } => Self::NotFound,
+            DocumentError::Changed => Self::Changed,
+            DocumentError::Io { message } => Self::Io { message },
+        }
+    }
+}
+
+impl From<io::Error> for WorkspaceError {
+    fn from(error: io::Error) -> Self {
+        Self::Io {
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<tauri::Error> for WorkspaceError {
+    fn from(error: tauri::Error) -> Self {
+        Self::Io {
+            message: error.to_string(),
+        }
     }
 }
 
@@ -222,14 +275,14 @@ pub(crate) fn within_lexically(root: &Path, path: &Path) -> bool {
 /// Where a path the assistant named lies by name alone: a relative one from
 /// the first root. Refused unless that is inside a root, so nothing outside
 /// the workspace is ever looked up.
-fn lexical_candidate(roots: &[PathBuf], path: &str) -> Result<PathBuf, String> {
-    let first = roots.first().ok_or_else(|| "no-workspace".to_string())?;
+fn lexical_candidate(roots: &[PathBuf], path: &str) -> Result<PathBuf, WorkspaceError> {
+    let first = roots.first().ok_or(WorkspaceError::NoWorkspace)?;
     let path = path.trim();
     if path.is_empty() {
-        return Err("not-found".into());
+        return Err(WorkspaceError::NotFound);
     }
     if is_remote_or_device(path) {
-        return Err("outside-workspace".into());
+        return Err(WorkspaceError::OutsideWorkspace);
     }
     let path = Path::new(path);
     let joined = if path.is_absolute() {
@@ -239,39 +292,41 @@ fn lexical_candidate(roots: &[PathBuf], path: &str) -> Result<PathBuf, String> {
     };
     normalize_lexically(&joined)
         .filter(|candidate| roots.iter().any(|root| within_lexically(root, candidate)))
-        .ok_or_else(|| "outside-workspace".to_string())
+        .ok_or(WorkspaceError::OutsideWorkspace)
 }
 
 /// Where a path the assistant named really is, if that is a note inside the
 /// workspace. A relative path starts at the first root. To create a file,
 /// the folders it goes in are resolved instead, and those that do not exist
 /// yet may only be named plainly.
-pub fn resolve(roots: &[PathBuf], path: &str, create: bool) -> Result<PathBuf, String> {
+pub fn resolve(roots: &[PathBuf], path: &str, create: bool) -> Result<PathBuf, WorkspaceError> {
     let candidate = lexical_candidate(roots, path)?;
     let resolved = match fs::canonicalize(&candidate) {
         Ok(resolved) => resolved,
         Err(error) if error.kind() == io::ErrorKind::NotFound && create => resolve_new(&candidate)?,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Err("not-found".into()),
-        Err(error) => return Err(format!("io: {error}")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Err(WorkspaceError::NotFound)
+        }
+        Err(error) => return Err(error.into()),
     };
     let root = roots
         .iter()
         .find(|root| resolved.starts_with(root))
-        .ok_or_else(|| "outside-workspace".to_string())?;
+        .ok_or(WorkspaceError::OutsideWorkspace)?;
     let inside = resolved
         .strip_prefix(root)
-        .map_err(|_| "outside-workspace".to_string())?;
+        .map_err(|_| WorkspaceError::OutsideWorkspace)?;
     // Hidden folders hold keys and settings (.ssh, .env, .git), not notes.
     if inside.components().any(is_hidden) {
-        return Err("outside-workspace".into());
+        return Err(WorkspaceError::OutsideWorkspace);
     }
     if !has_note_extension(&resolved) || resolved.is_dir() {
-        return Err("not-markdown".into());
+        return Err(WorkspaceError::NotMarkdown);
     }
     Ok(resolved)
 }
 
-fn resolve_new(candidate: &Path) -> Result<PathBuf, String> {
+fn resolve_new(candidate: &Path) -> Result<PathBuf, WorkspaceError> {
     let mut existing = candidate;
     let mut missing = Vec::new();
     loop {
@@ -283,13 +338,11 @@ fn resolve_new(candidate: &Path) -> Result<PathBuf, String> {
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 match existing.components().next_back() {
                     Some(Component::Normal(name)) => missing.push(name.to_os_string()),
-                    _ => return Err("outside-workspace".into()),
+                    _ => return Err(WorkspaceError::OutsideWorkspace),
                 }
-                existing = existing
-                    .parent()
-                    .ok_or_else(|| "outside-workspace".to_string())?;
+                existing = existing.parent().ok_or(WorkspaceError::OutsideWorkspace)?;
             }
-            Err(error) => return Err(format!("io: {error}")),
+            Err(error) => return Err(error.into()),
         }
     }
 }
@@ -358,9 +411,13 @@ fn modified_ms(metadata: &fs::Metadata) -> Option<u64> {
     u64::try_from(age.as_millis()).ok()
 }
 
-pub fn list(roots: &[PathBuf], glob: Option<&str>, limit: Option<u32>) -> Result<FileList, String> {
+pub fn list(
+    roots: &[PathBuf],
+    glob: Option<&str>,
+    limit: Option<u32>,
+) -> Result<FileList, WorkspaceError> {
     if roots.is_empty() {
-        return Err("no-workspace".into());
+        return Err(WorkspaceError::NoWorkspace);
     }
     let limit = limit.unwrap_or(500).clamp(1, 2000) as usize;
     let matcher = match glob.map(str::trim).filter(|glob| !glob.is_empty()) {
@@ -368,7 +425,9 @@ pub fn list(roots: &[PathBuf], glob: Option<&str>, limit: Option<u32>) -> Result
             globset::GlobBuilder::new(glob.trim_start_matches("./"))
                 .case_insensitive(true)
                 .build()
-                .map_err(|error| format!("bad-glob: {error}"))?
+                .map_err(|error| WorkspaceError::BadGlob {
+                    message: error.to_string(),
+                })?
                 .compile_matcher(),
         ),
         None => None,
@@ -401,10 +460,10 @@ pub fn list(roots: &[PathBuf], glob: Option<&str>, limit: Option<u32>) -> Result
     })
 }
 
-pub fn read(roots: &[PathBuf], path: &str) -> Result<FileText, String> {
+pub fn read(roots: &[PathBuf], path: &str) -> Result<FileText, WorkspaceError> {
     let file = resolve(roots, path, false)?;
-    let bytes = document::read_limited(&file, MAX_READ_BYTES).map_err(error_code)?;
-    let note = document::decode(bytes).map_err(error_code)?;
+    let bytes = document::read_limited(&file, MAX_READ_BYTES)?;
+    let note = document::decode(bytes)?;
     Ok(FileText {
         path: display(&file),
         text: note.text,
@@ -418,12 +477,12 @@ pub fn search(
     regex: bool,
     case_sensitive: bool,
     limit: Option<u32>,
-) -> Result<SearchMatches, String> {
+) -> Result<SearchMatches, WorkspaceError> {
     if roots.is_empty() {
-        return Err("no-workspace".into());
+        return Err(WorkspaceError::NoWorkspace);
     }
     if query.is_empty() {
-        return Err("empty-query".into());
+        return Err(WorkspaceError::EmptyQuery);
     }
     let pattern = if regex {
         query.to_string()
@@ -434,7 +493,9 @@ pub fn search(
         .case_insensitive(!case_sensitive)
         .size_limit(1 << 20)
         .build()
-        .map_err(|error| format!("bad-regex: {error}"))?;
+        .map_err(|error| WorkspaceError::BadRegex {
+            message: error.to_string(),
+        })?;
     let limit = limit.unwrap_or(100).clamp(1, 500) as usize;
     let mut matches = Vec::new();
     let mut truncated = false;
@@ -501,32 +562,31 @@ pub fn write(
     text: &str,
     expected_version: Option<&str>,
     create: bool,
-) -> Result<Written, String> {
+) -> Result<Written, WorkspaceError> {
     let file = resolve(roots, path, create)?;
     let exists = fs::symlink_metadata(&file).is_ok();
     if create && exists {
-        return Err("exists".into());
+        return Err(WorkspaceError::Exists);
     }
     if !create && !exists {
-        return Err("not-found".into());
+        return Err(WorkspaceError::NotFound);
     }
     if exists && expected_version.is_none() {
-        return Err("version-needed".into());
+        return Err(WorkspaceError::VersionNeeded);
     }
     let format = if exists {
-        let bytes = document::read_limited(&file, MAX_DOCUMENT_BYTES).map_err(error_code)?;
-        document::decode(bytes).map_err(error_code)?.format
+        let bytes = document::read_limited(&file, MAX_DOCUMENT_BYTES)?;
+        document::decode(bytes)?.format
     } else {
         DocumentFormat::default()
     };
     if create {
         if let Some(folder) = file.parent() {
-            fs::create_dir_all(folder).map_err(|error| format!("io: {error}"))?;
+            fs::create_dir_all(folder)?;
         }
     }
     let expected_version = if create { None } else { expected_version };
-    let version =
-        document::write_document(&file, text, format, expected_version).map_err(error_code)?;
+    let version = document::write_document(&file, text, format, expected_version)?;
     Ok(Written {
         path: display(&file),
         version,
@@ -537,14 +597,17 @@ pub fn write(
 async fn in_workspace<T: Send + 'static>(
     app: AppHandle,
     window: Window,
-    work: impl FnOnce(&[PathBuf]) -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
+    work: impl FnOnce(&[PathBuf]) -> Result<T, WorkspaceError> + Send + 'static,
+) -> Result<T, WorkspaceError> {
     let label = window.label().to_string();
     blocking(move || work(&roots(&app, &label))).await
 }
 
 #[tauri::command]
-pub async fn workspace_roots(app: AppHandle, window: Window) -> Result<Vec<String>, String> {
+pub async fn workspace_roots(
+    app: AppHandle,
+    window: Window,
+) -> Result<Vec<String>, WorkspaceError> {
     in_workspace(app, window, |roots| {
         Ok(roots.iter().map(|root| display(root)).collect())
     })
@@ -555,7 +618,10 @@ pub async fn workspace_roots(app: AppHandle, window: Window) -> Result<Vec<Strin
 /// commands here reach it, and only for this window: the page's own file
 /// access stays as it was.
 #[tauri::command]
-pub async fn workspace_pick_root(app: AppHandle, window: Window) -> Result<Option<String>, String> {
+pub async fn workspace_pick_root(
+    app: AppHandle,
+    window: Window,
+) -> Result<Option<String>, WorkspaceError> {
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
@@ -563,21 +629,28 @@ pub async fn workspace_pick_root(app: AppHandle, window: Window) -> Result<Optio
         .pick_folder(move |folder| {
             let _ = sender.send(folder);
         });
-    let Some(folder) = receiver.await.map_err(|error| error.to_string())? else {
+    let Some(folder) = receiver.await.map_err(|error| WorkspaceError::Io {
+        message: error.to_string(),
+    })?
+    else {
         return Ok(None);
     };
-    let folder = folder.into_path().map_err(|error| error.to_string())?;
+    let folder = folder.into_path().map_err(|error| WorkspaceError::Io {
+        message: error.to_string(),
+    })?;
     let folder = blocking(move || {
-        let folder = fs::canonicalize(folder).map_err(|error| format!("io: {error}"))?;
+        let folder = fs::canonicalize(folder)?;
         if usable_root(&folder) {
             Ok(folder)
         } else {
-            Err("outside-workspace".into())
+            Err(WorkspaceError::OutsideWorkspace)
         }
     })
     .await?;
     let state = app.state::<WorkspaceGrants>();
-    let mut grants = state.0.lock().map_err(|error| error.to_string())?;
+    let mut grants = state.0.lock().map_err(|error| WorkspaceError::Io {
+        message: error.to_string(),
+    })?;
     let granted = grants.entry(window.label().to_string()).or_default();
     if !granted.contains(&folder) {
         granted.push(folder.clone());
@@ -591,7 +664,7 @@ pub async fn workspace_list(
     window: Window,
     glob: Option<String>,
     limit: Option<u32>,
-) -> Result<FileList, String> {
+) -> Result<FileList, WorkspaceError> {
     in_workspace(app, window, move |roots| {
         list(roots, glob.as_deref(), limit)
     })
@@ -603,7 +676,7 @@ pub async fn workspace_read(
     app: AppHandle,
     window: Window,
     path: String,
-) -> Result<FileText, String> {
+) -> Result<FileText, WorkspaceError> {
     in_workspace(app, window, move |roots| read(roots, &path)).await
 }
 
@@ -615,7 +688,7 @@ pub async fn workspace_search(
     regex: Option<bool>,
     case_sensitive: Option<bool>,
     limit: Option<u32>,
-) -> Result<SearchMatches, String> {
+) -> Result<SearchMatches, WorkspaceError> {
     in_workspace(app, window, move |roots| {
         search(
             roots,
@@ -637,7 +710,7 @@ pub async fn workspace_write(
     text: String,
     expected_version: Option<String>,
     create: Option<bool>,
-) -> Result<Written, String> {
+) -> Result<Written, WorkspaceError> {
     in_workspace(app, window, move |roots| {
         write(
             roots,
@@ -682,12 +755,33 @@ mod tests {
     }
 
     #[test]
+    fn a_failure_reaches_the_page_by_kind() {
+        assert_eq!(
+            serde_json::to_value(WorkspaceError::NotMarkdown).unwrap(),
+            serde_json::json!({ "kind": "not-markdown" })
+        );
+        assert_eq!(
+            serde_json::to_value(WorkspaceError::BadGlob {
+                message: "unclosed".into()
+            })
+            .unwrap(),
+            serde_json::json!({ "kind": "bad-glob", "message": "unclosed" })
+        );
+    }
+
+    #[test]
     fn nothing_is_reachable_without_a_workspace() {
-        assert_eq!(resolve(&[], "a.md", false), Err("no-workspace".into()));
-        assert_eq!(list(&[], None, None).unwrap_err(), "no-workspace");
+        assert_eq!(
+            resolve(&[], "a.md", false),
+            Err(WorkspaceError::NoWorkspace)
+        );
+        assert_eq!(
+            list(&[], None, None).unwrap_err(),
+            WorkspaceError::NoWorkspace
+        );
         assert_eq!(
             search(&[], "a", false, false, None).unwrap_err(),
-            "no-workspace"
+            WorkspaceError::NoWorkspace
         );
     }
 
@@ -712,16 +806,19 @@ mod tests {
         );
         assert_eq!(
             resolve(&roots, "../outside.md", false),
-            Err("outside-workspace".into())
+            Err(WorkspaceError::OutsideWorkspace)
         );
         assert_eq!(
             resolve(&roots, ".secret/d.md", false),
-            Err("outside-workspace".into())
+            Err(WorkspaceError::OutsideWorkspace)
         );
-        assert_eq!(resolve(&roots, "c.png", false), Err("not-markdown".into()));
+        assert_eq!(
+            resolve(&roots, "c.png", false),
+            Err(WorkspaceError::NotMarkdown)
+        );
         assert_eq!(
             resolve(&roots, "missing.md", false),
-            Err("not-found".into())
+            Err(WorkspaceError::NotFound)
         );
         assert_eq!(
             resolve(&roots, "new/deeper/e.md", true),
@@ -729,11 +826,11 @@ mod tests {
         );
         assert_eq!(
             resolve(&roots, "../new.md", true),
-            Err("outside-workspace".into())
+            Err(WorkspaceError::OutsideWorkspace)
         );
         assert_eq!(
             resolve(&roots, "new/../../x.md", true),
-            Err("outside-workspace".into())
+            Err(WorkspaceError::OutsideWorkspace)
         );
     }
 
@@ -767,12 +864,12 @@ mod tests {
         for path in [r"\\evil\s\a.md", "//evil/s/a.md", r"\\?\UNC\evil\s\a.md"] {
             assert_eq!(
                 resolve(&roots, path, false),
-                Err("outside-workspace".into()),
+                Err(WorkspaceError::OutsideWorkspace),
                 "{path}"
             );
             assert_eq!(
                 write(&roots, path, "x", None, true).unwrap_err(),
-                "outside-workspace",
+                WorkspaceError::OutsideWorkspace,
                 "{path}"
             );
         }
@@ -839,7 +936,7 @@ mod tests {
         ] {
             assert_eq!(
                 lexical_candidate(&roots, path),
-                Err("outside-workspace".into()),
+                Err(WorkspaceError::OutsideWorkspace),
                 "{path}"
             );
         }
@@ -851,7 +948,10 @@ mod tests {
             lexical_candidate(&roots, "/work/more/x/../a.md"),
             Ok(PathBuf::from("/work/more/a.md"))
         );
-        assert_eq!(lexical_candidate(&roots, "  "), Err("not-found".into()));
+        assert_eq!(
+            lexical_candidate(&roots, "  "),
+            Err(WorkspaceError::NotFound)
+        );
     }
 
     #[cfg(unix)]
@@ -864,15 +964,15 @@ mod tests {
         std::os::unix::fs::symlink(space.root.join("../away"), space.root.join("away")).unwrap();
         assert_eq!(
             resolve(&roots, "link.md", false),
-            Err("outside-workspace".into())
+            Err(WorkspaceError::OutsideWorkspace)
         );
         assert_eq!(
             resolve(&roots, "away/x.md", false),
-            Err("outside-workspace".into())
+            Err(WorkspaceError::OutsideWorkspace)
         );
         assert_eq!(
             resolve(&roots, "away/new.md", true),
-            Err("outside-workspace".into())
+            Err(WorkspaceError::OutsideWorkspace)
         );
         assert!(relatives(&list(&roots, None, None).unwrap()).is_empty());
     }
@@ -903,9 +1003,10 @@ mod tests {
         let first = list(&roots, None, Some(1)).unwrap();
         assert_eq!(relatives(&first), ["a.txt"]);
         assert!(first.truncated);
-        assert!(list(&roots, Some("[unclosed"), None)
-            .unwrap_err()
-            .starts_with("bad-glob: "));
+        assert!(matches!(
+            list(&roots, Some("[unclosed"), None),
+            Err(WorkspaceError::BadGlob { .. })
+        ));
     }
 
     #[test]
@@ -941,9 +1042,10 @@ mod tests {
         let limited = search(&roots, "cat", false, false, Some(1)).unwrap();
         assert_eq!(limited.matches.len(), 1);
         assert!(limited.truncated);
-        assert!(search(&roots, "(", true, false, None)
-            .unwrap_err()
-            .starts_with("bad-regex: "));
+        assert!(matches!(
+            search(&roots, "(", true, false, None),
+            Err(WorkspaceError::BadRegex { .. })
+        ));
     }
 
     #[test]
@@ -972,14 +1074,17 @@ mod tests {
         );
         assert_eq!(
             write(&roots, "a.md", "stale", Some(&note.version), false).unwrap_err(),
-            "changed"
+            WorkspaceError::Changed
         );
         assert_eq!(read(&roots, "a.md").unwrap().version, written.version);
         fs::File::create(space.root.join("big.md"))
             .unwrap()
             .set_len(MAX_READ_BYTES + 1)
             .unwrap();
-        assert_eq!(read(&roots, "big.md").unwrap_err(), "too-large");
+        assert_eq!(
+            read(&roots, "big.md").unwrap_err(),
+            WorkspaceError::TooLarge
+        );
     }
 
     #[test]
@@ -988,7 +1093,7 @@ mod tests {
         let roots = [space.root.clone()];
         assert_eq!(
             write(&roots, "a.md", "two\n", None, false).unwrap_err(),
-            "version-needed"
+            WorkspaceError::VersionNeeded
         );
         assert_eq!(fs::read(space.root.join("a.md")).unwrap(), b"one\n");
         let note = read(&roots, "a.md").unwrap();
@@ -1005,15 +1110,15 @@ mod tests {
         assert_eq!(read(&roots, "plans/new.md").unwrap().text, "hello\n");
         assert_eq!(
             write(&roots, "plans/new.md", "again", None, true).unwrap_err(),
-            "exists"
+            WorkspaceError::Exists
         );
         assert_eq!(
             write(&roots, "other.md", "x", None, false).unwrap_err(),
-            "not-found"
+            WorkspaceError::NotFound
         );
         assert_eq!(
             write(&roots, "notes.json", "{}", None, true).unwrap_err(),
-            "not-markdown"
+            WorkspaceError::NotMarkdown
         );
     }
 }

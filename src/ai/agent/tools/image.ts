@@ -8,7 +8,17 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { type ChatImage, ImageError, MAX_IMAGES } from '../../images/image';
+import {
+  ImageReadError,
+  type ImageReadFailure,
+  type InvokeFailure,
+} from '../../../bridge/ipc/ai';
+import {
+  type ChatImage,
+  ImageError,
+  type ImageErrorCode,
+  MAX_IMAGES,
+} from '../../images/image';
 
 export type ImageHost = {
   /** The file an image reference names, or null when it names none here. */
@@ -26,8 +36,15 @@ export type ViewImageOutput = {
   image?: ChatImage;
 };
 
-/** What the app's error codes mean, for the assistant. */
-const EXPLAINED: Record<string, string> = {
+/** Why an image could not be opened. */
+type Failure =
+  | ImageReadFailure
+  | InvokeFailure
+  | { kind: ImageErrorCode }
+  | { kind: 'remote' | 'unsupported' | 'no-file' | 'too-many' };
+
+/** What each failure means, for the assistant. */
+const EXPLAINED: Record<Failure['kind'], string> = {
   remote:
     'The image is on the web. view_image opens images saved on this computer; work from its alt text, or ask the user to save it beside the document.',
   unsupported: 'That address names no image file. Give a path or a data URL.',
@@ -39,21 +56,24 @@ const EXPLAINED: Record<string, string> = {
   'too-large': 'The image is too large to send.',
   'not-an-image': 'The file is no image the app can read.',
   'too-many': `You have opened ${MAX_IMAGES} images this turn; that is the most one turn may open. Work from those, or ask the user to send the one you need.`,
+  io: 'The file could not be read.',
+  invoke: 'The app could not read the file.',
 };
 
-function failure(code: string, detail = ''): Error {
-  const explained = EXPLAINED[code] ?? '';
+function failure(kind: Failure['kind'], detail = ''): Error {
   return new Error(
-    `${code}: ${explained}${detail ? ` (${detail.slice(0, 300)})` : ''}`
+    `${kind}: ${EXPLAINED[kind]}${detail ? ` (${detail.slice(0, 300)})` : ''}`
   );
 }
 
-/** An error told so the assistant can act; the app's codes come bare. */
+/** An error told so the assistant can act. */
 function explain(error: unknown): Error {
   if (error instanceof ImageError) return failure(error.code);
-  const raw = error instanceof Error ? error.message : String(error);
-  if (EXPLAINED[raw.trim()]) return failure(raw.trim());
-  return error instanceof Error ? error : new Error(raw);
+  if (error instanceof ImageReadError) {
+    const read = error.failure;
+    return failure(read.kind, 'message' in read ? read.message : '');
+  }
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 /** A data URL's bytes, typed as it says. */
