@@ -1,7 +1,4 @@
-import {
-  guessCapabilities,
-  isChatModel,
-} from '../../../ai/providers/capabilities';
+import { isChatModel } from '../../../ai/providers/capabilities';
 import { checkProvider } from '../../../ai/providers/check';
 import { providerFetch } from '../../../ai/providers/connect';
 import type { ListedModel } from '../../../ai/providers/models';
@@ -29,7 +26,6 @@ import { translateDOM } from '../../../i18n/dom';
 import {
   AI_PROVIDER_KINDS,
   AI_SEARCH_ENGINES,
-  type AiModelInfo,
   type AiModelRef,
   type AiProvider,
   type AiSearchEngine,
@@ -58,6 +54,12 @@ import {
 } from './ai-dom';
 import { renderHistorySection } from './ai-history';
 import { mcpStyles, renderMcpSection } from './ai-mcp';
+import {
+  type Listing,
+  modelFromListing,
+  modelStyles,
+  renderModelList,
+} from './ai-models';
 import { quickStyles, renderQuickSection } from './ai-quick';
 
 const styles = `
@@ -256,116 +258,6 @@ const styles = `
 .ny-ai-actions__result.is-error {
   color: var(--ny-del-ink);
 }
-
-.ny-ai-models {
-  width: 100%;
-  display: grid;
-  gap: 2px;
-}
-
-.ny-ai-model {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto 92px 26px;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0;
-  font-size: 12px;
-  color: var(--ny-text-primary);
-}
-
-.ny-ai-model__id {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-.ny-ai-model__flag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--ny-text-secondary);
-}
-
-.ny-ai-model__flag input {
-  margin: 0;
-  accent-color: var(--ny-accent);
-}
-
-.ny-ai-model input[type="number"] {
-  width: 100%;
-  box-sizing: border-box;
-  height: 26px;
-  padding: 0 6px;
-  border: 1px solid var(--ny-line);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--ny-text-primary);
-  font: inherit;
-  font-size: 11.5px;
-}
-
-.ny-ai-model__remove {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ny-text-secondary);
-  font-size: 15px;
-  line-height: 1;
-}
-
-.ny-ai-model__remove:hover {
-  background: var(--ny-fill-soft);
-  color: var(--ny-text-primary);
-}
-
-.ny-ai-model-head {
-  color: var(--ny-text-secondary);
-  font-size: 11.5px;
-}
-
-.ny-ai-pick {
-  width: 100%;
-  display: grid;
-  gap: 6px;
-}
-
-.ny-ai-pick[hidden] {
-  display: none;
-}
-
-.ny-ai-pick__list {
-  max-height: 220px;
-  overflow: auto;
-  padding: 4px 8px;
-  border: 1px solid var(--ny-line);
-  border-radius: 10px;
-  background: var(--ny-dock-bg);
-}
-
-.ny-ai-pick__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 2px;
-  font-size: 12px;
-  color: var(--ny-text-primary);
-}
-
-.ny-ai-pick__item input {
-  margin: 0;
-  accent-color: var(--ny-accent);
-}
-
-.ny-ai-pick__item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 `;
 
 export type AiSectionOptions = {
@@ -390,24 +282,6 @@ export type AiSection = {
    */
   addService: (id: string) => void;
 };
-
-/** Where a model the service lists starts in the settings. */
-export function modelFromListing(
-  listed: ListedModel,
-  local: boolean
-): AiModelInfo {
-  const guess = guessCapabilities(listed.id, {
-    local,
-    contextWindow: listed.contextWindow,
-  });
-  return {
-    ...guess,
-    ...(listed.name && { name: listed.name }),
-    vision: listed.vision ?? guess.vision,
-    tools: listed.tools ?? guess.tools,
-    reasoning: listed.reasoning ?? guess.reasoning,
-  };
-}
 
 /** The models the dropdowns offer, with the reference each value picks. */
 function modelChoices(providers: AiProvider[]) {
@@ -453,6 +327,7 @@ export function renderAiSection(
   ensureStyle('ny-settings-ai-mcp', mcpStyles);
   ensureStyle('ny-settings-ai-quick', quickStyles);
   ensureStyle('ny-settings-ai-chatgpt', chatGptStyles);
+  ensureStyle('ny-settings-ai-models', modelStyles);
   const state: AiSettings = structuredClone(current);
   const statuses = new Map<string, AiSecretStatus>();
   /** The ChatGPT account of each service that signs in with it. */
@@ -460,6 +335,13 @@ export function renderAiSection(
   const activities = new Map<string, ChatGptActivity>();
   /** Providers moved to another address whose key must be typed again. */
   const keyNeeded = new Set<string>();
+  /** Providers whose address or key is being saved. */
+  const binding = new Set<string>();
+  /** What each service answered for its models while the dialog is open. */
+  const listings = new Map<string, Listing>();
+  const loads = new Map<string, AbortController>();
+  /** The models each card shows that its service does not list. */
+  const kept = new Map<string, Set<string>>();
   /** Updates what a card shows of its saved key, without redrawing it. */
   const refreshers = new Map<string, () => void>();
   let editing: string | null = null;
@@ -716,6 +598,7 @@ export function renderAiSection(
    * saved one stays, unless the address moved to another site.
    */
   const bind = async (provider: AiProvider, key: string | null) => {
+    binding.add(provider.id);
     try {
       const status = await track(
         setAiSecret({
@@ -735,7 +618,99 @@ export function renderAiSection(
       }
       throw error;
     } finally {
+      binding.delete(provider.id);
       refresh(provider.id);
+    }
+  };
+
+  /** Drops what a service answered: its address, key or account changed. */
+  const forget = (id: string) => {
+    loads.get(id)?.abort();
+    loads.delete(id);
+    listings.delete(id);
+  };
+
+  /** What a service needs before its models can be fetched, or null. */
+  const waitingFor = (provider: AiProvider): string | null => {
+    if (provider.auth === 'chatgpt') {
+      return accounts.get(provider.id)?.signedIn
+        ? null
+        : i18next.t('settings.ai.waitSignIn');
+    }
+    if (!isWebUrl(provider.baseUrl)) return i18next.t('settings.ai.waitUrl');
+    const saved = statuses.get(provider.id);
+    if (keyNeeded.has(provider.id)) return i18next.t('settings.ai.waitKey');
+    if (saved?.hasKey) return null;
+    // A local service answers without a key once its address is saved.
+    if (!(presetById(provider.preset)?.local ?? false)) {
+      return i18next.t('settings.ai.waitKey');
+    }
+    return saved?.saved ? null : i18next.t('settings.ai.waitUrl');
+  };
+
+  /** The models the service offers to chat with, in the order to show. */
+  const chatModels = (provider: AiProvider, models: ListedModel[]) =>
+    // ChatGPT lists what the account may use, in its own order.
+    provider.auth === 'chatgpt'
+      ? models
+      : models
+          .filter((entry) => isChatModel(entry.id))
+          .sort((a, b) => a.id.localeCompare(b.id));
+
+  const loadModels = async (provider: AiProvider) => {
+    forget(provider.id);
+    if (!isWebUrl(provider.baseUrl)) {
+      listings.set(provider.id, {
+        kind: 'failed',
+        message: i18next.t('settings.ai.badUrl'),
+      });
+      refresh(provider.id);
+      return;
+    }
+    const controller = new AbortController();
+    loads.set(provider.id, controller);
+    listings.set(provider.id, { kind: 'loading' });
+    refresh(provider.id);
+    let listing: Listing;
+    try {
+      const outcome = await checkProvider(
+        provider,
+        providerFetch(provider, options.proxy),
+        controller.signal
+      );
+      listing =
+        outcome.kind === 'models'
+          ? { kind: 'models', models: chatModels(provider, outcome.models) }
+          : outcome;
+    } catch (error) {
+      listing = { kind: 'failed', message: failureText(error) };
+    }
+    if (controller.signal.aborted) return;
+    loads.delete(provider.id);
+    listings.set(provider.id, listing);
+    // ChatGPT lists what the plan includes: a new sign-in starts with all of it.
+    if (
+      listing.kind === 'models' &&
+      provider.auth === 'chatgpt' &&
+      !provider.models.length
+    ) {
+      provider.models = listing.models.map((entry) =>
+        modelFromListing(entry, false)
+      );
+      providersChanged();
+    }
+    refresh(provider.id);
+  };
+
+  /** Fetches the models of the open card once its service can answer. */
+  const ensureModels = (provider: AiProvider) => {
+    if (
+      editing === provider.id &&
+      !listings.has(provider.id) &&
+      !binding.has(provider.id) &&
+      waitingFor(provider) === null
+    ) {
+      void loadModels(provider);
     }
   };
 
@@ -753,6 +728,7 @@ export function renderAiSection(
   const setAuth = (provider: AiProvider, auth: AiProvider['auth']) => {
     if (provider.auth === auth) return;
     provider.auth = auth;
+    forget(provider.id);
     // A ChatGPT sign-in's tokens are for OpenAI's API alone.
     if (auth === 'chatgpt') provider.baseUrl = CHATGPT_BASE_URL;
     emit();
@@ -819,6 +795,8 @@ export function renderAiSection(
     statuses.delete(provider.id);
     accounts.delete(provider.id);
     keyNeeded.delete(provider.id);
+    forget(provider.id);
+    kept.delete(provider.id);
     if (editing === provider.id) editing = null;
     void track(deleteAiSecret(provider.id)).catch(console.error);
     providersChanged();
@@ -937,6 +915,7 @@ export function renderAiSection(
         return;
       }
       lookUp(value);
+      forget(provider.id);
       void bind(provider, null).catch((error) => {
         if (!keyNeeded.has(provider.id)) showUrlNote(failureText(error));
       });
@@ -986,16 +965,24 @@ export function renderAiSection(
             ? i18next.t('settings.ai.keyOptional')
             : i18next.t('settings.ai.keyPlaceholder');
     };
+    const keyNote = el('p', 'ny-settings__note ny-settings__note--error');
+    keyNote.hidden = true;
+    const showKeyError = (text: string | null) => {
+      keyNote.hidden = text === null;
+      keyNote.textContent = text ?? '';
+    };
     keyInput.addEventListener('change', () => {
       const key = keyInput.value.trim();
       if (!key) return;
       if (!isWebUrl(provider.baseUrl)) {
-        showResult(i18next.t('settings.ai.badUrl'), 'error');
+        showKeyError(i18next.t('settings.ai.badUrl'));
         return;
       }
       keyInput.value = '';
+      showKeyError(null);
+      forget(provider.id);
       void bind(provider, key).catch((error) =>
-        showResult(failureText(error), 'error')
+        showKeyError(failureText(error))
       );
     });
     keyLine.append(keyInput);
@@ -1010,7 +997,7 @@ export function renderAiSection(
       });
       keyLine.append(getKey);
     }
-    keyField.append(translated('span', 'settings.ai.key'), keyLine);
+    keyField.append(translated('span', 'settings.ai.key'), keyLine, keyNote);
     keyField.hidden = chatgpt;
     third.append(keyField);
 
@@ -1026,7 +1013,14 @@ export function renderAiSection(
         activity,
         status: () => accounts.get(provider.id),
         changed: (next) => {
+          const before = accounts.get(provider.id);
           accounts.set(provider.id, next);
+          if (
+            before?.signedIn !== next.signedIn ||
+            before?.email !== next.email
+          ) {
+            forget(provider.id);
+          }
         },
         redraw: () => refresh(provider.id),
         proxy: options.proxy,
@@ -1039,254 +1033,39 @@ export function renderAiSection(
       third.append(accountField);
     }
 
+    // Models.
+    let keptIds = kept.get(provider.id);
+    if (!keptIds) {
+      keptIds = new Set();
+      kept.set(provider.id, keptIds);
+    }
+    const models = renderModelList({
+      provider,
+      local,
+      listing: () => listings.get(provider.id),
+      waiting: () => waitingFor(provider),
+      kept: keptIds,
+      reload: () => void loadModels(provider),
+      changed: () => {
+        showMeta();
+        providersChanged();
+      },
+      edited: emit,
+    });
+    const fourth = el('div', 'ny-settings__row');
+    fourth.append(models.element);
+
     refreshers.set(provider.id, () => {
       showStatus(provider, status);
+      showMeta();
       placeKey();
       showUrlNote();
       account?.refresh();
+      models.refresh();
+      ensureModels(provider);
     });
     refresh(provider.id);
     lookUp(provider.baseUrl);
-
-    // Fetching and checking.
-    const fourth = el('div', 'ny-settings__row');
-    const actions = el('div', 'ny-ai-actions');
-    const fetchButton = button('settings.ai.fetchModels');
-    const checkButton = button('settings.ai.check');
-    const result = el('span', 'ny-ai-actions__result');
-    result.setAttribute('role', 'status');
-    const showResult = (text: string, tone: 'ok' | 'error' | 'busy') => {
-      result.textContent = text;
-      result.className = `ny-ai-actions__result is-${tone}`;
-    };
-    actions.append(fetchButton, checkButton, result);
-    fourth.append(actions);
-
-    // Models.
-    const fifth = el('div', 'ny-settings__row');
-    const models = el('div', 'ny-ai-models');
-    fifth.append(models);
-    const sixth = el('div', 'ny-settings__row');
-    const pick = el('div', 'ny-ai-pick');
-    pick.hidden = true;
-    sixth.append(pick);
-
-    const modelsChanged = () => {
-      renderModels();
-      showMeta();
-      providersChanged();
-    };
-
-    const renderModels = () => {
-      models.replaceChildren(
-        translated('span', 'settings.ai.models', 'ny-ai-model-head')
-      );
-      if (!provider.models.length) {
-        models.append(
-          translated('p', 'settings.ai.noModels', 'ny-settings__note')
-        );
-      } else {
-        const columns = el('div', 'ny-ai-model ny-ai-model-head');
-        columns.append(
-          el('span'),
-          translated('span', 'settings.ai.vision'),
-          translated('span', 'settings.ai.tools'),
-          translated('span', 'settings.ai.reasoning'),
-          translated('span', 'settings.ai.context'),
-          el('span')
-        );
-        models.append(columns);
-      }
-      for (const model of provider.models) {
-        const row = el('div', 'ny-ai-model');
-        const id = el('span', 'ny-ai-model__id', modelLabel(model));
-        id.title = model.id;
-        row.append(id);
-        for (const flag of ['vision', 'tools', 'reasoning'] as const) {
-          const box = el('input');
-          box.type = 'checkbox';
-          box.checked = model[flag];
-          box.setAttribute(
-            'aria-label',
-            `${model.id}: ${i18next.t(`settings.ai.${flag}`)}`
-          );
-          box.addEventListener('change', () => {
-            model[flag] = box.checked;
-            emit();
-          });
-          const wrap = el('label', 'ny-ai-model__flag');
-          wrap.append(box);
-          row.append(wrap);
-        }
-        const context = el('input');
-        context.type = 'number';
-        context.min = '1024';
-        context.step = '1024';
-        context.value = String(model.contextWindow);
-        context.setAttribute(
-          'aria-label',
-          `${model.id}: ${i18next.t('settings.ai.context')}`
-        );
-        context.addEventListener('change', () => {
-          const value = Math.round(Number(context.value));
-          if (Number.isFinite(value) && value >= 1024 && value <= 10_000_000) {
-            model.contextWindow = value;
-            emit();
-          } else {
-            context.value = String(model.contextWindow);
-          }
-        });
-        row.append(context);
-        const removeModel = el('button', 'ny-ai-model__remove', '×');
-        removeModel.type = 'button';
-        removeModel.setAttribute(
-          'aria-label',
-          `${i18next.t('settings.ai.removeModel')}: ${model.id}`
-        );
-        removeModel.addEventListener('click', () => {
-          provider.models = provider.models.filter((entry) => entry !== model);
-          modelsChanged();
-          renderPick();
-        });
-        row.append(removeModel);
-        models.append(row);
-      }
-
-      // By name, for a service that lists none or leaves a model out.
-      const add = el('div', 'ny-ai-key');
-      const addInput = input('text');
-      addInput.placeholder = i18next.t('settings.ai.modelIdPlaceholder');
-      const addButton = button('settings.ai.addModel');
-      const addModel = () => {
-        const id = addInput.value.trim();
-        if (!id || provider.models.some((model) => model.id === id)) return;
-        provider.models.push(guessCapabilities(id, { local }));
-        modelsChanged();
-        renderPick();
-      };
-      addButton.addEventListener('click', addModel);
-      addInput.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' || event.isComposing) return;
-        event.preventDefault();
-        addModel();
-      });
-      add.append(addInput, addButton);
-      models.append(add);
-    };
-
-    let listed: ListedModel[] = [];
-    let filter = '';
-    const renderPick = () => {
-      if (!listed.length) {
-        pick.hidden = true;
-        pick.replaceChildren();
-        return;
-      }
-      pick.hidden = false;
-      const filterInput = input('search');
-      filterInput.value = filter;
-      filterInput.placeholder = i18next.t('settings.ai.filterModels', {
-        count: listed.length,
-      });
-      const items = el('div', 'ny-ai-pick__list');
-      const renderItems = () => {
-        const needle = filter.trim().toLowerCase();
-        items.replaceChildren();
-        for (const entry of listed) {
-          const text = `${entry.id} ${entry.name ?? ''}`.toLowerCase();
-          if (needle && !text.includes(needle)) continue;
-          const item = el('label', 'ny-ai-pick__item');
-          const box = el('input');
-          box.type = 'checkbox';
-          box.checked = provider.models.some((model) => model.id === entry.id);
-          box.addEventListener('change', () => {
-            provider.models = provider.models.filter(
-              (model) => model.id !== entry.id
-            );
-            if (box.checked) {
-              provider.models.push(modelFromListing(entry, local));
-            }
-            modelsChanged();
-          });
-          const label = el(
-            'span',
-            '',
-            provider.auth === 'chatgpt' ? (entry.name ?? entry.id) : entry.id
-          );
-          label.title =
-            entry.name && entry.name !== entry.id
-              ? `${entry.name} (${entry.id})`
-              : entry.id;
-          item.append(box, label);
-          items.append(item);
-        }
-      };
-      filterInput.addEventListener('input', () => {
-        filter = filterInput.value;
-        renderItems();
-      });
-      renderItems();
-      pick.replaceChildren(filterInput, items);
-    };
-
-    let running: AbortController | null = null;
-    const run = async (mode: 'fetch' | 'check') => {
-      if (!isWebUrl(provider.baseUrl)) {
-        showResult(i18next.t('settings.ai.badUrl'), 'error');
-        return;
-      }
-      running?.abort();
-      const controller = new AbortController();
-      running = controller;
-      fetchButton.disabled = true;
-      checkButton.disabled = true;
-      showResult(
-        i18next.t(
-          mode === 'fetch' ? 'settings.ai.fetching' : 'settings.ai.checking'
-        ),
-        'busy'
-      );
-      try {
-        const outcome = await checkProvider(
-          provider,
-          providerFetch(provider, options.proxy),
-          controller.signal
-        );
-        if (outcome.kind === 'models') {
-          // ChatGPT lists what the account may use, in its own order.
-          listed =
-            provider.auth === 'chatgpt'
-              ? outcome.models
-              : outcome.models
-                  .filter((entry) => isChatModel(entry.id))
-                  .sort((a, b) => a.id.localeCompare(b.id));
-          showResult(
-            i18next.t('settings.ai.connected', { count: listed.length }),
-            'ok'
-          );
-          if (mode === 'fetch') renderPick();
-        } else {
-          showResult(
-            i18next.t('settings.ai.answered', { model: outcome.model }),
-            'ok'
-          );
-        }
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        showResult(
-          i18next.t('settings.ai.failed', { message: failureText(error) }),
-          'error'
-        );
-      } finally {
-        if (running === controller) {
-          running = null;
-          fetchButton.disabled = false;
-          checkButton.disabled = false;
-        }
-      }
-    };
-    fetchButton.addEventListener('click', () => void run('fetch'));
-    checkButton.addEventListener('click', () => void run('check'));
 
     renderSelect(
       kindSelect,
@@ -1305,16 +1084,18 @@ export function renderAiSection(
         emit();
         // Whether it may sign in with ChatGPT changed: the fields do too.
         if ((provider.kind === 'openai') !== signsInWithChatGpt) renderList();
+        forget(provider.id);
         if (isWebUrl(provider.baseUrl)) {
           void bind(provider, null).catch((error) =>
-            showResult(failureText(error), 'error')
+            showKeyError(failureText(error))
           );
+        } else {
+          refresh(provider.id);
         }
       }
     );
 
-    renderModels();
-    body.append(first, second, third, fourth, fifth, sixth);
+    body.append(first, second, third, fourth);
     return card;
   };
 
@@ -1490,6 +1271,7 @@ export function renderAiSection(
       if ([...activities.values()].some((entry) => entry.busy === 'sign-in')) {
         void chatGptCancelSignIn().catch(console.error);
       }
+      for (const load of loads.values()) load.abort();
       mcp.destroy();
     },
     addService,

@@ -41,6 +41,24 @@ export const chatGptStyles = `
   font-size: 13px;
 }
 
+/* The account, and what can be done with it on the same line. */
+.ny-chatgpt__signed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.ny-chatgpt__signed .ny-chatgpt__account {
+  flex: 1 1 180px;
+}
+
+.ny-chatgpt__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .ny-chatgpt__account svg {
   flex: none;
   width: 16px;
@@ -260,6 +278,7 @@ export function renderChatGptAccount({
     const actions = el('div', 'ny-ai-actions');
     const parts: HTMLElement[] = [];
     if (account?.signedIn) {
+      const signed = el('div', 'ny-chatgpt__signed');
       const line = el('div', 'ny-chatgpt__account');
       line.innerHTML = ICONS.chatgpt;
       const who = account.email;
@@ -272,8 +291,8 @@ export function renderChatGptAccount({
             : i18next.t('settings.ai.chatgpt.signedIn')
         )
       );
-      parts.push(line);
-      actions.append(
+      const buttons = el('div', 'ny-chatgpt__buttons');
+      buttons.append(
         action(
           'ai.plan.manage',
           () => void openExternalUrl(CHATGPT_USAGE_URL).catch(console.error)
@@ -281,6 +300,8 @@ export function renderChatGptAccount({
         action('settings.ai.chatgpt.otherAccount', () => void signIn(true)),
         action('settings.ai.chatgpt.signOut', () => void signOut())
       );
+      signed.append(line, buttons);
+      parts.push(signed);
     } else {
       parts.push(
         translated('p', 'settings.ai.chatgpt.about', 'ny-settings__note')
@@ -308,7 +329,8 @@ export function renderChatGptAccount({
       result.classList.add(`is-${activity.message.tone}`);
     }
     actions.append(result);
-    parts.push(actions);
+    if (actions.childElementCount > 1 || result.textContent)
+      parts.push(actions);
     element.replaceChildren(...parts);
     translateDOM(element);
   };

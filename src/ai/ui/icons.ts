@@ -61,4 +61,15 @@ export const ICONS = {
   image: svg(
     '<rect x="2.25" y="3" width="11.5" height="10" rx="1.5" /><circle cx="5.75" cy="6.25" r="1.1" /><path d="m2.75 11.75 3.5-3.5 2.5 2.5 1.75-1.75 2.75 2.75" />'
   ),
+  search: svg(
+    '<circle cx="7" cy="7" r="4.25" /><path d="m10.25 10.25 3.5 3.5" />'
+  ),
+  /** A model that calls tools. */
+  wrench: svg(
+    '<path d="M4.53 13.03 8.93 8.63A3.5 3.5 0 0 0 13.58 3.84L11.85 5.57 10.43 4.15 12.16 2.42A3.5 3.5 0 0 0 7.37 7.07L2.97 11.47A1.1 1.1 0 0 0 4.53 13.03Z" />'
+  ),
+  /** A model that reasons before it answers. */
+  bulb: svg(
+    '<path d="M6 12.25h4M6.75 14.25h2.5" /><path d="M5.5 10.25c0-1.4-1.75-2.1-1.75-4.5a4.25 4.25 0 0 1 8.5 0c0 2.4-1.75 3.1-1.75 4.5Z" />'
+  ),
 };
