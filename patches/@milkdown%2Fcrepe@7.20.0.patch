@@ -179,7 +179,7 @@ index c5069d95686d9c90e24a69366fdbe46402d91cea..8640be1270c27d7f4ce8ae3de9965586
          const { doc, selection } = view2.state;
          const { empty, from, to } = selection;
 diff --git a/lib/cjs/feature/top-bar/index.js b/lib/cjs/feature/top-bar/index.js
-index 771177d0e3c09f3274aaeb63db0affd377c81115..a8edb705420a358672e9d901acb143e6d299b92a 100644
+index 771177d0e3c09f3274aaeb63db0affd377c81115..263712424812c62179c01c30f3c8f01959b14b88 100644
 --- a/lib/cjs/feature/top-bar/index.js
 +++ b/lib/cjs/feature/top-bar/index.js
 @@ -689,6 +689,9 @@ const TopBar = vue.defineComponent({
@@ -192,8 +192,28 @@ index 771177d0e3c09f3274aaeb63db0affd377c81115..a8edb705420a358672e9d901acb143e6
        if (isReadonly) return null;
        return /* @__PURE__ */ vue.h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
+@@ -702,13 +705,16 @@ const TopBar = vue.defineComponent({
+         });
+       }).reduce((acc, curr, index) => {
+         var _a, _b;
++        const groupKey = (_b = (_a = groupInfo.value[index]) == null ? void 0 : _a.key) != null ? _b : index;
++        // NyaMark: a group's buttons go in a box of their own, so a bar too
++        // wide for the page breaks between groups and never inside one.
++        const box = /* @__PURE__ */ vue.h("div", { key: `group-${groupKey}`, class: "top-bar-group" }, curr);
+         if (index === 0) {
+-          acc.push(...curr);
++          acc.push(box);
+         } else {
+-          const groupKey = (_b = (_a = groupInfo.value[index]) == null ? void 0 : _a.key) != null ? _b : index;
+           acc.push(
+             /* @__PURE__ */ vue.h("div", { key: `divider-${groupKey}`, class: "top-bar-divider" }),
+-            ...curr
++            box
+           );
+         }
+         return acc;
 diff --git a/lib/cjs/index.js b/lib/cjs/index.js
-index 9726836fbea853e8be52f11df9b14b5589d457b3..fd4acf05ef33a0535b662e040649396277f11afb 100644
+index 9726836fbea853e8be52f11df9b14b5589d457b3..d1ed34bd3b39fe21ad2d7beaad398fe4965360cc 100644
 --- a/lib/cjs/index.js
 +++ b/lib/cjs/index.js
 @@ -1183,6 +1183,14 @@ const Menu = vue.defineComponent({
@@ -366,6 +386,26 @@ index 9726836fbea853e8be52f11df9b14b5589d457b3..fd4acf05ef33a0535b662e0406493962
        if (isReadonly) return null;
        return /* @__PURE__ */ vue.h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
+@@ -2719,13 +2778,16 @@ const TopBar = vue.defineComponent({
+         });
+       }).reduce((acc, curr, index) => {
+         var _a, _b;
++        const groupKey = (_b = (_a = groupInfo.value[index]) == null ? void 0 : _a.key) != null ? _b : index;
++        // NyaMark: a group's buttons go in a box of their own, so a bar too
++        // wide for the page breaks between groups and never inside one.
++        const box = /* @__PURE__ */ vue.h("div", { key: `group-${groupKey}`, class: "top-bar-group" }, curr);
+         if (index === 0) {
+-          acc.push(...curr);
++          acc.push(box);
+         } else {
+-          const groupKey = (_b = (_a = groupInfo.value[index]) == null ? void 0 : _a.key) != null ? _b : index;
+           acc.push(
+             /* @__PURE__ */ vue.h("div", { key: `divider-${groupKey}`, class: "top-bar-divider" }),
+-            ...curr
++            box
+           );
+         }
+         return acc;
 diff --git a/lib/esm/feature/block-edit/index.js b/lib/esm/feature/block-edit/index.js
 index 5425085b9862d97aa3a5451d13bb9e27bf203cf7..a987357971f34027698f5142f6606526df225423 100644
 --- a/lib/esm/feature/block-edit/index.js
@@ -549,7 +589,7 @@ index fb4d168a050811dc53bd55bcad0ce05c603233b4..d416e8df40b6c475733118bb4096ad82
          const { doc, selection } = view2.state;
          const { empty, from, to } = selection;
 diff --git a/lib/esm/feature/top-bar/index.js b/lib/esm/feature/top-bar/index.js
-index dc55498f949c44e7848b15398c96d55b54c81a87..b8fe19a2a7ac50cfd0f010782728d42d4a5c5537 100644
+index dc55498f949c44e7848b15398c96d55b54c81a87..9d5fe681bbc8e4def19d94b997183d2db328a206 100644
 --- a/lib/esm/feature/top-bar/index.js
 +++ b/lib/esm/feature/top-bar/index.js
 @@ -687,6 +687,9 @@ const TopBar = defineComponent({
@@ -562,8 +602,28 @@ index dc55498f949c44e7848b15398c96d55b54c81a87..b8fe19a2a7ac50cfd0f010782728d42d
        if (isReadonly) return null;
        return /* @__PURE__ */ h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
+@@ -700,13 +703,16 @@ const TopBar = defineComponent({
+         });
+       }).reduce((acc, curr, index) => {
+         var _a, _b;
++        const groupKey = (_b = (_a = groupInfo.value[index]) == null ? void 0 : _a.key) != null ? _b : index;
++        // NyaMark: a group's buttons go in a box of their own, so a bar too
++        // wide for the page breaks between groups and never inside one.
++        const box = /* @__PURE__ */ h("div", { key: `group-${groupKey}`, class: "top-bar-group" }, curr);
+         if (index === 0) {
+-          acc.push(...curr);
++          acc.push(box);
+         } else {
+-          const groupKey = (_b = (_a = groupInfo.value[index]) == null ? void 0 : _a.key) != null ? _b : index;
+           acc.push(
+             /* @__PURE__ */ h("div", { key: `divider-${groupKey}`, class: "top-bar-divider" }),
+-            ...curr
++            box
+           );
+         }
+         return acc;
 diff --git a/lib/esm/index.js b/lib/esm/index.js
-index ea68de6cfb124faa35d9f047d82788a1043d255c..97c234bcb4f942a6eadb0271e26871d0b2411acb 100644
+index ea68de6cfb124faa35d9f047d82788a1043d255c..d0b713e7fd6132d96c34f9bb1b2092fa33b36bad 100644
 --- a/lib/esm/index.js
 +++ b/lib/esm/index.js
 @@ -3,7 +3,7 @@ import { languages } from '@codemirror/language-data';
@@ -754,6 +814,26 @@ index ea68de6cfb124faa35d9f047d82788a1043d255c..97c234bcb4f942a6eadb0271e26871d0
        if (isReadonly) return null;
        return /* @__PURE__ */ h("div", { class: "top-bar-inner" }, groupInfo.value.map((group) => {
          return group.items.map((item) => {
+@@ -2717,13 +2776,16 @@ const TopBar = defineComponent({
+         });
+       }).reduce((acc, curr, index) => {
+         var _a, _b;
++        const groupKey = (_b = (_a = groupInfo.value[index]) == null ? void 0 : _a.key) != null ? _b : index;
++        // NyaMark: a group's buttons go in a box of their own, so a bar too
++        // wide for the page breaks between groups and never inside one.
++        const box = /* @__PURE__ */ h("div", { key: `group-${groupKey}`, class: "top-bar-group" }, curr);
+         if (index === 0) {
+-          acc.push(...curr);
++          acc.push(box);
+         } else {
+-          const groupKey = (_b = (_a = groupInfo.value[index]) == null ? void 0 : _a.key) != null ? _b : index;
+           acc.push(
+             /* @__PURE__ */ h("div", { key: `divider-${groupKey}`, class: "top-bar-divider" }),
+-            ...curr
++            box
+           );
+         }
+         return acc;
 diff --git a/lib/types/feature/block-edit/index.d.ts b/lib/types/feature/block-edit/index.d.ts
 index e089f289eddf219db498a2d6406e93130fbd98ab..87d3fc6c6346a20bc49535ffa17f9d31d7ba9cb4 100644
 --- a/lib/types/feature/block-edit/index.d.ts

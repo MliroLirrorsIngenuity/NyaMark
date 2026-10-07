@@ -816,6 +816,12 @@
   box-sizing: border-box !important;
 }
 
+.ny-editor-root .milkdown .milkdown-top-bar .top-bar-group {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
 .ny-editor-root .milkdown .milkdown-top-bar .top-bar-divider {
   display: flex !important;
   align-items: center !important;
@@ -921,6 +927,28 @@
   .top-bar-heading-selector,
 .ny-editor-root .milkdown.ny-top-bar-narrow .milkdown-top-bar .top-bar-item {
   margin: 0 !important;
+}
+
+/*
+ * A page narrower than the packed bar breaks it between its groups onto more
+ * rows, set apart by space where the dividers stood. A group wider than the
+ * page breaks too. `top-bar-fit.ts` marks the page.
+ */
+.ny-editor-root .milkdown.ny-top-bar-wrap .milkdown-top-bar .top-bar-inner {
+  flex-wrap: wrap !important;
+  gap: 2px 20px !important;
+  padding: 4px 0 !important;
+}
+
+.ny-editor-root .milkdown.ny-top-bar-wrap .milkdown-top-bar .top-bar-divider {
+  display: none !important;
+}
+
+.ny-editor-root .milkdown.ny-top-bar-wrap .milkdown-top-bar .top-bar-group {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-width: 0;
 }
 
 .ny-editor-root .milkdown .milkdown-toolbar {

@@ -692,7 +692,8 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  scroll-padding-top: 40px;
+  /* As tall as the format bar, which `top-bar-fit.ts` measures. */
+  scroll-padding-top: var(--ny-top-bar-height, 40px);
   /* The document makes room for the cards docked beside it. */
   margin-right: var(--ny-dock-room, 0px);
 }
