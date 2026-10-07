@@ -28,7 +28,11 @@ import { isNetworkPath } from '../../features/attachment-paths';
 import { IMAGE_EXTENSIONS } from '../../features/attachment-policy';
 import { i18next } from '../../i18n';
 import { translateDOM } from '../../i18n/dom';
-import { type AiSettings, modelLabel } from '../../state/ai-settings';
+import {
+  type AiEffort,
+  type AiSettings,
+  modelLabel,
+} from '../../state/ai-settings';
 import {
   getSettings,
   subscribeSettings,
@@ -64,6 +68,7 @@ import { nativeSearchTool } from '../providers/native-search';
 import { AI_PRESETS } from '../providers/presets';
 import { QuickMenu, type QuickMode } from '../quick/popover';
 import { Composer } from './composer';
+import { EffortMenu } from './effort-menu';
 import { HistoryMenu } from './history-menu';
 import { ICONS } from './icons';
 import { MessageList } from './messages';
@@ -183,12 +188,33 @@ function allowMcpTool(server: string, tool: string) {
   void updateSettings({ ai: { mcpServers } }).catch(console.error);
 }
 
+/** Keeps the level of thought chosen with the chat model. */
+function chooseEffort(effort: AiEffort | null) {
+  const ai = getSettings().ai;
+  const ref = ai.chatModel;
+  if (!ref) return;
+  const providers = ai.providers.map((provider) =>
+    provider.id === ref.provider
+      ? {
+          ...provider,
+          models: provider.models.map((model) =>
+            model.id === ref.model
+              ? { ...model, effort: effort ?? undefined }
+              : model
+          ),
+        }
+      : provider
+  );
+  void updateSettings({ ai: { providers } }).catch(console.error);
+}
+
 export class AiPanel {
   private readonly root: HTMLElement;
   private readonly scroller: HTMLElement;
   private readonly setup: HTMLElement;
   private readonly empty: HTMLElement;
   private readonly picker: ModelPicker;
+  private readonly effort: EffortMenu;
   private readonly list: MessageList;
   private readonly composer: Composer;
   private readonly session: ChatSession;
@@ -256,6 +282,7 @@ export class AiPanel {
       },
       manage: () => this.host.openSettings(),
     });
+    this.effort = new EffortMenu(chooseEffort);
     this.newChat = iconButton(
       ICONS.newChat,
       'ai.newChat',
@@ -324,7 +351,8 @@ export class AiPanel {
         attach: () => void this.pickImages(),
         paste: (files) => void this.attachImages(files),
       },
-      [this.picker.element, this.mode.element]
+      [this.picker.element, this.effort.element, this.mode.element],
+      [this.mode.element, this.effort.element]
     );
 
     this.reviewCount = document.createElement('span');
@@ -349,6 +377,7 @@ export class AiPanel {
     );
     const onLanguage = () => {
       this.picker.update(this.ai);
+      this.effort.redraw();
       this.list.redraw(this.session.entries);
       this.composer.redraw();
       this.mode.redraw();
@@ -395,6 +424,7 @@ export class AiPanel {
     const hadFocus = this.hasFocus;
     this.visible = false;
     this.picker.destroy();
+    this.effort.destroy();
     this.mode.destroy();
     this.history.destroy();
     this.keeper.flush();
@@ -704,6 +734,7 @@ export class AiPanel {
   private settingsChanged(ai: AiSettings) {
     this.ai = ai;
     this.picker.update(ai);
+    this.effort.update(ai);
     this.history.element.hidden = !ai.keepHistory;
     if (!ai.keepHistory) this.history.destroy();
     this.mode.update(ai.editMode);

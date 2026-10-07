@@ -1,4 +1,8 @@
-import type { AiProvider } from '../../state/ai-settings';
+import {
+  type AiEffort,
+  type AiProvider,
+  isAiEffort,
+} from '../../state/ai-settings';
 import { CODEX_MODELS, CODEX_VERSION } from './chatgpt';
 import { baseUrlOf } from './factory';
 
@@ -10,6 +14,9 @@ export type ListedModel = {
   vision?: boolean;
   tools?: boolean;
   reasoning?: boolean;
+  /** The levels of thought it takes, as the service lists them. */
+  efforts?: AiEffort[];
+  defaultEffort?: AiEffort;
 };
 
 export class ModelListError extends Error {
@@ -162,7 +169,24 @@ export function parseChatGptModels(json: unknown): ListedModel[] {
         : undefined,
       tools: true,
       reasoning: true,
+      ...chatGptEfforts(entry),
     }));
+}
+
+/**
+ * The levels of thought Codex lists for a model. Those the app has no name
+ * for are left out, such as `ultra`, which hands the task to other agents.
+ */
+function chatGptEfforts(entry: Json) {
+  const efforts = records(entry.supported_reasoning_levels)
+    .map((level) => level.effort)
+    .filter(isAiEffort);
+  return {
+    efforts: efforts.length ? efforts : undefined,
+    defaultEffort: isAiEffort(entry.default_reasoning_level)
+      ? entry.default_reasoning_level
+      : undefined,
+  };
 }
 
 /**

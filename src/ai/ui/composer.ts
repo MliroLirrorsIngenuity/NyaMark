@@ -27,12 +27,18 @@ export class Composer {
   private readonly input: HTMLTextAreaElement;
   private readonly button: HTMLButtonElement;
   private readonly attach: HTMLButtonElement;
+  private readonly bar: HTMLElement;
   private busy = false;
 
-  /** `tools` stand in the bar under the text, between attach and send. */
+  /**
+   * `tools` stand in the bar under the text, between attach and send.
+   * `folds`, some of them, show only their icon in turn while a name in the
+   * bar would be cut short.
+   */
   constructor(
     private readonly actions: ComposerActions,
-    tools: HTMLElement[] = []
+    tools: HTMLElement[] = [],
+    private readonly folds: HTMLElement[] = []
   ) {
     this.element = document.createElement('div');
     this.element.className = 'ny-ai__composer';
@@ -52,6 +58,7 @@ export class Composer {
 
     const bar = document.createElement('div');
     bar.className = 'ny-ai__composer-bar';
+    this.bar = bar;
 
     this.attach = document.createElement('button');
     this.attach.type = 'button';
@@ -70,6 +77,15 @@ export class Composer {
 
     this.element.append(this.images.element, this.input, bar);
     this.drawButton();
+    // Fits the tools again as the bar narrows or widens, and as their
+    // names change.
+    const fit = () => this.fitTools();
+    new ResizeObserver(fit).observe(bar);
+    new MutationObserver(fit).observe(bar, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
   }
 
   get hasFocus(): boolean {
@@ -125,6 +141,21 @@ export class Composer {
   private changed() {
     this.fit();
     this.button.disabled = !this.busy && this.empty;
+  }
+
+  private fitTools() {
+    for (const tool of this.folds) tool.classList.remove('is-folded');
+    for (const tool of this.folds) {
+      if (!this.nameCut()) return;
+      tool.classList.add('is-folded');
+    }
+  }
+
+  private nameCut(): boolean {
+    const names = this.bar.querySelectorAll<HTMLElement>(
+      '.ny-ai__pick:not(.is-folded) .ny-ai__pick-name'
+    );
+    return [...names].some((name) => name.scrollWidth > name.clientWidth);
   }
 
   /** Grows with what is written, up to the height the style allows. */

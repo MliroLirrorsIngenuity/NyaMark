@@ -1626,11 +1626,17 @@ pre.ny-ai-approval__box {
   display: none;
 }
 
-/* The model and the edit mode, each a button whose menu opens above the
-   composer, from its start, wherever the button sits in the bar. */
+/* The model, the reasoning effort and the edit mode, each a button whose
+   menu opens above the composer, from its start, wherever the button sits in
+   the bar. The model's name gives way first. */
 .ny-ai__pick {
   flex: 0 1 auto;
   min-width: 0;
+}
+
+.ny-ai__effort,
+.ny-ai__edit-mode {
+  flex: none;
 }
 
 .ny-ai__pick > .ny-ai-menu {
@@ -1677,6 +1683,20 @@ pre.ny-ai-approval__box {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* A tool folded for room shows only its icon; its name stays for assistive
+   technology. */
+.ny-ai__pick.is-folded .ny-ai__pick-button > svg:last-child {
+  display: none;
+}
+
+.ny-ai__pick.is-folded .ny-ai__pick-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 .ny-ai__send {

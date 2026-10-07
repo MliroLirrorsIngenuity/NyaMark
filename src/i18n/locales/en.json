@@ -512,6 +512,21 @@
     "title": "AI assistant",
     "chooseModel": "Choose a model",
     "manageServices": "Manage AI services…",
+    "effort": {
+      "title": "Reasoning effort for {{model}}",
+      "current": "Reasoning effort: {{level}}",
+      "default": "Default",
+      "defaultIs": "Default ({{level}})",
+      "levels": {
+        "none": "Off",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Maximum"
+      }
+    },
     "newChat": "New chat",
     "close": "Close",
     "resize": "Drag to resize. Double-click to restore the default width.",

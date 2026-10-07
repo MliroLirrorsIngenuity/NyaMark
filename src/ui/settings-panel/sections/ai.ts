@@ -56,6 +56,7 @@ import { renderHistorySection } from './ai-history';
 import { mcpStyles, renderMcpSection } from './ai-mcp';
 import {
   type Listing,
+  followListing,
   modelFromListing,
   modelStyles,
   renderModelList,
@@ -698,6 +699,13 @@ export function renderAiSection(
         modelFromListing(entry, false)
       );
       providersChanged();
+    } else if (listing.kind === 'models') {
+      let followed = false;
+      for (const model of provider.models) {
+        const listed = listing.models.find((entry) => entry.id === model.id);
+        if (listed && followListing(model, listed)) followed = true;
+      }
+      if (followed) emit();
     }
     refresh(provider.id);
   };

@@ -16,6 +16,31 @@ export const AI_PROVIDER_KINDS: readonly AiProviderKind[] = [
   'google',
 ];
 
+/** How hard a model thinks before it answers, by the API's names. */
+export type AiEffort =
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max';
+
+/** Every level, from the least thought to the most. */
+export const AI_EFFORTS: readonly AiEffort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+];
+
+export function isAiEffort(value: unknown): value is AiEffort {
+  return AI_EFFORTS.includes(value as AiEffort);
+}
+
 export type AiModelInfo = {
   id: string;
   /** What the service calls it, when it names its models. */
@@ -28,6 +53,12 @@ export type AiModelInfo = {
   reasoning: boolean;
   /** The tokens it reads at most. */
   contextWindow: number;
+  /** The levels of thought the service lists for it, when it lists any. */
+  efforts?: AiEffort[];
+  /** The level the service uses when none is asked for, as it says. */
+  defaultEffort?: AiEffort;
+  /** The level chosen; none leaves it to the service. */
+  effort?: AiEffort;
 };
 
 /**
@@ -225,6 +256,8 @@ function sanitizeModel(value: unknown): AiModelInfo | null {
   if (!id) return null;
   const context = Number(value.contextWindow);
   const name = text(value.name, 200).trim();
+  const listed = Array.isArray(value.efforts) ? value.efforts : [];
+  const efforts = AI_EFFORTS.filter((effort) => listed.includes(effort));
   return {
     id,
     ...(name && { name }),
@@ -235,6 +268,11 @@ function sanitizeModel(value: unknown): AiModelInfo | null {
       Number.isFinite(context) && context >= 1024
         ? Math.min(Math.round(context), 10_000_000)
         : 128_000,
+    ...(efforts.length > 0 && { efforts }),
+    ...(isAiEffort(value.defaultEffort) && {
+      defaultEffort: value.defaultEffort,
+    }),
+    ...(isAiEffort(value.effort) && { effort: value.effort }),
   };
 }
 

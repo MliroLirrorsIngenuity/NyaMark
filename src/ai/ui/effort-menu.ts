@@ -1,33 +1,35 @@
 import { i18next } from '../../i18n';
-import type { AiEditMode } from '../../state/ai-settings';
+import {
+  type AiEffort,
+  type AiSettings,
+  modelLabel,
+} from '../../state/ai-settings';
 import { pushEscapeLayer } from '../../ui/escape-layers';
+import { effortLevels } from '../providers/effort';
 import { ICONS } from './icons';
 
-const MODES: Record<AiEditMode, { icon: string; label: string; note: string }> =
-  {
-    review: {
-      icon: ICONS.eye,
-      label: 'ai.edit.modeReview',
-      note: 'ai.edit.modeReviewNote',
-    },
-    auto: {
-      icon: ICONS.bolt,
-      label: 'ai.edit.modeAuto',
-      note: 'ai.edit.modeAutoNote',
-    },
-  };
+const levelName = (effort: AiEffort) => i18next.t(`ai.effort.levels.${effort}`);
 
-/** Whether the assistant's edits wait to be accepted or go in at once. */
-export class ModeMenu {
+/**
+ * How hard the chat model thinks, kept with the model. Shown only for a
+ * model that reasons.
+ */
+export class EffortMenu {
   readonly element: HTMLElement;
   private readonly button: HTMLButtonElement;
   private readonly menu: HTMLElement;
-  private mode: AiEditMode = 'review';
+  private model = '';
+  private levels: readonly AiEffort[] = [];
+  /** The level chosen, null for the service's own. */
+  private chosen: AiEffort | null = null;
+  /** The service's own level, when it says which. */
+  private fallback: AiEffort | null = null;
   private releaseEscape: (() => void) | null = null;
 
-  constructor(private readonly choose: (mode: AiEditMode) => void) {
+  constructor(private readonly choose: (effort: AiEffort | null) => void) {
     this.element = document.createElement('div');
-    this.element.className = 'ny-ai__pick ny-ai__edit-mode';
+    this.element.className = 'ny-ai__pick ny-ai__effort';
+    this.element.hidden = true;
 
     this.button = document.createElement('button');
     this.button.type = 'button';
@@ -46,11 +48,19 @@ export class ModeMenu {
     this.menu.addEventListener('keydown', this.onMenuKey);
 
     this.element.append(this.button, this.menu);
-    this.drawButton();
   }
 
-  update(mode: AiEditMode) {
-    this.mode = mode;
+  update(ai: AiSettings) {
+    const ref = ai.chatModel;
+    const provider = ref && ai.providers.find((p) => p.id === ref.provider);
+    const model = provider?.models.find((m) => m.id === ref?.model);
+    this.levels = provider && model ? effortLevels(provider, model) : [];
+    this.model = model ? modelLabel(model) : '';
+    this.chosen =
+      model?.effort && this.levels.includes(model.effort) ? model.effort : null;
+    this.fallback = model?.defaultEffort ?? null;
+    this.element.hidden = this.levels.length === 0;
+    if (this.element.hidden) this.setOpen(false);
     this.redraw();
   }
 
@@ -65,15 +75,15 @@ export class ModeMenu {
   }
 
   private drawButton() {
-    const mode = MODES[this.mode];
-    const label = i18next.t(mode.label);
-    this.button.innerHTML = mode.icon;
+    const shown = this.chosen ?? this.fallback;
+    const label = shown ? levelName(shown) : i18next.t('ai.effort.default');
+    this.button.innerHTML = ICONS.bulb;
     const name = document.createElement('span');
     name.className = 'ny-ai__pick-name';
     name.textContent = label;
     this.button.append(name);
     this.button.insertAdjacentHTML('beforeend', ICONS.chevron);
-    this.button.title = i18next.t(mode.note);
+    this.button.title = i18next.t('ai.effort.current', { level: label });
   }
 
   private setOpen(open: boolean) {
@@ -98,36 +108,35 @@ export class ModeMenu {
   }
 
   private renderMenu() {
-    this.menu.replaceChildren();
-    for (const mode of ['review', 'auto'] as const) {
-      const text = MODES[mode];
+    const group = document.createElement('div');
+    group.className = 'ny-ai-menu__group';
+    group.textContent = i18next.t('ai.effort.title', { model: this.model });
+    const items = [null, ...this.levels].map((effort) => {
+      const checked = effort === this.chosen;
       const item = document.createElement('button');
       item.type = 'button';
-      item.className = 'ny-ai-menu__item ny-ai-menu__item--rich';
+      item.className = 'ny-ai-menu__item';
       item.setAttribute('role', 'menuitemradio');
-      item.setAttribute('aria-checked', String(mode === this.mode));
-      const icon = document.createElement('span');
-      icon.className = 'ny-ai-menu__icon';
-      icon.innerHTML = text.icon;
-      const body = document.createElement('span');
-      body.className = 'ny-ai-menu__body';
-      const label = document.createElement('span');
-      label.className = 'ny-ai-menu__label';
-      label.textContent = i18next.t(text.label);
-      const note = document.createElement('span');
-      note.className = 'ny-ai-menu__note';
-      note.textContent = i18next.t(text.note);
-      body.append(label, note);
+      item.setAttribute('aria-checked', String(checked));
+      const name = document.createElement('span');
+      name.textContent = effort
+        ? levelName(effort)
+        : this.fallback
+          ? i18next.t('ai.effort.defaultIs', {
+              level: levelName(this.fallback),
+            })
+          : i18next.t('ai.effort.default');
       const mark = document.createElement('span');
       mark.className = 'ny-ai-menu__check';
-      mark.textContent = mode === this.mode ? '✓' : '';
-      item.append(icon, body, mark);
+      mark.textContent = checked ? '✓' : '';
+      item.append(name, mark);
       item.addEventListener('click', () => {
         this.setOpen(false);
-        if (mode !== this.mode) this.choose(mode);
+        if (!checked) this.choose(effort);
       });
-      this.menu.append(item);
-    }
+      return item;
+    });
+    this.menu.replaceChildren(group, ...items);
   }
 
   private onOutside = (event: MouseEvent) => {

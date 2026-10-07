@@ -348,7 +348,23 @@ export function modelFromListing(
     vision: listed.vision ?? guess.vision,
     tools: listed.tools ?? guess.tools,
     reasoning: listed.reasoning ?? guess.reasoning,
+    ...(listed.efforts && { efforts: listed.efforts }),
+    ...(listed.defaultEffort && { defaultEffort: listed.defaultEffort }),
   };
+}
+
+/**
+ * Takes the levels of thought the service lists now into a model already
+ * on; says whether they changed. The level chosen stays.
+ */
+export function followListing(
+  model: AiModelInfo,
+  listed: ListedModel
+): boolean {
+  const before = JSON.stringify([model.efforts, model.defaultEffort]);
+  model.efforts = listed.efforts;
+  model.defaultEffort = listed.defaultEffort;
+  return JSON.stringify([model.efforts, model.defaultEffort]) !== before;
 }
 
 /** A context length as the list shows it: 272K, 1M, or in full. */

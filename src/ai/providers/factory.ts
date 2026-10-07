@@ -10,6 +10,7 @@ import {
 } from 'ai';
 import type { AiProvider } from '../../state/ai-settings';
 import { chatGptPlanMiddleware } from './chatgpt';
+import { effortMiddleware } from './effort';
 
 /**
  * What the page sends for a key. The app takes it out and puts in the key
@@ -21,12 +22,30 @@ export function baseUrlOf(provider: AiProvider): string {
   return provider.baseUrl.replace(/\/+$/, '');
 }
 
-/** The model a provider serves under `modelId`, sending through `fetch`. */
+type Model = Exclude<LanguageModel, string>;
+
+/**
+ * The model a provider serves under `modelId`, sending through `fetch`,
+ * asked to think as hard as chosen for it.
+ */
 export function languageModel(
   provider: AiProvider,
   modelId: string,
   fetch: typeof globalThis.fetch
-): Exclude<LanguageModel, string> {
+): Model {
+  const model = serviceModel(provider, modelId, fetch);
+  const middleware = effortMiddleware(
+    provider,
+    provider.models.find((entry) => entry.id === modelId)
+  );
+  return middleware ? wrapLanguageModel({ model, middleware }) : model;
+}
+
+function serviceModel(
+  provider: AiProvider,
+  modelId: string,
+  fetch: typeof globalThis.fetch
+): Model {
   const baseURL = baseUrlOf(provider);
   const apiKey = KEY_PLACEHOLDER;
   switch (provider.kind) {
