@@ -13,6 +13,7 @@ import {
   RetryError,
   StreamProviderError,
 } from 'ai';
+import type { AiEffort } from '../../state/ai-settings';
 
 /** Where the user sees what their plan has left. */
 export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
@@ -20,26 +21,34 @@ export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
 /** The Codex release whose requests NyaMark's follow. */
 export const CODEX_VERSION = '0.160.1';
 
+/** The levels Codex lists for most of its models, `ultra` left out. */
+const LOW_TO_MAX: AiEffort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
+
 /**
  * The models that release ships with, for when OpenAI cannot list them: the
- * ones it shows, by priority.
+ * ones it shows, by priority, with the levels of thought and the default it
+ * lists for each.
  */
-export const CODEX_MODELS = [
-  ['gpt-6.1-sol', 'GPT-6.1-Sol'],
-  ['gpt-6-astra', 'GPT-6-Astra'],
-  ['gpt-6-sol', 'GPT-6-Sol'],
-  ['gpt-6-luna', 'GPT-6-Luna'],
-  ['gpt-5.6-sol', 'GPT-5.6-Sol'],
-  ['gpt-5.6-terra', 'GPT-5.6-Terra'],
-  ['gpt-5.6-luna', 'GPT-5.6-Luna'],
-  ['gpt-5.5', 'GPT-5.5'],
-].map(([id, name]) => ({
+export const CODEX_MODELS = (
+  [
+    ['gpt-6.1-sol', 'GPT-6.1-Sol', 'low'],
+    ['gpt-6-astra', 'GPT-6-Astra', 'low'],
+    ['gpt-6-sol', 'GPT-6-Sol', 'medium'],
+    ['gpt-6-luna', 'GPT-6-Luna', 'medium'],
+    ['gpt-5.6-sol', 'GPT-5.6-Sol', 'low'],
+    ['gpt-5.6-terra', 'GPT-5.6-Terra', 'medium'],
+    ['gpt-5.6-luna', 'GPT-5.6-Luna', 'medium'],
+    ['gpt-5.5', 'GPT-5.5', 'medium', ['low', 'medium', 'high', 'xhigh']],
+  ] satisfies [string, string, AiEffort, AiEffort[]?][]
+).map(([id, name, defaultEffort, efforts = LOW_TO_MAX]) => ({
   id,
   name,
   contextWindow: 272_000,
   vision: true,
   tools: true,
   reasoning: true,
+  efforts,
+  defaultEffort,
 }));
 
 /** The plan's usage limit is reached until it resets. */

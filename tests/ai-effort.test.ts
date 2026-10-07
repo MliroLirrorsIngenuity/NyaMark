@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { streamText } from 'ai';
-import { effortLevels } from '../src/ai/providers/effort';
+import { defaultEffort, effortLevels } from '../src/ai/providers/effort';
 import { languageModel } from '../src/ai/providers/factory';
 import { parseChatGptModels } from '../src/ai/providers/models';
 import {
+  AI_EFFORTS,
   type AiEffort,
   type AiModelInfo,
   type AiProvider,
@@ -74,7 +75,7 @@ describe('effort levels', () => {
   test('else are those the API takes', () => {
     const levels = (overrides: Partial<AiProvider>) =>
       effortLevels(provider(overrides), model());
-    expect(levels({ kind: 'openai' })).toEqual(['low', 'medium', 'high']);
+    expect(levels({ kind: 'openai' })).toEqual([...AI_EFFORTS]);
     expect(levels({})).toEqual(['low', 'medium', 'high']);
     expect(levels({ preset: 'deepseek' })).toEqual(['none', 'high', 'xhigh']);
     expect(levels({ kind: 'anthropic' })).toEqual([
@@ -89,6 +90,25 @@ describe('effort levels', () => {
       'low',
       'medium',
       'high',
+    ]);
+  });
+
+  test('for a ChatGPT model saved without them are those Codex lists', () => {
+    const chatgpt = provider({ kind: 'openai', auth: 'chatgpt' });
+    const saved = model({ id: 'gpt-6-luna' });
+    expect(effortLevels(chatgpt, saved)).toEqual([
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+    ]);
+    expect(defaultEffort(chatgpt, saved)).toBe('medium');
+    expect(effortLevels(chatgpt, model({ id: 'gpt-5.5' }))).toEqual([
+      'low',
+      'medium',
+      'high',
+      'xhigh',
     ]);
   });
 

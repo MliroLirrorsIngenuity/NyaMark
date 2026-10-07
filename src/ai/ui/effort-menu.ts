@@ -5,7 +5,7 @@ import {
   modelLabel,
 } from '../../state/ai-settings';
 import { pushEscapeLayer } from '../../ui/escape-layers';
-import { effortLevels } from '../providers/effort';
+import { defaultEffort, effortLevels } from '../providers/effort';
 import { ICONS } from './icons';
 
 const levelName = (effort: AiEffort) => i18next.t(`ai.effort.levels.${effort}`);
@@ -58,7 +58,7 @@ export class EffortMenu {
     this.model = model ? modelLabel(model) : '';
     this.chosen =
       model?.effort && this.levels.includes(model.effort) ? model.effort : null;
-    this.fallback = model?.defaultEffort ?? null;
+    this.fallback = provider && model ? defaultEffort(provider, model) : null;
     this.element.hidden = this.levels.length === 0;
     if (this.element.hidden) this.setOpen(false);
     this.redraw();

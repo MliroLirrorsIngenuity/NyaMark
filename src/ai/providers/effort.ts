@@ -4,11 +4,25 @@
  */
 
 import type { LanguageModelMiddleware } from 'ai';
-import type {
-  AiEffort,
-  AiModelInfo,
-  AiProvider,
+import {
+  AI_EFFORTS,
+  type AiEffort,
+  type AiModelInfo,
+  type AiProvider,
 } from '../../state/ai-settings';
+import { CODEX_MODELS } from './chatgpt';
+
+/**
+ * What the service lists of the model's levels; for a ChatGPT model saved
+ * before its list carried them, what Codex lists for it.
+ */
+function listing(
+  provider: AiProvider,
+  model: AiModelInfo
+): Pick<AiModelInfo, 'efforts' | 'defaultEffort'> {
+  if (model.efforts?.length || provider.auth !== 'chatgpt') return model;
+  return CODEX_MODELS.find((entry) => entry.id === model.id) ?? model;
+}
 
 /**
  * The levels the service lists for the model, else those its API takes
@@ -19,7 +33,8 @@ export function effortLevels(
   model: AiModelInfo
 ): readonly AiEffort[] {
   if (!model.reasoning) return [];
-  if (model.efforts?.length) return model.efforts;
+  const listed = listing(provider, model).efforts;
+  if (listed?.length) return listed;
   switch (provider.kind) {
     // The SDK turns each level into what the model takes: an effort, a
     // budget of tokens, or no thinking.
@@ -33,8 +48,16 @@ export function effortLevels(
         ? ['none', 'high', 'xhigh']
         : ['low', 'medium', 'high'];
     case 'openai':
-      return ['low', 'medium', 'high'];
+      return AI_EFFORTS;
   }
+}
+
+/** The level the service uses when none is chosen, when it says which. */
+export function defaultEffort(
+  provider: AiProvider,
+  model: AiModelInfo
+): AiEffort | null {
+  return listing(provider, model).defaultEffort ?? null;
 }
 
 /**
