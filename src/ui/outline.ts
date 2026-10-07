@@ -11,11 +11,8 @@
 import type { NyaEditor } from '../editor/editor';
 import { translateDOM } from '../i18n/dom';
 import { ensureStyle } from '../style/register';
-import {
-  READING_LINE_PX,
-  keepReadingPosition,
-  scrollHostOf,
-} from './reading-position';
+import { setDocked } from './dock';
+import { READING_LINE_PX, scrollHostOf } from './reading-position';
 
 const outlineStyles = `
 .ny-outline {
@@ -166,10 +163,7 @@ export class OutlinePanel {
   show() {
     if (this.isVisible) return;
     this.isVisible = true;
-    keepReadingPosition(this.editor.getView(), () => {
-      this.elPanel.hidden = false;
-      document.documentElement.classList.add('ny-outline-open');
-    });
+    setDocked(this.elPanel, true, 'ny-outline-open', this.editor.getView());
     this.setPressed(true);
     document.addEventListener('scroll', this.onScroll, {
       capture: true,
@@ -188,10 +182,7 @@ export class OutlinePanel {
   hide() {
     if (!this.isVisible) return;
     this.isVisible = false;
-    keepReadingPosition(this.editor.getView(), () => {
-      this.elPanel.hidden = true;
-      document.documentElement.classList.remove('ny-outline-open');
-    });
+    setDocked(this.elPanel, false, 'ny-outline-open', this.editor.getView());
     this.setPressed(false);
     document.removeEventListener('scroll', this.onScroll, { capture: true });
     for (const type of ['wheel', 'touchmove', 'keydown', 'mousedown']) {

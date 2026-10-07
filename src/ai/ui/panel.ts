@@ -39,8 +39,8 @@ import {
   updateSettings,
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
+import { setDocked } from '../../ui/dock';
 import { isModalOpen } from '../../ui/modal';
-import { keepReadingPosition } from '../../ui/reading-position';
 import { Approvals } from '../agent/approvals';
 import type { MarkdownTree } from '../agent/document-text';
 import { buildInstructions } from '../agent/instructions';
@@ -410,10 +410,7 @@ export class AiPanel {
   show() {
     if (!this.visible) {
       this.visible = true;
-      keepReadingPosition(this.host.editor.getView(), () => {
-        this.root.hidden = false;
-        document.documentElement.classList.add('ny-ai-open');
-      });
+      setDocked(this.root, true, 'ny-ai-open', this.host.editor.getView());
       this.setPressed(true);
     }
     this.focus();
@@ -428,10 +425,7 @@ export class AiPanel {
     this.mode.destroy();
     this.history.destroy();
     this.keeper.flush();
-    keepReadingPosition(this.host.editor.getView(), () => {
-      this.root.hidden = true;
-      document.documentElement.classList.remove('ny-ai-open');
-    });
+    setDocked(this.root, false, 'ny-ai-open', this.host.editor.getView());
     this.setPressed(false);
     if (hadFocus) this.host.editor.focus();
   }

@@ -736,10 +736,33 @@ body {
   background: var(--ny-dock-bg);
   box-shadow: var(--ny-dock-shadow);
   color: var(--ny-text-primary);
+  /* In from the window's edge, and to a new place beside another card
+     (see `dock.ts`). */
+  animation: ny-dock-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ny-dock.is-closing {
+  pointer-events: none;
+  animation: ny-dock-out 140ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
 .ny-dock[hidden] {
   display: none;
+}
+
+@keyframes ny-dock-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+@keyframes ny-dock-out {
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+  }
 }
 
 :root.ny-ai-open .ny-dock.ny-outline {
