@@ -1,4 +1,254 @@
 # Changelog
+## 1.1.0 (2026-10-07)
+
+### ✨ Features
+
+- *(ai)* Send AI requests through the app with keys kept in the system keychain  @Lemon-miaow
+
+- *(ai)* Hold key changes until the settings dialog is confirmed  @Lemon-miaow
+
+- *(ai)* Add an AI section to settings for providers and models  @Lemon-miaow
+
+- *(ai)* Open an AI panel beside the document with streaming chat  @Lemon-miaow
+
+- *(ai)* Let the assistant read the document  @Lemon-miaow
+
+- *(ai)* Add native commands for web search, folder files, images, MCP and history  @Lemon-miaow
+
+- *(ai)* Show the assistant's edits inline to accept or reject  @Lemon-miaow
+
+- *(ai)* Let the assistant read and edit Markdown in the same folder  @Lemon-miaow
+
+- *(ai)* Search the web and read pages without a search key  @Lemon-miaow
+
+- *(ai)* Send images to the assistant  @Lemon-miaow
+
+- *(ai)* Connect MCP servers  @Lemon-miaow
+
+- *(ai)* Ask AI from the selection toolbar and slash menu  @Lemon-miaow
+
+- *(ai)* Suggest the next words while writing  @Lemon-miaow
+
+- *(ai)* Keep each document's conversations  @Lemon-miaow
+
+- *(ai)* Sign in with ChatGPT to use its plan  @Lemon-miaow
+
+- *(ai)* Sign in to ChatGPT through Codex  @Lemon-miaow
+
+- *(ai)* Choose how hard a reasoning model thinks  @Lemon-miaow
+
+- *(settings)* Restyle the settings dialog and add services from a menu  @Lemon-miaow
+
+- *(ui)* Slide the outline and the assistant in and out  @Lemon-miaow
+
+
+### 🐛 Bug Fixes
+
+- *(ai)* Show an image in a proposed edit only once it resolves to a file on this computer  @Lemon-miaow
+
+- *(ai)* Read the outline from the editor's Markdown tree  @Lemon-miaow
+
+- *(ai)* Read a model's <think> text out as reasoning with the SDK's middleware  @Lemon-miaow
+
+- *(ai)* Unwrap a quick reply only when the editor reads it as one Markdown code fence  @Lemon-miaow
+
+- *(ai)* Judge a page's address by what it resolves to and allow only the hosts the user approved  @Lemon-miaow
+
+- *(ai)* Warn about plain http by the app's own address rule  @Lemon-miaow
+
+- *(ai)* Match a search engine's links on its domain and the names under it  @Lemon-miaow
+
+- *(ai)* Leave the text-only o1 and o3 models out of the vision guess  @Lemon-miaow
+
+- *(ai)* Decode a data URL the way fetch does  @Lemon-miaow
+
+- *(ai)* Keep a page's line breaks when it is read as Markdown  @Lemon-miaow
+
+- *(ai)* Leave reserved MCP headers to rmcp and name the one it refuses  @Lemon-miaow
+
+- *(ai)* Search notes as they are read and count the ones not in UTF-8  @Lemon-miaow
+
+- *(ai)* Go through any block of blocks an edit changes, a table whole  @Lemon-miaow
+
+- *(ai)* Hand the model a turned-down tool call as the SDK's denial  @Lemon-miaow
+
+- *(ai)* Split a note into lines one way for reads, searches and diffs  @Lemon-miaow
+
+- *(ai)* Keep where a menu reply goes with the editor's position mapping  @Lemon-miaow
+
+- *(ai)* Read a kept conversation's messages with the SDK's message schema  @Lemon-miaow
+
+- *(ai)* Read the note extensions from the config without its package.json version  @Lemon-miaow
+
+- *(ai)* Treat DeepSeek as a Chat Completions service instead of an API kind  @Lemon-miaow
+
+- *(ai)* Keep the ChatGPT sign-in in a sealed file and word the AI text in a documentation tone  @Lemon-miaow
+
+- *(ai)* Fetch a service's models on their own and list them with a switch each  @Lemon-miaow
+
+- *(ai)* Offer every level Codex lists and every level the Responses API takes  @Lemon-miaow
+
+- *(alerts)* Read an alert's marker by one rule in the editor and its output  @Lemon-miaow
+
+- *(attachments)* Read the image folder from the front matter the editor parsed, as YAML  @Lemon-miaow
+
+- *(attachments)* Give a picked file to the image through the editor, found from its file button  @Lemon-miaow
+
+- *(code)* Place the language list with floating-ui through the code block config  @Lemon-miaow
+
+- *(editor)* Make code and emphasis of text typed between their marks  @Lemon-miaow
+
+- *(editor)* Make a heading of hashes typed after a line break  @Lemon-miaow
+
+- *(editor)* Read typed markdown marks with the editor's parser  @Lemon-miaow
+
+- *(editor)* Start lists, quotes and headings typed after a line break  @Lemon-miaow
+
+- *(editor)* Keep only the escapes the parser needs on save  @Lemon-miaow
+
+- *(editor)* Save a LaTeX code block the file fenced as a code block  @Lemon-miaow
+
+- *(editor)* Read a typed link or image with the editor's parser  @Lemon-miaow
+
+- *(editor)* Place the caret between modes where the tokenizer read each character  @Lemon-miaow
+
+- *(editor)* Let the editor's own input rules turn a line after a break into a block  @Lemon-miaow
+
+- *(editor)* Rest the block handle once its own fade ends  @Lemon-miaow
+
+- *(editor)* Follow up an input method's word as ProseMirror's input rules do  @Lemon-miaow
+
+- *(editor)* Let the pane the reader scrolls lead the other in source mode  @Lemon-miaow
+
+- *(editor)* Hold a jump on its heading for as long as the document grows  @Lemon-miaow
+
+- *(editor)* Give source mode's fold arrows a class of their own  @Lemon-miaow
+
+- *(editor)* Take up on the first line to its start without ProseMirror's private state  @Lemon-miaow
+
+- *(editor)* Place the popups with floating-ui's own middleware  @Lemon-miaow
+
+- *(editor)* Match definition labels with micromark's own normalizer  @Lemon-miaow
+
+- *(editor)* Give headings GitHub's anchors by github-slugger for their ids  @Lemon-miaow
+
+- *(editor)* Make a rule of a line on Enter when remark reads it as one  @Lemon-miaow
+
+- *(editor)* End a long document's opening where the editor's remark ends a block  @Lemon-miaow
+
+- *(editor)* Open and close a code block where its fence would in the file  @Lemon-miaow
+
+- *(editor)* Read the tags in running text with htmlparser2  @Lemon-miaow
+
+- *(editor)* Bring along the definitions remark reads after a long document's opening  @Lemon-miaow
+
+- *(editor)* Break the format bar onto rows when the page is too narrow for it  @Lemon-miaow
+
+- *(html)* Tell an HTML block from a line of tags by what the parser read  @Lemon-miaow
+
+- *(html)* Read the Markdown inside HTML in a line with the editor's own syntax  @Lemon-miaow
+
+- *(html)* Move addresses in HTML by where an HTML tokenizer reads them, srcset too  @Lemon-miaow
+
+- *(i18n)* Read a system language by CLDR's likely subtags in the page and the menu bar  @Lemon-miaow
+
+- *(links)* Open a linked Markdown file whatever follows its path  @Lemon-miaow
+
+- *(links)* Find and keep bare links by what the editor's own parser reads  @Lemon-miaow
+
+- *(links)* Read an address with the URL parser and a //host one as the web's  @Lemon-miaow
+
+- *(links)* Give a typed address the scheme GFM reads it with  @Lemon-miaow
+
+- *(links)* Write an address or title so an & in it reads back as written  @Lemon-miaow
+
+- *(math)* Let the parser decide whether dollars typed make math  @Lemon-miaow
+
+- *(math)* Open a clicked formula's source once Crepe has drawn it  @Lemon-miaow
+
+- *(mcp)* Tell the windows when a server's status changes instead of polling  @Lemon-miaow
+
+- *(source)* Pair headings across the panes by the text Markdown gives them  @Lemon-miaow
+
+- *(source)* Find the list item Enter leaves by CodeMirror's syntax tree  @Lemon-miaow
+
+- *(source)* Read formulas and front matter in the source pane by remark's rules  @Lemon-miaow
+
+- *(table)* Leave a click in a cell to ProseMirror in the table view itself  @Lemon-miaow
+
+- *(tables)* Measure cells by emoji-regex and Unicode's East Asian Width  @Lemon-miaow
+
+- *(ui)* Let what keeps an Escape in the page have it before the find bar  @Lemon-miaow
+
+- *(updates)* Read release notes as Markdown with mdast  @Lemon-miaow
+
+- *(windows)* Show a resolved network path as the share it names  @Lemon-miaow
+
+- *(windows)* Keep a window on the origin Tauri loads its pages from  @Lemon-miaow
+
+
+### 🚜 Refactor
+
+- *(ai)* Report file, image and history failures to the page by kind  @Lemon-miaow
+
+- *(ai)* Report web search and fetch failures to the page by kind  @Lemon-miaow
+
+- *(ai)* Report key, request and MCP failures by kind and let the SDK retry a failed connection  @Lemon-miaow
+
+- *(ai)* Take the notes the assistant works on from the app's Markdown file associations  @Lemon-miaow
+
+- *(editor)* Tell undo and redo apart with the history plugin's own check  @Lemon-miaow
+
+- *(editor)* Give typed Markdown back through the input rules' own undo  @Lemon-miaow
+
+- *(windows)* Colour a window and read its saved look from what the page goes by  @Lemon-miaow
+
+
+### 🚀 Performance
+
+- *(editor)* Skip rewriting unchanged CodeMirror style sheets  @Lemon-miaow
+
+- *(editor)* Skip the list item's repeated selection dispatch  @Lemon-miaow
+
+- *(editor)* Count words and lines block by block  @Lemon-miaow
+
+- *(editor)* Align table cells only within the tables a change touches  @Lemon-miaow
+
+- *(editor)* Load Crepe's styles without rules that restyle the whole document  @Lemon-miaow
+
+- *(editor)* Restart the caret blink without a forced style pass  @Lemon-miaow
+
+- *(editor)* Give the caret its own stacking context  @Lemon-miaow
+
+- *(editor)* Keep focus changes from laying out the whole document again  @Lemon-miaow
+
+- *(editor)* Set the slash menu's room on the menu itself  @Lemon-miaow
+
+- *(editor)* Flag an open language list on the editor root  @Lemon-miaow
+
+- *(editor)* Key the code block selection colour on CodeMirror's focus class  @Lemon-miaow
+
+- *(editor)* Draw table cells and handles with fewer layers  @Lemon-miaow
+
+- *(editor)* Draw list markers and formulas with fewer layers  @Lemon-miaow
+
+- *(mermaid)* Draw diagrams in a hidden frame and show them as pictures  @Lemon-miaow
+
+- *(settings)* Load the AI key calls with the AI tab  @Lemon-miaow
+
+
+### 🎨 Styling
+
+- *(ui)* Dock the outline and the assistant as floating cards  @Lemon-miaow
+
+
+### 🧪 Testing
+
+- *(attachments)* Wait for a drop to land instead of one turn of the event loop  @Lemon-miaow
+
+- *(scope)* Hold the fs plugin's scope and the asset protocol's to one list  @Lemon-miaow
+
+
 ## 1.0.1 (2026-10-04)
 
 ### ✨ Features
