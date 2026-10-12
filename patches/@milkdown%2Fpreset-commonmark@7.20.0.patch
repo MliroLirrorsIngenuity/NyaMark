@@ -1,0 +1,31 @@
+diff --git a/lib/index.js b/lib/index.js
+index 3832b797d7c76dfb77d852afc0e5a1f5dface4c7..e21254e6a2f19b0c2278906fa6974753aff706bb 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1139,7 +1139,7 @@ var bulletListSchema = $nodeSchema("bullet_list", (ctx) => {
+ 		group: "block",
+ 		attrs: { spread: {
+ 			default: false,
+-			validate: "boolean"
++			validate: "boolean|string"
+ 		} },
+ 		parseDOM: [{
+ 			tag: "ul",
+@@ -1226,7 +1226,7 @@ var orderedListSchema = $nodeSchema("ordered_list", (ctx) => ({
+ 		},
+ 		spread: {
+ 			default: false,
+-			validate: "boolean"
++			validate: "boolean|string"
+ 		}
+ 	},
+ 	parseDOM: [{
+@@ -1325,7 +1325,7 @@ var listItemSchema = $nodeSchema("list_item", (ctx) => ({
+ 		},
+ 		spread: {
+ 			default: true,
+-			validate: "boolean"
++			validate: "boolean|string"
+ 		}
+ 	},
+ 	defining: true,
