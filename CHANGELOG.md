@@ -1,4 +1,16 @@
 # Changelog
+## 1.1.1 (2026-10-12)
+
+### 🐛 Bug Fixes
+
+- *(ai)* Let the assistant edit a document that has a list  @Lemon-miaow
+
+
+### 📚 Documentation
+
+- Introduce the AI writing assistant in the README  @Lemon-miaow
+
+
 ## 1.1.0 (2026-10-07)
 
 ### ✨ Features
