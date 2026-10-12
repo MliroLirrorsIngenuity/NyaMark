@@ -7,7 +7,7 @@
     NyaMark
   </h1>
   <p align="center">
-    A lightweight Markdown editor that launches fast and gets out of your way.
+    A lightweight Markdown editor that launches fast, with an AI writing assistant built in.
     <br />
     <br />
     <a href="README.md">简体中文</a>
@@ -16,8 +16,16 @@
   </p>
 </div>
 
+<p align="center">
+  <a href="https://nm.lolicon.best/hero-assistant.webp">
+    <img src="https://nm.lolicon.best/hero-assistant.webp" alt="NyaMark editor with the AI assistant" width="920">
+  </a>
+</p>
+
 <details>
   <summary>Table of Contents</summary>
+
+* [AI Writing Assistant](#ai-writing-assistant)
 
 * [Features](#features)
 
@@ -30,6 +38,24 @@
 * [Acknowledgments](#acknowledgments)
 
 </details>
+
+## AI Writing Assistant
+
+Since 1.1, an AI assistant sits beside your document. It reads what you are writing and helps you draft, rewrite, proofread and research, and every change it suggests is marked in the text for you to keep or drop.
+
+* **Review every change**: The assistant's edits show up in the text as insertions and deletions. Accept or reject each one on its own, and undo an accepted change as usual. Switch to auto mode to have edits written straight into the document.
+
+* **Knows the context**: The assistant reads the whole document, its outline and your selection, and can look through and edit the other Markdown notes in the same folder. It asks before creating or changing another file.
+
+* **Always at hand**: Select some text to polish, rewrite, shorten, expand, fix the grammar or translate it from the toolbar. Continue writing or summarize what came before from the slash menu. With autocomplete on, a grey suggestion appears after the caret when you pause; press Tab to take it.
+
+* **Researches on the web**: The assistant searches the web and reads pages without a search API key. With Anthropic or OpenAI, it can use the provider's own web search instead.
+
+* **Images and MCP**: Send screenshots and photos to models that support images, and connect MCP servers to give the assistant more tools.
+
+* **Your choice of model**: OpenAI, Anthropic, Google Gemini, DeepSeek, OpenRouter, Qwen, Kimi, Zhipu GLM, SiliconFlow, Volcano Engine, local models through Ollama or LM Studio, and any OpenAI-compatible service. You can also sign in with ChatGPT (Plus or higher) to use your plan. Reasoning models let you choose how hard they think.
+
+* **Keys and history stay on your computer**: API keys are kept in the system keychain and sent only to the service address you enter. Each document's conversations are saved locally and come back when you reopen it.
 
 ## Features
 
@@ -62,12 +88,6 @@
 * **Cross-Platform**: Native support for Windows, macOS, and Linux.
 
 * **Clean interface**: Light and dark themes that follow the system, an optional frosted-glass look, and the focus left on your writing.
-
-<p align="center">
-  <a href="https://nm.lolicon.best/hero-editor.webp">
-    <img src="https://nm.lolicon.best/hero-editor.webp" alt="NyaMark editor preview" width="920">
-  </a>
-</p>
 
 ## Usage
 
