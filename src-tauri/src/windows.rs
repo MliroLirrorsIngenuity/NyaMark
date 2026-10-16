@@ -184,42 +184,57 @@ pub fn set_native_backdrop<R: Runtime>(_window: &Window<R>, _enabled: bool) -> R
     Ok(())
 }
 
-/// How far the frosted window blurs what lies behind it, in points.
-#[cfg(target_os = "macos")]
-const GLASS_BLUR_RADIUS: i32 = 16;
-
-/// macOS: blurs what lies behind the transparent window, or stops blurring
-/// it. The system's vibrancy blurs at a width of its own, so wide that nothing
-/// behind the window could be made out but the edges of other windows; the
-/// window server blurs at the width it is given, as it does for iTerm2, kitty
-/// and Ghostty.
+/// macOS: frosts the window with the system's own material, a visual effect
+/// view behind the page that blurs what lies behind the window, or takes it
+/// away. Kept in the content view, it takes the window's rounded corners;
+/// the window server's own blur had square ones.
 ///
-/// Unblurred, the window takes the colour of its page, which shows before
+/// Unfrosted, the window takes the colour of its page, which shows before
 /// the page is drawn and wherever it lags behind a resize.
 #[cfg(target_os = "macos")]
 pub fn set_background_blur<R: Runtime>(window: &Window<R>, enabled: bool) -> Result<()> {
-    use objc2_app_kit::{NSColor, NSWindow};
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{
+        NSAutoresizingMaskOptions, NSColor, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
+        NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowOrderingMode,
+    };
 
-    #[link(name = "CoreGraphics", kind = "framework")]
-    extern "C" {
-        fn CGSMainConnectionID() -> i32;
-        fn CGSSetWindowBackgroundBlurRadius(connection: i32, window: i32, radius: i32) -> i32;
-    }
-
-    let radius = if enabled { GLASS_BLUR_RADIUS } else { 0 };
     let ns_window = window
         .ns_window()
         .context("Failed to get native window handle")? as usize;
     window
         .run_on_main_thread(move || {
+            let Some(mtm) = MainThreadMarker::new() else {
+                return;
+            };
             // SAFETY: the pointer is the window's live NSWindow, and AppKit is
             // only touched here on the main thread.
             let ns_window = unsafe { &*(ns_window as *const NSWindow) };
-            let number = ns_window.windowNumber() as i32;
-            // SAFETY: plain values, for a window of this process's own
-            // connection to the window server.
-            unsafe {
-                CGSSetWindowBackgroundBlurRadius(CGSMainConnectionID(), number, radius);
+            let Some(content) = ns_window.contentView() else {
+                return;
+            };
+            let frost = content
+                .subviews()
+                .iter()
+                .find(|view| view.downcast_ref::<NSVisualEffectView>().is_some());
+            match (enabled, frost) {
+                (true, None) => {
+                    let view = NSVisualEffectView::initWithFrame(mtm.alloc(), content.bounds());
+                    view.setMaterial(NSVisualEffectMaterial::Sidebar);
+                    view.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+                    view.setState(NSVisualEffectState::Active);
+                    view.setAutoresizingMask(
+                        NSAutoresizingMaskOptions::ViewWidthSizable
+                            | NSAutoresizingMaskOptions::ViewHeightSizable,
+                    );
+                    content.addSubview_positioned_relativeTo(
+                        &view,
+                        NSWindowOrderingMode::Below,
+                        None,
+                    );
+                }
+                (false, Some(view)) => view.removeFromSuperview(),
+                _ => {}
             }
             let color = if enabled {
                 NSColor::clearColor()
