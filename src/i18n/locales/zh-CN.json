@@ -258,6 +258,7 @@
       "lineHeight": "行高",
       "readableWidth": "最佳阅读宽度（px）",
       "windowTransparency": "毛玻璃效果",
+      "windowOpacity": "不透明度",
       "theme": "主题",
       "themeAuto": "跟随系统",
       "themeLight": "浅色",

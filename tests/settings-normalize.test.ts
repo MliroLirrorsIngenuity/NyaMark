@@ -70,6 +70,20 @@ describe('normalizeSettings', () => {
   });
 
   test.each([
+    [undefined, 50],
+    [55.4, 55],
+    [-5, 0],
+    [140, 100],
+    ['70', 70],
+    ['clear', 50],
+  ])('keeps the glass opacity %p as %p', (windowOpacity, expected) => {
+    const settings = normalizeSettings({
+      appearance: { windowOpacity },
+    } as never);
+    expect(settings.appearance.windowOpacity).toBe(expected);
+  });
+
+  test.each([
     ['auto', 'auto'],
     ['zh-TW', 'zh-TW'],
     ['fr', 'auto'],

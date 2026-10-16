@@ -260,6 +260,7 @@
       "lineHeight": "Line height",
       "readableWidth": "Readable width (px)",
       "windowTransparency": "Frosted glass effect",
+      "windowOpacity": "Opacity",
       "theme": "Theme",
       "themeAuto": "Follow system",
       "themeLight": "Light",

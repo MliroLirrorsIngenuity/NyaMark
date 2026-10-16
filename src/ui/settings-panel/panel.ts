@@ -238,6 +238,62 @@ const styles = `
   outline-offset: 2px;
 }
 
+/* A slider, filled with the accent up to its value (--ny-range-fill). */
+.ny-settings__range {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 34px;
+}
+
+.ny-settings__range input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1 1 auto;
+  height: 4px;
+  margin: 0;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    var(--ny-accent) var(--ny-range-fill, 0%),
+    color-mix(in srgb, var(--ny-text-primary) 18%, transparent) var(--ny-range-fill, 0%)
+  );
+  cursor: pointer;
+}
+
+.ny-settings__range input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 0.5px rgba(15, 23, 42, 0.12),
+    0 1px 3px rgba(15, 23, 42, 0.24);
+}
+
+.ny-settings__range input[type="range"]:focus-visible {
+  outline: 2px solid var(--ny-accent-line);
+  outline-offset: 4px;
+}
+
+.ny-settings__range input[type="range"]:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ny-settings__range output {
+  min-width: 3.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ny-text-primary);
+  font-size: 13px;
+}
+
+.ny-settings__range:has(input:disabled) output {
+  color: var(--ny-text-muted);
+}
+
 /* The controls on a section: one height, one border, one focus ring. */
 .ny-settings__field input[type="number"],
 .ny-settings__select-trigger,

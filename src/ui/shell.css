@@ -211,9 +211,13 @@ body {
   color: var(--ny-text-primary);
 }
 
-/* Transparency overrides - MUST be defined after the base background to win */
+/*
+ * Over the frosted glass the page lies as a wash of its own colour, as
+ * strong as the opacity set for it: what lies behind still shows through.
+ * It comes after the base background so that it wins.
+ */
 :root.ny-shell--transparent #ny-app.ny-shell {
-  background: transparent !important;
+  background: rgb(248 249 251 / var(--ny-glass-opacity, 0.5)) !important;
 }
 
 :root.ny-shell--transparent {
@@ -228,7 +232,7 @@ body {
 }
 
 :root[data-theme="dark"].ny-shell--transparent #ny-app.ny-shell {
-  background: transparent !important;
+  background: rgb(18 23 30 / var(--ny-glass-opacity, 0.5)) !important;
 }
 
 :root[data-theme="dark"].ny-shell--transparent {
@@ -236,20 +240,6 @@ body {
   --ny-surface-muted: rgba(15, 23, 42, 0.52);
   --ny-surface-ghost: rgba(15, 23, 42, 0.36);
   --ny-text-muted: rgba(255, 255, 255, 0.5);
-}
-
-/*
- * macOS blurs what lies behind the window and leaves its colours as they
- * are. The window washes them toward its own page, as the system's vibrancy
- * did, and what lies behind still shows through it.
- */
-:root[data-platform="macos"].ny-shell--transparent #ny-app.ny-shell {
-  background: rgba(248, 249, 251, 0.84) !important;
-}
-
-:root[data-platform="macos"][data-theme="dark"].ny-shell--transparent
-  #ny-app.ny-shell {
-  background: rgba(18, 23, 30, 0.82) !important;
 }
 
 :root[data-platform="windows"].ny-shell--transparent #ny-titlebar {

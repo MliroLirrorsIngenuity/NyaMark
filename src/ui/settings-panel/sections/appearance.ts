@@ -2,6 +2,7 @@ import { getPlatform } from '../../../platform/detect';
 import {
   type AppearanceSettings,
   type ThemePreference,
+  previewGlassOpacity,
   sanitizeAppearanceSettings,
 } from '../../../state/settings';
 import { renderSelect } from '../select';
@@ -34,10 +35,19 @@ export function renderAppearanceSection(
     ${
       showTransparency
         ? `
-    <div class="ny-settings__row" style="margin-bottom: 20px;">
+    <div class="ny-settings__row">
       <label class="ny-settings__field ny-settings__field--checkbox">
         <input type="checkbox" data-key="windowTransparency" />
         <span data-i18n="settings.appearance.windowTransparency">Enable frosted glass effect</span>
+      </label>
+    </div>
+    <div class="ny-settings__row" style="margin-bottom: 20px;">
+      <label class="ny-settings__field">
+        <span data-i18n="settings.appearance.windowOpacity">Opacity</span>
+        <span class="ny-settings__range">
+          <input type="range" min="0" max="100" step="1" data-key="windowOpacity" />
+          <output></output>
+        </span>
       </label>
     </div>
     `
@@ -149,6 +159,31 @@ export function renderAppearanceSection(
     });
 
     syncValidity();
+  }
+
+  const frosted = section.querySelector<HTMLInputElement>(
+    'input[data-key="windowTransparency"]'
+  );
+  const opacity = section.querySelector<HTMLInputElement>(
+    'input[data-key="windowOpacity"]'
+  );
+  const shown = section.querySelector('.ny-settings__range output');
+  if (frosted && opacity && shown) {
+    const show = () => {
+      const { min, max, value } = opacity;
+      const fill =
+        ((Number(value) - Number(min)) / (Number(max) - Number(min))) * 100;
+      opacity.style.setProperty('--ny-range-fill', `${fill}%`);
+      shown.textContent = `${value}%`;
+      opacity.disabled = !frosted.checked;
+    };
+    opacity.addEventListener('input', () => {
+      show();
+      previewGlassOpacity(Number(opacity.value));
+    });
+    opacity.addEventListener('change', show);
+    frosted.addEventListener('change', show);
+    show();
   }
 
   return section;

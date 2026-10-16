@@ -25,6 +25,8 @@ export type AppearanceSettings = {
   lineHeight: number;
   readableMaxWidth: number;
   windowTransparency: boolean;
+  /** How much of the page's colour lies over the frosted glass, in percent. */
+  windowOpacity: number;
 };
 
 export type SaveSettings = {
@@ -56,6 +58,7 @@ export const defaultSettings: Settings = {
     lineHeight: 1.52,
     readableMaxWidth: 720,
     windowTransparency: false,
+    windowOpacity: 50,
   },
   save: {
     autoSave: false,
@@ -101,8 +104,21 @@ function booleanSetting(value: unknown, fallback: boolean) {
   return typeof value === 'boolean' ? value : fallback;
 }
 
-async function applyWindowEffects(transparency: boolean) {
+/**
+ * How strong the page's colour lies over the frosted glass, in percent. The
+ * system's frost itself stays whole: thinned, the sharp backdrop came through
+ * it and its text ran into the page's.
+ */
+function showGlassOpacity(percent: number) {
+  document.documentElement.style.setProperty(
+    '--ny-glass-opacity',
+    String(percent / 100)
+  );
+}
+
+async function applyWindowEffects(transparency: boolean, opacity: number) {
   const platform = getPlatform();
+  showGlassOpacity(opacity);
   if (platform === 'linux') {
     document.documentElement.classList.remove('ny-shell--transparent');
     return;
@@ -163,6 +179,14 @@ export function sanitizeAppearanceSettings(
     windowTransparency: booleanSetting(
       appearance?.windowTransparency,
       defaultSettings.appearance.windowTransparency
+    ),
+    windowOpacity: Math.round(
+      clampSetting(
+        appearance?.windowOpacity,
+        defaultSettings.appearance.windowOpacity,
+        0,
+        100
+      )
     ),
   };
 }
@@ -235,9 +259,11 @@ function sanitizeAttachmentSettings(
 
 /** The transparency last shown, saved or previewed in the settings. */
 let shownTransparency: boolean | null = null;
+let shownOpacity: number | null = null;
 
 function applyAppearance(appearance: AppearanceSettings) {
   shownTransparency = appearance.windowTransparency;
+  shownOpacity = appearance.windowOpacity;
   const root = document.documentElement.style;
   root.setProperty('--ny-editor-font-size', `${appearance.fontSize}px`);
   root.setProperty('--ny-editor-line-height', String(appearance.lineHeight));
@@ -245,12 +271,21 @@ function applyAppearance(appearance: AppearanceSettings) {
     '--ny-editor-readable-max',
     `${appearance.readableMaxWidth}px`
   );
-  void applyWindowEffects(appearance.windowTransparency);
+  void applyWindowEffects(
+    appearance.windowTransparency,
+    appearance.windowOpacity
+  );
   themeApplier?.(appearance.theme);
 }
 
 export function previewAppearance(appearance: AppearanceSettings) {
   applyAppearance(sanitizeAppearanceSettings(appearance));
+}
+
+/** Shows the glass at `percent` while its slider is dragged. */
+export function previewGlassOpacity(percent: number) {
+  shownOpacity = percent;
+  showGlassOpacity(percent);
 }
 
 /**
@@ -259,8 +294,10 @@ export function previewAppearance(appearance: AppearanceSettings) {
  * it undid a theme or font size being tried in the settings.
  */
 export function reapplyWindowEffects() {
+  const { appearance } = getSettings();
   void applyWindowEffects(
-    shownTransparency ?? getSettings().appearance.windowTransparency
+    shownTransparency ?? appearance.windowTransparency,
+    shownOpacity ?? appearance.windowOpacity
   );
 }
 
