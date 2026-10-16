@@ -22,6 +22,9 @@ export function renderAppearanceSection(
   onChange: (next: AppearanceSettings, mode: 'input' | 'commit') => void
 ): HTMLElement {
   const showTransparency = getPlatform() !== 'linux';
+  // macOS frosts with the system's material, which looks the same under any
+  // wash of the page's colour; Windows' glass takes the wash it is given.
+  const showOpacity = getPlatform() === 'windows';
   const section = document.createElement('section');
   section.className = 'ny-settings__section';
   section.innerHTML = `
@@ -35,12 +38,15 @@ export function renderAppearanceSection(
     ${
       showTransparency
         ? `
-    <div class="ny-settings__row">
+    <div class="ny-settings__row"${showOpacity ? '' : ' style="margin-bottom: 20px;"'}>
       <label class="ny-settings__field ny-settings__field--checkbox">
         <input type="checkbox" data-key="windowTransparency" />
         <span data-i18n="settings.appearance.windowTransparency">Enable frosted glass effect</span>
       </label>
     </div>
+    ${
+      showOpacity
+        ? `
     <div class="ny-settings__row" style="margin-bottom: 20px;">
       <label class="ny-settings__field">
         <span data-i18n="settings.appearance.windowOpacity">Opacity</span>
@@ -50,6 +56,9 @@ export function renderAppearanceSection(
         </span>
       </label>
     </div>
+    `
+        : ''
+    }
     `
         : ''
     }

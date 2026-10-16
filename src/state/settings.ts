@@ -107,9 +107,11 @@ function booleanSetting(value: unknown, fallback: boolean) {
 /**
  * How strong the page's colour lies over the frosted glass, in percent. The
  * system's frost itself stays whole: thinned, the sharp backdrop came through
- * it and its text ran into the page's.
+ * it and its text ran into the page's. macOS keeps the wash `shell.css`
+ * gives it: its material looked the same under any.
  */
 function showGlassOpacity(percent: number) {
+  if (getPlatform() === 'macos') return;
   document.documentElement.style.setProperty(
     '--ny-glass-opacity',
     String(percent / 100)
