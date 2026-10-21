@@ -190,6 +190,7 @@ fn set_window_blur(window: Window, enabled: bool) -> Result<(), String> {
     windows::set_background_blur(&window, enabled).map_err(|error| error.to_string())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn print_current_window(window: tauri::WebviewWindow) -> Result<(), String> {
     window.print().map_err(|error| error.to_string())
@@ -223,34 +224,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-            // A relative path names a file in the folder the second launch
-            // ran from; this process may well sit in another.
-            let paths: Vec<String> = args
-                .iter()
-                .skip(1)
-                .filter_map(|arg| sessions::normalize_file_path(Path::new(&cwd).join(arg)))
-                .collect();
-
-            if paths.is_empty() {
-                if let Some(label) = sessions::last_focused_window(app) {
-                    if let Some(window) = app.get_webview_window(&label) {
-                        let _ = window.set_focus();
-                    }
-                } else if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.set_focus();
-                }
-                return;
-            }
-
-            if sessions::is_main_bootstrap_complete(app) {
-                for path in paths {
-                    windows::spawn_editor_window(app, path);
-                }
-            } else {
-                sessions::extend_pending_launch_files(app, paths);
-            }
-        }))
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::Focused(true) => {
                 sessions::remember_last_focused_window(window.app_handle(), window.label());
@@ -284,6 +257,7 @@ pub fn run() {
             set_window_title,
             set_windows_backdrop,
             set_window_blur,
+            #[cfg(desktop)]
             print_current_window,
             ai::http::ai_fetch,
             ai::http::ai_fetch_abort,
@@ -331,6 +305,33 @@ pub fn run() {
             quit::install_macos_terminate_hook(app.handle());
             Ok(())
         });
+
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+        // A relative path names a file in the folder the second launch ran from.
+        let paths: Vec<String> = args
+            .iter()
+            .skip(1)
+            .filter_map(|arg| sessions::normalize_file_path(Path::new(&cwd).join(arg)))
+            .collect();
+        if paths.is_empty() {
+            if let Some(label) = sessions::last_focused_window(app) {
+                if let Some(window) = app.get_webview_window(&label) {
+                    let _ = window.set_focus();
+                }
+            } else if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+            return;
+        }
+        if sessions::is_main_bootstrap_complete(app) {
+            for path in paths {
+                windows::spawn_editor_window(app, path);
+            }
+        } else {
+            sessions::extend_pending_launch_files(app, paths);
+        }
+    }));
 
     #[cfg(target_os = "macos")]
     let builder = builder

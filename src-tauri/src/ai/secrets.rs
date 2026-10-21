@@ -482,6 +482,57 @@ mod keychain {
     }
 }
 
+#[cfg(target_os = "ios")]
+mod keychain {
+    use std::sync::OnceLock;
+
+    use super::{store_error, SecretError, SecretStore};
+
+    /// Whether the keychain could be made the store, decided once.
+    static READY: OnceLock<bool> = OnceLock::new();
+
+    pub struct Keychain {
+        pub service: String,
+    }
+
+    impl Keychain {
+        pub fn available() -> bool {
+            *READY.get_or_init(|| {
+                apple_native_keyring_store::protected::Store::new()
+                    .map(|store| keyring_core::set_default_store(store))
+                    .is_ok()
+            })
+        }
+
+        fn entry(&self, account: &str) -> Result<keyring_core::Entry, SecretError> {
+            keyring_core::Entry::new(&self.service, account).map_err(store_error)
+        }
+    }
+
+    impl SecretStore for Keychain {
+        fn get(&self, account: &str) -> Result<Option<String>, SecretError> {
+            match self.entry(account)?.get_password() {
+                Ok(value) => Ok(Some(value)),
+                Err(keyring_core::Error::NoEntry) => Ok(None),
+                Err(error) => Err(store_error(error)),
+            }
+        }
+
+        fn set(&self, account: &str, value: &str) -> Result<(), SecretError> {
+            self.entry(account)?
+                .set_password(value)
+                .map_err(store_error)
+        }
+
+        fn delete(&self, account: &str) -> Result<(), SecretError> {
+            match self.entry(account)?.delete_credential() {
+                Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+                Err(error) => Err(store_error(error)),
+            }
+        }
+    }
+}
+
 /// The store this system offers, and which kind it is.
 #[cfg(target_os = "macos")]
 pub(crate) fn store<R: Runtime>(
@@ -496,7 +547,7 @@ pub(crate) fn store<R: Runtime>(
 pub(crate) fn store<R: Runtime>(
     app: &AppHandle<R>,
 ) -> Result<(Box<dyn SecretStore>, Storage), SecretError> {
-    #[cfg(any(windows, target_os = "linux"))]
+    #[cfg(any(windows, target_os = "linux", target_os = "ios"))]
     if keychain::Keychain::available() {
         let service = format!("{}.ai", app.config().identifier);
         return Ok((Box::new(keychain::Keychain { service }), Storage::Keychain));

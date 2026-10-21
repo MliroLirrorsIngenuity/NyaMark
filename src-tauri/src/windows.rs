@@ -37,6 +37,11 @@ fn build_window<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Result
             "window.__NYAMARK_PLATFORM__ = {:?};",
             std::env::consts::OS
         ));
+    #[cfg(all(target_os = "ios", debug_assertions))]
+    let builder = builder.devtools(true);
+    // Document editing supplies its own tools, rather than WebKit's form navigation.
+    #[cfg(target_os = "ios")]
+    let builder = builder.with_input_accessory_view_builder(|_| None);
     // macOS: shown once it has a backdrop, in the theme its page opens in.
     // The window is transparent so that it can be frosted, and till its page
     // was drawn it was its traffic lights alone, floating over what lay
@@ -73,6 +78,17 @@ fn app_url<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Option<Url>
         }
     };
     if let Some(url) = configured {
+        // Tauri proxies mobile development servers through its app protocol.
+        #[cfg(mobile)]
+        if tauri::is_dev()
+            && match url.host() {
+                Some(url::Host::Domain(host)) => host == "localhost",
+                Some(url::Host::Ipv4(_) | url::Host::Ipv6(_)) => true,
+                None => false,
+            }
+        {
+            return Url::parse("tauri://localhost").ok();
+        }
         return Some(url.clone());
     }
     let protocol = if !cfg!(windows) {
@@ -117,6 +133,7 @@ pub fn open_editor_window<R: Runtime>(app: &AppHandle<R>, path: String) -> Resul
     // `resolve_current_window_file` lookup cannot race ahead of it.
     if let Some(holder) = sessions::claim_window_file(app, &label, normalized_path) {
         if let Some(window) = app.get_webview_window(&holder) {
+            #[cfg(desktop)]
             let _ = window.unminimize();
             let _ = window.show();
             let _ = window.set_focus();

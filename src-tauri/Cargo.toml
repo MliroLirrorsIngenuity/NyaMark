@@ -22,7 +22,6 @@ tauri = { version = "2", features = ["protocol-asset", "macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = { version = "2", features = ["watch"] }
-tauri-plugin-single-instance = "2"
 tauri-plugin-process = "2"
 tauri-plugin-store = "2"
 anyhow = "1.0.102"
@@ -73,6 +72,7 @@ bytes = "1"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2"
+tauri-plugin-single-instance = "2"
 
 [target.'cfg(unix)'.dependencies]
 # Finder tags and other extended attributes outlive an atomic save.
@@ -94,6 +94,12 @@ icu_locale = "2.2"
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]
 # AI service keys go to the Windows credential manager or the Secret Service.
 keyring = "4"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+# AI service keys go to the iPhone's keychain, through the store `keyring`
+# is built on: its own entry points leave iOS out.
+keyring-core = "1"
+apple-native-keyring-store = { version = "1", default-features = false, features = ["protected"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }

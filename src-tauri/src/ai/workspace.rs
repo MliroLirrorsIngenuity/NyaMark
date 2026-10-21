@@ -19,6 +19,7 @@ use std::{
 use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use tauri::{utils::config::FileAssociation, AppHandle, Manager, Runtime, Window};
+#[cfg(desktop)]
 use tauri_plugin_dialog::DialogExt;
 
 use super::blocking;
@@ -652,6 +653,7 @@ pub async fn workspace_roots(
 /// Let the user pick another folder for this window's workspace. Only the
 /// commands here reach it, and only for this window: the page's own file
 /// access stays as it was.
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn workspace_pick_root(
     app: AppHandle,
@@ -691,6 +693,14 @@ pub async fn workspace_pick_root(
         granted.push(folder.clone());
     }
     Ok(Some(display(&folder)))
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+pub async fn workspace_pick_root() -> Result<Option<String>, WorkspaceError> {
+    Err(WorkspaceError::Io {
+        message: "Choosing workspace folders is not supported on mobile yet".into(),
+    })
 }
 
 #[tauri::command]
