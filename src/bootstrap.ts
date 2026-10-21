@@ -30,6 +30,7 @@ import {
 } from './features/shortcut-controller';
 import { i18next, initI18n } from './i18n';
 import { translateDOM } from './i18n/dom';
+import { isMobilePlatform } from './platform/detect';
 import {
   getSettings,
   hydrateSettings,
@@ -47,6 +48,7 @@ import { ThemeManager } from './ui/theme';
 import { Titlebar } from './ui/titlebar';
 import { showToast } from './ui/toast';
 import { UpdateDialog } from './ui/update-dialog';
+import { bindViewport, isCompactLayout } from './ui/viewport';
 
 const STATS_DELAY_MS = 300;
 
@@ -94,6 +96,7 @@ export class App {
     // Render the shell immediately so the window has a visible background
     // before any async IPC calls complete.
     renderAppShell(appRoot);
+    if (isMobilePlatform()) bindViewport();
 
     await hydrateSettings();
     const settings = getSettings();
@@ -215,6 +218,10 @@ export class App {
       void this.attachments?.openLinkedResource(href);
     });
 
+    const searchPanel = new SearchPanel(() => this.editor);
+    const find = () => {
+      if (!this.sourceMode?.find()) searchPanel.show();
+    };
     new Titlebar(store, {
       onNewFile: () => fileController.newFile(),
       onOpenFile: () => fileController.openFile(),
@@ -224,10 +231,10 @@ export class App {
       onToggleOutline: () => this.toggleOutline(),
       onToggleAi: () => this.toggleAi(false),
       onOpenSettings: () => this.settingsPanel.open(),
+      onFind: find,
     });
 
     new Statusbar(store, theme);
-    const searchPanel = new SearchPanel(() => this.editor);
     // The preview's find bar has no place beside the source pane, which has
     // one of its own: left open, it searched the preview and, closed, put
     // the caret there, where typing was lost to the next source edit.
@@ -253,9 +260,7 @@ export class App {
       saveFile: () => fileController.saveFile(),
       saveFileAs: () => fileController.saveFileAs(),
       print: () => this.pdfExporter.open(),
-      find: () => {
-        if (!this.sourceMode?.find()) searchPanel.show();
-      },
+      find,
       findAgain: (back) => {
         if (!store.getState().sourceMode) searchPanel.findAgain(back);
       },
@@ -272,7 +277,7 @@ export class App {
     this.refreshStatsSoon();
     this.scheduleUpdateCheck();
     // A new window is opened to write in; the caret starts at the top.
-    this.editor.focus();
+    if (!isCompactLayout()) this.editor.focus();
   }
 
   private toggleOutline() {
@@ -357,7 +362,7 @@ export class App {
   private scheduleUpdateCheck() {
     // A dev build reports version 0.0.0 and would offer to replace itself
     // with the latest release on every launch.
-    if (import.meta.env.DEV) return;
+    if (import.meta.env.DEV || isMobilePlatform()) return;
     window.setTimeout(() => {
       void this.checkForUpdates().catch((error) => {
         console.error('[updates] Update check failed', error);

@@ -28,7 +28,39 @@ import {
 } from '@milkdown/kit/preset/gfm';
 import { toggleMark } from '@milkdown/kit/prose/commands';
 import type { MarkType } from '@milkdown/kit/prose/model';
-import type { Command, EditorState } from '@milkdown/kit/prose/state';
+import {
+  type Command,
+  type EditorState,
+  Plugin,
+} from '@milkdown/kit/prose/state';
+import { $prose } from '@milkdown/kit/utils';
+import { i18next } from '../../i18n';
+import { showToast } from '../../ui/toast';
+
+const NATIVE_MARKS: Record<string, string> = {
+  formatBold: 'strong',
+  formatItalic: 'emphasis',
+  formatStrikeThrough: 'strike_through',
+};
+
+/** System edit-menu actions use the same transactions as the format bar. */
+export const nativeMarkInput = $prose(
+  () =>
+    new Plugin({
+      props: {
+        handleDOMEvents: {
+          beforeinput(view, event) {
+            if (!event.inputType.startsWith('format')) return false;
+            event.preventDefault();
+            const type = view.state.schema.marks[NATIVE_MARKS[event.inputType]];
+            if (type) toggleThroughout(type)(view.state, view.dispatch);
+            else showToast(i18next.t('editor.unsupportedFormat'), '');
+            return true;
+          },
+        },
+      },
+    })
+);
 
 /**
  * Whether all of the selection has `type`: each piece of it that could, past

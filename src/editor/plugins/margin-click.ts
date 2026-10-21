@@ -34,6 +34,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { isMobilePlatform } from '../../platform/detect';
 import { clickedAt } from './mark-cursor';
 
 /** How far apart the points tried along a line are, and how many. */
@@ -216,6 +217,7 @@ export const marginClick = $prose(() => {
     spot.cm.dispatch({ selection: { anchor: spot.pos } });
   };
   const plain = (view: EditorView, event: MouseEvent) =>
+    !isMobilePlatform() &&
     event.button === 0 &&
     view.editable &&
     !event.metaKey &&

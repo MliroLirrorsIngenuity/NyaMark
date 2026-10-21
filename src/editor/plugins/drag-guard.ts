@@ -77,7 +77,7 @@ export function installDragSelectGuard(root: HTMLElement): () => void {
   };
 
   const onPointerDown = (event: PointerEvent) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || event.pointerType === 'touch') return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (target.closest(OVERLAY_SELECTOR)) return;

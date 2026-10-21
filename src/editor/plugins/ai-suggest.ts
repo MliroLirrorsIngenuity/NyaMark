@@ -25,7 +25,7 @@ import {
   type EditorView,
 } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
-import { isMacOS } from '../../platform/detect';
+import { usesCommandKey } from '../../platform/detect';
 import { ensureStyle } from '../../style/register';
 import {
   SPOT_AFTER,
@@ -195,7 +195,7 @@ const wordKey = (event: KeyboardEvent) =>
   event.key === 'ArrowRight' &&
   !event.shiftKey &&
   !event.altKey &&
-  (isMacOS()
+  (usesCommandKey()
     ? event.metaKey && !event.ctrlKey
     : event.ctrlKey && !event.metaKey);
 

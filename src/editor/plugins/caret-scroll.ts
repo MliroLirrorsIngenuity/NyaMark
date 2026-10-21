@@ -48,6 +48,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { isCompactLayout } from '../../ui/viewport';
 import { caretBox as drawnBox } from './mark-cursor';
 
 const MOVES = new Set([
@@ -64,6 +65,7 @@ const MARGIN_PX = 5;
 
 /** How far down the page the format bar pinned over its top reaches. */
 function barCover(el: Element): number {
+  if (isCompactLayout()) return 0;
   const page = el.closest('.ny-shell__body');
   const bar = el
     .closest('.milkdown')
@@ -218,6 +220,20 @@ export const caretScroll = $prose(() => {
         });
       };
       view.dom.addEventListener('keydown', onKey, true);
+      // A software keyboard changes the page's height without moving the caret.
+      const page = view.dom.closest<HTMLElement>('.ny-shell__body');
+      let resizeFrame = 0;
+      const resized = new ResizeObserver(() => {
+        if (!isCompactLayout() || !view.dom.contains(document.activeElement))
+          return;
+        cancelAnimationFrame(resizeFrame);
+        resizeFrame = requestAnimationFrame(() => {
+          view.dispatch(
+            view.state.tr.scrollIntoView().setMeta('addToHistory', false)
+          );
+        });
+      });
+      if (page) resized.observe(page);
       return {
         update(view, prev) {
           if (!keyed || frame || prev.doc.eq(view.state.doc)) return;
@@ -230,6 +246,8 @@ export const caretScroll = $prose(() => {
         },
         destroy() {
           cancelAnimationFrame(frame);
+          cancelAnimationFrame(resizeFrame);
+          resized.disconnect();
           view.dom.removeEventListener('keydown', onKey, true);
         },
       };

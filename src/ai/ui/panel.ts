@@ -39,8 +39,9 @@ import {
   updateSettings,
 } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
-import { setDocked } from '../../ui/dock';
+import { DockedPanel } from '../../ui/dock';
 import { isModalOpen } from '../../ui/modal';
+import { isCompactLayout } from '../../ui/viewport';
 import { Approvals } from '../agent/approvals';
 import type { MarkdownTree } from '../agent/document-text';
 import { buildInstructions } from '../agent/instructions';
@@ -210,6 +211,7 @@ function chooseEffort(effort: AiEffort | null) {
 
 export class AiPanel {
   private readonly root: HTMLElement;
+  private readonly dock: DockedPanel;
   private readonly scroller: HTMLElement;
   private readonly setup: HTMLElement;
   private readonly empty: HTMLElement;
@@ -265,6 +267,13 @@ export class AiPanel {
     this.root.hidden = true;
     this.root.setAttribute('aria-label', 'AI assistant');
     this.root.setAttribute('data-i18n-aria-label', 'ai.title');
+    this.dock = new DockedPanel(
+      this.root,
+      'ny-ai-open',
+      () => host.editor.getView(),
+      () => this.hide(),
+      document.getElementById('mb-ai')
+    );
 
     const resize = document.createElement('div');
     resize.className = 'ny-ai__resize';
@@ -280,7 +289,7 @@ export class AiPanel {
       choose: (ref) => {
         void updateSettings({ ai: { chatModel: ref } }).catch(console.error);
       },
-      manage: () => this.host.openSettings(),
+      manage: () => this.openSettings(),
     });
     this.effort = new EffortMenu(chooseEffort);
     this.newChat = iconButton(
@@ -303,9 +312,24 @@ export class AiPanel {
     this.mode = new ModeMenu((editMode) => {
       void updateSettings({ ai: { editMode } }).catch(console.error);
     });
+    const keyboard = iconButton(
+      ICONS.down,
+      'mobile.hideKeyboard',
+      'Hide keyboard',
+      'ny-dock__icon ny-ai__hide-keyboard'
+    );
+    keyboard.addEventListener('click', () =>
+      this.root.focus({ preventScroll: true })
+    );
     const close = iconButton(ICONS.close, 'ai.close', 'Close', 'ny-dock__icon');
     close.addEventListener('click', () => this.hide());
-    header.append(this.title, this.history.element, this.newChat, close);
+    header.append(
+      this.title,
+      this.history.element,
+      this.newChat,
+      keyboard,
+      close
+    );
 
     this.scroller = document.createElement('div');
     this.scroller.className = 'ny-ai__body';
@@ -325,7 +349,7 @@ export class AiPanel {
 
     this.list = new MessageList(this.scroller, jump, {
       retry: () => void this.session.retry(),
-      openSettings: () => this.host.openSettings(),
+      openSettings: () => this.openSettings(),
       edits: {
         outcome: (edit) => this.edits.outcome(edit),
         accept: (edit) => this.edits.acceptEdit(edit),
@@ -410,10 +434,10 @@ export class AiPanel {
   show() {
     if (!this.visible) {
       this.visible = true;
-      setDocked(this.root, true, 'ny-ai-open', this.host.editor.getView());
+      this.dock.setOpen(true);
       this.setPressed(true);
     }
-    this.focus();
+    if (!isCompactLayout()) this.focus();
   }
 
   hide() {
@@ -425,9 +449,9 @@ export class AiPanel {
     this.mode.destroy();
     this.history.destroy();
     this.keeper.flush();
-    setDocked(this.root, false, 'ny-ai-open', this.host.editor.getView());
+    this.dock.setOpen(false);
     this.setPressed(false);
-    if (hadFocus) this.host.editor.focus();
+    if (hadFocus && !isCompactLayout()) this.host.editor.focus();
   }
 
   /** Puts the caret where the user writes, or on the way to set up. */
@@ -445,7 +469,7 @@ export class AiPanel {
       editor: this.host.editor,
       edits: this.edits,
       documentPath: this.host.documentPath,
-      openSettings: this.host.openSettings,
+      openSettings: this.openSettings,
       toChat: (text) => {
         this.show();
         if (hasModels(this.ai)) this.composer.write(text);
@@ -462,6 +486,7 @@ export class AiPanel {
     this.approvals.reset();
     this.session.clear();
     this.hide();
+    this.dock.destroy();
     for (const cleanup of this.cleanups) cleanup();
     this.edits.destroy();
     this.list.destroy();
@@ -469,9 +494,9 @@ export class AiPanel {
   }
 
   private setPressed(pressed: boolean) {
-    document
-      .getElementById('tb-ai')
-      ?.setAttribute('aria-pressed', String(pressed));
+    for (const button of document.querySelectorAll('#tb-ai, #mb-ai')) {
+      button.setAttribute('aria-pressed', String(pressed));
+    }
   }
 
   /** Before any model is set up: where to set one up, and what can be. */
@@ -502,9 +527,7 @@ export class AiPanel {
       name.textContent = preset.name;
       service.append(name);
       service.insertAdjacentHTML('beforeend', ICONS.plus);
-      service.addEventListener('click', () =>
-        this.host.openSettings(preset.id)
-      );
+      service.addEventListener('click', () => this.openSettings(preset.id));
       const item = document.createElement('li');
       item.append(service);
       services.append(item);
@@ -514,7 +537,7 @@ export class AiPanel {
     open.className = 'ny-ai__button ny-ai__button--ink ny-ai__button--wide';
     open.textContent = 'Open AI settings';
     open.setAttribute('data-i18n', 'ai.setup.action');
-    open.addEventListener('click', () => this.host.openSettings());
+    open.addEventListener('click', () => this.openSettings());
     const note = document.createElement('p');
     note.className = 'ny-ai__state-note';
     note.textContent =
@@ -559,6 +582,11 @@ export class AiPanel {
     card.append(tile, heading, body, list);
     return card;
   }
+
+  private openSettings = (service?: string) => {
+    if (isCompactLayout()) this.hide();
+    this.host.openSettings(service);
+  };
 
   /** Files dropped on the panel go with the next message. */
   private async bindDrop() {

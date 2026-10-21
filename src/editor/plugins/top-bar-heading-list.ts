@@ -16,12 +16,14 @@ export function closeHeadingListOnKeys(root: HTMLElement) {
   // The list is Crepe's own state, opened and closed by a press on its button.
   // No button is pressed, so the press reads as no click to anything else.
   const close = () => {
+    if (!bar.querySelector('.top-bar-heading-dropdown')) return;
     bar
       .querySelector('.top-bar-heading-button')
       ?.dispatchEvent(
         new PointerEvent('pointerdown', { bubbles: true, button: -1 })
       );
   };
+  root.addEventListener('contextmenu', close);
   const onKey = (event: KeyboardEvent) => {
     if (event.key === 'Escape' || MODIFIERS.has(event.key)) return;
     close();

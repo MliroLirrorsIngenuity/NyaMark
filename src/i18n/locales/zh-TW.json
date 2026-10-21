@@ -45,6 +45,14 @@
     "untitled": "未命名.md",
     "windowControls": "視窗控制項"
   },
+  "mobile": {
+    "navigation": "文件工具",
+    "source": "原始碼",
+    "find": "尋找",
+    "hideKeyboard": "收起鍵盤",
+    "saved": "已儲存",
+    "unsaved": "未儲存"
+  },
   "statusbar": {
     "words": "{{count}} 個字",
     "lines": "共 {{count}} 行",
@@ -75,6 +83,7 @@
     "close": "關閉大綱"
   },
   "editor": {
+    "unsupportedFormat": "Markdown 不支援此格式，請使用格式工具列中的樣式。",
     "image": {
       "info": "資訊",
       "toggleInfo": "切換圖片詳細資訊",

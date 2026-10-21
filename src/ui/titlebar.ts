@@ -11,9 +11,12 @@ import {
 import type { Store } from '../state/store';
 
 import { i18next } from '../i18n';
-import { isMacOS } from '../platform/detect';
+import { isMacOS, isMobilePlatform } from '../platform/detect';
 import { documentFileName } from './document-name';
 import { pushEscapeLayer } from './escape-layers';
+import { type ModalHandle, openModal } from './modal';
+import { requireElement } from './require-element';
+import { COMPACT_QUERY, isCompactLayout } from './viewport';
 
 type TitlebarActions = {
   onNewFile: () => unknown;
@@ -24,6 +27,7 @@ type TitlebarActions = {
   onToggleOutline: () => unknown;
   onToggleAi: () => unknown;
   onOpenSettings: () => void;
+  onFind: () => void;
 };
 
 /** How far the pointer moves on the title bar before the window follows it. */
@@ -49,12 +53,27 @@ export class Titlebar {
     private readonly store: Store,
     private readonly actions: TitlebarActions
   ) {
-    this.bindWindowChromeRestore();
-    this.bindMaximizeState();
+    if (!isMobilePlatform()) {
+      this.bindWindowChromeRestore();
+      this.bindMaximizeState();
+    }
     this.bindFileMenu();
     this.bindAction('tb-outline', this.actions.onToggleOutline);
     this.bindAction('tb-ai', this.actions.onToggleAi);
     this.bindClick('tb-settings', () => this.actions.onOpenSettings());
+    this.bindAction('mb-save', this.actions.onSaveFile);
+    this.bindAction('mb-outline', this.actions.onToggleOutline);
+    this.bindAction('mb-ai', this.actions.onToggleAi);
+    this.bindClick('mb-settings', () => this.actions.onOpenSettings());
+    this.bindClick('mb-find', () => this.actions.onFind());
+    this.bindClick('mb-source', () => {
+      this.store.update({ sourceMode: !this.store.getState().sourceMode });
+    });
+    this.bindClick('mb-keyboard', () => {
+      document
+        .getElementById('tb-file-menu-button')
+        ?.focus({ preventScroll: true });
+    });
     this.bindClick(
       'tb-minimize',
       () => void minimizeWindow().catch(console.error)
@@ -74,7 +93,7 @@ export class Titlebar {
   private bindWindowChromeRestore() {
     const titlebar = document.getElementById('ny-titlebar') as HTMLElement;
     const isTitlebarClick = (event: MouseEvent) =>
-      event.button === 0 && event.target === titlebar;
+      !isCompactLayout() && event.button === 0 && event.target === titlebar;
 
     if (!isMacOS()) {
       this.bindTitlebarDrag(titlebar, isTitlebarClick);
@@ -212,6 +231,10 @@ export class Titlebar {
     const menu = this.elFileMenu;
 
     let releaseEscape: (() => void) | null = null;
+    let modal: ModalHandle | null = null;
+    let backdrop: HTMLElement | null = null;
+    const home = requireElement(document, '.ny-shell__file-menu');
+    const app = requireElement(document, '#ny-app');
     const closeOnOutsideClick = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
@@ -224,13 +247,35 @@ export class Titlebar {
       if (open === !menu.hidden) return;
       menu.hidden = !open;
       menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) {
+      if (open && isCompactLayout()) {
+        backdrop = document.createElement('div');
+        backdrop.className = 'ny-file-backdrop';
+        document.body.append(backdrop, menu);
+        modal = openModal({
+          overlay: backdrop,
+          dialog: menu,
+          initialFocus: menu,
+          restoreFocus: false,
+          onDismiss: () => setOpen(false),
+        });
+        app.inert = true;
+      } else if (open) {
         document.addEventListener('click', closeOnOutsideClick);
         releaseEscape = pushEscapeLayer({ dismiss: () => setOpen(false) });
       } else {
         document.removeEventListener('click', closeOnOutsideClick);
         releaseEscape?.();
         releaseEscape = null;
+        if (!modal) return;
+        modal.release();
+        modal = null;
+        backdrop?.remove();
+        backdrop = null;
+        menu.removeAttribute('aria-modal');
+        menu.setAttribute('role', 'menu');
+        home.append(menu);
+        app.inert = false;
+        menuButton.focus({ preventScroll: true });
       }
     };
 
@@ -239,36 +284,26 @@ export class Titlebar {
       setOpen(Boolean(menu.hidden));
     });
 
-    menu
-      .querySelector<HTMLElement>('[data-file-action="new"]')
-      ?.addEventListener('click', () => {
-        setOpen(false);
-        void Promise.resolve(this.actions.onNewFile()).catch(console.error);
-      });
-    menu
-      .querySelector<HTMLElement>('[data-file-action="open"]')
-      ?.addEventListener('click', () => {
-        setOpen(false);
-        void Promise.resolve(this.actions.onOpenFile()).catch(console.error);
-      });
-    menu
-      .querySelector<HTMLElement>('[data-file-action="save"]')
-      ?.addEventListener('click', () => {
-        setOpen(false);
-        void Promise.resolve(this.actions.onSaveFile()).catch(console.error);
-      });
-    menu
-      .querySelector<HTMLElement>('[data-file-action="save-as"]')
-      ?.addEventListener('click', () => {
-        setOpen(false);
-        void Promise.resolve(this.actions.onSaveFileAs()).catch(console.error);
-      });
-    menu
-      .querySelector<HTMLElement>('[data-file-action="export-pdf"]')
-      ?.addEventListener('click', () => {
-        setOpen(false);
-        void Promise.resolve(this.actions.onExportPdf()).catch(console.error);
-      });
+    const fileActions: Record<string, () => unknown> = {
+      new: this.actions.onNewFile,
+      open: this.actions.onOpenFile,
+      save: this.actions.onSaveFile,
+      'save-as': this.actions.onSaveFileAs,
+      'export-pdf': this.actions.onExportPdf,
+    };
+    menu.addEventListener('click', (event) => {
+      const button = (event.target as Element).closest<HTMLElement>(
+        '[data-file-action], [data-file-dismiss]'
+      );
+      if (!button) return;
+      setOpen(false);
+      const action = button.dataset.fileAction;
+      if (action)
+        void Promise.resolve(fileActions[action]?.()).catch(console.error);
+    });
+    window
+      .matchMedia(COMPACT_QUERY)
+      .addEventListener('change', () => setOpen(false));
   }
 
   private bindAction(id: string, handler: () => unknown) {
@@ -288,5 +323,15 @@ export class Titlebar {
       void setWindowTitle(filename).catch(console.error);
     }
     this.elDirty.style.opacity = state.isDirty ? '1' : '0';
+    const status = document.getElementById('tb-mobile-status');
+    if (status) {
+      status.textContent = `${i18next.t(state.isDirty || !state.filePath ? 'mobile.unsaved' : 'mobile.saved')} · ${i18next.t('statusbar.words', { count: state.wordCount })}`;
+    }
+    document
+      .getElementById('mb-save')
+      ?.classList.toggle('is-dirty', state.isDirty);
+    document
+      .getElementById('mb-source')
+      ?.setAttribute('aria-pressed', String(state.sourceMode));
   }
 }

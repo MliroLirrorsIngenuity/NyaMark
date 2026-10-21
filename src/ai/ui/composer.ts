@@ -1,5 +1,6 @@
 import { i18next } from '../../i18n';
 import { forInputMethod } from '../../ui/ime';
+import { isCompactLayout } from '../../ui/viewport';
 import type { ChatImage } from '../images/image';
 import { ICONS } from './icons';
 import { ImageTray } from './image-tray';
@@ -16,8 +17,8 @@ export type ComposerActions = {
 };
 
 /**
- * Where the user writes to the assistant. Enter sends and Shift-Enter starts
- * a new line; the Enter that commits an input method's text does neither.
+ * Enter sends on desktop; on mobile it starts a line and the button sends.
+ * The Enter that commits an input method's text does neither.
  * Images pasted, dropped or chosen wait over it, to go with the message.
  */
 export class Composer {
@@ -186,6 +187,7 @@ export class Composer {
   private onKey = (event: KeyboardEvent) => {
     if (forInputMethod(event)) return;
     if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
+      if (isCompactLayout() && !event.metaKey && !event.ctrlKey) return;
       event.preventDefault();
       this.submit();
       return;

@@ -11,8 +11,9 @@
 import type { NyaEditor } from '../editor/editor';
 import { translateDOM } from '../i18n/dom';
 import { ensureStyle } from '../style/register';
-import { setDocked } from './dock';
+import { DockedPanel } from './dock';
 import { READING_LINE_PX, scrollHostOf } from './reading-position';
+import { isCompactLayout } from './viewport';
 
 const outlineStyles = `
 .ny-outline {
@@ -36,6 +37,12 @@ const outlineStyles = `
 }
 
 .ny-outline__item {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
   position: relative;
   padding: 5px 10px 5px calc(10px + var(--outline-indent, 0px));
   border-radius: 8px;
@@ -90,6 +97,7 @@ type Heading = { id: string; level: number; text: string };
 export class OutlinePanel {
   private readonly elPanel: HTMLElement;
   private readonly elList: HTMLElement;
+  private readonly dock: DockedPanel;
   private isVisible = false;
   private headings: Heading[] = [];
   private activeId: string | null = null;
@@ -143,6 +151,13 @@ export class OutlinePanel {
     this.elPanel.appendChild(this.elList);
     document.body.appendChild(this.elPanel);
     translateDOM(this.elPanel);
+    this.dock = new DockedPanel(
+      this.elPanel,
+      'ny-outline-open',
+      () => editor.getView(),
+      () => this.hide(),
+      document.getElementById('mb-outline')
+    );
 
     // Toggling is a global shortcut (see features/shortcut-controller.ts).
     this.unsubscribe = editor.onDocChanged(() => this.scheduleRender());
@@ -151,6 +166,7 @@ export class OutlinePanel {
   destroy() {
     this.hide();
     this.unsubscribe();
+    this.dock.destroy();
     if (this.renderTimer != null) window.clearTimeout(this.renderTimer);
     this.elPanel.remove();
   }
@@ -163,7 +179,7 @@ export class OutlinePanel {
   show() {
     if (this.isVisible) return;
     this.isVisible = true;
-    setDocked(this.elPanel, true, 'ny-outline-open', this.editor.getView());
+    this.dock.setOpen(true);
     this.setPressed(true);
     document.addEventListener('scroll', this.onScroll, {
       capture: true,
@@ -182,7 +198,7 @@ export class OutlinePanel {
   hide() {
     if (!this.isVisible) return;
     this.isVisible = false;
-    setDocked(this.elPanel, false, 'ny-outline-open', this.editor.getView());
+    this.dock.setOpen(false);
     this.setPressed(false);
     document.removeEventListener('scroll', this.onScroll, { capture: true });
     for (const type of ['wheel', 'touchmove', 'keydown', 'mousedown']) {
@@ -194,9 +210,11 @@ export class OutlinePanel {
   }
 
   private setPressed(pressed: boolean) {
-    document
-      .getElementById('tb-outline')
-      ?.setAttribute('aria-pressed', String(pressed));
+    for (const button of document.querySelectorAll(
+      '#tb-outline, #mb-outline'
+    )) {
+      button.setAttribute('aria-pressed', String(pressed));
+    }
   }
 
   /** A burst of keystrokes is rendered once, after it ends. */
@@ -240,7 +258,8 @@ export class OutlinePanel {
     const top = Math.min(...items.map((item) => item.level));
     for (const item of items) {
       const depth = Math.min(item.level - top, MAX_DEPTH);
-      const el = document.createElement('div');
+      const el = document.createElement('button');
+      el.type = 'button';
       el.className = 'ny-outline__item';
       el.dataset.depth = String(depth);
       el.dataset.id = item.id;
@@ -263,6 +282,7 @@ export class OutlinePanel {
     this.pinnedId = id;
     this.setActive(id, false);
     this.goTo(id);
+    if (isCompactLayout()) this.hide();
   };
 
   private releasePin = (event: Event) => {

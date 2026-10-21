@@ -46,6 +46,7 @@ import {
 import { $prose } from '@milkdown/kit/utils';
 import type { Root } from 'mdast';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
+import { isCompactLayout } from '../ui/viewport';
 
 import { buildCrepeConfig } from './config';
 import {
@@ -127,7 +128,7 @@ import { listKinds } from './plugins/list-kinds';
 import { listTab } from './plugins/list-tab';
 import { marginClick } from './plugins/margin-click';
 import { markCursor } from './plugins/mark-cursor';
-import { markTogglesThroughout } from './plugins/mark-toggles';
+import { markTogglesThroughout, nativeMarkInput } from './plugins/mark-toggles';
 import {
   displayWidth,
   markdownOutput,
@@ -325,6 +326,7 @@ export class NyaEditor {
     crepe.editor.use(headingIds);
     crepe.editor.use(typedMarksInput);
     crepe.editor.use(markCursor);
+    crepe.editor.use(nativeMarkInput);
     crepe.editor.use(inlineCodeText);
     crepe.editor.use(cjkBreaks);
     crepe.editor.use(compositionSettle);
@@ -769,7 +771,13 @@ export class NyaEditor {
     if (!view) return;
     const meta: SearchMeta = { query: '', matches: [], active: -1 };
     view.dispatch(view.state.tr.setMeta(searchKey, meta));
-    if (view.editable && !view.dom.closest('.is-source-mode')) view.focus();
+    // Returning focus on a small screen would reopen the software keyboard.
+    if (
+      view.editable &&
+      !view.dom.closest('.is-source-mode') &&
+      !isCompactLayout()
+    )
+      view.focus();
   }
 
   /** Puts the caret in the editor without moving it, ready for typing. */

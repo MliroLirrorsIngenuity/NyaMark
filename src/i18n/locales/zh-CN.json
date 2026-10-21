@@ -45,6 +45,14 @@
     "untitled": "未命名.md",
     "windowControls": "窗口控件"
   },
+  "mobile": {
+    "navigation": "文档工具",
+    "source": "源码",
+    "find": "查找",
+    "hideKeyboard": "收起键盘",
+    "saved": "已保存",
+    "unsaved": "未保存"
+  },
   "statusbar": {
     "words": "{{count}} 个字",
     "lines": "共 {{count}} 行",
@@ -75,6 +83,7 @@
     "close": "关闭大纲"
   },
   "editor": {
+    "unsupportedFormat": "Markdown 不支持此格式，请使用格式工具栏中的样式。",
     "image": {
       "info": "信息",
       "toggleInfo": "切换图片详情",

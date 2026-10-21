@@ -1,4 +1,10 @@
-export type Platform = 'macos' | 'windows' | 'linux' | 'other';
+export type Platform =
+  | 'macos'
+  | 'windows'
+  | 'linux'
+  | 'ios'
+  | 'android'
+  | 'other';
 
 let cached: Platform | null = null;
 
@@ -10,7 +16,13 @@ let cached: Platform | null = null;
 function detect(): Platform {
   const native = (window as Window & { __NYAMARK_PLATFORM__?: string })
     .__NYAMARK_PLATFORM__;
-  if (native === 'macos' || native === 'windows' || native === 'linux') {
+  if (
+    native === 'macos' ||
+    native === 'windows' ||
+    native === 'linux' ||
+    native === 'ios' ||
+    native === 'android'
+  ) {
     return native;
   }
   const nav = navigator as Navigator & {
@@ -27,6 +39,16 @@ function detect(): Platform {
 export function getPlatform(): Platform {
   if (cached === null) cached = detect();
   return cached;
+}
+
+/** A phone or tablet: one window, no menu bar, no updater of its own. */
+export function isMobilePlatform() {
+  return getPlatform() === 'ios' || getPlatform() === 'android';
+}
+
+/** Apple's keyboards, an iPad's included: shortcuts are made with Command. */
+export function usesCommandKey() {
+  return getPlatform() === 'macos' || getPlatform() === 'ios';
 }
 
 export function isMacOS() {

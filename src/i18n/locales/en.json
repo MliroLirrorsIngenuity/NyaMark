@@ -45,6 +45,14 @@
     "untitled": "Untitled.md",
     "windowControls": "Window controls"
   },
+  "mobile": {
+    "navigation": "Document tools",
+    "source": "Source",
+    "find": "Find",
+    "hideKeyboard": "Hide keyboard",
+    "saved": "Saved",
+    "unsaved": "Unsaved"
+  },
   "statusbar": {
     "words": "{{count}} words",
     "words_one": "1 word",
@@ -77,6 +85,7 @@
     "close": "Close outline"
   },
   "editor": {
+    "unsupportedFormat": "This format is not supported in Markdown. Use the formatting toolbar instead.",
     "image": {
       "info": "Info",
       "toggleInfo": "Toggle image details",

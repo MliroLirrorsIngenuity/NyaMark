@@ -1,5 +1,6 @@
 import { currentVersion } from '../../../bridge/ipc/updates';
 import { i18next } from '../../../i18n';
+import { isMobilePlatform } from '../../../platform/detect';
 import type { GeneralSettings } from '../../../state/settings';
 import { renderSelect } from '../select';
 
@@ -70,6 +71,10 @@ function renderVersionRow(updates: UpdateActions): HTMLElement {
       if (number) number.textContent = version;
     })
     .catch(console.error);
+  if (isMobilePlatform()) {
+    button?.remove();
+    return row;
+  }
   button?.addEventListener('click', async () => {
     button.disabled = true;
     button.removeAttribute('data-i18n');

@@ -1,10 +1,16 @@
 import { type ResizeDirection, startWindowResize } from '../bridge/ipc/windows';
-import { getPlatform } from '../platform/detect';
+import {
+  getPlatform,
+  isMobilePlatform,
+  usesCommandKey,
+} from '../platform/detect';
 import { ensureStyle } from '../style/register';
+import mobileStyles from './mobile.css?inline';
 import shellStyles from './shell.css?inline';
 
 export function registerShellStyles() {
   ensureStyle('app-shell', shellStyles);
+  if (isMobilePlatform()) ensureStyle('app-mobile', mobileStyles);
 }
 
 const linuxResizeHandles: Array<{
@@ -53,17 +59,20 @@ export function renderAppShell(host: HTMLElement) {
   const platformClass = getPlatform();
   const isMac = platformClass === 'macos';
   const isLinux = platformClass === 'linux';
+  const mobile = isMobilePlatform();
+  const onMobile = (markup: string) => (mobile ? markup : '');
+  const commandKey = usesCommandKey();
   const initialThemeLabel = window.matchMedia?.('(prefers-color-scheme: dark)')
     .matches
     ? 'Dark'
     : 'Light';
-  const newShortcutHint = isMac ? '⌘N' : 'Ctrl+N';
-  const openShortcutHint = isMac ? '⌘O' : 'Ctrl+O';
-  const saveShortcutHint = isMac ? '⌘S' : 'Ctrl+S';
-  const saveAsShortcutHint = isMac ? '⌘⇧S' : 'Ctrl+Shift+S';
-  const exportPdfShortcutHint = isMac ? '⌘P' : 'Ctrl+P';
-  const outlineShortcutHint = isMac ? '⌘⇧O' : 'Ctrl+Shift+O';
-  const aiShortcutHint = isMac ? '⌘⇧L' : 'Ctrl+Shift+L';
+  const newShortcutHint = commandKey ? '⌘N' : 'Ctrl+N';
+  const openShortcutHint = commandKey ? '⌘O' : 'Ctrl+O';
+  const saveShortcutHint = commandKey ? '⌘S' : 'Ctrl+S';
+  const saveAsShortcutHint = commandKey ? '⌘⇧S' : 'Ctrl+Shift+S';
+  const exportPdfShortcutHint = commandKey ? '⌘P' : 'Ctrl+P';
+  const outlineShortcutHint = commandKey ? '⌘⇧O' : 'Ctrl+Shift+O';
+  const aiShortcutHint = commandKey ? '⌘⇧L' : 'Ctrl+Shift+L';
   const settingsShortcutHint = 'Ctrl+,';
   // Tauri's drag region moves the window on macOS. On Windows and Linux,
   // `Titlebar` moves it and takes the double-click.
@@ -86,12 +95,19 @@ export function renderAppShell(host: HTMLElement) {
             aria-haspopup="menu"
             aria-expanded="false"
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+            <svg class="ny-shell__file-symbol" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
               <path d="M4.25 1.75h5l3.5 3.5v8a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1V2.75a1 1 0 0 1 1-1Z" />
               <path d="M9.25 1.75v3.5h3.5" />
             </svg>
+            ${onMobile(`<svg class="ny-mobile-only" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+              <circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>
+            </svg>`)}
           </button>
-          <div id="tb-file-menu" class="ny-shell__menu" role="menu" hidden>
+          <div id="tb-file-menu" class="ny-shell__menu" role="menu" aria-label="File" data-i18n-aria-label="shell.file" hidden>
+            ${onMobile(`<div class="ny-mobile-only ny-shell__menu-header">
+              <h2 data-i18n="shell.file">File</h2>
+              <button type="button" class="ny-shell__icon-button" data-file-dismiss aria-label="Close" data-i18n-aria-label="shell.close">✕</button>
+            </div>`)}
             <button class="ny-shell__menu-item" type="button" data-file-action="new" role="menuitem">
               <span data-i18n="shell.new">New</span>
               <span class="ny-shell__shortcut-hint">${newShortcutHint}</span>
@@ -108,10 +124,14 @@ export function renderAppShell(host: HTMLElement) {
               <span data-i18n="shell.saveAs">Save As</span>
               <span class="ny-shell__shortcut-hint">${saveAsShortcutHint}</span>
             </button>
-            <button class="ny-shell__menu-item" type="button" data-file-action="export-pdf" role="menuitem">
+            ${
+              mobile
+                ? ''
+                : `<button class="ny-shell__menu-item" type="button" data-file-action="export-pdf" role="menuitem">
               <span data-i18n="shell.exportPdf">Export as PDF</span>
               <span class="ny-shell__shortcut-hint">${exportPdfShortcutHint}</span>
-            </button>
+            </button>`
+            }
           </div>
         </div>
         <button id="tb-settings" class="ny-shell__shortcut-button ny-shell__settings-button ny-shell__icon-button" type="button" title="Settings" aria-label="Settings" data-i18n-title="shell.settings" data-i18n-aria-label="shell.settings" data-shortcut="${settingsShortcutHint}">
@@ -122,37 +142,10 @@ export function renderAppShell(host: HTMLElement) {
         </button>
       `;
 
-  document.documentElement.dataset.platform = platformClass;
-  host.className = `ny-editor-root ny-shell ny-shell--${platformClass}`;
-  // The shell's ids carry `ny-`: a heading takes its text as its id, and one
-  // named "App" or "Statusbar" was styled as the window or the status bar.
-  host.innerHTML = `
-    ${isLinux ? renderLinuxResizeHandles() : ''}
-
-    <div id="ny-titlebar"${titlebarDragRegion}>
-      <div class="ny-shell__title-leading">
-        <div class="ny-shell__title-quick-actions">${fileActionsMarkup}</div>
-      </div>
-      <div class="ny-shell__title-center">
-        <div id="tb-filename" class="ny-shell__filename"></div>
-        <span id="tb-dirty" class="ny-shell__dirty">●</span>
-      </div>
-      <div class="ny-shell__title-actions">
-        <div class="ny-shell__title-meta">
-          <div class="ny-shell__title-quick-actions">
-            <button id="tb-outline" class="ny-shell__shortcut-button ny-shell__icon-button" type="button" title="Toggle outline" aria-label="Toggle outline" data-i18n-title="shell.outline" data-i18n-aria-label="shell.outline" data-shortcut="${outlineShortcutHint}">
-              <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-                <path d="M2.75 4h10.5M4.75 8h8.5M6.75 12h6.5" />
-              </svg>
-            </button>
-            <button id="tb-ai" class="ny-shell__shortcut-button ny-shell__icon-button" type="button" title="AI assistant" aria-label="AI assistant" aria-pressed="false" data-i18n-title="shell.ai" data-i18n-aria-label="shell.ai" data-shortcut="${aiShortcutHint}">
-              <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
-                <path d="M7.25 2c.42 3.05 1.43 4.06 4.5 4.5-3.07.44-4.08 1.45-4.5 4.5-.42-3.05-1.43-4.06-4.5-4.5 3.07-.44 4.08-1.45 4.5-4.5Z" />
-                <path d="M12.25 10.5c.17 1.2.57 1.6 1.75 1.75-1.18.15-1.58.55-1.75 1.75-.17-1.2-.57-1.6-1.75-1.75 1.18-.15 1.58-.55 1.75-1.75Z" />
-              </svg>
-            </button>
-          </div>
-        </div>
+  // A phone or tablet window is the whole screen, without controls of its own.
+  const windowControlsMarkup = mobile
+    ? ''
+    : `
         <div class="ny-shell__window-controls" aria-label="Window controls" data-i18n-aria-label="shell.windowControls">
           <button id="tb-minimize" class="ny-shell__window-button" type="button" title="Minimize" aria-label="Minimize" data-i18n-title="shell.minimize" data-i18n-aria-label="shell.minimize" data-window-control>
             <svg viewBox="0 0 10 10" aria-hidden="true">
@@ -174,12 +167,100 @@ export function renderAppShell(host: HTMLElement) {
             </svg>
           </button>
         </div>
+      `;
+
+  const mobileNavMarkup = `
+    <div class="ny-mobile-nav ny-mobile-only" role="toolbar" aria-label="Document tools" data-i18n-aria-label="mobile.navigation">
+      ${[
+        [
+          'outline',
+          'shell.outline',
+          'Outline',
+          '<path d="M5 6h14M8 12h11M11 18h8"/>',
+        ],
+        [
+          'source',
+          'mobile.source',
+          'Source',
+          '<path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/>',
+        ],
+        [
+          'ai',
+          'shell.ai',
+          'AI assistant',
+          '<path d="M10 3c.7 5 2 6.3 7 7-5 .7-6.3 2-7 7-.7-5-2-6.3-7-7 5-.7 6.3-2 7-7Zm9 11c.3 2.5 1 3.2 3 3.5-2 .3-2.7 1-3 3.5-.3-2.5-1-3.2-3-3.5 2-.3 2.7-1 3-3.5Z"/>',
+        ],
+        [
+          'find',
+          'mobile.find',
+          'Find',
+          '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
+        ],
+        [
+          'settings',
+          'shell.settings',
+          'Settings',
+          '<path d="m9 3-1 3-3 1-2 3 2 2v3l3 2 1 3h6l1-3 3-2v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11.5" r="3"/>',
+        ],
+      ]
+        .map(
+          ([action, key, label, icon]) => `
+        <button id="mb-${action}" type="button" class="ny-mobile-nav__button" data-i18n-title="${key}"${['outline', 'source', 'ai'].includes(action) ? ' aria-pressed="false"' : ''}>
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>
+          <span data-i18n="${key}">${label}</span>
+        </button>
+      `
+        )
+        .join('')}
+    </div>`;
+
+  document.documentElement.dataset.platform = platformClass;
+  host.className = `ny-editor-root ny-shell ny-shell--${platformClass}`;
+  // The shell's ids carry `ny-`: a heading takes its text as its id, and one
+  // named "App" or "Statusbar" was styled as the window or the status bar.
+  host.innerHTML = `
+    ${isLinux ? renderLinuxResizeHandles() : ''}
+
+    <div id="ny-titlebar"${titlebarDragRegion}>
+      <div class="ny-shell__title-leading">
+        <div class="ny-shell__title-quick-actions">${fileActionsMarkup}</div>
+      </div>
+      <div class="ny-shell__title-center">
+        <div class="ny-shell__document">
+          <div id="tb-filename" class="ny-shell__filename"></div>
+          ${onMobile('<div id="tb-mobile-status" class="ny-mobile-only ny-shell__document-status"></div>')}
+        </div>
+        <span id="tb-dirty" class="ny-shell__dirty">●</span>
+      </div>
+      <div class="ny-shell__title-actions">
+        ${onMobile(`<button id="mb-save" class="ny-mobile-only ny-shell__icon-button" type="button" aria-label="Save" data-i18n-aria-label="shell.save">
+          <span data-i18n="shell.save">Save</span>
+        </button>`)}
+        <div class="ny-shell__title-meta">
+          <div class="ny-shell__title-quick-actions">
+            <button id="tb-outline" class="ny-shell__shortcut-button ny-shell__icon-button" type="button" title="Toggle outline" aria-label="Toggle outline" data-i18n-title="shell.outline" data-i18n-aria-label="shell.outline" data-shortcut="${outlineShortcutHint}">
+              <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+                <path d="M2.75 4h10.5M4.75 8h8.5M6.75 12h6.5" />
+              </svg>
+            </button>
+            <button id="tb-ai" class="ny-shell__shortcut-button ny-shell__icon-button" type="button" title="AI assistant" aria-label="AI assistant" aria-pressed="false" data-i18n-title="shell.ai" data-i18n-aria-label="shell.ai" data-shortcut="${aiShortcutHint}">
+              <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+                <path d="M7.25 2c.42 3.05 1.43 4.06 4.5 4.5-3.07.44-4.08 1.45-4.5 4.5-.42-3.05-1.43-4.06-4.5-4.5 3.07-.44 4.08-1.45 4.5-4.5Z" />
+                <path d="M12.25 10.5c.17 1.2.57 1.6 1.75 1.75-1.18.15-1.58.55-1.75 1.75-.17-1.2-.57-1.6-1.75-1.75 1.18-.15 1.58-.55 1.75-1.75Z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        ${windowControlsMarkup}
       </div>
     </div>
 
     <div class="ny-shell__body">
       <div id="ny-editor-container"></div>
     </div>
+    ${onMobile(`<button id="mb-keyboard" class="ny-mobile-only ny-shell__icon-button" type="button" aria-label="Hide keyboard" data-i18n-aria-label="mobile.hideKeyboard">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="12" rx="2"/><path d="M7 7h.01M11 7h.01M15 7h.01M7 11h10M8 19l4 3 4-3"/></svg>
+    </button>`)}
 
     <div id="ny-statusbar">
       <div class="ny-shell__status-group">
@@ -191,6 +272,7 @@ export function renderAppShell(host: HTMLElement) {
         <button id="sb-mode" type="button" class="ny-shell__action" title="Toggle source mode" aria-label="Toggle source mode" data-i18n-title="statusbar.modeToggle" data-i18n-aria-label="statusbar.modeToggle"></button>
       </div>
     </div>
+    ${onMobile(mobileNavMarkup)}
   `;
 
   if (isLinux) bindLinuxResizeHandles(host);

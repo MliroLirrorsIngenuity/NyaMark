@@ -30,6 +30,8 @@ export type ModalOptions = {
   labelledBy?: string;
   /** Element focused on open; the first focusable control when omitted. */
   initialFocus?: HTMLElement | null;
+  /** Sheets may return to navigation instead of reopening the keyboard. */
+  restoreFocus?: boolean;
   /** Whether Escape and the backdrop may dismiss right now; always by default. */
   canDismiss?: () => boolean;
   /** Set to `false` for dialogs whose changes a stray click must not discard. */
@@ -192,6 +194,7 @@ export function openModal(options: ModalOptions): ModalHandle {
       // target.
       const active = document.activeElement;
       if (
+        options.restoreFocus !== false &&
         restoreTo?.isConnected &&
         (!active || active === document.body || dialog.contains(active))
       ) {

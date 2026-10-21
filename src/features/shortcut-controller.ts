@@ -1,4 +1,4 @@
-import { isMacOS } from '../platform/detect';
+import { isMacOS, usesCommandKey } from '../platform/detect';
 import { isModalOpen } from '../ui/modal';
 
 type ShortcutHandlers = {
@@ -22,7 +22,7 @@ type ShortcutHandlers = {
  * it must never stand in for Command.
  */
 export function hasPrimaryModifier(event: KeyboardEvent | MouseEvent) {
-  return isMacOS() ? event.metaKey : event.ctrlKey;
+  return usesCommandKey() ? event.metaKey : event.ctrlKey;
 }
 
 /**

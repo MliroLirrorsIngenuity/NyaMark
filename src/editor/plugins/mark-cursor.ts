@@ -42,6 +42,7 @@ import {
   type EditorView,
 } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { isMobilePlatform } from '../../platform/detect';
 
 type Side = readonly Mark[];
 
@@ -361,6 +362,7 @@ export function clickedAt(tr: Transaction, view: EditorView, y: number) {
 }
 
 export const markCursor = $prose(() => {
+  const nativeSelection = isMobilePlatform();
   const cursor = document.createElement('div');
   // The line edge the last key went to, until the selection gets there.
   let jump: -1 | 0 | 1 = 0;
@@ -387,6 +389,7 @@ export const markCursor = $prose(() => {
       return outsideAtEdge(state, dir);
     },
     view(view) {
+      if (nativeSelection) return {};
       const draw = () => {
         line = drawCursor(view, cursor, came) ?? line;
       };
@@ -454,6 +457,7 @@ export const markCursor = $prose(() => {
         return true;
       },
       handleClick(view, pos, event) {
+        if (nativeSelection) return false;
         if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) {
           return false;
         }
@@ -467,6 +471,7 @@ export const markCursor = $prose(() => {
         return true;
       },
       decorations(state) {
+        if (nativeSelection) return null;
         const { selection } = state;
         if (!(selection instanceof TextSelection) || !selection.empty) {
           return null;
@@ -475,7 +480,7 @@ export const markCursor = $prose(() => {
           Decoration.widget(0, cursor, { key: 'prosemirror-virtual-cursor' }),
         ]);
       },
-      attributes: { class: 'virtual-cursor-enabled' },
+      attributes: nativeSelection ? {} : { class: 'virtual-cursor-enabled' },
     },
   });
 });

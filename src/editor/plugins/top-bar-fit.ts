@@ -12,6 +12,9 @@
  * the width the bar has inside it, makes no size container of the bar.
  */
 
+import { isCompactLayout } from '../../ui/viewport';
+import { bindTouchToolbar } from './touch-toolbar';
+
 /** The width of the bar's buttons, without its padding, at full spacing. */
 const NARROW_PX = 760;
 const NARROW_CLASS = 'ny-top-bar-narrow';
@@ -44,7 +47,7 @@ function fit(editor: HTMLElement, bar: HTMLElement, row: HTMLElement) {
   editor.classList.toggle(NARROW_CLASS, room(bar) <= NARROW_PX);
   // Measured on one row: the buttons' width differs by language.
   editor.classList.remove(WRAP_CLASS);
-  if (tooWide(row)) editor.classList.add(WRAP_CLASS);
+  if (!isCompactLayout() && tooWide(row)) editor.classList.add(WRAP_CLASS);
 }
 
 /** Call once the editor is created. Crepe adds the bar as it is created. */
@@ -52,6 +55,7 @@ export function fitTopBar(root: HTMLElement) {
   const editor = root.querySelector<HTMLElement>('.milkdown');
   const bar = editor?.querySelector<HTMLElement>(':scope > .milkdown-top-bar');
   if (!editor || !bar) return;
+  bindTouchToolbar(bar);
   const scroller = editor.closest<HTMLElement>('.ny-shell__body');
   let fitted = '';
   const check = () => {

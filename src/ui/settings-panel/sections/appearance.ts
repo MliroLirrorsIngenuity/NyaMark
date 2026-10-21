@@ -1,4 +1,4 @@
-import { getPlatform } from '../../../platform/detect';
+import { getPlatform, isMobilePlatform } from '../../../platform/detect';
 import {
   type AppearanceSettings,
   type ThemePreference,
@@ -21,7 +21,7 @@ export function renderAppearanceSection(
   current: AppearanceSettings,
   onChange: (next: AppearanceSettings, mode: 'input' | 'commit') => void
 ): HTMLElement {
-  const showTransparency = getPlatform() !== 'linux';
+  const showTransparency = getPlatform() !== 'linux' && !isMobilePlatform();
   // macOS frosts with the system's material, which looks the same under any
   // wash of the page's colour; Windows' glass takes the wash it is given.
   const showOpacity = getPlatform() === 'windows';

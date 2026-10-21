@@ -71,6 +71,7 @@ import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 import { i18next } from '../i18n';
 import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
+import { isCompactLayout } from '../ui/viewport';
 import { textChange } from './doc-diff';
 import type { NyaEditor } from './editor';
 import { headingKey, syncedScrollTop } from './scroll-sync';
@@ -387,6 +388,8 @@ export class SourceModeController {
   private activeScrollSource: HTMLElement | null = null;
   /** Aborts the scroll-sync listeners of the current source-mode session. */
   private scrollSyncAbort: AbortController | null = null;
+  private paneResize: ResizeObserver | null = null;
+  private resizeFrame = 0;
   private anchorsDirty = true;
   private sourceAnchors: SourceAnchor[] = [];
   private previewAnchors: PreviewAnchor[] = [];
@@ -677,6 +680,17 @@ export class SourceModeController {
     this.invalidateAnchors();
     this.cmView.focus();
     this.bindScrollSync();
+    const cm = this.cmView;
+    this.paneResize = new ResizeObserver(() => {
+      if (!isCompactLayout() || !cm.hasFocus) return;
+      cancelAnimationFrame(this.resizeFrame);
+      this.resizeFrame = requestAnimationFrame(() => {
+        cm.dispatch({
+          effects: EditorView.scrollIntoView(cm.state.selection.main.head),
+        });
+      });
+    });
+    this.paneResize.observe(this.host);
   }
 
   private bindScrollSync() {
@@ -719,7 +733,7 @@ export class SourceModeController {
 
     // A pane led by the other scrolls too; that scroll is not followed back.
     const sync = (source: HTMLElement, target: HTMLElement) => {
-      if (this.activeScrollSource !== source) return;
+      if (isCompactLayout() || this.activeScrollSource !== source) return;
 
       requestAnimationFrame(() => {
         this.ensureAnchors();
@@ -776,10 +790,14 @@ export class SourceModeController {
       text: cm.state.doc.toString(),
       anchor: cm.state.selection.main.anchor,
       head: cm.state.selection.main.head,
+      focused: cm.hasFocus,
     };
     this.flush();
     this.scrollSyncAbort?.abort();
     this.scrollSyncAbort = null;
+    this.paneResize?.disconnect();
+    this.paneResize = null;
+    cancelAnimationFrame(this.resizeFrame);
     if (this.cmView) {
       this.cmView.destroy();
       this.cmView = null;
@@ -798,7 +816,12 @@ export class SourceModeController {
    * Puts the editor's caret and selection where the source pane's were, in
    * the middle of the page, and hands focus back as entering gave it away.
    */
-  private placeCaret(caret: { text: string; anchor: number; head: number }) {
+  private placeCaret(caret: {
+    text: string;
+    anchor: number;
+    head: number;
+    focused: boolean;
+  }) {
     const view = this.editor.getView();
     if (!view) return;
     const spans = this.editor.blockSpans(caret.text);
@@ -810,7 +833,7 @@ export class SourceModeController {
       toDoc(caret.head)
     );
     view.dispatch(view.state.tr.setSelection(selection));
-    view.focus();
+    if (!isCompactLayout() || caret.focused) view.focus();
 
     const scroller = this.editorRoot.parentElement;
     if (!scroller) return;
