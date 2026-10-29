@@ -136,29 +136,3 @@ extension NativeShell {
     send(message)
   }
 }
-
-/// A panel's 60-point header, as `.ny-dock__header` draws it: the title on the left and round buttons on the right.
-struct PanelHeader<Trailing: View>: View {
-  @ObservedObject private var theme = Theme.shared
-  let title: String
-  @ViewBuilder let trailing: () -> Trailing
-
-  var body: some View {
-    HStack(spacing: 6) {
-      Text(title)
-        .font(.system(size: 17, weight: .semibold))
-        .foregroundStyle(theme.color("text-primary"))
-        .lineLimit(1)
-      Spacer(minLength: 8)
-      GlassGroup(spacing: 6) {
-        HStack(spacing: 6) { trailing() }
-      }
-    }
-    .padding(.leading, 20)
-    .padding(.trailing, 12)
-    .frame(height: 60)
-    .overlay(alignment: .bottom) {
-      Rectangle().fill(theme.color("border-soft")).frame(height: 1)
-    }
-  }
-}

@@ -99,10 +99,3 @@ extension UIColor {
       blue: CGFloat(rgb & 0xff) / 255, alpha: alpha)
   }
 }
-
-/// The light shadow under NyaMark's floating bars.
-extension View {
-  func barShadow() -> some View {
-    shadow(color: .black.opacity(0.06), radius: 7, x: 0, y: 3)
-  }
-}
