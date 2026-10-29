@@ -22,6 +22,7 @@ import { prepareImage } from '../../ai/images/prepare';
 import { mcpHub } from '../../ai/mcp/hub';
 import { CHATGPT_USAGE_URL } from '../../ai/providers/chatgpt';
 import { AI_PRESETS } from '../../ai/providers/presets';
+import type { QuickMode } from '../../ai/quick/core';
 import { isOpenableLink } from '../../ai/render/markdown';
 import {
   effortChoiceLabel,
@@ -82,6 +83,7 @@ import {
 import { isNetworkPath } from '../attachment-paths';
 import { type MdBlock, markdownBlocks } from './markdown-blocks';
 import { type PanelMessage, postPanel } from './panels';
+import type { NativeQuickMenu } from './quick';
 
 /** The longest side of a thumbnail sent to the sheet, in pixels. */
 const THUMBNAIL_SIDE = 256;
@@ -626,6 +628,9 @@ export type AiCore = {
     | 'pending'
     | 'position'
     | 'outcome'
+    | 'placement'
+    | 'forget'
+    | 'placeReply'
     | 'acceptEdit'
     | 'rejectEdit'
     | 'revealEdit'
@@ -740,6 +745,9 @@ export class NativeAiPanel {
   >();
   /** Runs once the sheet has gone, as opening the settings does. */
   private afterClose: (() => void) | null = null;
+  private quick: Promise<NativeQuickMenu> | null = null;
+  /** Text the AI menu hands the conversation, written in once the sheet is up. */
+  private pendingWrite: string | null = null;
 
   constructor(
     private readonly host: AiPanelHost,
@@ -782,6 +790,7 @@ export class NativeAiPanel {
     this.sentState = '';
     this.sendState();
     this.sendEntries();
+    this.writePending();
   }
 
   /** The sheet went away. */
@@ -801,8 +810,40 @@ export class NativeAiPanel {
     this.core.session.clear?.();
     for (const cleanup of this.cleanups) cleanup();
     this.core.edits.destroy?.();
+    void this.quick?.then((menu) => menu.destroy());
     if (this.frame != null) cancelAnimationFrame(this.frame);
     if (this.picturesFrame != null) cancelAnimationFrame(this.picturesFrame);
+  }
+
+  /**
+   * Opens the AI menu at the selection or the caret, or runs one of its
+   * slash commands there. Its edits are this panel's, to review alike.
+   */
+  async ask(mode: QuickMode) {
+    this.quick ??= import('./quick').then(
+      ({ NativeQuickMenu }) =>
+        new NativeQuickMenu({
+          editor: this.host.editor,
+          edits: this.core.edits,
+          documentPath: this.host.documentPath,
+          openSettings: () => this.openSettings(),
+          toChat: (text) => this.toChat(text),
+        })
+    );
+    await (await this.quick).open(mode);
+  }
+
+  /** Opens the conversation with `text` written, for the user to send. */
+  private toChat(text: string) {
+    if (hasModels(this.ai) && text) this.pendingWrite = text;
+    if (this.visible) this.writePending();
+    else postPanel('ai', 'present');
+  }
+
+  private writePending() {
+    if (this.pendingWrite == null) return;
+    postPanel('ai', 'write', { text: this.pendingWrite });
+    this.pendingWrite = null;
   }
 
   /** What the user did on the sheet. */

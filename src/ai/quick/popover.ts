@@ -7,65 +7,40 @@
  */
 
 import { openExternalUrl } from '../../bridge/ipc/attachments';
-import type { NyaEditor } from '../../editor/editor';
 import { i18next } from '../../i18n';
-import type { AiSettings } from '../../state/ai-settings';
 import { getSettings } from '../../state/settings';
 import { ensureStyle } from '../../style/register';
 import { forInputMethod } from '../../ui/ime';
-import { describeFailure } from '../agent/session';
-import type { EditController } from '../edit/controller';
-import { EditError } from '../edit/text-edit';
 import { CHATGPT_USAGE_URL } from '../providers/chatgpt';
-import { connectModel } from '../providers/connect';
 import { renderChatMarkdown } from '../render/markdown';
 import { copyText } from '../ui/clipboard';
-import {
-  FAILURE_TEXT,
-  SELF_EXPLAINED,
-  SETTINGS_FIXES,
-  USAGE_FIXES,
-} from '../ui/failure';
 import { ICONS } from '../ui/icons';
-import { quickCommands } from './actions';
-import { askModel } from './ask';
-import { type Landing, type Placement, landingTarget } from './place';
-import { type QuickTask, cleanReply, quickPrompt } from './prompt';
+import {
+  DRAW_MS,
+  type QuickHost,
+  type QuickMode,
+  type Run,
+  askQuick,
+  continueRun,
+  failureProblem,
+  landReply,
+  menuItems,
+  quickModel,
+  quickRequest,
+  summarizeRun,
+} from './core';
+import type { Placement } from './place';
+import { cleanReply } from './prompt';
 import quickStyles from './quick.css?inline';
+import { clearSelectionMark, markSelection, selectionRange } from './selection';
 
-/** How the menu opens: to choose, or running a slash command at once. */
-export type QuickMode = 'menu' | 'continue' | 'summarize';
-
-export type QuickHost = {
-  editor: NyaEditor;
-  edits: EditController;
-  documentPath: () => string | null;
-  openSettings: () => void;
-  /** Opens the conversation with `text` written, for the user to send. */
-  toChat: (text: string) => void;
-};
-
-type Run = { task: QuickTask; landing: Landing; label: string };
+export type { QuickHost, QuickMode };
 
 type Item = { label: string; run: () => void };
 
-/** The model the menu's commands go to: their own, or the chat's. */
-function quickModel(ai: AiSettings) {
-  const ref = ai.quickModel ?? ai.chatModel;
-  const provider = ref && ai.providers.find((p) => p.id === ref.provider);
-  return ref && provider ? { ref, provider } : null;
-}
-
-const fileName = (path: string) => path.split(/[\\/]/).pop() || path;
-
-/** The longest an instruction typed in reads as the command's name. */
-const LABEL_CHARS = 60;
-/** A streaming reply is drawn again at most this often. */
-const DRAW_MS = 50;
 /** Space kept between the menu and the text, and the window's edges. */
 const GAP = 6;
 const MARGIN = 8;
-const HIGHLIGHT = 'ny-ai-quick';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -86,13 +61,6 @@ function button(label: string, primary = false) {
   );
   node.type = 'button';
   return node;
-}
-
-/** Where the selection or the caret is on screen, from the page's selection. */
-function selectionRange(): Range | null {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return null;
-  return selection.getRangeAt(0).cloneRange();
 }
 
 function rectOf(range: Range | null): DOMRect | null {
@@ -154,8 +122,8 @@ export class QuickMenu {
       this.showNoModel();
       return;
     }
-    if (mode === 'continue') this.start(this.continueRun());
-    else if (mode === 'summarize') this.start(this.summarizeRun());
+    if (mode === 'continue') this.start(continueRun());
+    else if (mode === 'summarize') this.start(summarizeRun());
     else this.showMenu();
   }
 
@@ -168,7 +136,7 @@ export class QuickMenu {
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.root?.remove();
     this.root = null;
-    this.clearHighlight();
+    clearSelectionMark();
     if (refocus && this.returnFocus?.isConnected) {
       this.returnFocus.focus({ preventScroll: true });
     }
@@ -195,7 +163,7 @@ export class QuickMenu {
     this.cleanups.push(() =>
       document.documentElement.classList.remove('ny-ai-asking')
     );
-    this.highlight();
+    markSelection(this.range);
 
     const onPointer = (event: PointerEvent) => {
       if (!this.root || this.root.contains(event.target as Node)) return;
@@ -220,18 +188,6 @@ export class QuickMenu {
       window.removeEventListener('resize', onMove);
       document.removeEventListener('scroll', onMove, true);
     });
-  }
-
-  /** Marks the selection while the menu has the focus, as the page no longer does. */
-  private highlight() {
-    const range = this.range;
-    if (!range || range.collapsed || typeof Highlight === 'undefined') return;
-    CSS.highlights?.set(HIGHLIGHT, new Highlight(range));
-  }
-
-  private clearHighlight() {
-    if (typeof Highlight === 'undefined') return;
-    CSS.highlights?.delete(HIGHLIGHT);
   }
 
   /** Under the selection, or over it where there is no room below. */
@@ -352,80 +308,20 @@ export class QuickMenu {
 
   /** The menu's items: what was typed first, then the commands that match. */
   private menuItems(typed: string, selected: boolean): Item[] {
-    const items: Item[] = [];
-    if (typed) {
-      const label =
-        typed.length > LABEL_CHARS ? `${typed.slice(0, LABEL_CHARS)}…` : typed;
-      items.push({
-        label: i18next.t(selected ? 'ai.quick.changeAs' : 'ai.quick.writeAs', {
-          text: label,
-        }),
-        run: () =>
-          this.start(
-            selected
-              ? {
-                  task: { kind: 'transform', instruction: typed },
-                  landing: 'replace',
-                  label,
-                }
-              : {
-                  task: { kind: 'write', instruction: typed },
-                  landing: 'blocks',
-                  label,
-                }
-          ),
-      });
-    }
-    const match = (name: string) =>
-      !typed || name.toLowerCase().includes(typed.toLowerCase());
-    if (selected) {
-      const commands = quickCommands(
-        getSettings().ai.quickActions,
-        (key) => i18next.t(key),
-        i18next.language
-      );
-      for (const command of commands) {
-        if (!match(command.name)) continue;
-        items.push({
-          label: command.name,
-          run: () =>
-            this.start({
-              task: { kind: 'transform', instruction: command.prompt },
-              landing: 'replace',
-              label: command.name,
-            }),
-        });
-      }
-    } else {
-      for (const run of [this.continueRun(), this.summarizeRun()]) {
-        if (match(run.label))
-          items.push({ label: run.label, run: () => this.start(run) });
-      }
-    }
-    items.push({
-      label: i18next.t('ai.quick.toChat'),
-      run: () => {
-        this.close(false);
-        this.host.toChat(typed);
-      },
-    });
-    return items;
-  }
-
-  private continueRun(): Run {
-    return {
-      task: { kind: 'continue' },
-      landing: 'continue',
-      label: i18next.t('ai.quick.continue'),
-    };
-  }
-
-  private summarizeRun(): Run {
-    return {
-      task: { kind: 'summarize' },
-      landing: 'blocks',
-      label: i18next.t('ai.quick.summarize'),
-    };
+    return menuItems(typed, selected, getSettings().ai.quickActions).map(
+      (item) => ({
+        label: item.label,
+        run: () => {
+          const run = item.run;
+          if (run) {
+            this.start(run);
+            return;
+          }
+          this.close(false);
+          this.host.toChat(typed);
+        },
+      })
+    );
   }
 
   /** Asks the model, shows the reply as it comes, and puts it in. */
@@ -437,20 +333,10 @@ export class QuickMenu {
       this.showNoModel();
       return;
     }
-    const target = landingTarget(placement, run.landing);
-    const { text } = placement;
-    const path = this.host.documentPath();
-    const request = quickPrompt(
-      run.task,
-      {
-        title: path ? fileName(path) : null,
-        before: text.slice(0, target.from),
-        selected:
-          run.task.kind === 'transform'
-            ? text.slice(target.from, target.to)
-            : '',
-        after: text.slice(target.to),
-      },
+    const request = quickRequest(
+      run,
+      placement,
+      this.host.documentPath(),
       getSettings().ai.instructions
     );
 
@@ -483,12 +369,8 @@ export class QuickMenu {
       this.position();
     };
     const ask = async () =>
-      askModel(
-        connectModel(
-          chosen.provider,
-          chosen.ref.model,
-          () => getSettings().ai.proxy
-        ),
+      askQuick(
+        chosen,
         request,
         (sofar) => {
           if (this.running !== controller) return;
@@ -517,46 +399,17 @@ export class QuickMenu {
   private async land(run: Run, reply: string, preview: HTMLElement) {
     const placement = this.placement;
     if (!placement) return;
-    if (!reply.trim()) {
-      this.showProblem(run, i18next.t('ai.quick.empty'), null, preview);
+    const landed = await landReply(this.host.edits, placement, run, reply);
+    if (landed.problem !== undefined) {
+      this.showProblem(run, landed.problem, landed.reply, preview);
       return;
     }
-    try {
-      const result = await this.host.edits.placeReply(
-        placement,
-        run.landing,
-        reply
-      );
-      this.close();
-      if (result.report.status === 'proposed') {
-        this.host.edits.revealEdit(result.report.edit);
-      }
-    } catch (error) {
-      const unchanged =
-        error instanceof EditError && error.code === 'no_change';
-      this.showProblem(
-        run,
-        i18next.t(unchanged ? 'ai.quick.unchanged' : 'ai.quick.notPlaced'),
-        reply,
-        preview
-      );
-    }
+    this.close();
+    if (landed.edit) this.host.edits.revealEdit(landed.edit);
   }
 
   private showFailure(run: Run, error: unknown, preview: HTMLElement) {
-    const failure = describeFailure(error);
-    const message = i18next.t(FAILURE_TEXT[failure.code], {
-      status: failure.status,
-    });
-    const detail =
-      failure.message && !SELF_EXPLAINED.has(failure.code)
-        ? failure.message
-        : null;
-    const fix = SETTINGS_FIXES.has(failure.code)
-      ? 'settings'
-      : USAGE_FIXES.has(failure.code)
-        ? 'usage'
-        : null;
+    const { message, detail, fix } = failureProblem(error);
     this.showProblem(run, message, null, preview, detail, fix);
   }
 

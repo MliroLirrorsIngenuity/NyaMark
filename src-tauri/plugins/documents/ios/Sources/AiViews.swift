@@ -64,6 +64,11 @@ struct AiPanelView: View {
           .padding(.trailing, keyboardShown ? 162 : 112)
       }
     }
+    .onChange(of: model.insertion) { insertion in
+      guard let insertion else { return }
+      let kept = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+      draft = kept.isEmpty ? insertion.text : kept + "\n" + insertion.text
+    }
     .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
       keyboardShown = true
     }
@@ -717,7 +722,7 @@ private struct AiHeightKey: PreferenceKey {
 }
 
 /// A scroll view as tall as its content, up to `maxHeight`.
-private struct AiBoundedScroll<Content: View>: View {
+struct AiBoundedScroll<Content: View>: View {
   let maxHeight: CGFloat
   @ViewBuilder let content: () -> Content
   @State private var height: CGFloat = 0

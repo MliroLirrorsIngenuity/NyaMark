@@ -39,6 +39,7 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
     "find": FindPanelController(shell: self),
     "form": FormPanelController(shell: self),
     "ai": AiPanelController(shell: self),
+    "quick": QuickMenuController(shell: self),
     "toast": ToastController(shell: self),
   ]
 

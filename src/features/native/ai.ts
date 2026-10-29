@@ -8,21 +8,27 @@ import { openNativeSettings } from './settings';
 /** The assistant's code loads with the first thing the sheet asks of it. */
 let panel: Promise<NativeAiPanel> | null = null;
 let sheetOpen = false;
+let bound: NativePanelsHost | null = null;
 
 function load(host: NativePanelsHost): Promise<NativeAiPanel> {
-  panel ??= import('./ai-panel').then(({ NativeAiPanel }) => {
-    const editor = host.editor();
-    if (!editor) throw new Error('No editor yet');
-    return new NativeAiPanel({
-      editor,
-      sourceSelection: () => host.sourceMode()?.selectionInDocument() ?? null,
-      flushSource: () => host.sourceMode()?.flush(),
-      followSource: (before) => host.sourceMode()?.followEditor(before),
-      documentPath: () => store.getState().filePath,
-      openSettings: (service) =>
-        openNativeSettings('ai', { addService: service }),
+  panel ??= import('./ai-panel')
+    .then(({ NativeAiPanel }) => {
+      const editor = host.editor();
+      if (!editor) throw new Error('No editor yet');
+      return new NativeAiPanel({
+        editor,
+        sourceSelection: () => host.sourceMode()?.selectionInDocument() ?? null,
+        flushSource: () => host.sourceMode()?.flush(),
+        followSource: (before) => host.sourceMode()?.followEditor(before),
+        documentPath: () => store.getState().filePath,
+        openSettings: (service) =>
+          openNativeSettings('ai', { addService: service }),
+      });
+    })
+    .catch((error) => {
+      panel = null;
+      throw error;
     });
-  });
   return panel;
 }
 
@@ -31,13 +37,13 @@ function load(host: NativePanelsHost): Promise<NativeAiPanel> {
  * conversation, which is built the first time the sheet opens.
  */
 export function bindNativeAi(host: NativePanelsHost) {
+  bound = host;
   onPanel('ai', async (message) => {
     if (message.op === 'open') sheetOpen = true;
     else if (message.op === 'close') sheetOpen = false;
     try {
       (await load(host)).handle(message);
     } catch (error) {
-      panel = null;
       console.error('[ai] The assistant failed to load', error);
     }
   });
@@ -48,7 +54,12 @@ export function openNativeAi() {
   if (!sheetOpen) postPanel('ai', 'present');
 }
 
-/** Opens the assistant's sheet for the AI menu's `mode`. */
-export function askNativeAi(_mode: AiAskMode) {
-  openNativeAi();
+/** Opens the AI menu at the selection or the caret, or runs a command of it. */
+export function askNativeAi(mode: AiAskMode) {
+  if (!bound) return;
+  load(bound)
+    .then((assistant) => assistant.ask(mode))
+    .catch((error) => {
+      console.error('[ai] The AI menu failed to load', error);
+    });
 }

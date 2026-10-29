@@ -553,6 +553,13 @@ describe('NativeAiPanel', () => {
         },
         accept: () => undefined,
         reject: () => undefined,
+        placement: async () => {
+          throw new Error('No place in this test');
+        },
+        forget: () => undefined,
+        placeReply: async () => {
+          throw new Error('No place in this test');
+        },
       },
       keeper: {
         current: 'c1',

@@ -412,8 +412,15 @@ struct AiHistoryItem: Identifiable {
   let current: Bool
 }
 
+/// Text the AI menu hands the conversation, to add to what is written.
+struct AiInsertion: Equatable {
+  let id = UUID()
+  let text: String
+}
+
 final class AiModel: ObservableObject {
   @Published var state: AiState?
+  @Published var insertion: AiInsertion?
   @Published private(set) var boxes: [AiEntryBox] = []
   /// Counts the times the list is to be shown from its end again.
   @Published var pinned = 0
@@ -571,6 +578,8 @@ final class AiPanelController: NativePanel {
       model.apply(history: AiJSON(body))
     case "historyDone":
       model.historyShown = false
+    case "write":
+      model.insertion = AiInsertion(text: body["text"] as? String ?? "")
     case "copy":
       UIPasteboard.general.string = body["text"] as? String ?? ""
       model.markCopied()
