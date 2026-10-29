@@ -69,12 +69,14 @@ import { TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
 
 import { i18next } from '../i18n';
+import { isMobilePlatform } from '../platform/detect';
 import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
 import { isCompactLayout } from '../ui/viewport';
 import { textChange } from './doc-diff';
 import type { NyaEditor } from './editor';
 import { headingKey, syncedScrollTop } from './scroll-sync';
+import { bindSourceBar } from './source-bar';
 import { docPosition, sourceOffset } from './source-caret';
 import { applyChanges, rewriteBlocks } from './source-follow';
 import { continueMarkup } from './source-list-exit';
@@ -403,6 +405,7 @@ export class SourceModeController {
 
   init() {
     registerSourceModeStyles();
+    if (isMobilePlatform()) bindSourceBar(() => this.cmView);
 
     let last = this.store.getState().sourceMode;
     this.store.subscribe((state) => {
@@ -639,6 +642,7 @@ export class SourceModeController {
     this.host.className = 'ny-source-pane';
     this.editorRoot.classList.add('is-source-mode');
     this.editorRoot.parentElement?.classList.add('is-source-mode-host');
+    document.documentElement.classList.add('ny-source-mode');
     this.editorRoot.insertBefore(this.host, this.editorRoot.firstChild);
 
     this.cmView = new EditorView({
@@ -662,6 +666,11 @@ export class SourceModeController {
           sourceSearch(),
           syntaxHighlighting(markdownHighlight),
           EditorView.lineWrapping,
+          EditorView.contentAttributes.of({
+            autocorrect: 'off',
+            autocapitalize: 'off',
+            spellcheck: 'false',
+          }),
           this.cmThemeCompartment.of(this.themeExtension()),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged || this.applyingEditorText) return;
@@ -807,6 +816,7 @@ export class SourceModeController {
     this.host = null;
     this.editorRoot.classList.remove('is-source-mode');
     this.editorRoot.parentElement?.classList.remove('is-source-mode-host');
+    document.documentElement.classList.remove('ny-source-mode');
     this.anchorsDirty = true;
     this.activeScrollSource = null;
     if (caret) this.placeCaret(caret);

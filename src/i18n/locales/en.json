@@ -109,6 +109,17 @@
     "themeTitle": "{{label}}. Click to switch to {{next}}. To follow the system, change it in Settings.",
     "themeTitleAuto": "Following the system ({{label}}). Click to switch to {{next}}."
   },
+  "mobileBar": {
+    "label": "Formatting",
+    "undo": "Undo",
+    "redo": "Redo",
+    "heading": "Heading",
+    "indent": "Increase Indent",
+    "outdent": "Decrease Indent",
+    "moveLeft": "Move Left",
+    "moveRight": "Move Right",
+    "insert": "Insert “{{text}}”"
+  },
   "search": {
     "placeholder": "Find…",
     "next": "Next match",

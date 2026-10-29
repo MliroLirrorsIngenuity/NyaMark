@@ -9,7 +9,19 @@ final class MobileUITests: XCTestCase {
         // Tauri's debug stderr redirector recurses through Xcode 27's log mirror.
         app.launchEnvironment["OS_ACTIVITY_MODE"] = "disable"
         app.launch()
-        XCTAssertTrue(button(["设置", "Settings"]).waitForExistence(timeout: 45))
+        openEditor()
+    }
+
+    /// A fresh install opens on the library; afterwards the last document is reopened.
+    private func openEditor() {
+        let create = button(["新建文档", "New Document"])
+        let settings = button(["设置", "Settings"])
+        let ready = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in create.exists && create.isHittable || settings.isHittable },
+            object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 45), .completed, app.debugDescription)
+        if create.exists && create.isHittable { create.tap() }
+        XCTAssertTrue(settings.waitForExistence(timeout: 30))
     }
 
     override func tearDownWithError() throws {
@@ -34,7 +46,7 @@ final class MobileUITests: XCTestCase {
         XCTAssertFalse(app.alerts.firstMatch.exists)
         capture("01-native-editor")
         button(["文件", "File"]).tap()
-        XCTAssertTrue(button(["另存为", "Save As"]).waitForExistence(timeout: 5))
+        XCTAssertTrue(button(["共享…", "Share…"]).waitForExistence(timeout: 5))
         capture("02-file-sheet")
         button(["关闭", "Close"]).tap()
         XCTAssertTrue(button(["设置", "Settings"]).isHittable)
@@ -59,7 +71,7 @@ final class MobileUITests: XCTestCase {
         capture("03-source-with-keyboard")
         let hideKeyboard = button(["收起键盘", "Hide keyboard"])
         XCTAssertTrue(hideKeyboard.waitForExistence(timeout: 5))
-        XCTAssertGreaterThan(hideKeyboard.frame.minY, button(["保存", "Save"]).frame.maxY)
+        XCTAssertGreaterThan(hideKeyboard.frame.minY, button(["文档", "Documents"]).frame.maxY)
         hideKeyboard.tap()
         let hidden = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"), object: app.keyboards.firstMatch)
@@ -94,6 +106,21 @@ final class MobileUITests: XCTestCase {
         XCTAssertTrue(button(["设置", "Settings"]).waitForExistence(timeout: 5))
     }
 
+    func testLibraryOpensAndReturns() throws {
+        button(["文档", "Documents"]).tap()
+        XCTAssertTrue(button(["完成", "Done"]).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["最近"].exists || app.staticTexts["Recent"].exists)
+        let device = button(["我的 iPhone", "On My iPhone"])
+        XCTAssertTrue(device.waitForExistence(timeout: 10), app.debugDescription)
+        capture("13-library")
+        device.tap()
+        XCTAssertTrue(button(["返回", "Back"]).waitForExistence(timeout: 10))
+        capture("14-library-folder")
+        button(["返回", "Back"]).tap()
+        button(["完成", "Done"]).tap()
+        XCTAssertTrue(button(["设置", "Settings"]).waitForExistence(timeout: 10))
+    }
+
     func testAssistantSheetAndSettings() throws {
         button(["AI 助手", "AI assistant"]).tap()
         let settings = button(["打开 AI 设置", "Open AI settings"])
@@ -112,14 +139,13 @@ final class MobileUITests: XCTestCase {
     func testFormattingMenuAndFind() throws {
         app.textViews.firstMatch.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
-        let format = button(["正文", "Text"])
-        XCTAssertTrue(format.waitForExistence(timeout: 10))
-        XCTAssertGreaterThan(format.frame.minY, button(["保存", "Save"]).frame.maxY)
-        XCTAssertLessThanOrEqual(format.frame.maxY, app.keyboards.firstMatch.frame.minY)
-        format.tap()
-        XCTAssertTrue(button(["标题 2", "Heading 2"]).waitForExistence(timeout: 5))
-        capture("08-format-menu")
-        format.tap()
+        let undo = button(["撤销", "Undo"])
+        XCTAssertTrue(undo.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertGreaterThan(undo.frame.minY, button(["文档", "Documents"]).frame.maxY)
+        XCTAssertLessThanOrEqual(undo.frame.maxY, app.keyboards.firstMatch.frame.minY)
+        XCTAssertTrue(button(["标题", "Heading"]).exists)
+        XCTAssertTrue(button(["增加缩进", "Increase Indent"]).exists)
+        capture("08-format-bar")
         button(["收起键盘", "Hide keyboard"]).tap()
         XCTAssertTrue(button(["查找", "Find"]).waitForExistence(timeout: 5))
         button(["查找", "Find"]).tap()

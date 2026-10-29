@@ -107,6 +107,17 @@
     "themeTitle": "目前為{{label}}。點按可切換為{{next}}；如需跟隨系統，請在設定中更改。",
     "themeTitleAuto": "目前跟隨系統（{{label}}）。點按可切換為{{next}}。"
   },
+  "mobileBar": {
+    "label": "格式",
+    "undo": "復原",
+    "redo": "重做",
+    "heading": "標題",
+    "indent": "增加縮排",
+    "outdent": "減少縮排",
+    "moveLeft": "向左移動",
+    "moveRight": "向右移動",
+    "insert": "插入「{{text}}」"
+  },
   "search": {
     "placeholder": "尋找…",
     "next": "下一個相符項目",

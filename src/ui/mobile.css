@@ -3,6 +3,10 @@
   display: none;
 }
 
+.ny-source-bar {
+  display: none;
+}
+
 .ny-shell__document {
   min-width: 0;
 }
@@ -366,6 +370,85 @@
     padding: 10px 12px !important;
     border-radius: 16px !important;
     font-size: 16px !important;
+  }
+
+  /* In source mode this bar stands where the format bar does. */
+  .ny-document-editing.ny-source-mode .ny-source-bar {
+    display: flex;
+  }
+
+  .ny-source-mode #ny-app .milkdown .milkdown-top-bar {
+    display: none !important;
+  }
+
+  .ny-source-bar {
+    position: fixed;
+    top: calc(
+      var(--ny-viewport-top, 0px) +
+      var(--ny-viewport-height, 100dvh) -
+      56px -
+      var(--ny-input-tools-bottom)
+    );
+    left: max(16px, env(safe-area-inset-left));
+    right: calc(max(16px, env(safe-area-inset-right)) + 56px);
+    z-index: var(--ny-layer-editor-toolbar);
+    box-sizing: border-box;
+    min-height: 56px;
+    align-items: center;
+    padding: 5px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    border: 1px solid var(--ny-border-soft);
+    border-radius: var(--ny-mobile-radius);
+    background: var(--ny-statusbar-bg);
+    box-shadow: var(--ny-mobile-bar-shadow);
+  }
+
+  .ny-source-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ny-source-bar__button {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    height: 44px;
+    margin: 0 1px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--ny-mobile-control-radius);
+    background: transparent;
+    color: var(--ny-text-primary);
+    font: 500 18px var(--ny-font-mono);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .ny-source-bar__button svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .ny-source-bar__button:active {
+    background: var(--ny-accent-soft);
+    color: var(--ny-accent-ink);
+  }
+
+  .ny-source-bar__divider {
+    flex: 0 0 10px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .ny-source-bar__divider::before {
+    content: "";
+    width: 1px;
+    height: 16px;
+    align-self: center;
+    background: var(--ny-border-strong);
   }
 
   #ny-app .milkdown :is(.milkdown-toolbar, .milkdown-block-handle) {

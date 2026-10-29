@@ -13,6 +13,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { i18next } from '../i18n';
+import { isMobilePlatform } from '../platform/detect';
 import { formulaBox, selectionToolbar, slashMenu } from './floating';
 import { intoAiSlash, intoAiToolbar } from './plugins/ai-entry';
 import { codeArrowsByRow } from './plugins/block-arrows';
@@ -23,6 +24,7 @@ import { type Markdown, closeFenceOnEnter } from './plugins/code-fence-exit';
 import { codeIndentUnit, codeLanguages } from './plugins/code-language';
 import { codeSearchMatches } from './plugins/code-search';
 import { renderMermaidPreview } from './plugins/mermaid';
+import { intoMobileBar } from './plugins/mobile-top-bar';
 import { rememberCodeCopy } from './plugins/paste-code';
 import { intoInsertedBlocks, intoSlashBlocks } from './plugins/toolbar-insert';
 import { type Builder, intoToggles } from './plugins/toolbar-toggles';
@@ -63,6 +65,11 @@ function codeBlockExtensions(
 ) {
   return [
     CodeMirror.lineWrapping,
+    CodeMirror.contentAttributes.of({
+      autocorrect: 'off',
+      autocapitalize: 'off',
+      spellcheck: 'false',
+    }),
     codeArrowsByRow,
     autocompletion({ activateOnTyping: false }),
     tooltips({ parent: document.body }),
@@ -322,17 +329,20 @@ function headingLabel(level: number) {
   return i18next.t('editor.blocks.heading', { level });
 }
 
+type TopBarBuilder = Builder & Parameters<typeof intoMobileBar>[0];
+
 function localizedFeatureConfigs() {
   const [h1, h2, h3, h4, h5, h6] = HEADING_LEVELS.map((level) => ({
     label: headingLabel(level),
   }));
   return {
     [CrepeFeature.TopBar]: {
-      buildTopBar: (builder: Builder) => {
+      buildTopBar: (builder: TopBarBuilder) => {
         intoInsertedBlocks(builder);
         intoToggles(builder);
         intoKeys(builder);
         intoHeadingSelector(builder);
+        if (isMobilePlatform()) intoMobileBar(builder);
       },
       headingOptions: [
         { label: blockLabel('paragraph'), level: null },
