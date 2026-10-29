@@ -102,6 +102,18 @@ struct PanelPage<Content: View, Actions: View>: View {
   }
 }
 
+extension View {
+  /// Lets the sheet's glass show through a list instead of the list's own fill.
+  @ViewBuilder
+  func clearListBackground() -> some View {
+    if #available(iOS 16.0, *) {
+      scrollContentBackground(.hidden)
+    } else {
+      self
+    }
+  }
+}
+
 /// The ✕ that closes a panel: the system's close button on iOS 26.
 struct PanelCloseButton: View {
   let label: String

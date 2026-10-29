@@ -1380,6 +1380,7 @@ struct AiHistoryPage: View {
       }
     }
     .listStyle(.plain)
+    .clearListBackground()
     .navigationTitle(state.history.label)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {

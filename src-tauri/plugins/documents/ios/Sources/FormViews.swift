@@ -140,7 +140,7 @@ struct FormLabel: View {
       if let detail {
         Text(detail)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Color.secondary)
       }
     }
   }
@@ -212,14 +212,14 @@ struct FormChoiceRow: View {
     } label: {
       HStack(spacing: 8) {
         FormLabel(text: row.label ?? "", detail: row.detail)
-          .foregroundStyle(.primary)
+          .foregroundStyle(Color.primary)
         Spacer(minLength: 8)
         Text(chosen?.label ?? row.placeholder ?? "")
-          .foregroundStyle(.secondary)
+          .foregroundStyle(.tint)
           .lineLimit(1)
         Image(systemName: "chevron.up.chevron.down")
           .font(.footnote.weight(.semibold))
-          .foregroundStyle(.secondary)
+          .foregroundStyle(.tint)
       }
       .contentShape(Rectangle())
     }
@@ -246,11 +246,11 @@ struct FormCardsRow: View {
       HStack(spacing: 12) {
         VStack(alignment: .leading, spacing: 2) {
           Text(option.label)
-            .foregroundStyle(.primary)
+            .foregroundStyle(Color.primary)
           if let detail = option.detail {
             Text(detail)
               .font(.subheadline)
-              .foregroundStyle(.secondary)
+              .foregroundStyle(Color.secondary)
           }
         }
         Spacer(minLength: 8)
@@ -324,7 +324,7 @@ struct FormNumberRow: View {
       .frame(minWidth: 56, maxWidth: .infinity)
       if let unit = row.unit {
         Text(unit)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Color.secondary)
       }
     }
     .disabled(row.isDisabled)
@@ -388,7 +388,7 @@ struct FormSliderRow: View {
         Spacer(minLength: 8)
         Text(row.valueText ?? "")
           .monospacedDigit()
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Color.secondary)
       }
       slider(low: low, high: high)
     }
@@ -429,12 +429,12 @@ struct FormTextRow: View {
       if let label = row.label {
         Text(label)
           .font(.subheadline)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Color.secondary)
       }
       if let detail = row.detail {
         Text(detail)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Color.secondary)
       }
       field
       if let error = row.error {
@@ -497,7 +497,7 @@ struct FormButtonRow: View {
           if let detail = row.detail {
             Text(detail)
               .font(.caption)
-              .foregroundStyle(.secondary)
+              .foregroundStyle(Color.secondary)
           }
         }
         Spacer(minLength: 8)
@@ -530,7 +530,7 @@ struct FormValueRow: View {
 
   private var value: some View {
     Text(row.string ?? "")
-      .foregroundStyle(.secondary)
+      .foregroundStyle(Color.secondary)
       .multilineTextAlignment(.trailing)
       .textSelection(.enabled)
   }
@@ -556,16 +556,16 @@ struct FormLinkRow: View {
     } label: {
       HStack(spacing: 8) {
         FormLabel(text: row.label ?? "", detail: row.detail)
-          .foregroundStyle(.primary)
+          .foregroundStyle(Color.primary)
         Spacer(minLength: 8)
         if let value = row.string {
           Text(value)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.secondary)
             .lineLimit(1)
         }
         Image(systemName: row.external == true ? "arrow.up.right" : "chevron.right")
           .font(.footnote.weight(.semibold))
-          .foregroundStyle(.tertiary)
+          .foregroundStyle(Color(.tertiaryLabel))
       }
       .contentShape(Rectangle())
     }
@@ -618,11 +618,11 @@ struct FormItemRow: View {
       HStack(spacing: 8) {
         VStack(alignment: .leading, spacing: 2) {
           Text(row.title ?? "")
-            .foregroundStyle(.primary)
+            .foregroundStyle(Color.primary)
           if let detail = row.detail {
             Text(detail)
               .font(.subheadline)
-              .foregroundStyle(.secondary)
+              .foregroundStyle(Color.secondary)
               .lineLimit(2)
           }
         }

@@ -91,6 +91,7 @@ struct OutlineView: View {
           }
         }
         .listStyle(.plain)
+        .clearListBackground()
         .onChange(of: model.active) { id in
           guard let id else { return }
           withAnimation(.easeOut(duration: 0.2)) { scroller.scrollTo(id) }

@@ -146,6 +146,7 @@ struct QuickMenuView: View {
         }
       }
       .listStyle(.plain)
+      .clearListBackground()
     }
   }
 

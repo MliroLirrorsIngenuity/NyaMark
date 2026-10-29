@@ -213,14 +213,7 @@ struct FindBar: View {
 
   @ViewBuilder
   private var closeButton: some View {
-    if #available(iOS 26.0, *) {
-      Button(role: .close, action: close)
-        .glassButton()
-        .circleBorder()
-        .accessibilityLabel(model.labels.close)
-    } else {
-      iconButton("xmark", model.labels.close, run: close)
-    }
+    iconButton("xmark", model.labels.close, run: close)
   }
 
   /// The system search field's look: a tertiary fill capsule holding the symbol, the text, and the count.
