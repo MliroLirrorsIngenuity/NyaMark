@@ -158,7 +158,12 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
       }
     case "panel":
       guard let name = body["panel"] as? String, let op = body["op"] as? String else { return }
-      panels[name]?.receive(op, body)
+      // The page opens a panel itself with `present`, as a shortcut or another panel asks.
+      if op == "present" {
+        panels[name]?.open(body)
+      } else {
+        panels[name]?.receive(op, body)
+      }
     default:
       break
     }
