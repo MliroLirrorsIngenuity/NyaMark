@@ -208,6 +208,15 @@ export async function drainInbox(fileName: string): Promise<string | null> {
   return drained.path;
 }
 
+/** Keeps a picture of the page on screen until `uncoverPage`, so a reload does not flash. */
+export function coverPage(): Promise<void> {
+  return call('cover');
+}
+
+export function uncoverPage(): Promise<void> {
+  return call('uncover');
+}
+
 /** iOS handed over a document to open, from the Files app or another app. */
 export function onOpenDocumentRequest(
   handler: (path: string) => void

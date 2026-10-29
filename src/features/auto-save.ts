@@ -43,20 +43,37 @@ export function bindAutoSave(save: () => Promise<void>) {
   });
 }
 
-/** How often a phone writes unsaved edits; iOS may end a background app at any time. */
-const MOBILE_SAVE_INTERVAL_MS = 2_000;
+/** A pause in typing this long saves the edits on a phone. */
+const MOBILE_IDLE_MS = 1_200;
+/** Typing without a pause still saves this often; iOS may end a background app at any time. */
+const MOBILE_MAX_UNSAVED_MS = 10_000;
 
-/** On a phone every edit is saved shortly after it is made, and at once when the app leaves the screen. */
+/**
+ * On a phone every edit is saved: once typing pauses, at least every few
+ * seconds while it goes on, and at once when the app leaves the screen. The
+ * returned function is called on every edit; `save` does nothing while
+ * nothing is unsaved.
+ */
 export function bindMobileAutoSave(save: () => Promise<void>) {
   let saving: Promise<void> | null = null;
+  let idle: number | undefined;
+  let firstUnsaved: number | null = null;
   const run = () => {
+    window.clearTimeout(idle);
+    firstUnsaved = null;
     saving ??= save().finally(() => {
       saving = null;
     });
     return saving;
   };
-  window.setInterval(() => void run(), MOBILE_SAVE_INTERVAL_MS);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') void run();
   });
+  return () => {
+    const now = Date.now();
+    firstUnsaved ??= now;
+    window.clearTimeout(idle);
+    if (now - firstUnsaved >= MOBILE_MAX_UNSAVED_MS) void run();
+    else idle = window.setTimeout(() => void run(), MOBILE_IDLE_MS);
+  };
 }

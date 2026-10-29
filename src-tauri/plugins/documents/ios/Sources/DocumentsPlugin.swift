@@ -84,10 +84,57 @@ class DocumentsPlugin: Plugin {
   private weak var webView: WKWebView?
   private var picker: PickerDelegate?
   private var deviceName = "iPhone"
+  private var coverView: UIView?
 
   @objc public override func load(webview: WKWebView) {
     webView = webview
     deviceName = UIDevice.current.localizedModel
+    // The page is the app's screen: only its panes scroll, and a long press on a link opens no web preview.
+    webview.scrollView.isScrollEnabled = false
+    webview.scrollView.bounces = false
+    webview.allowsLinkPreview = false
+  }
+
+  // MARK: Covering a reload
+
+  /// Holds a picture of the page over it while the page loads another document.
+  @objc public func cover(_ invoke: Invoke) throws {
+    DispatchQueue.main.async {
+      guard let webView = self.webView, let container = webView.superview else {
+        invoke.resolve()
+        return
+      }
+      webView.takeSnapshot(with: nil) { image, _ in
+        self.removeCover(animated: false)
+        if let image {
+          let picture = UIImageView(image: image)
+          picture.frame = webView.frame
+          container.insertSubview(picture, aboveSubview: webView)
+          self.coverView = picture
+          DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self, weak picture] in
+            if let picture, self?.coverView === picture { self?.removeCover(animated: true) }
+          }
+        }
+        invoke.resolve()
+      }
+    }
+  }
+
+  @objc public func uncover(_ invoke: Invoke) throws {
+    DispatchQueue.main.async {
+      self.removeCover(animated: true)
+      invoke.resolve()
+    }
+  }
+
+  private func removeCover(animated: Bool) {
+    guard let picture = coverView else { return }
+    coverView = nil
+    UIView.animate(withDuration: animated ? 0.18 : 0) {
+      picture.alpha = 0
+    } completion: { _ in
+      picture.removeFromSuperview()
+    }
   }
 
   /// Runs `body` on the plugin's queue and answers the page with its result or failure.

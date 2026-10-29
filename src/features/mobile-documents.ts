@@ -1,4 +1,5 @@
 import {
+  coverPage,
   createDocument,
   currentDocument,
   deleteItem,
@@ -11,8 +12,10 @@ import {
   renameItem,
   setCurrentDocument,
   shareFile,
+  uncoverPage,
 } from '../bridge/ipc/documents';
 import { errorDialog, registerWindowDocument } from '../bridge/ipc/files';
+import { afterFirstFrame } from '../editor/open-in-parts';
 import { i18next } from '../i18n';
 import { store } from '../state/store';
 import { documentFileName } from '../ui/document-name';
@@ -63,6 +66,8 @@ export class MobileDocuments implements LibraryHost {
       if (document.visibilityState === 'visible') void this.cameBack();
     });
     void this.cameBack();
+    await afterFirstFrame();
+    await uncoverPage().catch(console.error);
   }
 
   /** Brings in what other apps shared and what changed the file meanwhile. */
@@ -102,6 +107,7 @@ export class MobileDocuments implements LibraryHost {
     await downloadDocument(path);
     const bound = await registerWindowDocument(path);
     await noteDocumentOpened(bound);
+    await coverPage().catch(console.error);
     window.location.reload();
   }
 

@@ -20,6 +20,13 @@ let viewport: EventTarget & {
 };
 let browser: EventTarget & { innerHeight: number; innerWidth: number };
 const cleanups: Array<() => void> = [];
+let frames: Array<() => void> = [];
+
+function nextFrame() {
+  const due = frames;
+  frames = [];
+  for (const run of due) run();
+}
 
 beforeEach(() => {
   const page = parseHTML(
@@ -40,7 +47,9 @@ beforeEach(() => {
     visualViewport: viewport,
     matchMedia: () => Object.assign(media, { matches: compact }),
   });
+  frames = [];
   Object.assign(globalThis, {
+    requestAnimationFrame: (run: () => void) => frames.push(run),
     window: browser,
     document: page.document,
     HTMLElement: page.window.HTMLElement,
@@ -85,6 +94,7 @@ describe('the visible mobile viewport', () => {
     viewport.height = 440;
     viewport.offsetTop = 24;
     viewport.dispatchEvent(new Event('resize'));
+    nextFrame();
     expect(
       document.documentElement.style.getPropertyValue('--ny-viewport-height')
     ).toBe('440px');
@@ -96,6 +106,7 @@ describe('the visible mobile viewport', () => {
     ).toBe(true);
     viewport.height = 844;
     viewport.dispatchEvent(new Event('resize'));
+    nextFrame();
     expect(
       document.documentElement.classList.contains('ny-keyboard-open')
     ).toBe(false);
@@ -108,6 +119,7 @@ describe('the visible mobile viewport', () => {
     input.focus();
     browser.innerHeight = viewport.height = 440;
     browser.dispatchEvent(new Event('resize'));
+    nextFrame();
     expect(
       document.documentElement.classList.contains('ny-keyboard-open')
     ).toBe(true);
@@ -118,6 +130,7 @@ describe('the visible mobile viewport', () => {
     browser.innerWidth = 844;
     browser.innerHeight = viewport.height = 390;
     browser.dispatchEvent(new Event('resize'));
+    nextFrame();
     expect(
       document.documentElement.classList.contains('ny-keyboard-open')
     ).toBe(false);
@@ -128,9 +141,23 @@ describe('the visible mobile viewport', () => {
     viewport.scale = 2;
     viewport.height = 422;
     viewport.dispatchEvent(new Event('resize'));
+    nextFrame();
     expect(
       document.documentElement.style.getPropertyValue('--ny-viewport-height')
     ).toBe('844px');
+  });
+
+  test('moves with the keyboard once a frame however many events come', () => {
+    bindViewport();
+    for (const offset of [10, 20, 30]) {
+      viewport.offsetTop = offset;
+      viewport.dispatchEvent(new Event('scroll'));
+    }
+    expect(frames.length).toBe(1);
+    nextFrame();
+    expect(
+      document.documentElement.style.getPropertyValue('--ny-viewport-top')
+    ).toBe('30px');
   });
 });
 

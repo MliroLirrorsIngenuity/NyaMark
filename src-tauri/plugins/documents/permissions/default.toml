@@ -21,4 +21,6 @@ permissions = [
     "allow-print",
     "allow-drain-inbox",
     "allow-download",
+    "allow-cover",
+    "allow-uncover",
 ]

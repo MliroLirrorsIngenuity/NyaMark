@@ -82,6 +82,8 @@ export class App {
   });
   private readonly updateDialog = new UpdateDialog();
   private checkingForUpdates = false;
+  /** Tells the phone's auto-save an edit was made. */
+  private editedOnPhone: (() => void) | null = null;
   private statsQueued = false;
   private statsTimer: number | undefined;
 
@@ -137,8 +139,13 @@ export class App {
       },
       !mobile
     );
-    if (mobile) bindMobileAutoSave(() => fileController.autoSaveFile());
-    else bindAutoSave(() => fileController.autoSaveFile());
+    if (mobile) {
+      this.editedOnPhone = bindMobileAutoSave(() =>
+        fileController.autoSaveFile()
+      );
+    } else {
+      bindAutoSave(() => fileController.autoSaveFile());
+    }
 
     const initialDocument = await fileController.resolveInitialDocument(
       mobile ? MobileDocuments.restore : undefined
@@ -460,6 +467,7 @@ export class App {
   private docChanged() {
     this.countAfterTyping();
     if (this.suppressDirtyTracking) return;
+    this.editedOnPhone?.();
     const doc = this.currentDoc();
     if (this.savedDoc && doc?.eq(this.savedDoc)) {
       store.update({ isDirty: false });

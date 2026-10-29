@@ -17,6 +17,8 @@ const COMMANDS: &[&str] = &[
     "print",
     "drain_inbox",
     "download",
+    "cover",
+    "uncover",
 ];
 
 fn main() {
