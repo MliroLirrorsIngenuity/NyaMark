@@ -98,6 +98,8 @@ const THEME_COLORS = [
   'accent-soft',
   'accent-ink',
   'dock-bg',
+  'line',
+  'accent-line',
 ];
 
 /**

@@ -26,6 +26,8 @@ final class Theme: ObservableObject {
     "accent-soft": UIColor(rgb: 0xecf4f7),
     "accent-ink": UIColor(rgb: 0x2d4753),
     "dock-bg": UIColor(rgb: 0xffffff),
+    "line": UIColor(rgb: 0x17212b, alpha: 0.11),
+    "accent-line": UIColor(rgb: 0x4d7a8f, alpha: 0.3),
   ]
 
   private static let night: [String: UIColor] = [
@@ -42,6 +44,8 @@ final class Theme: ObservableObject {
     "accent-soft": UIColor(red: 96 / 255, green: 135 / 255, blue: 158 / 255, alpha: 0.18),
     "accent-ink": UIColor(rgb: 0x8db4c8),
     "dock-bg": UIColor(rgb: 0x18202a),
+    "line": UIColor(rgb: 0xedf3f8, alpha: 0.11),
+    "accent-line": UIColor(rgb: 0x8db4c8, alpha: 0.3),
   ]
 
   private init() {
