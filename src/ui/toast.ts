@@ -92,6 +92,20 @@ const toastStyles = `
 
 let shown: HTMLElement | null = null;
 
+type ToastPresenter = (
+  title: string,
+  detail: string,
+  kind: ToastKind,
+  durationMs: number
+) => void;
+
+let presenter: ToastPresenter | null = null;
+
+/** Hands every note to `present`, which draws it; none draws them in the page again. */
+export function presentToastsWith(present: ToastPresenter | null) {
+  presenter = present;
+}
+
 /**
  * A short note at the foot of the window that goes away by itself: held
  * while the pointer is on it, dismissed by a click. A new note takes the
@@ -102,6 +116,10 @@ export function showToast(
   detail: string,
   kind: ToastKind = 'info'
 ): void {
+  if (presenter) {
+    presenter(title, detail, kind, TOAST_DURATION_MS[kind]);
+    return;
+  }
   ensureStyle('ny-toast', toastStyles);
   shown?.remove();
 

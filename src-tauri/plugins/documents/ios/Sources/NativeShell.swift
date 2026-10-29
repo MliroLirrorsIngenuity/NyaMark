@@ -242,6 +242,7 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
 
   /// The editor page went; the page saves the document and closes it.
   func editorClosed() {
+    (panels["find"] as? FindPanelController)?.close()
     park()
     send(["type": "leave"])
     model.reload()

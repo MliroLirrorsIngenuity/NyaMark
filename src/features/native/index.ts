@@ -1,7 +1,9 @@
 import type { NyaEditor } from '../../editor/editor';
 import type { SourceModeController } from '../../editor/source-mode';
+import { bindNativeFind } from './find';
 import { bindNativeOutline } from './outline';
 import { bindNativeSettings } from './settings';
+import { bindNativeToast } from './toast';
 
 /** What the page's sides of the native panels reach in the app. */
 export type NativePanelsHost = {
@@ -13,4 +15,6 @@ export type NativePanelsHost = {
 export function bindNativePanels(host: NativePanelsHost) {
   bindNativeOutline(host);
   bindNativeSettings();
+  bindNativeFind(host);
+  bindNativeToast();
 }

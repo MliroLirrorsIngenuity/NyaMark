@@ -14,9 +14,11 @@ import {
   findNext,
   findPrevious,
   getSearchQuery,
+  openSearchPanel,
   replaceAll,
   replaceNext,
   search,
+  searchPanelOpen,
   setSearchQuery,
 } from '@codemirror/search';
 import {
@@ -26,6 +28,7 @@ import {
 } from '@codemirror/view';
 import { i18next } from '../i18n';
 import { translateDOM } from '../i18n/dom';
+import { isNativeShell } from '../platform/detect';
 import { ensureStyle } from '../style/register';
 import { forInputMethod } from '../ui/ime';
 
@@ -101,6 +104,89 @@ const styles = `
 
 /** Counting stops here; a longer run shows as "1000+". */
 const COUNT_LIMIT = 1000;
+
+/** The current match (1-based, 0 for none) and how many there are, counted up to `COUNT_LIMIT`. */
+export function matchStatus(view: EditorView) {
+  const query = getSearchQuery(view.state);
+  if (!query.search || !query.valid) return { current: 0, total: 0 };
+  const { main } = view.state.selection;
+  const cursor = query.getCursor(view.state);
+  let total = 0;
+  let current = 0;
+  for (let step = cursor.next(); !step.done; step = cursor.next()) {
+    total += 1;
+    if (step.value.from === main.from && step.value.to === main.to) {
+      current = total;
+    }
+    if (total >= COUNT_LIMIT) break;
+  }
+  return { current, total };
+}
+
+/** The total as the count writes it. */
+export function shownTotal(total: number) {
+  return total >= COUNT_LIMIT ? `${COUNT_LIMIT}+` : total;
+}
+
+/** The count as the find panels write it. */
+export function countText(current: number, total: number | string) {
+  return total === 0
+    ? i18next.t('search.noResults')
+    : i18next.t('search.count', { current: current || '?', total });
+}
+
+/** Selects the first match at or after the caret, wrapping to the top. */
+function selectFirst(view: EditorView) {
+  const query = getSearchQuery(view.state);
+  if (!query.search || !query.valid) return;
+  const from = view.state.selection.main.from;
+  let match = query.getCursor(view.state, from).next();
+  if (match.done) match = query.getCursor(view.state, 0, from).next();
+  if (match.done) return;
+  view.dispatch({
+    selection: { anchor: match.value.from, head: match.value.to },
+    scrollIntoView: true,
+  });
+}
+
+function setQuery(view: EditorView, search: string, replace: string) {
+  view.dispatch({
+    effects: setSearchQuery.of(
+      new SearchQuery({
+        search,
+        replace,
+        caseSensitive: false,
+        literal: true,
+      })
+    ),
+  });
+}
+
+/** Searches for `query` as the panel's field does, `first` selecting the match at or after the caret and `next` and `prev` stepping from the selection. */
+export function searchSource(
+  view: EditorView,
+  query: string,
+  direction: 'first' | 'next' | 'prev'
+) {
+  const { replace } = getSearchQuery(view.state);
+  if (query && !searchPanelOpen(view.state)) openSearchPanel(view);
+  setQuery(view, query, replace);
+  if (!query) return;
+  if (direction === 'first') selectFirst(view);
+  else if (direction === 'next') findNext(view);
+  else findPrevious(view);
+}
+
+/** Replaces the match at the selection with `text` and steps to the next. */
+export function replaceWith(view: EditorView, text: string) {
+  setQuery(view, getSearchQuery(view.state).search, text);
+  replaceNext(view);
+}
+
+export function replaceAllWith(view: EditorView, text: string) {
+  setQuery(view, getSearchQuery(view.state).search, text);
+  replaceAll(view);
+}
 
 const CHEVRON =
   '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 2 6.5 5 3.5 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -188,50 +274,13 @@ function createPanel(view: EditorView): Panel {
       count.textContent = '';
       return;
     }
-    const { main } = view.state.selection;
-    const cursor = query.getCursor(view.state);
-    let total = 0;
-    let current = 0;
-    for (let step = cursor.next(); !step.done; step = cursor.next()) {
-      total += 1;
-      if (step.value.from === main.from && step.value.to === main.to) {
-        current = total;
-      }
-      if (total >= COUNT_LIMIT) break;
-    }
-    const shown = total >= COUNT_LIMIT ? `${COUNT_LIMIT}+` : total;
-    count.textContent =
-      total === 0
-        ? i18next.t('search.noResults')
-        : i18next.t('search.count', { current: current || '?', total: shown });
-  };
-
-  /** Selects the first match at or after the caret, wrapping to the top. */
-  const selectFirst = () => {
-    const query = getSearchQuery(view.state);
-    if (!query.search || !query.valid) return;
-    const from = view.state.selection.main.from;
-    let match = query.getCursor(view.state, from).next();
-    if (match.done) match = query.getCursor(view.state, 0, from).next();
-    if (match.done) return;
-    view.dispatch({
-      selection: { anchor: match.value.from, head: match.value.to },
-      scrollIntoView: true,
-    });
+    const { current, total } = matchStatus(view);
+    count.textContent = countText(current, shownTotal(total));
   };
 
   const commit = (find: boolean) => {
-    view.dispatch({
-      effects: setSearchQuery.of(
-        new SearchQuery({
-          search: findField.value,
-          replace: replaceField.value,
-          caseSensitive: false,
-          literal: true,
-        })
-      ),
-    });
-    if (find) selectFirst();
+    setQuery(view, findField.value, replaceField.value);
+    if (find) selectFirst(view);
   };
 
   // An IME commits its text on compositionend; the half-typed composition
@@ -304,6 +353,19 @@ function createPanel(view: EditorView): Panel {
   };
 }
 
+/** CodeMirror highlights matches only while a search panel is open; the native find bar is the interface, so this one draws nothing. */
+function hiddenPanel(): Panel {
+  ensureStyle(
+    'source-search-hidden',
+    '.ny-source-pane .cm-panels { display: none; }'
+  );
+  return { dom: document.createElement('div'), top: true };
+}
+
 export function sourceSearch() {
-  return search({ top: true, literal: true, createPanel });
+  return search({
+    top: true,
+    literal: true,
+    createPanel: isNativeShell() ? hiddenPanel : createPanel,
+  });
 }

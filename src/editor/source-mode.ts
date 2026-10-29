@@ -39,6 +39,7 @@ import {
   syntaxTree,
 } from '@codemirror/language';
 import {
+  closeSearchPanel,
   highlightSelectionMatches,
   openSearchPanel,
   searchKeymap,
@@ -80,7 +81,13 @@ import { bindSourceBar, runSourceCommand, typeInSource } from './source-bar';
 import { docPosition, sourceOffset } from './source-caret';
 import { applyChanges, rewriteBlocks } from './source-follow';
 import { continueMarkup } from './source-list-exit';
-import { sourceSearch } from './source-search';
+import {
+  matchStatus,
+  replaceAllWith,
+  replaceWith,
+  searchSource,
+  sourceSearch,
+} from './source-search';
 import { sourceSuggest } from './source-suggest';
 import { sourceMarkdown } from './source-syntax';
 
@@ -487,6 +494,44 @@ export class SourceModeController {
     if (!this.cmView) return false;
     openSearchPanel(this.cmView);
     return true;
+  }
+
+  /** Whether the source pane is open. */
+  isActive() {
+    return this.cmView !== null;
+  }
+
+  /** The selected text when it lies within one line, else an empty string. */
+  selectedLine(): string {
+    const cm = this.cmView;
+    if (!cm) return '';
+    const { from, to } = cm.state.selection.main;
+    const text = cm.state.sliceDoc(from, to);
+    return text.length <= 200 && !text.includes('\n') ? text : '';
+  }
+
+  /** Searches the source pane for `query` without its panel; see `searchSource`. */
+  search(query: string, direction: 'first' | 'next' | 'prev') {
+    if (this.cmView) searchSource(this.cmView, query, direction);
+  }
+
+  /** The current match (1-based, 0 for none) and how many there are. */
+  searchStatus() {
+    return this.cmView ? matchStatus(this.cmView) : { current: 0, total: 0 };
+  }
+
+  /** Drops the highlights; the selection stays on the last match. */
+  endSearch() {
+    if (this.cmView) closeSearchPanel(this.cmView);
+  }
+
+  /** Replaces the match at the selection with `text` and steps to the next. */
+  replace(text: string) {
+    if (this.cmView) replaceWith(this.cmView, text);
+  }
+
+  replaceAll(text: string) {
+    if (this.cmView) replaceAllWith(this.cmView, text);
   }
 
   /**

@@ -100,6 +100,7 @@ const THEME_COLORS = [
   'dock-bg',
   'line',
   'accent-line',
+  'warning',
 ];
 
 /**

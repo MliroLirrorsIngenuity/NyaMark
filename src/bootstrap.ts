@@ -27,6 +27,7 @@ import { MobileDocuments, reportFailure } from './features/mobile-documents';
 import { bindNativePanels } from './features/native';
 import { bindNativeShell } from './features/native-shell';
 import { NativeExportPdfDialog } from './features/native/export-pdf';
+import { openNativeFind } from './features/native/find';
 import { NativeImagePolicyDialog } from './features/native/image-policy';
 import { PdfExporter } from './features/pdf-export';
 import {
@@ -254,7 +255,8 @@ export class App {
 
     const searchPanel = new SearchPanel(() => this.editor);
     const find = () => {
-      if (!this.sourceMode?.find()) searchPanel.show();
+      if (isNativeShell()) openNativeFind();
+      else if (!this.sourceMode?.find()) searchPanel.show();
     };
     new Titlebar(store, {
       onNewFile: newFile,
