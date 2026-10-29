@@ -126,75 +126,69 @@ final class FolderModel: ObservableObject {
   }
 }
 
-/// A gradient page as the app's background draws it.
-struct PageBackground: View {
-  @ObservedObject private var theme = Theme.shared
-
-  var body: some View {
-    LinearGradient(
-      colors: [theme.color("app-bg-start"), theme.color("app-bg-end")], startPoint: .top,
-      endPoint: .bottom
-    )
-    .ignoresSafeArea()
-  }
+/// An action offered on a row by a swipe and a long press.
+struct RowAction: Identifiable {
+  let id = UUID()
+  let title: String
+  let symbol: String
+  var destructive = false
+  let run: () -> Void
 }
 
-private struct SectionTitle: View {
-  @ObservedObject private var theme = Theme.shared
-  let text: String
-
-  var body: some View {
-    Text(text)
-      .font(.system(size: 13, weight: .semibold))
-      .foregroundStyle(theme.color("text-secondary"))
-      .padding(.horizontal, 18)
-      .padding(.top, 18)
-      .padding(.bottom, 8)
-  }
-}
-
-/// A card row: the main button, and a trailing ⋯ or chevron.
+/// A row of the library: the item's symbol in the accent, its name and a detail line.
 private struct LibraryRow: View {
   @ObservedObject private var theme = Theme.shared
-  let label: RowLabel
+  let symbol: String
+  let title: String
+  var detail: String? = nil
+  var dimmed = false
   var disclosure = false
-  var actions: [SheetAction] = []
-  var actionTitle: String? = nil
-  let shell: NativeShell?
+  var actions: [RowAction] = []
   let tap: () -> Void
 
   var body: some View {
-    HStack(spacing: 0) {
-      Button(action: tap) { label }
-        .buttonStyle(RowStyle())
-      if !actions.isEmpty {
-        Button {
-          shell?.showActions(title: actionTitle, actions)
-        } label: {
-          Image(systemName: "ellipsis")
-            .font(.system(size: 18, weight: .semibold))
-            .foregroundStyle(theme.color("text-secondary"))
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
+    Button(action: tap) {
+      HStack(spacing: 14) {
+        Image(systemName: symbol)
+          .font(.title3)
+          .foregroundStyle(theme.color("accent"))
+          .frame(width: 30)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+          if let detail {
+            Text(detail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+          }
         }
-        .buttonStyle(RowStyle())
-        .clipShape(Circle())
-        .padding(.trailing, 6)
-        .accessibilityLabel(L10n.text("more"))
-      } else if disclosure {
-        Image(systemName: "chevron.right")
-          .font(.system(size: 14, weight: .semibold))
-          .foregroundStyle(theme.color("text-muted"))
-          .padding(.trailing, 18)
-          .allowsHitTesting(false)
+        Spacer(minLength: 0)
+        if disclosure {
+          Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.tertiary)
+        }
+      }
+      .opacity(dimmed ? 0.5 : 1)
+      .padding(.vertical, 4)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+      ForEach(actions.reversed()) { action in
+        Button(role: action.destructive ? .destructive : nil, action: action.run) {
+          Label(action.title, systemImage: action.symbol)
+        }
+        .tint(action.destructive ? nil : Color(.systemGray))
       }
     }
     .contextMenu {
       ForEach(actions) { action in
-        if action.destructive {
-          Button(role: .destructive, action: action.run) { Text(action.title) }
-        } else {
-          Button(action: action.run) { Text(action.title) }
+        Button(role: action.destructive ? .destructive : nil, action: action.run) {
+          Label(action.title, systemImage: action.symbol)
         }
       }
     }
@@ -207,92 +201,58 @@ struct LibraryHome: View {
   weak var shell: NativeShell?
 
   var body: some View {
-    ZStack {
-      PageBackground()
-      ScrollView {
-        VStack(alignment: .leading, spacing: 0) {
-          HStack {
-            Spacer()
-            CircleButton(
-              symbol: "plus", label: L10n.text("newDocument"), disabled: model.defaultFolder == nil
-            ) {
-              if let folder = model.defaultFolder { shell?.create(in: folder) }
-            }
-          }
-          .frame(minHeight: 56)
-          Text(L10n.text("documents"))
-            .font(.system(size: 34, weight: .bold))
-            .foregroundStyle(theme.color("text-primary"))
-            .padding(.horizontal, 4)
-            .padding(.bottom, 10)
-          SectionTitle(text: L10n.text("recents"))
-          if model.recents.isEmpty {
-            Text(L10n.text("recentsEmpty"))
-              .font(.system(size: 15))
-              .foregroundStyle(theme.color("text-secondary"))
-              .padding(.horizontal, 18)
-              .padding(.vertical, 4)
-          } else {
-            Card {
-              ForEach(Array(model.recents.enumerated()), id: \.element.id) { index, recent in
-                if index > 0 { Hairline() }
-                recentRow(recent)
-              }
-            }
-          }
-          SectionTitle(text: L10n.text("locations"))
-          Card {
-            ForEach(model.locations) { location in
-              locationRow(location)
-              Hairline()
-            }
-            LibraryRow(
-              label: RowLabel(symbol: "folder.badge.plus", title: L10n.text("addFolder")),
-              shell: shell
-            ) { shell?.pickFolder() }
-            Hairline()
-            LibraryRow(
-              label: RowLabel(symbol: "arrow.up.forward.square", title: L10n.text("openOther")),
-              shell: shell
-            ) { shell?.pickDocument() }
-          }
+    List {
+      Section(L10n.text("recents")) {
+        if model.recents.isEmpty {
+          Text(L10n.text("recentsEmpty"))
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 24)
+        ForEach(model.recents) { recent in recentRow(recent) }
       }
-      .refreshable {
-        await withCheckedContinuation { done in model.reload { done.resume() } }
+      Section(L10n.text("locations")) {
+        ForEach(model.locations) { location in locationRow(location) }
+        LibraryRow(symbol: "folder.badge.plus", title: L10n.text("addFolder")) {
+          shell?.pickFolder()
+        }
+        LibraryRow(symbol: "arrow.up.forward.square", title: L10n.text("openOther")) {
+          shell?.pickDocument()
+        }
       }
+    }
+    .listStyle(.insetGrouped)
+    .tint(theme.color("accent"))
+    .refreshable {
+      await withCheckedContinuation { done in model.reload { done.resume() } }
     }
   }
 
   @ViewBuilder
   private func recentRow(_ recent: RecentDocument) -> some View {
     let name = displayName(recent.name)
-    let removal = SheetAction(title: L10n.text("removeRecent")) { model.removeRecent(recent.id) }
+    let removal = RowAction(title: L10n.text("removeRecent"), symbol: "minus.circle") {
+      model.removeRecent(recent.id)
+    }
     if let path = recent.path, recent.available {
       let date = shortDate(recent.openedAt)
       let folder = model.folderLabel(of: recent)
       LibraryRow(
-        label: RowLabel(
-          symbol: "doc", title: name, detail: folder.map { "\($0) · \(date)" } ?? date,
-        ),
+        symbol: "doc.text", title: name, detail: folder.map { "\($0) · \(date)" } ?? date,
         actions: [
-          SheetAction(title: L10n.text("rename") + "…") {
+          RowAction(title: L10n.text("rename"), symbol: "pencil") {
             shell?.askToRename(path: path, current: name) { _ in model.reload() }
           },
-          SheetAction(title: L10n.text("delete"), destructive: true) {
+          removal,
+          RowAction(title: L10n.text("delete"), symbol: "trash", destructive: true) {
             shell?.askToDelete(path: path, name: name) { model.reload() }
           },
-          removal,
-        ], actionTitle: name, shell: shell
+        ]
       ) { shell?.open(path) }
     } else {
       LibraryRow(
-        label: RowLabel(
-          symbol: "doc", title: name, detail: L10n.text("documentUnavailable"), dimmed: true),
-        actions: [removal], actionTitle: name, shell: shell
-      ) { shell?.showActions(title: name, [removal]) }
+        symbol: "doc.text", title: name, detail: L10n.text("documentUnavailable"), dimmed: true,
+        actions: [removal]
+      ) {}
     }
   }
 
@@ -301,21 +261,22 @@ struct LibraryHome: View {
     let label = model.label(of: location)
     let symbol =
       location.kind == "icloud" ? "icloud" : location.kind == "local" ? "iphone" : "folder"
-    let removal: [SheetAction] =
+    let removal: [RowAction] =
       location.kind == "folder"
-      ? [SheetAction(title: L10n.text("removeLocation")) { model.removeFolder(location.id) }] : []
+      ? [
+        RowAction(title: L10n.text("removeLocation"), symbol: "minus.circle") {
+          model.removeFolder(location.id)
+        }
+      ] : []
     if let path = location.path, location.available {
-      LibraryRow(
-        label: RowLabel(symbol: symbol, title: label), disclosure: true, actions: removal,
-        actionTitle: label, shell: shell
-      ) { shell?.showFolder(title: label, path: path) }
+      LibraryRow(symbol: symbol, title: label, disclosure: true, actions: removal) {
+        shell?.showFolder(title: label, path: path)
+      }
     } else {
       LibraryRow(
-        label: RowLabel(
-          symbol: symbol, title: label,
-          detail: L10n.text(location.kind == "icloud" ? "icloudUnavailable" : "folderUnavailable"),
-          dimmed: true),
-        actions: removal, actionTitle: label, shell: shell
+        symbol: symbol, title: label,
+        detail: L10n.text(location.kind == "icloud" ? "icloudUnavailable" : "folderUnavailable"),
+        dimmed: true, actions: removal
       ) {}
     }
   }
@@ -324,62 +285,21 @@ struct LibraryHome: View {
 struct FolderView: View {
   @ObservedObject var model: FolderModel
   @ObservedObject private var theme = Theme.shared
-  let title: String
   weak var shell: NativeShell?
 
   var body: some View {
-    ZStack {
-      PageBackground()
-      VStack(spacing: 0) {
-        ZStack {
-          Text(title)
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(theme.color("text-primary"))
-            .lineLimit(1)
-            .padding(.horizontal, 60)
-          HStack {
-            CircleButton(symbol: "chevron.left", label: L10n.text("back")) { shell?.goBack() }
-            Spacer()
-            CircleButton(symbol: "plus", label: L10n.text("newDocument")) {
-              shell?.create(in: model.path)
-            }
-          }
-        }
-        .frame(minHeight: 56)
-        .padding(.horizontal, 16)
-        ScrollView {
-          VStack(alignment: .leading, spacing: 0) {
-            TextField(L10n.text("search"), text: $model.query)
-              .padding(.horizontal, 14)
-              .frame(height: 44)
-              .background(
-                RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-                  .fill(theme.color("fill-soft")))
-              .overlay(
-                RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-                  .stroke(theme.color("border-soft"), lineWidth: 1))
-              .padding(.bottom, 16)
-            if model.shown.isEmpty {
-              Text(L10n.text("folderEmpty"))
-                .font(.system(size: 15))
-                .foregroundStyle(theme.color("text-secondary"))
-                .padding(.horizontal, 18)
-            } else {
-              Card {
-                ForEach(Array(model.shown.enumerated()), id: \.element.id) { index, entry in
-                  if index > 0 { Hairline() }
-                  entryRow(entry)
-                }
-              }
-            }
-          }
-          .padding(.horizontal, 16)
-          .padding(.bottom, 24)
-        }
-        .refreshable {
-          await withCheckedContinuation { done in model.reload { done.resume() } }
-        }
+    List {
+      if model.shown.isEmpty {
+        Text(L10n.text("folderEmpty"))
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
       }
+      ForEach(model.shown) { entry in entryRow(entry) }
+    }
+    .listStyle(.insetGrouped)
+    .tint(theme.color("accent"))
+    .refreshable {
+      await withCheckedContinuation { done in model.reload { done.resume() } }
     }
   }
 
@@ -388,26 +308,25 @@ struct FolderView: View {
     let isFolder = entry.kind == "folder"
     let name = isFolder ? entry.name : displayName(entry.name)
     let actions = [
-      SheetAction(title: L10n.text("rename") + "…") {
+      RowAction(title: L10n.text("rename"), symbol: "pencil") {
         shell?.askToRename(path: entry.path, current: name) { _ in model.reload() }
       },
-      SheetAction(title: L10n.text("delete"), destructive: true) {
+      RowAction(title: L10n.text("delete"), symbol: "trash", destructive: true) {
         shell?.askToDelete(path: entry.path, name: name) { model.reload() }
       },
     ]
     if isFolder {
-      LibraryRow(
-        label: RowLabel(symbol: "folder", title: name), actions: actions, actionTitle: name,
-        shell: shell
-      ) { shell?.showFolder(title: name, path: entry.path) }
+      LibraryRow(symbol: "folder", title: name, disclosure: true, actions: actions) {
+        shell?.showFolder(title: name, path: entry.path)
+      }
     } else {
       let date = entry.modifiedAt.map(shortDate)
       let detail =
         entry.downloaded
         ? date : [date, L10n.text("notDownloaded")].compactMap { $0 }.joined(separator: " · ")
       LibraryRow(
-        label: RowLabel(symbol: entry.downloaded ? "doc" : "icloud.and.arrow.down", title: name, detail: detail),
-        actions: actions, actionTitle: name, shell: shell
+        symbol: entry.downloaded ? "doc.text" : "icloud.and.arrow.down", title: name,
+        detail: detail, actions: actions
       ) { shell?.open(entry.path) }
     }
   }

@@ -23,6 +23,8 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
   let model: LibraryModel
   let chrome = EditorChrome()
   private let navigation: UINavigationController
+  private let libraryPage: UIViewController
+  private var libraryWatch: AnyCancellable?
   fileprivate let editor: EditorViewController
   /// The editor page, for panels that float over the document rather than in a sheet.
   var editorPage: UIViewController { editor }
@@ -56,10 +58,23 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
     model = LibraryModel(queue: queue, library: library, deviceName: deviceName)
     editor = EditorViewController(webView: webView)
     let home = UIHostingController(rootView: AnyView(EmptyView()))
+    libraryPage = home
     navigation = UINavigationController(rootViewController: home)
     super.init()
     home.rootView = AnyView(LibraryHome(model: model, shell: self))
-    navigation.setNavigationBarHidden(true, animated: false)
+    home.navigationItem.largeTitleDisplayMode = .always
+    navigation.navigationBar.prefersLargeTitles = true
+    let add = UIBarButtonItem(
+      systemItem: .add,
+      primaryAction: UIAction { [weak self] _ in
+        guard let self, let folder = self.model.defaultFolder else { return }
+        self.create(in: folder)
+      })
+    home.navigationItem.rightBarButtonItem = add
+    libraryWatch = model.$locations.sink { [weak self, weak add] _ in
+      DispatchQueue.main.async { add?.isEnabled = self?.model.defaultFolder != nil }
+    }
+    retitle()
     navigation.interactivePopGestureRecognizer?.delegate = self
     editor.shell = self
   }
@@ -84,8 +99,11 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
     webView.configuration.userContentController.add(shell, name: "nyamark")
     shell.toolbar.onKey = { [weak shell] key in shell?.send(key) }
     shell.toolbar.onHideKeyboard = { [weak shell] in shell?.webView.endEditing(true) }
-    shell.themeWatch = Theme.shared.$dark.sink { [weak window] dark in
-      window?.overrideUserInterfaceStyle = dark ? .dark : .light
+    shell.themeWatch = Theme.shared.$colors.sink { [weak window] _ in
+      DispatchQueue.main.async {
+        window?.overrideUserInterfaceStyle = Theme.shared.dark ? .dark : .light
+        window?.tintColor = Theme.shared.ui("accent")
+      }
     }
     window.rootViewController = shell.navigation
     shell.park()
@@ -131,6 +149,7 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
       if let language = body["language"] as? String, language != L10n.language {
         L10n.language = language
         model.objectWillChange.send()
+        retitle()
       }
       if body["path"] is String {
         showEditor(animated: navigation.viewControllers.count == 1)
@@ -251,9 +270,14 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
 
   func showFolder(title: String, path: String) {
     let folder = FolderModel(path: path, queue: queue)
-    let page = UIHostingController(rootView: FolderView(model: folder, title: title, shell: self))
-    navigation.pushViewController(page, animated: true)
+    navigation.pushViewController(FolderPage(model: folder, title: title, shell: self), animated: true)
     folder.reload()
+  }
+
+  /// The library's title in the language the page reports.
+  private func retitle() {
+    libraryPage.navigationItem.title = L10n.text("documents")
+    libraryPage.navigationItem.rightBarButtonItem?.accessibilityLabel = L10n.text("newDocument")
   }
 
   func create(in folder: String) {
@@ -277,39 +301,67 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
     return top
   }
 
-  func showActions(title: String?, closeInHeader: Bool = false, _ actions: [SheetAction]) {
-    OverlayPresenter.present(from: presenter) { close in
-      ActionSheet(
-        title: title, closeInHeader: closeInHeader, actions: actions, cancel: L10n.text("cancel"),
-        dismiss: close)
-    }
-  }
-
   /// The editor page's ⋯: the file menu.
-  func showFileMenu() {
-    let actions = [
-      SheetAction(title: L10n.text("new")) { [weak self] in
-        guard let self, let folder = self.model.defaultFolder else { return }
-        self.create(in: folder)
-      },
-      SheetAction(title: L10n.text("open")) { [weak self] in self?.pickDocument() },
-      SheetAction(title: L10n.text("rename") + "…") { [weak self] in self?.renameCurrent() },
-      SheetAction(title: L10n.text("share")) { [weak self] in self?.perform("share") },
-      SheetAction(title: L10n.text("exportPdf")) { [weak self] in self?.perform("exportPdf") },
-      SheetAction(title: L10n.text("print")) { [weak self] in self?.perform("print") },
-    ]
-    showActions(title: L10n.text("file"), closeInHeader: true, actions)
+  func fileMenu() -> UIMenu {
+    func item(_ key: String, _ symbol: String, _ run: @escaping (NativeShell) -> Void) -> UIAction {
+      UIAction(title: L10n.text(key), image: UIImage(systemName: symbol)) { [weak self] _ in
+        if let self { run(self) }
+      }
+    }
+    return UIMenu(children: [
+      UIMenu(
+        options: .displayInline,
+        children: [
+          item("new", "square.and.pencil") { shell in
+            if let folder = shell.model.defaultFolder { shell.create(in: folder) }
+          },
+          item("open", "folder") { $0.pickDocument() },
+          item("rename", "pencil") { $0.renameCurrent() },
+        ]),
+      UIMenu(
+        options: .displayInline,
+        children: [
+          item("share", "square.and.arrow.up") { $0.perform("share") },
+          item("exportPdf", "doc.richtext") { $0.perform("exportPdf") },
+          item("print", "printer") { $0.perform("print") },
+        ]),
+    ])
   }
 
   private func renameCurrent() {
-    let current = displayName(chrome.title)
-    OverlayPresenter.present(from: presenter) { close in
-      RenameDialog(
-        initial: current,
-        submit: { [weak self] stem, done in
-          self?.ask(["type": "rename", "stem": stem], done: done)
-        }, dismiss: close)
+    askForName(initial: displayName(chrome.title)) { [weak self] stem, done in
+      self?.ask(["type": "rename", "stem": stem], done: done)
     }
+  }
+
+  /// Asks for a name with the system's alert; `submit` answers with a message to show again, or nil.
+  func askForName(
+    initial: String, problem: String? = nil,
+    submit: @escaping (String, @escaping (String?) -> Void) -> Void
+  ) {
+    let alert = UIAlertController(
+      title: L10n.text("rename"), message: problem, preferredStyle: .alert)
+    alert.addTextField { field in
+      field.text = initial
+      field.clearButtonMode = .whileEditing
+      field.autocapitalizationType = .none
+      field.returnKeyType = .done
+    }
+    alert.addAction(UIAlertAction(title: L10n.text("cancel"), style: .cancel))
+    let confirm = UIAlertAction(title: L10n.text("rename"), style: .default) {
+      [weak self, weak alert] _ in
+      let name = (alert?.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      if name.isEmpty || name.contains("/") || name.contains(":") {
+        self?.askForName(initial: name, problem: L10n.text("invalidName"), submit: submit)
+        return
+      }
+      submit(name) { message in
+        if let message { self?.askForName(initial: name, problem: message, submit: submit) }
+      }
+    }
+    alert.addAction(confirm)
+    alert.preferredAction = confirm
+    presenter.present(alert, animated: true)
   }
 
   func report(_ error: Error) {
@@ -321,25 +373,21 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
 
   /// Asks for a new name for the item at `path`, then renames it.
   func askToRename(path: String, current: String, done: @escaping (String) -> Void) {
-    OverlayPresenter.present(from: presenter) { close in
-      RenameDialog(
-        initial: current,
-        submit: { [weak self] stem, finish in
-          guard let self else { return }
-          self.queue.async {
-            do {
-              let renamed = try FileAccess.rename(URL(fileURLWithPath: path), to: stem)
-              DispatchQueue.main.async {
-                finish(nil)
-                done(canonicalPath(renamed))
-              }
-            } catch Failure.exists(let name) {
-              DispatchQueue.main.async { finish(L10n.text("exists", name)) }
-            } catch {
-              DispatchQueue.main.async { finish(L10n.text("failed", Failure.from(error).message)) }
-            }
+    askForName(initial: current) { [weak self] stem, finish in
+      guard let self else { return }
+      self.queue.async {
+        do {
+          let renamed = try FileAccess.rename(URL(fileURLWithPath: path), to: stem)
+          DispatchQueue.main.async {
+            finish(nil)
+            done(canonicalPath(renamed))
           }
-        }, dismiss: close)
+        } catch Failure.exists(let name) {
+          DispatchQueue.main.async { finish(L10n.text("exists", name)) }
+        } catch {
+          DispatchQueue.main.async { finish(L10n.text("failed", Failure.from(error).message)) }
+        }
+      }
     }
   }
 
@@ -408,19 +456,19 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
   }
 }
 
-/// The editor page: NyaMark's title bar and bottom bar around the page's editor.
+/// The editor page: the document's name in the system's bar, the page's editor, and the tools in the system's toolbar.
 final class EditorViewController: UIViewController {
   weak var shell: NativeShell? {
     didSet { installBars() }
   }
   private let webView: WKWebView
-  private var header: UIHostingController<AnyView>?
-  private var bottomBar: UIHostingController<AnyView>?
+  private let sourceItem = UIBarButtonItem()
   private var watches: [AnyCancellable] = []
 
   init(webView: WKWebView) {
     self.webView = webView
     super.init(nibName: nil, bundle: nil)
+    navigationItem.largeTitleDisplayMode = .never
   }
 
   required init?(coder: NSCoder) {
@@ -428,10 +476,53 @@ final class EditorViewController: UIViewController {
   }
 
   private func installBars() {
-    guard let shell, header == nil else { return }
-    header = UIHostingController(rootView: AnyView(EditorHeader(chrome: shell.chrome, shell: shell)))
-    bottomBar = UIHostingController(
-      rootView: AnyView(EditorBottomBar(chrome: shell.chrome, shell: shell)))
+    guard let shell, watches.isEmpty else { return }
+    let file = UIBarButtonItem(
+      title: L10n.text("file"), image: UIImage(systemName: "ellipsis"), primaryAction: nil,
+      menu: shell.fileMenu())
+    navigationItem.rightBarButtonItem = file
+    sourceItem.image = UIImage(systemName: "chevron.left.forwardslash.chevron.right")
+    sourceItem.primaryAction = UIAction(
+      image: UIImage(systemName: "chevron.left.forwardslash.chevron.right")
+    ) { [weak self] _ in self?.shell?.perform("toggleSource") }
+    let tool = { [weak self] (symbol: String, run: @escaping (NativeShell) -> Void) -> UIBarButtonItem in
+      UIBarButtonItem(
+        image: UIImage(systemName: symbol),
+        primaryAction: UIAction(image: UIImage(systemName: symbol)) { [weak self] _ in
+          if let shell = self?.shell { run(shell) }
+        })
+    }
+    let outline = tool("list.bullet.indent") { $0.openPanel("outline") }
+    let ai = tool("sparkles") { $0.openPanel("ai") }
+    let find = tool("magnifyingglass") { $0.openPanel("find") }
+    let settings = tool("gearshape") { $0.openPanel("form", ["form": "settings"]) }
+    toolbarItems = [
+      outline, .flexibleSpace(), sourceItem, .flexibleSpace(), ai, .flexibleSpace(), find,
+      .flexibleSpace(), settings,
+    ]
+    let label = { [weak self, weak shell, weak file] in
+      guard let self, let shell else { return }
+      for (item, key) in [
+        (outline, "outline"), (self.sourceItem, "source"), (ai, "ai"), (find, "find"),
+        (settings, "settings"),
+      ] {
+        item.accessibilityLabel = L10n.text(key)
+      }
+      file?.title = L10n.text("file")
+      file?.menu = shell.fileMenu()
+    }
+    label()
+    watches.append(
+      shell.chrome.$title.sink { [weak self] title in
+        self?.navigationItem.title = title
+        label()
+      })
+    watches.append(
+      shell.chrome.$status.sink { [weak self] status in
+        if #available(iOS 26.0, *) { self?.navigationItem.subtitle = status }
+      })
+    watches.append(
+      shell.chrome.$sourceMode.sink { [weak self] on in self?.sourceItem.isSelected = on })
     watches.append(
       Theme.shared.$colors.sink { [weak self] colors in
         self?.viewIfLoaded?.backgroundColor = colors["app-bg-start"]
@@ -441,23 +532,6 @@ final class EditorViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = Theme.shared.ui("app-bg-start")
-    guard let header, let bottomBar else { return }
-    for bar in [header, bottomBar] {
-      addChild(bar)
-      bar.view.backgroundColor = .clear
-      bar.view.translatesAutoresizingMaskIntoConstraints = false
-      view.addSubview(bar.view)
-      bar.didMove(toParent: self)
-    }
-    NSLayoutConstraint.activate([
-      header.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-      header.view.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-      header.view.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-      header.view.heightAnchor.constraint(equalToConstant: 56),
-      bottomBar.view.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-      bottomBar.view.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-      bottomBar.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-    ])
     for name in [UIResponder.keyboardWillShowNotification, UIResponder.keyboardWillHideNotification] {
       NotificationCenter.default.addObserver(
         self, selector: #selector(keyboardMoves(_:)), name: name, object: nil)
@@ -466,16 +540,22 @@ final class EditorViewController: UIViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    guard webView.superview !== view, let header else { return }
+    navigationController?.setToolbarHidden(shell?.chrome.keyboardShown ?? false, animated: animated)
+    guard webView.superview !== view else { return }
     webView.removeFromSuperview()
     webView.translatesAutoresizingMaskIntoConstraints = false
     view.insertSubview(webView, at: 0)
     NSLayoutConstraint.activate([
-      webView.topAnchor.constraint(equalTo: header.view.bottomAnchor),
+      webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
       webView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
       webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
     ])
+  }
+
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    navigationController?.setToolbarHidden(true, animated: animated)
   }
 
   override func viewDidLayoutSubviews() {
@@ -488,20 +568,23 @@ final class EditorViewController: UIViewController {
     if isMovingFromParent { shell?.editorClosed() }
   }
 
-  /// The page keeps the end of the document clear of the bottom bar.
+  /// The page keeps the end of the document clear of the toolbar floating over it.
   private func tellInsets() {
-    guard let shell, let bottomBar, !shell.chrome.keyboardShown else {
+    guard let shell, let toolbar = navigationController?.toolbar, !toolbar.isHidden,
+      !shell.chrome.keyboardShown
+    else {
       shell?.tellInsets(bottom: 0)
       return
     }
-    shell.tellInsets(bottom: max(0, view.bounds.maxY - bottomBar.view.frame.minY))
+    let top = toolbar.convert(toolbar.bounds, to: view).minY
+    shell.tellInsets(bottom: max(0, view.bounds.maxY - top))
   }
 
   @objc private func keyboardMoves(_ note: Notification) {
     let shown = note.name == UIResponder.keyboardWillShowNotification
-    let duration =
-      (note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
-    withAnimation(.easeOut(duration: duration)) { shell?.chrome.keyboardShown = shown }
+    shell?.chrome.keyboardShown = shown
+    guard navigationController?.topViewController === self else { return }
+    navigationController?.setToolbarHidden(shown, animated: true)
     tellInsets()
   }
 
@@ -514,96 +597,34 @@ final class EditorViewController: UIViewController {
   }
 }
 
-/// NyaMark's title bar: back, the document's name and save state, and the file menu.
-struct EditorHeader: View {
-  @ObservedObject var chrome: EditorChrome
-  @ObservedObject private var theme = Theme.shared
-  weak var shell: NativeShell?
+/// A folder of the library: its documents in a system list, with the system's search and + button.
+final class FolderPage: UIHostingController<FolderView>, UISearchResultsUpdating {
+  private let model: FolderModel
 
-  var body: some View {
-    ZStack {
-      VStack(spacing: 2) {
-        Text(chrome.title)
-          .font(.system(size: 17, weight: .semibold))
-          .foregroundStyle(theme.color("text-primary"))
-          .lineLimit(1)
-        Text(chrome.status)
-          .font(.system(size: 12))
-          .foregroundStyle(theme.color("text-muted"))
-          .lineLimit(1)
-      }
-      .padding(.horizontal, 76)
-      HStack {
-        CircleButton(symbol: "chevron.left", label: L10n.text("documents")) { shell?.goBack() }
-        Spacer()
-        CircleButton(symbol: "ellipsis", label: L10n.text("file")) { shell?.showFileMenu() }
-      }
-      .padding(.horizontal, 16)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-}
-
-/// NyaMark's floating bottom bar: outline, source, assistant, find and settings.
-struct EditorBottomBar: View {
-  @ObservedObject var chrome: EditorChrome
-  @ObservedObject private var theme = Theme.shared
-  weak var shell: NativeShell?
-
-  var body: some View {
-    ZStack {
-      if !chrome.keyboardShown {
-        GlassGroup(spacing: 8) {
-          HStack(spacing: 8) {
-            item("list.bullet.indent", "outline") { shell?.openPanel("outline") }
-            item("chevron.left.forwardslash.chevron.right", "source", on: chrome.sourceMode) {
-              shell?.perform("toggleSource")
-            }
-            item("sparkles", "ai") { shell?.openPanel("ai") }
-            item("magnifyingglass", "find") { shell?.openPanel("find") }
-            item("gearshape", "settings") { shell?.openPanel("form", ["form": "settings"]) }
-          }
-          .padding(6)
-          .glassCard()
-        }
-        .barShadow()
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-      }
-    }
+  init(model: FolderModel, title: String, shell: NativeShell) {
+    self.model = model
+    super.init(rootView: FolderView(model: model, shell: shell))
+    navigationItem.title = title
+    navigationItem.largeTitleDisplayMode = .never
+    let search = UISearchController(searchResultsController: nil)
+    search.searchResultsUpdater = self
+    search.obscuresBackgroundDuringPresentation = false
+    search.searchBar.placeholder = L10n.text("search")
+    navigationItem.searchController = search
+    navigationItem.hidesSearchBarWhenScrolling = false
+    let add = UIBarButtonItem(
+      systemItem: .add,
+      primaryAction: UIAction { [weak shell] _ in shell?.create(in: model.path) })
+    add.accessibilityLabel = L10n.text("newDocument")
+    navigationItem.rightBarButtonItem = add
   }
 
-  private func item(
-    _ symbol: String, _ label: String, on: Bool = false, run: @escaping () -> Void
-  ) -> some View {
-    Button {
-      UIImpactFeedbackGenerator(style: .light).impactOccurred()
-      run()
-    } label: {
-      Image(systemName: symbol)
-        .font(.system(size: 19))
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .contentShape(Rectangle())
-    }
-    .buttonStyle(NavItemStyle(on: on))
-    .accessibilityLabel(L10n.text(label))
+  @MainActor required dynamic init?(coder: NSCoder) {
+    fatalError("init(coder:) is not used")
   }
-}
 
-struct NavItemStyle: ButtonStyle {
-  @ObservedObject private var theme = Theme.shared
-  let on: Bool
-
-  func makeBody(configuration: Configuration) -> some View {
-    let lit = on || configuration.isPressed
-    return configuration.label
-      .foregroundStyle(lit ? theme.color("accent-ink") : theme.color("text-secondary"))
-      .background(
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-          .fill(lit ? theme.color("accent-soft") : .clear))
-      .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+  func updateSearchResults(for controller: UISearchController) {
+    model.query = controller.searchBar.text ?? ""
   }
 }
 
