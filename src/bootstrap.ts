@@ -29,6 +29,8 @@ import { bindNativeShell } from './features/native-shell';
 import { NativeExportPdfDialog } from './features/native/export-pdf';
 import { openNativeFind } from './features/native/find';
 import { NativeImagePolicyDialog } from './features/native/image-policy';
+import { openNativeOutline } from './features/native/outline';
+import { openNativeSettings } from './features/native/settings';
 import { PdfExporter } from './features/pdf-export';
 import {
   ShortcutController,
@@ -304,12 +306,14 @@ export class App {
       print: () => this.pdfExporter.open(),
       find,
       findAgain: (back) => {
-        if (!store.getState().sourceMode) searchPanel.findAgain(back);
+        if (isNativeShell()) openNativeFind();
+        else if (!store.getState().sourceMode) searchPanel.findAgain(back);
       },
       toggleOutline: () => this.toggleOutline(),
       toggleAi: () => this.toggleAi(true),
       askAi: () => this.askAi('menu'),
-      openSettings: () => this.settingsPanel.open(),
+      openSettings: () =>
+        isNativeShell() ? openNativeSettings() : this.settingsPanel.open(),
     });
     shortcutController.bind();
     setAiAskHandler((mode) => this.askAi(mode));
@@ -343,6 +347,10 @@ export class App {
   }
 
   private toggleOutline() {
+    if (isNativeShell()) {
+      openNativeOutline();
+      return;
+    }
     if (!this.editor) return;
     const editor = this.editor;
     this.outline ??= new OutlinePanel(editor, (id) => {

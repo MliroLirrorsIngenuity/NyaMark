@@ -7,6 +7,11 @@ import { onPanel, postPanel } from './panels';
 /** Pause after the last document change before the list is sent again. */
 const RENDER_DELAY_MS = 150;
 
+/** Has the native shell show the outline, which then tells the page it is open. */
+export function openNativeOutline() {
+  postPanel('outline', 'present');
+}
+
 export type NativeOutlineHost = {
   editor: () => NyaEditor | null;
   sourceMode: () => SourceModeController | null;
