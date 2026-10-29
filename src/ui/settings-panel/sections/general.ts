@@ -4,7 +4,7 @@ import { isMobilePlatform } from '../../../platform/detect';
 import type { GeneralSettings } from '../../../state/settings';
 import { renderSelect } from '../select';
 
-const LANGUAGES = [
+export const LANGUAGES = [
   {
     value: 'auto',
     label: 'Auto (System Default)',

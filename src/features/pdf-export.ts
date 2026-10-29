@@ -23,15 +23,22 @@ export interface PrintSteps {
   printed(): void;
 }
 
+type PdfExporterOptions = PrintSteps & {
+  /** Asks for the page; the native form stands in for the page's own dialog. */
+  dialog?: Pick<ExportPdfDialog, 'open'>;
+};
+
 /**
  * Export to PDF through the system print dialog: the export dialog picks the
  * page, then the document alone is laid out for print until printing ends.
  */
 export class PdfExporter {
-  private readonly dialog = new ExportPdfDialog();
+  private readonly dialog: Pick<ExportPdfDialog, 'open'>;
   private busy = false;
 
-  constructor(private readonly steps: PrintSteps) {}
+  constructor(private readonly steps: PdfExporterOptions) {
+    this.dialog = steps.dialog ?? new ExportPdfDialog();
+  }
 
   /**
    * Asked again while the dialog is open or printing runs, it stays with

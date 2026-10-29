@@ -26,6 +26,8 @@ import { MenuController } from './features/menu-controller';
 import { MobileDocuments, reportFailure } from './features/mobile-documents';
 import { bindNativePanels } from './features/native';
 import { bindNativeShell } from './features/native-shell';
+import { NativeExportPdfDialog } from './features/native/export-pdf';
+import { NativeImagePolicyDialog } from './features/native/image-policy';
 import { PdfExporter } from './features/pdf-export';
 import {
   ShortcutController,
@@ -81,6 +83,7 @@ export class App {
     },
     printing: () => this.editor?.followTheme(true),
     printed: () => void this.editor?.followTheme(),
+    dialog: isNativeShell() ? new NativeExportPdfDialog() : undefined,
   });
   private readonly updateDialog = new UpdateDialog();
   private checkingForUpdates = false;
@@ -162,18 +165,21 @@ export class App {
     // handled by Tauri's default (destroy without asking).
     await new CloseGuard(fileController).bind();
 
-    this.attachments = new AttachmentController({
-      getMarkdown: () => this.editor?.getMarkdown() ?? '',
-      getFrontMatter: () => this.editor?.frontMatter() ?? null,
-      getDocumentPath: () => store.getState().filePath,
-      saveDocumentAs: () => fileController.saveFileAs(),
-      insertAttachments: (attachments) =>
-        this.editor?.insertAttachments(attachments),
-      onAttachmentsInserted: () => {
-        this.updateStats();
-        store.update({ isDirty: true });
+    this.attachments = new AttachmentController(
+      {
+        getMarkdown: () => this.editor?.getMarkdown() ?? '',
+        getFrontMatter: () => this.editor?.frontMatter() ?? null,
+        getDocumentPath: () => store.getState().filePath,
+        saveDocumentAs: () => fileController.saveFileAs(),
+        insertAttachments: (attachments) =>
+          this.editor?.insertAttachments(attachments),
+        onAttachmentsInserted: () => {
+          this.updateStats();
+          store.update({ isDirty: true });
+        },
       },
-    });
+      isNativeShell() ? new NativeImagePolicyDialog() : undefined
+    );
 
     this.editor = new NyaEditor(editorContainer, {
       onUploadFile: (file) =>

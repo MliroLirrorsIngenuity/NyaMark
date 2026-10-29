@@ -7,15 +7,16 @@ import {
 } from '../../../state/settings';
 import { renderSelect } from '../select';
 
-const THEMES: { value: ThemePreference; label: string; i18n: string }[] = [
-  {
-    value: 'auto',
-    label: 'Follow system',
-    i18n: 'settings.appearance.themeAuto',
-  },
-  { value: 'light', label: 'Light', i18n: 'settings.appearance.themeLight' },
-  { value: 'dark', label: 'Dark', i18n: 'settings.appearance.themeDark' },
-];
+export const THEMES: { value: ThemePreference; label: string; i18n: string }[] =
+  [
+    {
+      value: 'auto',
+      label: 'Follow system',
+      i18n: 'settings.appearance.themeAuto',
+    },
+    { value: 'light', label: 'Light', i18n: 'settings.appearance.themeLight' },
+    { value: 'dark', label: 'Dark', i18n: 'settings.appearance.themeDark' },
+  ];
 
 export function renderAppearanceSection(
   current: AppearanceSettings,

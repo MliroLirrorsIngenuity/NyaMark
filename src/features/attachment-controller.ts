@@ -82,7 +82,6 @@ type AttachmentControllerOptions = {
 
 export class AttachmentController {
   private readonly options: AttachmentControllerOptions;
-  private readonly imagePolicyDialog = new ImagePolicyDialog();
   private imageSettings = getSettings().attachments;
   private unsubscribeSettings: (() => void) | null = null;
   /** Answers to `allowCopyTarget`, keyed by document and folder. */
@@ -90,7 +89,13 @@ export class AttachmentController {
   /** Base64 read by the insertion under way, not yet in the document. */
   private pendingEmbeddedBytes = 0;
 
-  constructor(options: AttachmentControllerOptions) {
+  constructor(
+    options: AttachmentControllerOptions,
+    private readonly imagePolicyDialog: Pick<
+      ImagePolicyDialog,
+      'choosePastedImagePolicy' | 'chooseUnsavedPastedImageAction'
+    > = new ImagePolicyDialog()
+  ) {
     this.options = options;
     this.unsubscribeSettings = subscribeSettings((settings) => {
       this.imageSettings = settings.attachments;

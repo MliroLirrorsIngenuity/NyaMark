@@ -4,7 +4,7 @@ import type {
 } from '../../../state/image-settings';
 import { requireElement } from '../../require-element';
 
-const POLICIES: Array<{
+export const POLICIES: Array<{
   value: ImageInsertPolicy;
   label: string;
   description: string;

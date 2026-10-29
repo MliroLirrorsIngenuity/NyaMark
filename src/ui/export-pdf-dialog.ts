@@ -291,7 +291,7 @@ const LETTER_REGIONS = new Set(
 );
 
 /** The paper the system's region prints on: a "zh-CN" user got Letter. */
-function defaultPageSize(): ExportPdfSettings['pageSize'] {
+export function defaultPageSize(): ExportPdfSettings['pageSize'] {
   try {
     const { region } = new Intl.Locale(navigator.language).maximize();
     return region && LETTER_REGIONS.has(region) ? 'Letter' : 'A4';
