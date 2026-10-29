@@ -306,6 +306,9 @@ pub fn run() {
             Ok(())
         });
 
+    #[cfg(target_os = "ios")]
+    let builder = builder.plugin(tauri_plugin_documents::init());
+
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
         // A relative path names a file in the folder the second launch ran from.
@@ -347,14 +350,14 @@ pub fn run() {
         tauri::RunEvent::ExitRequested { code, api, .. } => {
             quit::handle_exit_requested(app, code, &api);
         }
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
         tauri::RunEvent::Opened { urls } => handle_opened_urls(app, &urls),
         tauri::RunEvent::Exit => ai::mcp::shutdown(app),
         _ => {}
     });
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn handle_opened_urls(app: &AppHandle, urls: &[tauri::Url]) {
     let paths = normalize_opened_paths(urls);
     if paths.is_empty() {
@@ -362,8 +365,15 @@ fn handle_opened_urls(app: &AppHandle, urls: &[tauri::Url]) {
     }
 
     if sessions::is_main_bootstrap_complete(app) {
+        #[cfg(target_os = "macos")]
         for path in paths {
             windows::spawn_editor_window(app, path);
+        }
+        // The phone's one window switches to the last document handed over.
+        #[cfg(target_os = "ios")]
+        if let Some(path) = paths.last() {
+            sessions::allow_document_scope(app, path);
+            let _ = tauri::Emitter::emit_to(app, "main", "nyamark://open-document", path);
         }
         return;
     }
@@ -371,7 +381,7 @@ fn handle_opened_urls(app: &AppHandle, urls: &[tauri::Url]) {
     sessions::extend_pending_launch_files(app, paths);
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn normalize_opened_paths(urls: &[tauri::Url]) -> Vec<String> {
     urls.iter()
         .filter_map(|url| url.to_file_path().ok())

@@ -117,6 +117,9 @@ pub fn read<R: Runtime>(
     path: &Path,
 ) -> Result<MarkdownDocument, DocumentError> {
     ensure_allowed(app, path)?;
+    #[cfg(target_os = "ios")]
+    return decode(coordinated::read(app, path)?);
+    #[cfg(not(target_os = "ios"))]
     decode(read_limited(path, MAX_DOCUMENT_BYTES)?)
 }
 
@@ -144,6 +147,16 @@ pub fn write<R: Runtime>(
     expected_version: Option<&str>,
 ) -> Result<String, DocumentError> {
     ensure_allowed(app, path)?;
+    #[cfg(target_os = "ios")]
+    return write_document_with(
+        path,
+        text,
+        format,
+        expected_version,
+        |path| coordinated::read(app, path),
+        |path, bytes| coordinated::write(app, path, bytes),
+    );
+    #[cfg(not(target_os = "ios"))]
     write_document(path, text, format, expected_version)
 }
 
@@ -153,12 +166,30 @@ pub(crate) fn write_document(
     format: DocumentFormat,
     expected_version: Option<&str>,
 ) -> Result<String, DocumentError> {
+    write_document_with(
+        path,
+        text,
+        format,
+        expected_version,
+        |path| read_limited(path, MAX_DOCUMENT_BYTES),
+        |path, bytes| Ok(write_atomically(path, bytes)?),
+    )
+}
+
+fn write_document_with(
+    path: &Path,
+    text: &str,
+    format: DocumentFormat,
+    expected_version: Option<&str>,
+    read: impl Fn(&Path) -> Result<Vec<u8>, DocumentError>,
+    store: impl Fn(&Path, &[u8]) -> Result<(), DocumentError>,
+) -> Result<String, DocumentError> {
     // The rename below replaces a file whatever its own permissions say.
     if fs::metadata(path).is_ok_and(|metadata| metadata.permissions().readonly()) {
         return Err(DocumentError::ReadOnly);
     }
     if let Some(expected) = expected_version {
-        match read_limited(path, MAX_DOCUMENT_BYTES) {
+        match read(path) {
             Ok(bytes) if version_of(&bytes) == expected => {}
             Ok(_) | Err(DocumentError::TooLarge { .. }) => return Err(DocumentError::Changed),
             Err(DocumentError::Missing { .. }) => {}
@@ -166,8 +197,49 @@ pub(crate) fn write_document(
         }
     }
     let bytes = encode(text, format);
-    write_atomically(path, &bytes)?;
+    store(path, &bytes)?;
     Ok(version_of(&bytes))
+}
+
+/// iOS reads and writes through a file coordinator, so iCloud Drive and other
+/// providers download a file before it is read and sync every save.
+#[cfg(target_os = "ios")]
+mod coordinated {
+    use std::path::Path;
+
+    use tauri::{AppHandle, Runtime};
+    use tauri_plugin_documents::{DocumentsExt, Error, ErrorKind};
+
+    use super::{DocumentError, MAX_DOCUMENT_BYTES};
+
+    impl From<Error> for DocumentError {
+        fn from(error: Error) -> Self {
+            match error.kind {
+                ErrorKind::Missing => Self::Missing {
+                    message: error.message,
+                },
+                ErrorKind::Forbidden => Self::Forbidden,
+                ErrorKind::TooLarge => Self::TooLarge {
+                    limit_bytes: MAX_DOCUMENT_BYTES,
+                },
+                ErrorKind::Io => Self::Io {
+                    message: error.message,
+                },
+            }
+        }
+    }
+
+    pub fn read<R: Runtime>(app: &AppHandle<R>, path: &Path) -> Result<Vec<u8>, DocumentError> {
+        Ok(app.documents().read(path, MAX_DOCUMENT_BYTES)?)
+    }
+
+    pub fn write<R: Runtime>(
+        app: &AppHandle<R>,
+        path: &Path,
+        bytes: &[u8],
+    ) -> Result<(), DocumentError> {
+        Ok(app.documents().write(path, bytes)?)
+    }
 }
 
 /// The bytes' length and hash. Only ever compared within one run of the app,

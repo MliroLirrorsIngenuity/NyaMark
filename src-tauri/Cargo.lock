@@ -39,6 +39,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tauri-plugin-documents",
  "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tauri-plugin-process",
@@ -4339,8 +4340,6 @@ dependencies = [
 [[package]]
 name = "tao"
 version = "0.35.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a33f7f9e486ade65fcf1e45c440f9236c904f5c1002cdc7fc6ae582777345ce4"
 dependencies = [
  "bitflags 2.11.1",
  "block2",
@@ -4550,6 +4549,16 @@ dependencies = [
  "tauri-plugin-fs",
  "thiserror 2.0.18",
  "url",
+]
+
+[[package]]
+name = "tauri-plugin-documents"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

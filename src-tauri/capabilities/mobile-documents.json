@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile-documents",
+  "description": "The phone's document library and sharing",
+  "platforms": ["iOS"],
+  "windows": ["main"],
+  "permissions": ["documents:default"]
+}

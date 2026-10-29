@@ -20,7 +20,10 @@
 		AAD3772239A46205EE639F0D /* MobileUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D1148DBE44A52EB1A996A1 /* MobileUITests.swift */; };
 		B00F6DE365D03F759AF00A77 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 8ADF5F001531E9BA8531FEE3 /* assets */; };
 		B1F7D9B8D0E6017CB1D31DC4 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D1E7A7EBF5D604E59517BF84 /* MetalKit.framework */; };
+		BF853168F5EABE397964F855 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = F266091FFC6B8C7583A7A52C /* Localizable.strings */; };
 		D886E7E658394D2B2621C85D /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8DDA121119BFC2C22F8E32AE /* Security.framework */; };
+		E442E907CAB87E5114736523 /* NyaMarkShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 76BE749952BEF7B9808F5565 /* NyaMarkShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		EB4F0E84F81156692AD07EC9 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F2BDBDD0ABE8F866693CE8 /* ShareViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,16 +34,40 @@
 			remoteGlobalIDString = 89D1AF3C7E7CBA280CCC4F51;
 			remoteInfo = NyaMark_iOS;
 		};
+		D832121260204D2D3E220505 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5F32B301AC4EEF185C87B58D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 55FEAABD6B862FB5DBE57422;
+			remoteInfo = NyaMarkShare;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		7430E471A4A282146E682F25 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				E442E907CAB87E5114736523 /* NyaMarkShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0068B9593C3606CCC1FEBC1B /* bing.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = bing.html; sourceTree = "<group>"; };
+		03ABF7B21DEC383678D88483 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		04EE1806257A04D5B3953246 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
 		0935B3A532E86A110C6697D0 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		22E07530CE149EA89010476B /* history.rs */ = {isa = PBXFileReference; path = history.rs; sourceTree = "<group>"; };
+		267354225FA75CA77419B7E4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4DA74E18F74A03052BF0CC82 /* chatgpt.rs */ = {isa = PBXFileReference; path = chatgpt.rs; sourceTree = "<group>"; };
 		4EAAC653679569153D2DDD43 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		5381E277C80A470A4936281F /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		54F2BDBDD0ABE8F866693CE8 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		5517262AECBE94935065E888 /* document.rs */ = {isa = PBXFileReference; path = document.rs; sourceTree = "<group>"; };
 		5559887999A3AA8BE4A80455 /* web.rs */ = {isa = PBXFileReference; path = web.rs; sourceTree = "<group>"; };
 		5C783495481A4FB4DB3F16FD /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
@@ -49,6 +76,7 @@
 		64BE08E38CD5EE9EE4AC57F6 /* NyaMarkUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NyaMarkUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A299099F465F37C6E55417C /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		6A48A52692394697843AF029 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		76BE749952BEF7B9808F5565 /* NyaMarkShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NyaMarkShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7711B46DD0A82A51752F24E6 /* images.rs */ = {isa = PBXFileReference; path = images.rs; sourceTree = "<group>"; };
 		7AB1E086E5AABDE92C8C1155 /* secrets.rs */ = {isa = PBXFileReference; path = secrets.rs; sourceTree = "<group>"; };
 		8ADF5F001531E9BA8531FEE3 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
@@ -56,6 +84,7 @@
 		8DDA121119BFC2C22F8E32AE /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		8E1D570145F7B30BA36DDCFE /* mcp.rs */ = {isa = PBXFileReference; path = mcp.rs; sourceTree = "<group>"; };
 		9C291CC03A5D4A18D4BD1CE6 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		9D60CD6C73B3ED55C32DA19E /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		A6623E47D8780FAF8D347C86 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		B3086A5F137B119FE85C3EF2 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		B5AD32751BBB18F6F64DA4F8 /* NyaMark_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NyaMark_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -64,6 +93,8 @@
 		BFDDC9F33392377D4C12B6D3 /* duckduckgo-captcha.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "duckduckgo-captcha.html"; sourceTree = "<group>"; };
 		C159AA5A69B16C32152BC79D /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		C29045CEFD1EDA287040AE2A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C461E099A4B3F2F661EB9FBA /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
+		C9604BD2D02D6D6683F2D642 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		D0C10DCD13288B4507C66925 /* sessions.rs */ = {isa = PBXFileReference; path = sessions.rs; sourceTree = "<group>"; };
 		D0D1148DBE44A52EB1A996A1 /* MobileUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileUITests.swift; sourceTree = "<group>"; };
 		D1E7A7EBF5D604E59517BF84 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
@@ -111,6 +142,17 @@
 			path = ../../../tests/ios;
 			sourceTree = "<group>";
 		};
+		4CC6659D071BD4BC499E3E97 /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				267354225FA75CA77419B7E4 /* Info.plist */,
+				C461E099A4B3F2F661EB9FBA /* ShareExtension.entitlements */,
+				54F2BDBDD0ABE8F866693CE8 /* ShareViewController.swift */,
+				F266091FFC6B8C7583A7A52C /* Localizable.strings */,
+			);
+			path = ShareExtension;
+			sourceTree = "<group>";
+		};
 		755EA561381806CBF0D803BD /* fixtures */ = {
 			isa = PBXGroup;
 			children = (
@@ -147,6 +189,7 @@
 				F95BFE62947E6815D580414B /* Externals */,
 				330146AF636F9D454D6133CC /* ios */,
 				FB74267585A54E10FFC4BD31 /* NyaMark_iOS */,
+				4CC6659D071BD4BC499E3E97 /* ShareExtension */,
 				08F708A959D5535910324095 /* Sources */,
 				7E677D420517192A62E69EC8 /* src */,
 				DC92D28418EFB49811EC55CC /* Frameworks */,
@@ -191,6 +234,7 @@
 			isa = PBXGroup;
 			children = (
 				B5AD32751BBB18F6F64DA4F8 /* NyaMark_iOS.app */,
+				76BE749952BEF7B9808F5565 /* NyaMarkShare.appex */,
 				64BE08E38CD5EE9EE4AC57F6 /* NyaMarkUITests.xctest */,
 			);
 			name = Products;
@@ -245,7 +289,7 @@
 			path = NyaMark_iOS;
 			sourceTree = "<group>";
 		};
-		"TEMP_BFF2B920-7369-463F-869C-9C5645399D06" /* x86_64 */ = {
+		"TEMP_5887F6D0-777D-409B-BE58-EE4AA569F238" /* x86_64 */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -255,6 +299,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		55FEAABD6B862FB5DBE57422 /* NyaMarkShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 953DF9E10D242B3A7E6DF488 /* Build configuration list for PBXNativeTarget "NyaMarkShare" */;
+			buildPhases = (
+				4F0A1133A0EDC92BC69579D1 /* Sources */,
+				A2151DB7A3081E78186D9B29 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NyaMarkShare;
+			packageProductDependencies = (
+			);
+			productName = NyaMarkShare;
+			productReference = 76BE749952BEF7B9808F5565 /* NyaMarkShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		6A880DE2F8069F7B6E39DA67 /* NyaMarkUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8188B189E2456AACAFB34B04 /* Build configuration list for PBXNativeTarget "NyaMarkUITests" */;
@@ -281,10 +343,12 @@
 				91EE6B9E214A359C1835E588 /* Sources */,
 				82BAECC13AF05C8A647153A0 /* Resources */,
 				997CDE4D8DD39DA653268E74 /* Frameworks */,
+				7430E471A4A282146E682F25 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				E80AFE129EE4070A92E72F88 /* PBXTargetDependency */,
 			);
 			name = NyaMark_iOS;
 			packageProductDependencies = (
@@ -302,11 +366,15 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					55FEAABD6B862FB5DBE57422 = {
+						DevelopmentTeam = GT8RWXQ2U4;
+						ProvisioningStyle = Automatic;
+					};
 					6A880DE2F8069F7B6E39DA67 = {
 						TestTargetID = 89D1AF3C7E7CBA280CCC4F51;
 					};
 					89D1AF3C7E7CBA280CCC4F51 = {
-						DevelopmentTeam = 46WFMV9265;
+						DevelopmentTeam = GT8RWXQ2U4;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -317,6 +385,8 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = A17145CBD6AB683ACBF893B6;
 			minimizedProjectReferenceProxies = 1;
@@ -326,6 +396,7 @@
 			projectRoot = "";
 			targets = (
 				89D1AF3C7E7CBA280CCC4F51 /* NyaMark_iOS */,
+				55FEAABD6B862FB5DBE57422 /* NyaMarkShare */,
 				6A880DE2F8069F7B6E39DA67 /* NyaMarkUITests */,
 			);
 		};
@@ -340,6 +411,14 @@
 				34112FFF8F4787B268C2B883 /* LaunchScreen.storyboard in Resources */,
 				B00F6DE365D03F759AF00A77 /* assets in Resources */,
 				261AD3551310AFC02C38206C /* libapp.a in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A2151DB7A3081E78186D9B29 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BF853168F5EABE397964F855 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -370,6 +449,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4F0A1133A0EDC92BC69579D1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EB4F0E84F81156692AD07EC9 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		91EE6B9E214A359C1835E588 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -394,9 +481,49 @@
 			target = 89D1AF3C7E7CBA280CCC4F51 /* NyaMark_iOS */;
 			targetProxy = 0C3F3EC443DF9BCC399E4523 /* PBXContainerItemProxy */;
 		};
+		E80AFE129EE4070A92E72F88 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 55FEAABD6B862FB5DBE57422 /* NyaMarkShare */;
+			targetProxy = D832121260204D2D3E220505 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
+/* Begin PBXVariantGroup section */
+		F266091FFC6B8C7583A7A52C /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				C9604BD2D02D6D6683F2D642 /* en */,
+				03ABF7B21DEC383678D88483 /* zh-Hans */,
+				9D60CD6C73B3ED55C32DA19E /* zh-Hant */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
 /* Begin XCBuildConfiguration section */
+		0CE08B6B9B7C4734E93BBD47 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = GT8RWXQ2U4;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				NYAMARK_BUNDLE_ID = best.lolicon.nyamark;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(NYAMARK_BUNDLE_ID).share";
+				PRODUCT_NAME = NyaMarkShare;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = debug;
+		};
 		26E7C7A02332A2DBEB8A468E /* release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -408,7 +535,7 @@
 				CODE_SIGN_ENTITLEMENTS = NyaMark_iOS/NyaMark_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 46WFMV9265;
+				DEVELOPMENT_TEAM = GT8RWXQ2U4;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -499,7 +626,7 @@
 				CODE_SIGN_ENTITLEMENTS = NyaMark_iOS/NyaMark_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 46WFMV9265;
+				DEVELOPMENT_TEAM = GT8RWXQ2U4;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -522,6 +649,28 @@
 				VALID_ARCHS = arm64;
 			};
 			name = debug;
+		};
+		C6CE1060A90AFCE898B81B8C /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = GT8RWXQ2U4;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				NYAMARK_BUNDLE_ID = best.lolicon.nyamark;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(NYAMARK_BUNDLE_ID).share";
+				PRODUCT_NAME = NyaMarkShare;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = release;
 		};
 		E6E366307329F343FEAFFED5 /* debug */ = {
 			isa = XCBuildConfiguration;
@@ -632,6 +781,15 @@
 			buildConfigurations = (
 				E6E366307329F343FEAFFED5 /* debug */,
 				E70BC38FBDCC321062271FB2 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		953DF9E10D242B3A7E6DF488 /* Build configuration list for PBXNativeTarget "NyaMarkShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0CE08B6B9B7C4734E93BBD47 /* debug */,
+				C6CE1060A90AFCE898B81B8C /* release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = debug;

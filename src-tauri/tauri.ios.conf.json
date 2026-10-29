@@ -12,8 +12,26 @@
   },
   "bundle": {
     "iOS": {
-      "developmentTeam": "46WFMV9265",
+      "developmentTeam": "GT8RWXQ2U4",
       "minimumSystemVersion": "15.0"
-    }
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown",
+          "mdown",
+          "mkdn",
+          "mdwn",
+          "mdtxt"
+        ],
+        "contentTypes": [
+          "net.daringfireball.markdown"
+        ],
+        "name": "Markdown File",
+        "description": "Markdown text file",
+        "role": "Editor"
+      }
+    ]
   }
 }

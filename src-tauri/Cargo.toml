@@ -100,12 +100,17 @@ keyring = "4"
 # is built on: its own entry points leave iOS out.
 keyring-core = "1"
 apple-native-keyring-store = { version = "1", default-features = false, features = ["protected"] }
+tauri-plugin-documents = { path = "plugins/documents" }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
 # process-wrap takes its creation flags as this version's type; CREATE_NO_WINDOW
 # keeps an MCP server from opening a console window.
 windows-process = { package = "windows", version = "0.62", features = ["Win32_System_Threading"] }
+
+# tao lost the documents iOS hands over at launch; see vendor/tao.
+[patch.crates-io]
+tao = { path = "vendor/tao" }
 
 [lints.clippy]
 # A panic aborts the release build (`panic = "abort"`), and every open

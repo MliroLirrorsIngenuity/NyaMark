@@ -14,7 +14,7 @@ settingGroups:
       NYAMARK_BUNDLE_ID: best.lolicon.nyamark
       NYAMARK_DISPLAY_NAME: NyaMark
       PRODUCT_BUNDLE_IDENTIFIER: $(NYAMARK_BUNDLE_ID)
-      DEVELOPMENT_TEAM: 46WFMV9265
+      DEVELOPMENT_TEAM: GT8RWXQ2U4
       CODE_SIGN_STYLE: Automatic
 targetTemplates:
   app:
@@ -46,6 +46,20 @@ targets:
         LSRequiresIPhoneOS: true
         CFBundleDisplayName: $(NYAMARK_DISPLAY_NAME)
         LSSupportsOpeningDocumentsInPlace: true
+        UIFileSharingEnabled: true
+        NSUbiquitousContainers:
+          iCloud.best.lolicon.nyamark:
+            NSUbiquitousContainerIsDocumentScopePublic: true
+            NSUbiquitousContainerName: NyaMark
+            NSUbiquitousContainerSupportedFolderLevels: Any
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: net.daringfireball.markdown
+            UTTypeDescription: Markdown Document
+            UTTypeConformsTo: [public.plain-text]
+            UTTypeTagSpecification:
+              public.filename-extension: [md, markdown, mdown, mkdn, mdwn, mdtxt]
+              public.mime-type: [text/markdown]
+        NyaMarkAppGroup: group.best.lolicon.nyamark
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
           UISceneConfigurations:
@@ -67,6 +81,11 @@ targets:
         CFBundleVersion: "0.0.0"
     entitlements:
       path: NyaMark_iOS/NyaMark_iOS.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers: [iCloud.best.lolicon.nyamark]
+        com.apple.developer.icloud-services: [CloudDocuments]
+        com.apple.developer.ubiquity-container-identifiers: [iCloud.best.lolicon.nyamark]
+        com.apple.security.application-groups: [group.best.lolicon.nyamark]
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
@@ -84,6 +103,7 @@ targets:
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
       groups: [app]
     dependencies:
+      - target: NyaMarkShare
       - framework: libapp.a
         embed: false
       - sdk: CoreGraphics.framework
@@ -100,6 +120,39 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+  NyaMarkShare:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: 15.0
+    sources:
+      - path: ShareExtension
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: NyaMark
+        CFBundleShortVersionString: 0.0.0
+        CFBundleVersion: "0.0.0"
+        NyaMarkAppGroup: group.best.lolicon.nyamark
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+    entitlements:
+      path: ShareExtension/ShareExtension.entitlements
+      properties:
+        com.apple.security.application-groups: [group.best.lolicon.nyamark]
+    settings:
+      base:
+        NYAMARK_BUNDLE_ID: best.lolicon.nyamark
+        PRODUCT_BUNDLE_IDENTIFIER: $(NYAMARK_BUNDLE_ID).share
+        PRODUCT_NAME: NyaMarkShare
+        DEVELOPMENT_TEAM: GT8RWXQ2U4
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
   NyaMarkUITests:
     type: bundle.ui-testing
     platform: iOS
