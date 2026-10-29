@@ -16,7 +16,7 @@
  * The caret goes to the column on the nearest line.
  *
  * Dragging from either takes in the lines it passes, as a drag over the text
- * does.
+ * does. On a phone a tap there does the same, and brings up the keyboard.
  *
  * A block dragged by its handle and let go beside the text or under it goes
  * to the nearest line, as it does over the text: the room there takes no
@@ -40,6 +40,12 @@ import { clickedAt } from './mark-cursor';
 /** How far apart the points tried along a line are, and how many. */
 const STEP_PX = 8;
 const STEPS = 16;
+
+/** How far a finger may move and still tap rather than scroll. */
+const TAP_SLOP_PX = 10;
+
+/** How soon after a tap the document's focus is taken to be the tap's. */
+const TAP_FOCUS_MS = 1000;
 
 /** How far apart the lines tried over and under a gap are, and how far off. */
 const GAP_STEP_PX = 4;
@@ -174,6 +180,8 @@ function isBlocks(slice: Slice | undefined): boolean {
 export const marginClick = $prose(() => {
   let anchor = -1;
   let held: EditorView | null = null;
+  /** Where in the document the last tap on a phone fell, and when. */
+  let tapped: { pos: number; at: number } | null = null;
 
   const select = (view: EditorView, head: number, y: number) => {
     const { doc } = view.state;
@@ -261,7 +269,54 @@ export const marginClick = $prose(() => {
           })
         );
       };
+      // On a phone a tap by the text puts the caret there and brings up the
+      // keyboard, which WebKit shows only for a focus given on a click.
+      let touch: { x: number; y: number } | null = null;
+      const onTouchStart = (event: TouchEvent) => {
+        const [first] = event.touches;
+        touch =
+          event.touches.length === 1
+            ? { x: first.clientX, y: first.clientY }
+            : null;
+      };
+      const onTouchEnd = (event: TouchEvent) => {
+        const start = touch;
+        touch = null;
+        tapped = null;
+        if (!start || !isMobilePlatform() || !view.editable) return;
+        const [end] = event.changedTouches;
+        const moved = Math.hypot(end.clientX - start.x, end.clientY - start.y);
+        if (moved > TAP_SLOP_PX || view.dom.getClientRects().length === 0) {
+          return;
+        }
+        const { clientX: x, clientY: y } = end;
+        const under = y >= view.dom.getBoundingClientRect().bottom;
+        const spot =
+          under || bareRoom(view, event.target)
+            ? spotAt(view, x, y, GAP_REACH_PX)
+            : null;
+        const pos =
+          spot?.kind === 'text'
+            ? spot.pos
+            : view.posAtCoords({ left: x, top: y })?.pos;
+        if (pos != null) tapped = { pos, at: event.timeStamp };
+      };
+      const onTap = (event: MouseEvent) => {
+        if (!isMobilePlatform() || !view.editable) return;
+        if (!bareRoom(view, event.target)) return;
+        const spot = spotAt(view, event.clientX, event.clientY, GAP_REACH_PX);
+        if (spot?.kind === 'code') {
+          spot.cm.focus();
+          spot.cm.dispatch({ selection: { anchor: spot.pos } });
+          return;
+        }
+        view.focus();
+        if (spot) select(view, spot.pos, event.clientY);
+      };
       page.addEventListener('mousedown', onDown);
+      page.addEventListener('touchstart', onTouchStart, { passive: true });
+      page.addEventListener('touchend', onTouchEnd, { passive: true });
+      page.addEventListener('click', onTap);
       page.addEventListener('dragenter', onDrag);
       page.addEventListener('dragover', onDrag);
       page.addEventListener('drop', onDrag);
@@ -269,6 +324,9 @@ export const marginClick = $prose(() => {
         destroy() {
           onUp();
           page.removeEventListener('mousedown', onDown);
+          page.removeEventListener('touchstart', onTouchStart);
+          page.removeEventListener('touchend', onTouchEnd);
+          page.removeEventListener('click', onTap);
           page.removeEventListener('dragenter', onDrag);
           page.removeEventListener('dragover', onDrag);
           page.removeEventListener('drop', onDrag);
@@ -277,6 +335,21 @@ export const marginClick = $prose(() => {
     },
     props: {
       handleDOMEvents: {
+        // A tap WebKit snapped to the text or took to stop a scroll focuses
+        // the document with the caret where it was, the start at first.
+        focus(view, event) {
+          const tap = tapped;
+          tapped = null;
+          if (!tap || event.timeStamp - tap.at > TAP_FOCUS_MS) return false;
+          requestAnimationFrame(() => {
+            const { doc, selection } = view.state;
+            const $tap = doc.resolve(Math.min(tap.pos, doc.content.size));
+            if (selection.$head.sameParent($tap)) return;
+            const caret = TextSelection.near($tap);
+            view.dispatch(view.state.tr.setSelection(caret).scrollIntoView());
+          });
+          return false;
+        },
         mousedown(view, event) {
           if (!plain(view, event) || event.detail > 1) return false;
           const { clientX: x, clientY: y } = event;

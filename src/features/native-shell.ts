@@ -172,9 +172,11 @@ async function receive(host: NativeShellHost, message: NativeMessage) {
       return;
     }
     case 'insets':
-      document.documentElement.style.setProperty(
-        '--ny-native-bottom',
-        `${Number(message.bottom) || 0}px`
+      keepEndInView(() =>
+        document.documentElement.style.setProperty(
+          '--ny-native-bottom',
+          `${Number(message.bottom) || 0}px`
+        )
       );
       return;
     case 'leave':
@@ -183,6 +185,37 @@ async function receive(host: NativeShellHost, message: NativeMessage) {
     case 'panel':
       await dispatchPanel(message);
       return;
+    case 'keyboard':
+      leaveDocument();
+      return;
+  }
+}
+
+/** The panes the document scrolls in: the page, and the source pane's own. */
+const SCROLLERS = '.ny-shell__body, .ny-source-pane .cm-scroller';
+
+/**
+ * The room under the document grows once the toolbar is back after the
+ * keyboard; a pane scrolled to its end stays at its end.
+ */
+function keepEndInView(change: () => void) {
+  const atEnd = Array.from(
+    document.querySelectorAll<HTMLElement>(SCROLLERS)
+  ).filter(
+    (pane) => pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 2
+  );
+  change();
+  for (const pane of atEnd) pane.scrollTop = pane.scrollHeight;
+}
+
+/**
+ * WebKit keeps the document focused when the keyboard goes down, and the
+ * next tap then brings the keyboard back at the old caret, not where it fell.
+ */
+function leaveDocument() {
+  const focused = document.activeElement;
+  if (focused instanceof HTMLElement && focused.closest(DOCUMENT_FOCUS)) {
+    focused.blur();
   }
 }
 

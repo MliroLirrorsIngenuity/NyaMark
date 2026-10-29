@@ -566,21 +566,22 @@ final class EditorViewController: UIViewController {
     if isMovingFromParent { shell?.editorClosed() }
   }
 
-  /// The page keeps the end of the document clear of the toolbar floating over it.
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    tellInsets()
+  }
+
+  /// The page keeps the end of the document clear of the toolbar, which the safe area takes in once it has come.
   private func tellInsets() {
-    guard let shell, let toolbar = navigationController?.toolbar, !toolbar.isHidden,
-      !shell.chrome.keyboardShown
-    else {
-      shell?.tellInsets(bottom: 0)
-      return
-    }
-    let top = toolbar.convert(toolbar.bounds, to: view).minY
-    shell.tellInsets(bottom: max(0, view.bounds.maxY - top))
+    guard let shell else { return }
+    let toolbar = navigationController?.isToolbarHidden == false && !shell.chrome.keyboardShown
+    shell.tellInsets(bottom: toolbar ? view.safeAreaInsets.bottom : 0)
   }
 
   @objc private func keyboardMoves(_ note: Notification) {
     let shown = note.name == UIResponder.keyboardWillShowNotification
     shell?.chrome.keyboardShown = shown
+    if !shown { shell?.send(["type": "keyboard", "shown": false]) }
     guard navigationController?.topViewController === self else { return }
     navigationController?.setToolbarHidden(shown, animated: true)
     tellInsets()
