@@ -26,6 +26,7 @@ import { MenuController } from './features/menu-controller';
 import { MobileDocuments, reportFailure } from './features/mobile-documents';
 import { bindNativePanels } from './features/native';
 import { bindNativeShell } from './features/native-shell';
+import { askNativeAi, openNativeAi } from './features/native/ai';
 import { NativeExportPdfDialog } from './features/native/export-pdf';
 import { openNativeFind } from './features/native/find';
 import { NativeImagePolicyDialog } from './features/native/image-policy';
@@ -364,6 +365,10 @@ export class App {
    * the caret to it when it is open elsewhere, and closes it from inside.
    */
   private toggleAi(fromShortcut: boolean) {
+    if (isNativeShell()) {
+      openNativeAi();
+      return;
+    }
     void this.loadAiPanel()
       .then((panel) => {
         if (!panel.isVisible) panel.show();
@@ -378,6 +383,10 @@ export class App {
 
   /** Opens the AI menu at the selection or the caret, or runs a command of it. */
   private askAi(mode: AiAskMode) {
+    if (isNativeShell()) {
+      askNativeAi(mode);
+      return;
+    }
     void this.loadAiPanel()
       .then((panel) => panel.ask(mode))
       .catch((error) => {

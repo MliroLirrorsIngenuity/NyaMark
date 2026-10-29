@@ -3,19 +3,24 @@ import type { AiEditMode } from '../../state/ai-settings';
 import { pushEscapeLayer } from '../../ui/escape-layers';
 import { ICONS } from './icons';
 
-const MODES: Record<AiEditMode, { icon: string; label: string; note: string }> =
-  {
-    review: {
-      icon: ICONS.eye,
-      label: 'ai.edit.modeReview',
-      note: 'ai.edit.modeReviewNote',
-    },
-    auto: {
-      icon: ICONS.bolt,
-      label: 'ai.edit.modeAuto',
-      note: 'ai.edit.modeAutoNote',
-    },
-  };
+export const MODES: Record<
+  AiEditMode,
+  { icon: string; label: string; note: string }
+> = {
+  review: {
+    icon: ICONS.eye,
+    label: 'ai.edit.modeReview',
+    note: 'ai.edit.modeReviewNote',
+  },
+  auto: {
+    icon: ICONS.bolt,
+    label: 'ai.edit.modeAuto',
+    note: 'ai.edit.modeAutoNote',
+  },
+};
+
+/** The modes in the order the menu lists them. */
+export const MODE_ORDER: readonly AiEditMode[] = ['review', 'auto'];
 
 /** Whether the assistant's edits wait to be accepted or go in at once. */
 export class ModeMenu {
@@ -99,7 +104,7 @@ export class ModeMenu {
 
   private renderMenu() {
     this.menu.replaceChildren();
-    for (const mode of ['review', 'auto'] as const) {
+    for (const mode of MODE_ORDER) {
       const text = MODES[mode];
       const item = document.createElement('button');
       item.type = 'button';

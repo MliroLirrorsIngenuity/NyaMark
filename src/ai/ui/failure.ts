@@ -1,6 +1,7 @@
 /** How a failed request to the model reads, in the panel and the AI menu. */
 
-import type { ChatFailureCode } from '../agent/session';
+import { i18next } from '../../i18n';
+import type { ChatFailure, ChatFailureCode } from '../agent/session';
 
 export const FAILURE_TEXT: Record<ChatFailureCode, string> = {
   'no-model': 'ai.error.noModel',
@@ -36,3 +37,15 @@ export const SELF_EXPLAINED = new Set<ChatFailureCode>([
   'key-needed',
   'signed-out',
 ]);
+
+/** What a failure says: its reading, and the service's own words where they add to it. */
+export function failureReading(failure: ChatFailure): {
+  text: string;
+  detail: string | null;
+} {
+  const { code, message, status } = failure;
+  return {
+    text: i18next.t(FAILURE_TEXT[code], { status }),
+    detail: message && !SELF_EXPLAINED.has(code) ? message : null,
+  };
+}

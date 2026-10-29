@@ -18,12 +18,7 @@ import type { ChatImage } from '../images/image';
 import { CHATGPT_USAGE_URL } from '../providers/chatgpt';
 import { isOpenableLink, renderChatMarkdown } from '../render/markdown';
 import { copyText } from './clipboard';
-import {
-  FAILURE_TEXT,
-  SELF_EXPLAINED,
-  SETTINGS_FIXES,
-  USAGE_FIXES,
-} from './failure';
+import { SETTINGS_FIXES, USAGE_FIXES, failureReading } from './failure';
 import { ICONS } from './icons';
 import { imageUrl } from './image-tray';
 import { proposedEdit, searchSources, toolLabel } from './tool-labels';
@@ -35,7 +30,10 @@ const STREAM_RENDER_MS = 50;
 /** How long a copy button says it copied. */
 const COPIED_MS = 1500;
 
-const ENDING_TEXT: Record<NonNullable<AssistantEntry['ending']>, string> = {
+export const ENDING_TEXT: Record<
+  NonNullable<AssistantEntry['ending']>,
+  string
+> = {
   'step-limit': 'ai.ending.stepLimit',
   length: 'ai.ending.length',
   filtered: 'ai.ending.filtered',
@@ -73,6 +71,92 @@ type StepGroup = {
   indexes: number[];
   shown: string;
 };
+
+/** What a fold's line says, and how its steps came out. */
+export type StepSummary = {
+  label: string;
+  state: 'live' | 'error' | 'stopped' | 'thought' | 'done';
+  tools: ToolPart[];
+  /** The fold holds one step, whose line is the fold's own. */
+  single: boolean;
+};
+
+/** The fold's line for the parts of `entry` at `indexes`: what is going on now, or what the steps came to. */
+export function stepSummary(
+  entry: AssistantEntry,
+  indexes: readonly number[]
+): StepSummary {
+  const parts = indexes.map((index) => entry.parts[index]);
+  const tools = parts.filter((part): part is ToolPart => part?.type === 'tool');
+  const lastIndex = indexes[indexes.length - 1] ?? -1;
+  const streaming = entry.status === 'streaming';
+  const running = streaming
+    ? tools.find((tool) => tool.state === 'running')
+    : undefined;
+  const thinking =
+    streaming &&
+    lastIndex === entry.parts.length - 1 &&
+    entry.parts[lastIndex]?.type === 'reasoning';
+  const failed = tools.some(
+    (tool) => tool.state === 'error' || tool.state === 'denied'
+  );
+  const stopped = tools.some((tool) => tool.state === 'stopped');
+
+  let label: string;
+  if (running) label = toolLabel(running);
+  else if (thinking) label = i18next.t('ai.thinkingNow');
+  else if (tools.length === 0) label = i18next.t('ai.thinking');
+  else if (tools.length === 1) {
+    label = toolLabel(tools[0] as ToolPart);
+    if (parts.length > 1) label += ` · ${i18next.t('ai.thinking')}`;
+  } else {
+    label = i18next.t(failed ? 'ai.steps.failed' : 'ai.steps.done', {
+      count: tools.length,
+    });
+  }
+  let state: StepSummary['state'] = 'done';
+  if (running || thinking) state = 'live';
+  else if (failed) state = 'error';
+  else if (stopped) state = 'stopped';
+  else if (tools.length === 0) state = 'thought';
+  return { label, state, tools, single: parts.length === 1 };
+}
+
+/** The images a finished tool opened or returned, as the model was shown them. */
+export function toolImages(part: ToolPart): ChatImage[] {
+  if (part.state !== 'done') return [];
+  if (part.name === 'view_image') {
+    const image = (part.output as ViewImageOutput | undefined)?.image;
+    return image ? [image] : [];
+  }
+  if (isMcpToolName(part.name)) {
+    return (part.output as McpOutput | undefined)?.images ?? [];
+  }
+  return [];
+}
+
+/** The site a page is on, as its line in a list of sources names it. */
+export function sourceHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+/** The model and the tokens a finished reply cost, as its foot says. */
+export function footMeta(entry: AssistantEntry): string {
+  const meta = [entry.model];
+  if (entry.usage && (entry.usage.input || entry.usage.output)) {
+    meta.push(
+      i18next.t('ai.usage', {
+        input: compact(entry.usage.input),
+        output: compact(entry.usage.output),
+      })
+    );
+  }
+  return meta.filter(Boolean).join(' · ');
+}
 
 type PartView = {
   type: ChatPart['type'];
@@ -136,7 +220,7 @@ const DIFF_MARKS: Record<DiffRow['kind'], string> = {
 };
 
 /** What became of an edit, when none of it is pending. */
-function outcomeText(outcome: EditOutcome): string {
+export function outcomeText(outcome: EditOutcome): string {
   const { total, accepted, rejected, dropped, replaced } = outcome;
   if (accepted === total) return i18next.t('ai.edit.accepted');
   if (rejected === total) return i18next.t('ai.edit.rejected');
@@ -172,7 +256,7 @@ function iconButton(icon: string, label: string, className = '') {
   return button;
 }
 
-function compact(value: number): string {
+export function compact(value: number): string {
   return new Intl.NumberFormat(i18next.language, {
     notation: 'compact',
     maximumFractionDigits: 1,
@@ -526,43 +610,7 @@ export class MessageList {
 
   /** The fold's line: what is going on now, or what the steps came to. */
   private drawGroup(entry: AssistantEntry, group: StepGroup) {
-    const parts = group.indexes.map((index) => entry.parts[index]);
-    const tools = parts.filter(
-      (part): part is ToolPart => part?.type === 'tool'
-    );
-    const lastIndex = group.indexes[group.indexes.length - 1] ?? -1;
-    const streaming = entry.status === 'streaming';
-    const running = streaming
-      ? tools.find((tool) => tool.state === 'running')
-      : undefined;
-    const thinking =
-      streaming &&
-      lastIndex === entry.parts.length - 1 &&
-      entry.parts[lastIndex]?.type === 'reasoning';
-    const failed = tools.some(
-      (tool) => tool.state === 'error' || tool.state === 'denied'
-    );
-    const stopped = tools.some((tool) => tool.state === 'stopped');
-
-    let label: string;
-    if (running) label = toolLabel(running);
-    else if (thinking) label = i18next.t('ai.thinkingNow');
-    else if (tools.length === 0) label = i18next.t('ai.thinking');
-    else if (tools.length === 1) {
-      label = toolLabel(tools[0] as ToolPart);
-      if (parts.length > 1) label += ` · ${i18next.t('ai.thinking')}`;
-    } else {
-      label = i18next.t(failed ? 'ai.steps.failed' : 'ai.steps.done', {
-        count: tools.length,
-      });
-    }
-    let state = 'done';
-    if (running || thinking) state = 'live';
-    else if (failed) state = 'error';
-    else if (stopped) state = 'stopped';
-    else if (tools.length === 0) state = 'thought';
-
-    const single = parts.length === 1;
+    const { label, state, tools, single } = stepSummary(entry, group.indexes);
     const only = single ? group.list.firstElementChild : null;
     const flat =
       single &&
@@ -743,14 +791,8 @@ export class MessageList {
 
   /** The images a tool opened or returned, as the model was shown them. */
   private drawImage(view: PartView, part: ToolPart, entryId: number) {
-    if (view.image || part.state !== 'done') return;
-    let images: ChatImage[] = [];
-    if (part.name === 'view_image') {
-      const image = (part.output as ViewImageOutput | undefined)?.image;
-      if (image) images = [image];
-    } else if (isMcpToolName(part.name)) {
-      images = (part.output as McpOutput | undefined)?.images ?? [];
-    }
+    if (view.image) return;
+    const images = toolImages(part);
     if (images.length === 0) return;
     const row = el('div', 'ny-ai-tool__image');
     for (const image of images) row.append(this.thumbnail(entryId, image));
@@ -770,12 +812,7 @@ export class MessageList {
       i18next.t('ai.tool.sources', { count: sources.length })
     );
     for (const source of sources) {
-      let host = source.url;
-      try {
-        host = new URL(source.url).hostname.replace(/^www\./, '');
-      } catch {
-        // Shown as given.
-      }
+      const host = sourceHost(source.url);
       const link = el('a', 'ny-ai-sources__link');
       link.href = source.url;
       link.title = source.url;
@@ -877,14 +914,13 @@ export class MessageList {
       return;
     }
     if (entry.status !== 'error' || !entry.error) return;
-    const { code, message, status: httpStatus } = entry.error;
+    const { code } = entry.error;
+    const reading = failureReading(entry.error);
     const card = el('div', 'ny-ai-msg__error');
     card.setAttribute('role', 'alert');
-    card.append(
-      el('div', '', i18next.t(FAILURE_TEXT[code], { status: httpStatus }))
-    );
-    if (message && !SELF_EXPLAINED.has(code)) {
-      card.append(el('div', 'ny-ai-msg__error-detail', message));
+    card.append(el('div', '', reading.text));
+    if (reading.detail) {
+      card.append(el('div', 'ny-ai-msg__error-detail', reading.detail));
     }
     const actions = el('div', 'ny-ai-msg__actions');
     if (SETTINGS_FIXES.has(code)) {
@@ -924,16 +960,7 @@ export class MessageList {
   private drawFoot(entry: AssistantEntry, foot: HTMLElement) {
     foot.replaceChildren();
     if (entry.status === 'streaming') return;
-    const meta = [entry.model];
-    if (entry.usage && (entry.usage.input || entry.usage.output)) {
-      meta.push(
-        i18next.t('ai.usage', {
-          input: compact(entry.usage.input),
-          output: compact(entry.usage.output),
-        })
-      );
-    }
-    const text = meta.filter(Boolean).join(' · ');
+    const text = footMeta(entry);
     const metaEl = el('span', 'ny-ai-msg__meta', text);
     metaEl.title = text;
     foot.append(metaEl);

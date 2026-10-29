@@ -7,6 +7,41 @@ import {
 import { pushEscapeLayer } from '../../ui/escape-layers';
 import { ICONS } from './icons';
 
+/** The models to choose from, by service, and the one the chat uses. */
+export type ModelChoices = {
+  /** The chosen model's name, or the ask to choose one. */
+  label: string;
+  /** The chosen model with its service; empty when none is chosen. */
+  title: string;
+  groups: Array<{
+    name: string;
+    models: Array<{ ref: AiModelRef; label: string; checked: boolean }>;
+  }>;
+};
+
+export function modelChoices(ai: AiSettings): ModelChoices {
+  const chosen = ai.chatModel;
+  const provider = chosen && ai.providers.find((p) => p.id === chosen.provider);
+  let label = i18next.t('ai.chooseModel');
+  let title = '';
+  if (chosen && provider) {
+    const model = provider.models.find((m) => m.id === chosen.model);
+    label = model ? modelLabel(model) : chosen.model;
+    title = `${provider.name} · ${label}`;
+  }
+  const groups = ai.providers
+    .filter((service) => service.models.length > 0)
+    .map((service) => ({
+      name: service.name,
+      models: service.models.map((model) => ({
+        ref: { provider: service.id, model: model.id },
+        label: modelLabel(model),
+        checked: chosen?.provider === service.id && chosen.model === model.id,
+      })),
+    }));
+  return { label, title, groups };
+}
+
 /** The model the conversation talks to, from every connected service. */
 export class ModelPicker {
   readonly element: HTMLElement;
@@ -50,17 +85,9 @@ export class ModelPicker {
 
   update(ai: AiSettings) {
     this.ai = ai;
-    const ref = ai.chatModel;
-    const provider = ref && ai.providers.find((p) => p.id === ref.provider);
-    if (ref && provider) {
-      const model = provider.models.find((m) => m.id === ref.model);
-      const label = model ? modelLabel(model) : ref.model;
-      this.label.textContent = label;
-      this.button.title = `${provider.name} · ${label}`;
-    } else {
-      this.label.textContent = i18next.t('ai.chooseModel');
-      this.button.title = '';
-    }
+    const choices = modelChoices(ai);
+    this.label.textContent = choices.label;
+    this.button.title = choices.title;
     if (!this.menu.hidden) this.renderMenu();
   }
 
@@ -97,31 +124,27 @@ export class ModelPicker {
     const ai = this.ai;
     this.menu.replaceChildren();
     if (!ai) return;
-    const chosen = ai.chatModel;
-    for (const provider of ai.providers) {
-      if (provider.models.length === 0) continue;
+    for (const service of modelChoices(ai).groups) {
       const group = document.createElement('div');
       group.className = 'ny-ai-menu__group';
-      group.textContent = provider.name;
+      group.textContent = service.name;
       this.menu.append(group);
-      for (const model of provider.models) {
-        const checked =
-          chosen?.provider === provider.id && chosen.model === model.id;
+      for (const model of service.models) {
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'ny-ai-menu__item';
         item.setAttribute('role', 'menuitemradio');
-        item.setAttribute('aria-checked', String(checked));
+        item.setAttribute('aria-checked', String(model.checked));
         const name = document.createElement('span');
-        name.textContent = modelLabel(model);
-        item.title = `${provider.name} · ${model.id}`;
+        name.textContent = model.label;
+        item.title = `${service.name} · ${model.ref.model}`;
         const mark = document.createElement('span');
         mark.className = 'ny-ai-menu__check';
-        mark.textContent = checked ? '✓' : '';
+        mark.textContent = model.checked ? '✓' : '';
         item.append(name, mark);
         item.addEventListener('click', () => {
           this.setOpen(false);
-          this.actions.choose({ provider: provider.id, model: model.id });
+          this.actions.choose(model.ref);
         });
         this.menu.append(item);
       }

@@ -25,7 +25,7 @@ const REASONS: Record<
   invoke: 'ai.image.reason.other',
 };
 
-function reasonOf(error: unknown): string {
+export function reasonOf(error: unknown): string {
   if (error instanceof ImageError) return i18next.t(REASONS[error.code]);
   if (error instanceof ImageReadError) {
     return i18next.t(REASONS[error.failure.kind]);
@@ -44,6 +44,31 @@ export function imageUrl(image: ChatImage): string {
 
 type Item = { image: ChatImage; url: string; element: HTMLElement };
 
+/** A note the tray was told to give: the key of its words and what fills them. */
+export type TrayNote = { key: string; options: Record<string, unknown> };
+
+export const trayFull = (): TrayNote => ({
+  key: 'ai.image.limit',
+  options: { count: MAX_IMAGES },
+});
+
+export const trayFailed = (name: string, error: unknown): TrayNote => ({
+  key: 'ai.image.failed',
+  options: { name, reason: reasonOf(error) },
+});
+
+/** What the tray says under its images: the note it was told, else the vision warning. */
+export function trayNotice(
+  told: TrayNote | null,
+  blind: string | null,
+  images: number
+): string {
+  if (told) return i18next.t(told.key, told.options);
+  if (blind && images > 0)
+    return i18next.t('ai.image.noVision', { model: blind });
+  return '';
+}
+
 /** The images going with the next message, over where it is written. */
 export class ImageTray {
   readonly element: HTMLElement;
@@ -52,7 +77,7 @@ export class ImageTray {
   private items: Item[] = [];
   /** The model's name when it is not known to see images. */
   private blind: string | null = null;
-  private told: { key: string; options: Record<string, unknown> } | null = null;
+  private told: TrayNote | null = null;
 
   constructor(private readonly changed: () => void) {
     this.element = document.createElement('div');
@@ -123,11 +148,13 @@ export class ImageTray {
 
   /** Says the message can carry no more images. */
   full() {
-    this.tell('ai.image.limit', { count: MAX_IMAGES });
+    this.told = trayFull();
+    this.draw();
   }
 
   failed(name: string, error: unknown) {
-    this.tell('ai.image.failed', { name, reason: reasonOf(error) });
+    this.told = trayFailed(name, error);
+    this.draw();
   }
 
   /** Warns the images may not reach a model not known to see them. */
@@ -157,17 +184,8 @@ export class ImageTray {
     this.changed();
   }
 
-  private tell(key: string, options: Record<string, unknown>) {
-    this.told = { key, options };
-    this.draw();
-  }
-
   private draw() {
-    let text = '';
-    if (this.told) text = i18next.t(this.told.key, this.told.options);
-    else if (this.blind && this.items.length > 0) {
-      text = i18next.t('ai.image.noVision', { model: this.blind });
-    }
+    const text = trayNotice(this.told, this.blind, this.items.length);
     this.notice.textContent = text;
     this.notice.hidden = !text;
     this.list.hidden = this.items.length === 0;

@@ -8,7 +8,49 @@ import { pushEscapeLayer } from '../../ui/escape-layers';
 import { defaultEffort, effortLevels } from '../providers/effort';
 import { ICONS } from './icons';
 
-const levelName = (effort: AiEffort) => i18next.t(`ai.effort.levels.${effort}`);
+export const levelName = (effort: AiEffort) =>
+  i18next.t(`ai.effort.levels.${effort}`);
+
+/** The levels the chat model takes, the one chosen and the service's own. */
+export type EffortState = {
+  model: string;
+  levels: readonly AiEffort[];
+  /** The level chosen, null for the service's own. */
+  chosen: AiEffort | null;
+  /** The service's own level, when it says which. */
+  fallback: AiEffort | null;
+};
+
+export function effortState(ai: AiSettings): EffortState {
+  const ref = ai.chatModel;
+  const provider = ref && ai.providers.find((p) => p.id === ref.provider);
+  const model = provider?.models.find((m) => m.id === ref?.model);
+  const levels = provider && model ? effortLevels(provider, model) : [];
+  return {
+    model: model ? modelLabel(model) : '',
+    levels,
+    chosen:
+      model?.effort && levels.includes(model.effort) ? model.effort : null,
+    fallback: provider && model ? defaultEffort(provider, model) : null,
+  };
+}
+
+/** The level in force, as the button names it. */
+export function effortLabel(state: EffortState): string {
+  const shown = state.chosen ?? state.fallback;
+  return shown ? levelName(shown) : i18next.t('ai.effort.default');
+}
+
+/** One choice of the menu: a level, or null for the service's own. */
+export function effortChoiceLabel(
+  state: EffortState,
+  effort: AiEffort | null
+): string {
+  if (effort) return levelName(effort);
+  return state.fallback
+    ? i18next.t('ai.effort.defaultIs', { level: levelName(state.fallback) })
+    : i18next.t('ai.effort.default');
+}
 
 /**
  * How hard the chat model thinks, kept with the model. Shown only for a
@@ -18,12 +60,12 @@ export class EffortMenu {
   readonly element: HTMLElement;
   private readonly button: HTMLButtonElement;
   private readonly menu: HTMLElement;
-  private model = '';
-  private levels: readonly AiEffort[] = [];
-  /** The level chosen, null for the service's own. */
-  private chosen: AiEffort | null = null;
-  /** The service's own level, when it says which. */
-  private fallback: AiEffort | null = null;
+  private state: EffortState = {
+    model: '',
+    levels: [],
+    chosen: null,
+    fallback: null,
+  };
   private releaseEscape: (() => void) | null = null;
 
   constructor(private readonly choose: (effort: AiEffort | null) => void) {
@@ -51,15 +93,8 @@ export class EffortMenu {
   }
 
   update(ai: AiSettings) {
-    const ref = ai.chatModel;
-    const provider = ref && ai.providers.find((p) => p.id === ref.provider);
-    const model = provider?.models.find((m) => m.id === ref?.model);
-    this.levels = provider && model ? effortLevels(provider, model) : [];
-    this.model = model ? modelLabel(model) : '';
-    this.chosen =
-      model?.effort && this.levels.includes(model.effort) ? model.effort : null;
-    this.fallback = provider && model ? defaultEffort(provider, model) : null;
-    this.element.hidden = this.levels.length === 0;
+    this.state = effortState(ai);
+    this.element.hidden = this.state.levels.length === 0;
     if (this.element.hidden) this.setOpen(false);
     this.redraw();
   }
@@ -75,8 +110,7 @@ export class EffortMenu {
   }
 
   private drawButton() {
-    const shown = this.chosen ?? this.fallback;
-    const label = shown ? levelName(shown) : i18next.t('ai.effort.default');
+    const label = effortLabel(this.state);
     this.button.innerHTML = ICONS.bulb;
     const name = document.createElement('span');
     name.className = 'ny-ai__pick-name';
@@ -110,22 +144,18 @@ export class EffortMenu {
   private renderMenu() {
     const group = document.createElement('div');
     group.className = 'ny-ai-menu__group';
-    group.textContent = i18next.t('ai.effort.title', { model: this.model });
-    const items = [null, ...this.levels].map((effort) => {
-      const checked = effort === this.chosen;
+    group.textContent = i18next.t('ai.effort.title', {
+      model: this.state.model,
+    });
+    const items = [null, ...this.state.levels].map((effort) => {
+      const checked = effort === this.state.chosen;
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'ny-ai-menu__item';
       item.setAttribute('role', 'menuitemradio');
       item.setAttribute('aria-checked', String(checked));
       const name = document.createElement('span');
-      name.textContent = effort
-        ? levelName(effort)
-        : this.fallback
-          ? i18next.t('ai.effort.defaultIs', {
-              level: levelName(this.fallback),
-            })
-          : i18next.t('ai.effort.default');
+      name.textContent = effortChoiceLabel(this.state, effort);
       const mark = document.createElement('span');
       mark.className = 'ny-ai-menu__check';
       mark.textContent = checked ? '✓' : '';

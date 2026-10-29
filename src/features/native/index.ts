@@ -1,5 +1,6 @@
 import type { NyaEditor } from '../../editor/editor';
 import type { SourceModeController } from '../../editor/source-mode';
+import { bindNativeAi } from './ai';
 import { bindNativeFind } from './find';
 import { bindNativeOutline } from './outline';
 import { bindNativeSettings } from './settings';
@@ -17,4 +18,5 @@ export function bindNativePanels(host: NativePanelsHost) {
   bindNativeSettings();
   bindNativeFind(host);
   bindNativeToast();
+  bindNativeAi(host);
 }

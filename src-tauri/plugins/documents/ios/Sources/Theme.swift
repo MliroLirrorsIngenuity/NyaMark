@@ -31,6 +31,13 @@ final class Theme: ObservableObject {
     "warning": UIColor(rgb: 0xd97706),
     "del-ink": UIColor(rgb: 0xa23b33),
     "ok": UIColor(rgb: 0x2f7d62),
+    "border-strong": UIColor(red: 226 / 255, green: 232 / 255, blue: 240 / 255, alpha: 0.72),
+    "on-accent": UIColor(rgb: 0x17212b),
+    "ink": UIColor(rgb: 0x1f2a33),
+    "on-ink": UIColor(rgb: 0xffffff),
+    // Defined by the assistant's stylesheet, which the page loads only when it is used.
+    "ai-error": UIColor(rgb: 0xc55f5f),
+    "ai-on-mark": UIColor(rgb: 0xffffff),
   ]
 
   private static let night: [String: UIColor] = [
@@ -52,6 +59,12 @@ final class Theme: ObservableObject {
     "warning": UIColor(rgb: 0xf3ba67),
     "del-ink": UIColor(rgb: 0xeba29a),
     "ok": UIColor(rgb: 0x7cc6a6),
+    "border-strong": UIColor(red: 132 / 255, green: 148 / 255, blue: 170 / 255, alpha: 0.25),
+    "on-accent": UIColor(rgb: 0x0f151c),
+    "ink": UIColor(rgb: 0xe6edf3),
+    "on-ink": UIColor(rgb: 0x10151b),
+    "ai-error": UIColor(rgb: 0xe48b84),
+    "ai-on-mark": UIColor(rgb: 0x10151b),
   ]
 
   private init() {

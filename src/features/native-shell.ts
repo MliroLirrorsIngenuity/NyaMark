@@ -103,6 +103,10 @@ const THEME_COLORS = [
   'warning',
   'del-ink',
   'ok',
+  'border-strong',
+  'on-accent',
+  'ink',
+  'on-ink',
 ];
 
 /**

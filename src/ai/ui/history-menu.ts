@@ -29,6 +29,11 @@ export function keptWhen(at: number, now = new Date()): string {
   }).format(date);
 }
 
+/** How a kept conversation is titled in the list. */
+export function historyTitle(summary: ConversationSummary): string {
+  return summary.title || i18next.t('ai.history.untitled');
+}
+
 /** The document's kept conversations, to open one or delete it. */
 export class HistoryMenu {
   readonly element: HTMLElement;
@@ -158,7 +163,7 @@ export class HistoryMenu {
     text.className = 'ny-ai-history__text';
     const title = document.createElement('span');
     title.className = 'ny-ai-history__title';
-    title.textContent = summary.title || i18next.t('ai.history.untitled');
+    title.textContent = historyTitle(summary);
     const when = document.createElement('span');
     when.className = 'ny-ai-history__when';
     when.textContent = keptWhen(summary.updatedAt, now);
