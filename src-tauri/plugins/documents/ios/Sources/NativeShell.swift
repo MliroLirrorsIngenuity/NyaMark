@@ -496,10 +496,8 @@ final class EditorViewController: UIViewController {
     let ai = tool("sparkles") { $0.openPanel("ai") }
     let find = tool("magnifyingglass") { $0.openPanel("find") }
     let settings = tool("gearshape") { $0.openPanel("form", ["form": "settings"]) }
-    toolbarItems = [
-      outline, .flexibleSpace(), sourceItem, .flexibleSpace(), ai, .flexibleSpace(), find,
-      .flexibleSpace(), settings,
-    ]
+    // Side by side, the tools share one capsule of glass, as the bar under the page was one.
+    toolbarItems = [.flexibleSpace(), outline, sourceItem, ai, find, settings, .flexibleSpace()]
     let label = { [weak self, weak shell, weak file] in
       guard let self, let shell else { return }
       for (item, key) in [

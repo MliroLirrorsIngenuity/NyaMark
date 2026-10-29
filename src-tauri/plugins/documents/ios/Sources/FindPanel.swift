@@ -1,8 +1,6 @@
 import SwiftUI
 import UIKit
 
-private let tapHaptics = UIImpactFeedbackGenerator(style: .light)
-
 /// The words on the find bar; the page sends them in its language.
 struct FindLabels: Equatable {
   var placeholder = ""
@@ -37,17 +35,22 @@ final class FindModel: ObservableObject {
   /// The source pane is being searched, which can replace.
   @Published var source = false
   @Published var replaceShown = false
+  /// The bar is in place; false while it comes in or goes out.
+  @Published var shown = false
   @Published var labels = FindLabels()
   /// Raised to have the find field take the keyboard and select its text.
   @Published var focusFind = 0
   @Published var focusReplace = 0
 }
 
-/// The find bar, as the page's `.ny-search` showed it on a phone: floating under the title bar, over the document.
+/// The find bar: glass capsules floating under the editor's navigation bar, over the document.
 final class FindPanelController: NativePanel {
+  private static let goingOut: TimeInterval = 0.4
+
   private unowned let shell: NativeShell
   private let model = FindModel()
   private var bar: UIViewController?
+  private var removal: DispatchWorkItem?
   /// The page answers an open with the query to show; later states leave the field to the user.
   private var awaitingQuery = false
 
@@ -74,20 +77,24 @@ final class FindPanelController: NativePanel {
     }
   }
 
-  /// Takes the bar away and has the page end its search.
+  /// Has the bar go out and the page end its search.
   func close() {
-    guard let bar else { return }
+    guard bar != nil, removal == nil else { return }
     shell.editorPage.view.endEditing(true)
-    bar.willMove(toParent: nil)
-    bar.view.removeFromSuperview()
-    bar.removeFromParent()
-    self.bar = nil
-    model.replaceShown = false
+    withAnimation(.spring()) { model.shown = false }
+    let item = DispatchWorkItem { [weak self] in self?.remove() }
+    removal = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.goingOut, execute: item)
     shell.tell("find", "close")
   }
 
   private func show() {
-    guard bar == nil else { return }
+    removal?.cancel()
+    removal = nil
+    if bar != nil {
+      withAnimation(.spring()) { model.shown = true }
+      return
+    }
     let controller = UIHostingController(
       rootView: FindBar(
         model: model,
@@ -103,15 +110,26 @@ final class FindPanelController: NativePanel {
     bar = controller
   }
 
-  /// Hangs `bar` 56 points under the top, 16 points from the sides or the safe area, whichever is farther.
+  private func remove() {
+    guard let bar else { return }
+    bar.willMove(toParent: nil)
+    bar.view.removeFromSuperview()
+    bar.removeFromParent()
+    self.bar = nil
+    removal = nil
+    model.shown = false
+    model.replaceShown = false
+  }
+
+  /// Hangs `bar` 8 points under the page's top safe area, 16 points from the sides or the safe area, whichever is farther.
   private func pin(_ bar: UIView, in page: UIView) {
     let safe = page.safeAreaLayoutGuide
     let leading = bar.leadingAnchor.constraint(equalTo: page.leadingAnchor, constant: 16)
     let trailing = bar.trailingAnchor.constraint(equalTo: page.trailingAnchor, constant: -16)
-    leading.priority = .defaultLow
-    trailing.priority = .defaultLow
+    leading.priority = .defaultHigh
+    trailing.priority = .defaultHigh
     NSLayoutConstraint.activate([
-      bar.topAnchor.constraint(equalTo: safe.topAnchor, constant: 56),
+      bar.topAnchor.constraint(equalTo: safe.topAnchor, constant: 8),
       bar.leadingAnchor.constraint(greaterThanOrEqualTo: page.leadingAnchor, constant: 16),
       bar.leadingAnchor.constraint(greaterThanOrEqualTo: safe.leadingAnchor),
       bar.trailingAnchor.constraint(lessThanOrEqualTo: page.trailingAnchor, constant: -16),
@@ -121,130 +139,144 @@ final class FindPanelController: NativePanel {
   }
 }
 
-/// Two rows of the page's `.ny-search`, and the replace row of the source pane behind its toggle.
+/// The find row of glass, and under it the replace row of the source pane behind its toggle.
 struct FindBar: View {
   @ObservedObject var model: FindModel
   @ObservedObject private var theme = Theme.shared
   let send: (String, [String: Any]) -> Void
   let close: () -> Void
-  @State private var appeared = false
 
   var body: some View {
-    VStack(spacing: 6) {
-      HStack(spacing: 6) {
-        if model.source {
-          iconButton("chevron.right", model.labels.toggleReplace, turned: model.replaceShown) {
-            withAnimation(.easeOut(duration: 0.15)) { model.replaceShown.toggle() }
-            if model.replaceShown {
-              model.focusReplace += 1
-            } else {
-              model.focusFind += 1
-            }
-          }
-        }
-        field(
-          $model.query, model.labels.placeholder, returnKey: .search, focus: model.focusFind,
-          committedOnly: true,
-          changed: { send("query", ["text": $0]) },
-          submit: { send("next", [:]) })
-        iconButton("xmark", model.labels.close, run: close)
-      }
-      HStack(spacing: 6) {
-        Text(model.count)
-          .font(.system(size: 13).monospacedDigit())
-          .foregroundStyle(theme.color("text-muted"))
-          .lineLimit(1)
-          .padding(.leading, 12)
-          .frame(maxWidth: .infinity, alignment: .leading)
-        iconButton("chevron.up", model.labels.prev) { send("prev", [:]) }
-        iconButton("chevron.down", model.labels.next) { send("next", [:]) }
-      }
-      if model.source && model.replaceShown {
-        VStack(spacing: 6) {
-          field(
-            $model.replacement, model.labels.replacePlaceholder, returnKey: .done,
-            focus: model.focusReplace, committedOnly: false, changed: { _ in },
-            submit: { send("replace", ["text": model.replacement]) })
-          HStack(spacing: 6) {
-            textButton(model.labels.replace) { send("replace", ["text": model.replacement]) }
-            textButton(model.labels.replaceAll) { send("replaceAll", ["text": model.replacement]) }
-            Spacer(minLength: 0)
-          }
-        }
+    GlassGroup(spacing: 8) {
+      VStack(spacing: 10) {
+        findRow
+        if model.source && model.replaceShown { replaceRow }
       }
     }
-    .padding(8)
-    .glassCard()
-    .barShadow()
-    .opacity(appeared ? 1 : 0)
-    .offset(y: appeared ? 0 : -8)
-    .onAppear { withAnimation(.easeOut(duration: 0.15)) { appeared = true } }
+    .opacity(model.shown ? 1 : 0)
+    .offset(y: model.shown ? 0 : -12)
+    .allowsHitTesting(model.shown)
+    .onAppear { withAnimation(.spring()) { model.shown = true } }
   }
 
-  private func field(
-    _ text: Binding<String>, _ placeholder: String, returnKey: UIReturnKeyType, focus: Int,
-    committedOnly: Bool, changed: @escaping (String) -> Void, submit: @escaping () -> Void
-  ) -> some View {
-    FindField(
-      text: text, placeholder: placeholder, returnKey: returnKey, focus: focus,
-      committedOnly: committedOnly, changed: changed, submit: submit
-    )
-    .padding(.horizontal, 12)
-    .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
-    .background(
-      RoundedRectangle(cornerRadius: 16, style: .continuous).fill(theme.color("fill-soft")))
-  }
-
-  private func iconButton(
-    _ symbol: String, _ label: String, turned: Bool = false, run: @escaping () -> Void
-  ) -> some View {
-    Button {
-      tapHaptics.impactOccurred()
-      run()
-    } label: {
-      Image(systemName: symbol)
-        .font(.system(size: 17, weight: .medium))
-        .rotationEffect(.degrees(turned ? 90 : 0))
-        .frame(width: 44, height: 44)
-        .contentShape(Circle())
+  private var findRow: some View {
+    HStack(spacing: 4) {
+      if model.source { replaceToggle }
+      field(
+        $model.query, model.labels.placeholder, symbol: "magnifyingglass", count: model.count,
+        returnKey: .search, focus: model.focusFind, committedOnly: true,
+        changed: { send("query", ["text": $0]) },
+        submit: { send("next", [:]) })
+      iconButton("chevron.up", model.labels.prev) { send("prev", [:]) }
+      iconButton("chevron.down", model.labels.next) { send("next", [:]) }
+      closeButton
     }
-    .buttonStyle(FindButtonStyle())
-    .accessibilityLabel(label)
+    .padding(4)
+    .glass(Capsule())
   }
 
-  private func textButton(_ title: String, run: @escaping () -> Void) -> some View {
-    Button {
-      tapHaptics.impactOccurred()
-      run()
-    } label: {
-      Text(title)
-        .font(.system(size: 15))
+  private var replaceRow: some View {
+    HStack(spacing: 4) {
+      field(
+        $model.replacement, model.labels.replacePlaceholder, symbol: nil, count: "",
+        returnKey: .done, focus: model.focusReplace, committedOnly: false, changed: { _ in },
+        submit: { send("replace", ["text": model.replacement]) })
+      Button(model.labels.replace) { send("replace", ["text": model.replacement]) }
         .lineLimit(1)
-        .padding(.horizontal, 16)
-        .frame(minHeight: 44)
-        .contentShape(Capsule())
+        .glassButton()
+      Button(model.labels.replaceAll) { send("replaceAll", ["text": model.replacement]) }
+        .lineLimit(1)
+        .prominentGlassButton()
     }
-    .buttonStyle(FindButtonStyle(ink: "text-secondary"))
+    .padding(4)
+    .glass(Capsule())
+  }
+
+  private var replaceToggle: some View {
+    Button {
+      withAnimation(.spring()) { model.replaceShown.toggle() }
+      if model.replaceShown {
+        model.focusReplace += 1
+      } else {
+        model.focusFind += 1
+      }
+    } label: {
+      Image(systemName: "arrow.2.squarepath")
+        .frame(width: 22, height: 22)
+        .foregroundStyle(model.replaceShown ? theme.color("accent") : Color.primary)
+    }
+    .glassButton()
+    .circleBorder()
+    .accessibilityLabel(model.labels.toggleReplace)
+    .accessibilityAddTraits(model.replaceShown ? .isSelected : [])
+  }
+
+  @ViewBuilder
+  private var closeButton: some View {
+    if #available(iOS 26.0, *) {
+      Button(role: .close, action: close)
+        .glassButton()
+        .circleBorder()
+        .accessibilityLabel(model.labels.close)
+    } else {
+      iconButton("xmark", model.labels.close, run: close)
+    }
+  }
+
+  /// The system search field's look: a tertiary fill capsule holding the symbol, the text, and the count.
+  private func field(
+    _ text: Binding<String>, _ placeholder: String, symbol: String?, count: String,
+    returnKey: UIReturnKeyType, focus: Int, committedOnly: Bool,
+    changed: @escaping (String) -> Void, submit: @escaping () -> Void
+  ) -> some View {
+    HStack(spacing: 6) {
+      if let symbol {
+        Image(systemName: symbol).foregroundStyle(.secondary)
+      }
+      FindField(
+        text: text, placeholder: placeholder, returnKey: returnKey, focus: focus,
+        committedOnly: committedOnly, changed: changed, submit: submit
+      )
+      .frame(maxWidth: .infinity)
+      if !count.isEmpty {
+        Text(count)
+          .font(.footnote.monospacedDigit())
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .fixedSize()
+      }
+    }
+    .padding(.horizontal, 12)
+    .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40)
+    .background(Capsule().fill(Color(.tertiarySystemFill)))
+  }
+
+  private func iconButton(_ symbol: String, _ label: String, run: @escaping () -> Void)
+    -> some View
+  {
+    Button(action: run) {
+      Image(systemName: symbol).frame(width: 22, height: 22)
+    }
+    .glassButton()
+    .circleBorder()
+    .accessibilityLabel(label)
   }
 }
 
-/// A round or pill button of the find bar: a soft fill, the accent while pressed.
-struct FindButtonStyle: ButtonStyle {
-  @ObservedObject private var theme = Theme.shared
-  var ink = "text-primary"
-
-  func makeBody(configuration: Configuration) -> some View {
-    let pressed = configuration.isPressed
-    return configuration.label
-      .foregroundStyle(pressed ? theme.color("accent-ink") : theme.color(ink))
-      .background(Capsule().fill(pressed ? theme.color("accent-soft") : theme.color("fill-soft")))
-      .animation(.easeOut(duration: 0.1), value: pressed)
+private extension View {
+  /// Round buttons, from the iOS that has the circle border shape.
+  @ViewBuilder
+  func circleBorder() -> some View {
+    if #available(iOS 17.0, *) {
+      buttonBorderShape(.circle)
+    } else {
+      self
+    }
   }
 }
 
 /// A single-line field that sends its text as it changes, leaving out what an input method is still composing when `committedOnly`.
 struct FindField: UIViewRepresentable {
-  @ObservedObject private var theme = Theme.shared
   @Binding var text: String
   let placeholder: String
   let returnKey: UIReturnKeyType
@@ -270,7 +302,10 @@ struct FindField: UIViewRepresentable {
     field.smartDashesType = .no
     field.smartInsertDeleteType = .no
     field.returnKeyType = returnKey
-    field.font = .systemFont(ofSize: 16)
+    field.clearButtonMode = .always
+    field.font = .preferredFont(forTextStyle: .body)
+    field.adjustsFontForContentSizeCategory = true
+    field.textColor = .label
     field.setContentHuggingPriority(.defaultLow, for: .horizontal)
     field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     return field
@@ -278,9 +313,8 @@ struct FindField: UIViewRepresentable {
 
   func updateUIView(_ field: UITextField, context: Context) {
     context.coordinator.parent = self
-    field.textColor = theme.ui("text-primary")
     field.attributedPlaceholder = NSAttributedString(
-      string: placeholder, attributes: [.foregroundColor: theme.ui("text-muted")])
+      string: placeholder, attributes: [.foregroundColor: UIColor.placeholderText])
     field.accessibilityLabel = placeholder
     if field.markedTextRange == nil, field.text != text { field.text = text }
     if context.coordinator.focus != focus {
@@ -306,6 +340,12 @@ struct FindField: UIViewRepresentable {
       let text = field.text ?? ""
       parent.text = text
       parent.changed(text)
+    }
+
+    func textFieldShouldClear(_ field: UITextField) -> Bool {
+      parent.text = ""
+      parent.changed("")
+      return true
     }
 
     func textFieldShouldReturn(_ field: UITextField) -> Bool {

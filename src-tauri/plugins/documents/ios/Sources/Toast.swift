@@ -2,7 +2,7 @@ import Combine
 import SwiftUI
 import UIKit
 
-/// A note of the page, as `.ny-toast` drew it: a card over everything that goes away by itself.
+/// A note of the page: a glass capsule over everything that goes away by itself.
 final class ToastController: NativePanel {
   private unowned let shell: NativeShell
   private var showing: ToastNote?
@@ -44,9 +44,9 @@ final class ToastModel: ObservableObject {
   }
 }
 
-/// One note on the window, 64 points under the top of the safe area, as the phone's stylesheet places it.
+/// One note on the window, 8 points under the top of the safe area.
 private final class ToastNote {
-  private static let belowTop: CGFloat = 64
+  private static let belowTop: CGFloat = 8
   private static let fadeOut = 0.2
 
   private weak var window: UIWindow?
@@ -116,7 +116,7 @@ private final class ToastNote {
   }
 }
 
-/// The card of `.ny-toast`: the kind's icon, the title and the detail.
+/// The capsule of a note: the kind's icon, the title and the detail.
 struct ToastView: View {
   @ObservedObject var model: ToastModel
   @ObservedObject private var theme = Theme.shared
@@ -124,27 +124,24 @@ struct ToastView: View {
   var body: some View {
     let lit = model.shown || model.leaving
     HStack(alignment: .top, spacing: 10) {
-      Image(systemName: model.warning ? "exclamationmark.circle" : "checkmark.circle")
-        .font(.system(size: 15))
-        .foregroundStyle(model.warning ? theme.color("warning") : theme.color("accent"))
-        .frame(width: 18, height: 18)
+      Image(systemName: model.warning ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(model.warning ? Color.orange : theme.color("accent"))
       VStack(alignment: .leading, spacing: 2) {
         Text(model.title)
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(theme.color("text-primary"))
-          .lineSpacing(2.5)
+          .font(.subheadline.weight(.semibold))
+          .foregroundStyle(.primary)
         if !model.detail.isEmpty {
           Text(model.detail)
-            .font(.system(size: 12))
-            .foregroundStyle(theme.color("text-secondary"))
-            .lineSpacing(2.5)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
       }
       .fixedSize(horizontal: false, vertical: true)
     }
-    .padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 16))
-    .glassCard(radius: 14)
-    .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 8)
+    .padding(.horizontal, 20)
+    .padding(.vertical, 12)
+    .glass(Capsule())
     .opacity(model.shown ? 1 : 0)
     .offset(y: lit ? 0 : -8)
     .scaleEffect(lit ? 1 : 0.98)
@@ -152,7 +149,7 @@ struct ToastView: View {
       model.shown ? .timingCurve(0.16, 1, 0.3, 1, duration: 0.22) : .easeIn(duration: 0.2),
       value: model.shown
     )
-    .contentShape(Rectangle())
+    .contentShape(Capsule())
     .onTapGesture { model.tap() }
     .accessibilityElement(children: .combine)
   }
