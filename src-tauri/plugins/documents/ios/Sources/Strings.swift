@@ -16,6 +16,10 @@ enum L10n {
 
   private static let table: [String: [String: String]] = [
     "documents": ["en": "Documents", "zh-CN": "文档", "zh-TW": "文件"],
+    "back": ["en": "Back", "zh-CN": "返回", "zh-TW": "返回"],
+    "file": ["en": "File", "zh-CN": "文件", "zh-TW": "檔案"],
+    "new": ["en": "New", "zh-CN": "新建", "zh-TW": "新增"],
+    "open": ["en": "Open", "zh-CN": "打开", "zh-TW": "開啟"],
     "recents": ["en": "Recent", "zh-CN": "最近", "zh-TW": "最近"],
     "recentsEmpty": [
       "en": "Documents you open appear here.", "zh-CN": "最近打开的文档将显示在此处。",
@@ -70,12 +74,12 @@ enum L10n {
     ],
     "search": ["en": "Search", "zh-CN": "搜索", "zh-TW": "搜尋"],
     "share": ["en": "Share…", "zh-CN": "共享…", "zh-TW": "分享…"],
-    "exportPdf": ["en": "Export as PDF", "zh-CN": "导出为 PDF", "zh-TW": "輸出為 PDF"],
+    "exportPdf": ["en": "Export as PDF", "zh-CN": "导出为 PDF", "zh-TW": "匯出為 PDF"],
     "print": ["en": "Print…", "zh-CN": "打印…", "zh-TW": "列印…"],
     "outline": ["en": "Outline", "zh-CN": "大纲", "zh-TW": "大綱"],
     "find": ["en": "Find", "zh-CN": "查找", "zh-TW": "尋找"],
     "source": ["en": "Source", "zh-CN": "源码", "zh-TW": "原始碼"],
-    "ai": ["en": "AI Assistant", "zh-CN": "AI 助手", "zh-TW": "AI 助理"],
+    "ai": ["en": "AI assistant", "zh-CN": "AI 助手", "zh-TW": "AI 助理"],
     "settings": ["en": "Settings", "zh-CN": "设置", "zh-TW": "設定"],
     "more": ["en": "More", "zh-CN": "更多", "zh-TW": "更多"],
     "undo": ["en": "Undo", "zh-CN": "撤销", "zh-TW": "復原"],
@@ -99,7 +103,7 @@ enum L10n {
     "math": ["en": "Math", "zh-CN": "公式", "zh-TW": "公式"],
     "moveLeft": ["en": "Move Left", "zh-CN": "向左移动", "zh-TW": "向左移動"],
     "moveRight": ["en": "Move Right", "zh-CN": "向右移动", "zh-TW": "向右移動"],
-    "hideKeyboard": ["en": "Hide Keyboard", "zh-CN": "收起键盘", "zh-TW": "隱藏鍵盤"],
+    "hideKeyboard": ["en": "Hide keyboard", "zh-CN": "收起键盘", "zh-TW": "收起鍵盤"],
     "insert": ["en": "Insert “%@”", "zh-CN": "插入“%@”", "zh-TW": "插入「%@」"],
   ]
 

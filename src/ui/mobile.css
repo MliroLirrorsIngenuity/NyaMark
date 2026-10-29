@@ -372,6 +372,15 @@
     font-size: 16px !important;
   }
 
+  :root.ny-native-shell .ny-document-editing #ny-app .ny-shell__body,
+  :root.ny-native-shell.ny-document-editing #ny-app .ny-shell__body {
+    margin-bottom: 0;
+  }
+
+  :root.ny-native-shell #ny-editor-container {
+    padding-bottom: calc(48px + var(--ny-native-bottom, 0px));
+  }
+
   /* Around the native shell the page draws the document alone. */
   :root.ny-native-shell
     :is(#ny-titlebar, .ny-mobile-nav, #mb-keyboard, #ny-source-bar),

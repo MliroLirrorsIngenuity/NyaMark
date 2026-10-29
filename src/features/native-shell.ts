@@ -1,3 +1,4 @@
+import { DocumentsError } from '../bridge/ipc/documents';
 import {
   type NativeMessage,
   onNativeMessage,
@@ -41,10 +42,15 @@ export function bindNativeShell(host: NativeShellHost) {
   let frame = 0;
   const postState = () => {
     frame = 0;
-    const { filePath, sourceMode } = store.getState();
+    const { filePath, sourceMode, isDirty, wordCount } = store.getState();
+    const saved = i18next.t(
+      isDirty || !filePath ? 'mobile.unsaved' : 'mobile.saved'
+    );
+    const words = i18next.t('statusbar.words', { count: wordCount });
     const state = {
       type: 'state',
       title: filePath ? documentFileName(filePath) : '',
+      status: `${saved} · ${words}`,
       sourceMode,
       active: sourceMode ? [] : (host.editor()?.activeBarItems() ?? []),
     };
@@ -61,6 +67,10 @@ export function bindNativeShell(host: NativeShellHost) {
   host.editor()?.onDocChanged(schedule);
   schedule();
 
+  postTheme();
+  window.addEventListener('nyamark:themechange', postTheme);
+  i18next.on('languageChanged', schedule);
+
   let editing = false;
   const focusMoved = () => {
     const now = !!document.activeElement?.closest(DOCUMENT_FOCUS);
@@ -70,6 +80,51 @@ export function bindNativeShell(host: NativeShellHost) {
   };
   document.addEventListener('focusin', focusMoved);
   document.addEventListener('focusout', () => queueMicrotask(focusMoved));
+}
+
+/** The page's colours the native bars draw with, by their custom property's name. */
+const THEME_COLORS = [
+  'app-bg-start',
+  'app-bg-end',
+  'statusbar-bg',
+  'border-soft',
+  'border-button',
+  'fill-soft',
+  'text-primary',
+  'text-secondary',
+  'text-muted',
+  'accent',
+  'accent-soft',
+  'accent-ink',
+  'dock-bg',
+];
+
+/**
+ * Sends the colours as the stylesheet resolves them, as RGBA bytes: a canvas
+ * paints each, so `color-mix()` and every other notation arrive the same way.
+ */
+function postTheme() {
+  const probe = document.createElement('span');
+  probe.hidden = true;
+  document.body.append(probe);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 1;
+  const paint = canvas.getContext('2d', { willReadFrequently: true });
+  const colors: Record<string, number[]> = {};
+  for (const name of THEME_COLORS) {
+    probe.style.color = `var(--ny-${name})`;
+    if (!paint) break;
+    paint.clearRect(0, 0, 1, 1);
+    paint.fillStyle = getComputedStyle(probe).color;
+    paint.fillRect(0, 0, 1, 1);
+    colors[name] = Array.from(paint.getImageData(0, 0, 1, 1).data);
+  }
+  probe.remove();
+  postToNative({
+    type: 'theme',
+    dark: document.documentElement.dataset.theme === 'dark',
+    colors,
+  });
 }
 
 async function receive(host: NativeShellHost, message: NativeMessage) {
@@ -97,11 +152,34 @@ async function receive(host: NativeShellHost, message: NativeMessage) {
       return;
     case 'rename': {
       const path = store.getState().filePath;
-      if (path) await host.documents.rename(path, String(message.stem));
+      let error: string | null = null;
+      try {
+        if (path) await host.documents.rename(path, String(message.stem));
+      } catch (failure) {
+        error = renameError(failure, String(message.stem));
+      }
+      postToNative({ type: 'reply', id: message.reply, error });
       return;
     }
+    case 'insets':
+      document.documentElement.style.setProperty(
+        '--ny-native-bottom',
+        `${Number(message.bottom) || 0}px`
+      );
+      return;
     case 'leave':
       await host.documents.leaveForLibrary();
       return;
   }
+}
+
+function renameError(failure: unknown, stem: string) {
+  if (failure instanceof DocumentsError && failure.code === 'exists') {
+    return i18next.t('library.errors.exists', { name: stem });
+  }
+  if (failure instanceof DocumentsError && failure.code === 'invalid-name') {
+    return i18next.t('library.errors.invalidName');
+  }
+  const reason = failure instanceof Error ? failure.message : String(failure);
+  return i18next.t('library.errors.failed', { reason });
 }
