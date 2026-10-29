@@ -196,9 +196,9 @@ class DocumentsPlugin: Plugin {
     let args = try invoke.parseArgs(PathArgs.self)
     respondEmpty(invoke) {
       let url = URL(fileURLWithPath: args.path)
-      let path = canonicalPath(url)
+      let recent = self.library.recentIDs(at: canonicalPath(url))
       try FileAccess.delete(url)
-      self.library.forget(path: path)
+      self.library.forget(ids: recent)
     }
   }
 

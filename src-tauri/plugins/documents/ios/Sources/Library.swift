@@ -184,6 +184,11 @@ final class Library {
 
   func recents() -> [RecentDocument] {
     var result: [RecentDocument] = []
+    // A bookmark follows its file into the trash; such a document is gone for the user.
+    saved.recents.removeAll { item in
+      var item = item
+      return resolve(&item)?.pathComponents.contains(".Trash") == true
+    }
     for index in saved.recents.indices {
       let url = resolve(&saved.recents[index])
       let item = saved.recents[index]
@@ -229,11 +234,17 @@ final class Library {
     persist()
   }
 
-  func forget(path: String) {
-    while let index = recentIndex(of: path) {
-      if saved.current == saved.recents[index].id { saved.current = nil }
-      saved.recents.remove(at: index)
-    }
+  /// The recent documents at `path`; taken before the file moves, since their bookmarks move with it. */
+  func recentIDs(at path: String) -> Set<String> {
+    Set(saved.recents.filter { item in
+      var item = item
+      return resolve(&item).map(canonicalPath) == path
+    }.map(\.id))
+  }
+
+  func forget(ids: Set<String>) {
+    saved.recents.removeAll { ids.contains($0.id) }
+    if let current = saved.current, ids.contains(current) { saved.current = nil }
     persist()
   }
 
