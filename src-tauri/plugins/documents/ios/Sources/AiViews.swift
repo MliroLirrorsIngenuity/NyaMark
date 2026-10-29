@@ -1,11 +1,7 @@
 import SwiftUI
 import UIKit
 
-private func aiTap() {
-  UIImpactFeedbackGenerator(style: .light).impactOccurred()
-}
-
-private extension View {
+extension View {
   /// Lets a drag on the conversation take the keyboard down.
   @ViewBuilder func aiDismissingKeyboard() -> some View {
     if #available(iOS 16.0, *) {
@@ -14,67 +10,125 @@ private extension View {
       self
     }
   }
+
+  /// The glass button of an action; the prominent one for the action that goes ahead.
+  @ViewBuilder func aiAction(prominent: Bool) -> some View {
+    if prominent {
+      prominentGlassButton()
+    } else {
+      glassButton()
+    }
+  }
+
+  /// Rounds a glass button into a circle; iOS 17 is the first to have one.
+  @ViewBuilder func aiCircle() -> some View {
+    if #available(iOS 17.0, *) {
+      buttonBorderShape(.circle)
+    } else {
+      buttonBorderShape(.capsule)
+    }
+  }
 }
 
-/// The sheet: the dock on a phone, with its header, the conversation and the composer.
-struct AiPanelView: View {
-  @ObservedObject var model: AiModel
-  @ObservedObject private var theme = Theme.shared
-  let bridge: AiBridge
-  @State private var draft = ""
-  @State private var keyboardShown = false
+/// One layout when it fits the width, the other when it does not.
+struct AiAdaptive<Row: View, Stacked: View>: View {
+  @ViewBuilder let row: () -> Row
+  @ViewBuilder let stacked: () -> Stacked
 
   var body: some View {
-    ZStack(alignment: .topTrailing) {
-      VStack(spacing: 0) {
-        PanelHeader(title: model.state?.title ?? "") {
-          if let state = model.state {
-            if state.history.visible {
-              CircleButton(symbol: "clock.arrow.circlepath", label: state.history.label) {
-                bridge.history()
-              }
-            }
-            CircleButton(symbol: "square.and.pencil", label: state.newChat, disabled: state.empty) {
-              bridge.newChat()
-            }
-            if keyboardShown {
-              CircleButton(symbol: "keyboard.chevron.compact.down", label: state.hideKeyboard) {
-                UIApplication.shared.sendAction(
-                  #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-              }
-            }
-          }
-          CircleButton(symbol: "xmark", label: model.state?.close ?? L10n.text("cancel")) {
-            bridge.closeSheet()
-          }
-        }
+    if #available(iOS 16.0, *) {
+      ViewThatFits(in: .horizontal) {
+        row()
+        stacked()
+      }
+    } else {
+      stacked()
+    }
+  }
+}
+
+private let aiCardShape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+
+/// The sheet: the conversation under a navigation bar, the kept conversations a page pushed onto it.
+struct AiPanelView: View {
+  @ObservedObject var model: AiModel
+  let bridge: AiBridge
+  @State private var draft = ""
+
+  var body: some View {
+    PanelPage(title: model.state?.title ?? "") {
+      barButtons
+    } content: {
+      Group {
         if let state = model.state {
-          AiBodyView(model: model, state: state, bridge: bridge)
-          AiFootView(state: state, bridge: bridge, draft: $draft)
+          AiConversation(model: model, state: state, bridge: bridge, draft: $draft)
         } else {
-          Spacer()
+          Color.clear
         }
       }
-      if model.historyShown, let state = model.state, state.history.visible {
-        Color.black.opacity(0.001)
-          .ignoresSafeArea()
-          .onTapGesture { model.historyShown = false }
-        AiHistoryCard(model: model, state: state, bridge: bridge)
-          .padding(.top, 66)
-          .padding(.trailing, keyboardShown ? 162 : 112)
-      }
+      .background(history)
     }
     .onChange(of: model.insertion) { insertion in
       guard let insertion else { return }
       let kept = draft.trimmingCharacters(in: .whitespacesAndNewlines)
       draft = kept.isEmpty ? insertion.text : kept + "\n" + insertion.text
     }
-    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-      keyboardShown = true
+  }
+
+  @ViewBuilder private var barButtons: some View {
+    if let state = model.state {
+      if state.history.visible {
+        Button {
+          bridge.history()
+        } label: {
+          Image(systemName: "clock.arrow.circlepath")
+        }
+        .accessibilityLabel(state.history.label)
+      }
+      Button {
+        bridge.newChat()
+      } label: {
+        Image(systemName: "square.and.pencil")
+      }
+      .disabled(state.empty)
+      .accessibilityLabel(state.newChat)
     }
-    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-      keyboardShown = false
+    PanelCloseButton(label: model.state?.close ?? L10n.text("cancel")) { bridge.closeSheet() }
+  }
+
+  private var history: some View {
+    NavigationLink(isActive: $model.historyShown) {
+      if let state = model.state {
+        AiHistoryPage(model: model, state: state, bridge: bridge)
+      }
+    } label: {
+      EmptyView()
     }
+    .hidden()
+  }
+}
+
+private struct AiFootHeightKey: PreferenceKey {
+  static var defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// The messages with the composer floating over their end.
+private struct AiConversation: View {
+  @ObservedObject var model: AiModel
+  let state: AiState
+  let bridge: AiBridge
+  @Binding var draft: String
+  @State private var footHeight: CGFloat = 0
+
+  var body: some View {
+    AiBodyView(model: model, state: state, bridge: bridge, inset: footHeight)
+      .overlay(alignment: .bottom) {
+        AiFootView(state: state, bridge: bridge, draft: $draft)
+          .background(
+            GeometryReader { Color.clear.preference(key: AiFootHeightKey.self, value: $0.size.height) })
+      }
+      .onPreferenceChange(AiFootHeightKey.self) { footHeight = $0 }
   }
 }
 
@@ -92,11 +146,13 @@ private struct AiScrollKey: PreferenceKey {
   }
 }
 
-/// The setup card or the empty card, then the messages; it keeps to the end of a reply as it grows unless the user scrolled up.
+/// The setup or the empty state, then the messages; it keeps to the end of a reply as it grows unless the user scrolled up.
 struct AiBodyView: View {
   @ObservedObject var model: AiModel
   let state: AiState
   let bridge: AiBridge
+  /// The height at the bottom that the composer covers.
+  let inset: CGFloat
   @State private var following = true
   @State private var settling = false
   @State private var contentHeight: CGFloat = 0
@@ -113,24 +169,25 @@ struct AiBodyView: View {
             if state.empty {
               if let setup = state.setup {
                 AiSetupCard(setup: setup, bridge: bridge)
-                  .frame(minHeight: geometry.size.height - 1)
+                  .frame(minHeight: max(0, geometry.size.height - inset - 1))
               } else if let intro = state.intro {
                 AiIntroCard(intro: intro, bridge: bridge)
-                  .frame(minHeight: geometry.size.height - 1)
+                  .frame(minHeight: max(0, geometry.size.height - inset - 1))
               }
             }
             if !model.boxes.isEmpty {
-              LazyVStack(alignment: .leading, spacing: 18) {
+              LazyVStack(alignment: .leading, spacing: 20) {
                 ForEach(model.boxes) { box in
                   AiMessageRow(
-                    box: box, state: state, bridge: bridge, width: geometry.size.width - 36,
+                    box: box, state: state, bridge: bridge, width: geometry.size.width - 32,
                     isLast: box.id == model.boxes.last?.id, copied: model.copied == box.id)
                 }
               }
-              .padding(.top, 6)
-              .padding(.horizontal, 18)
+              .padding(.top, 8)
+              .padding(.horizontal, 16)
               .padding(.bottom, 16)
             }
+            Color.clear.frame(height: inset)
             Color.clear.frame(height: 1).id(end)
           }
           .background(
@@ -156,22 +213,20 @@ struct AiBodyView: View {
           following = true
           DispatchQueue.main.async { scroller.scrollTo(end, anchor: .bottom) }
         }
-        .mask(
-          VStack(spacing: 0) {
-            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-              .frame(height: 14)
-            Rectangle()
-          }
-        )
         .overlay(alignment: .bottom) {
           if !following {
-            CircleButton(symbol: "arrow.down", label: state.jump) {
+            Button {
               following = true
               settling = true
               withAnimation(.easeOut(duration: 0.25)) { scroller.scrollTo(end, anchor: .bottom) }
               DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { settling = false }
+            } label: {
+              Image(systemName: "arrow.down")
             }
-            .padding(.bottom, 10)
+            .glassButton()
+            .aiCircle()
+            .accessibilityLabel(state.jump)
+            .padding(.bottom, inset + 8)
             .transition(.opacity)
           }
         }
@@ -182,94 +237,82 @@ struct AiBodyView: View {
 
 // MARK: Before a conversation
 
-private struct AiTile: View {
+/// The mark, the title and the line under it that open the setup and the empty state.
+private struct AiHeader: View {
   @ObservedObject private var theme = Theme.shared
-  var large = false
+  let title: String
+  let text: String
 
   var body: some View {
-    let side: CGFloat = large ? 52 : 36
-    RoundedRectangle(cornerRadius: large ? 16 : 11, style: .continuous)
-      .fill(theme.color("accent"))
-      .frame(width: side, height: side)
-      .overlay(
-        Image(systemName: "sparkles")
-          .font(.system(size: large ? 24 : 18, weight: .medium))
-          .foregroundStyle(theme.color("ai-on-mark"))
-      )
-      .shadow(color: large ? theme.color("accent-line") : .clear, radius: 10, x: 0, y: 8)
+    VStack(spacing: 6) {
+      Image(systemName: "sparkles")
+        .font(.system(size: 40, weight: .regular))
+        .foregroundStyle(theme.color("accent"))
+        .padding(.bottom, 8)
+        .accessibilityHidden(true)
+      Text(title)
+        .font(.title3.weight(.semibold))
+        .multilineTextAlignment(.center)
+      Text(text)
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+    }
   }
 }
 
 /// Before any model is set up: where to set one up.
 struct AiSetupCard: View {
-  @ObservedObject private var theme = Theme.shared
   let setup: AiState.Setup
   let bridge: AiBridge
 
   var body: some View {
     VStack(spacing: 0) {
       Spacer(minLength: 0)
-      AiTile(large: true)
-      Text(setup.title)
-        .font(.system(size: 22, weight: .semibold))
-        .foregroundStyle(theme.color("text-primary"))
-        .multilineTextAlignment(.center)
-        .padding(.top, 18)
-        .padding(.bottom, 4)
-      Text(setup.body)
-        .font(.system(size: 15))
-        .lineSpacing(5)
-        .foregroundStyle(theme.color("text-secondary"))
-        .multilineTextAlignment(.center)
-        .padding(.bottom, 18)
-      LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())], spacing: 8) {
+      AiHeader(title: setup.title, text: setup.body)
+      VStack(spacing: 10) {
         ForEach(setup.services) { service in
           Button {
-            aiTap()
             bridge.service(service.id)
           } label: {
             HStack(spacing: 6) {
               Text(service.name)
-                .font(.system(size: 15, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.tail)
               Spacer(minLength: 0)
               Image(systemName: "plus")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(theme.color("text-secondary"))
+                .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity)
           }
-          .buttonStyle(AiButtonStyle(kind: .soft))
+          .glassButton()
         }
       }
-      .padding(.bottom, 16)
+      .padding(.top, 24)
       Button {
-        aiTap()
         bridge.settings()
       } label: {
         Text(setup.action)
-          .font(.system(size: 15, weight: .semibold))
-          .frame(maxWidth: .infinity, minHeight: 44)
+          .frame(maxWidth: .infinity)
       }
-      .buttonStyle(AiButtonStyle(kind: .ink))
+      .prominentGlassButton()
+      .controlSize(.large)
+      .padding(.top, 16)
       Text(setup.note)
-        .font(.system(size: 12))
-        .foregroundStyle(theme.color("text-secondary"))
+        .font(.footnote)
+        .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
-        .padding(.top, 10)
+        .padding(.top, 12)
       Spacer(minLength: 0)
     }
-    .padding(.horizontal, 20)
-    .padding(.top, 20)
-    .padding(.bottom, 32)
+    .padding(.horizontal, 24)
+    .padding(.vertical, 24)
   }
 }
 
 /// An empty conversation: what to ask, with a few things to ask at once.
 struct AiIntroCard: View {
-  @ObservedObject private var theme = Theme.shared
   let intro: AiState.Intro
   let bridge: AiBridge
 
@@ -283,46 +326,33 @@ struct AiIntroCard: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    VStack(spacing: 0) {
       Spacer(minLength: 0)
-      AiTile()
-      Text(intro.title)
-        .font(.system(size: 22, weight: .semibold))
-        .foregroundStyle(theme.color("text-primary"))
-        .padding(.top, 14)
-        .padding(.bottom, 4)
-      Text(intro.body)
-        .font(.system(size: 15))
-        .lineSpacing(5)
-        .foregroundStyle(theme.color("text-secondary"))
-        .padding(.bottom, 18)
-      VStack(spacing: 8) {
+      AiHeader(title: intro.title, text: intro.body)
+      VStack(spacing: 10) {
         ForEach(Array(intro.suggestions.enumerated()), id: \.offset) { index, suggestion in
           Button {
-            aiTap()
             bridge.suggestion(index)
           } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
               Image(systemName: symbol(suggestion.icon))
-                .font(.system(size: 15))
-                .foregroundStyle(theme.color("text-secondary"))
-                .frame(width: 16)
+                .frame(width: 22)
               Text(suggestion.label)
-                .font(.system(size: 15))
                 .multilineTextAlignment(.leading)
               Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
           }
-          .buttonStyle(AiButtonStyle(kind: .plain))
+          .glassButton()
+          .buttonBorderShape(.roundedRectangle(radius: 22))
         }
       }
+      .padding(.top, 24)
       Spacer(minLength: 0)
     }
-    .padding(.horizontal, 18)
-    .padding(.top, 12)
-    .padding(.bottom, 24)
+    .padding(.horizontal, 24)
+    .padding(.vertical, 24)
   }
 }
 
@@ -353,7 +383,7 @@ struct AiUserMessage: View {
   let width: CGFloat
 
   var body: some View {
-    let limit = max(0, width * 0.86)
+    let limit = max(0, width * 0.85)
     HStack(spacing: 0) {
       Spacer(minLength: 0)
       VStack(alignment: .trailing, spacing: 6) {
@@ -366,13 +396,12 @@ struct AiUserMessage: View {
         }
         if !entry.text.isEmpty {
           Text(entry.text)
-            .font(.system(size: 16))
-            .lineSpacing(7)
-            .foregroundStyle(theme.color("on-ink"))
-            .padding(.vertical, 10)
+            .foregroundStyle(theme.dark ? theme.color("on-accent") : Color.white)
+            .multilineTextAlignment(.leading)
+            .padding(.vertical, 9)
             .padding(.horizontal, 14)
             .background(
-              RoundedRectangle(cornerRadius: 18, style: .continuous).fill(theme.color("ink"))
+              RoundedRectangle(cornerRadius: 18, style: .continuous).fill(theme.color("accent"))
             )
             .textSelection(.enabled)
         }
@@ -392,14 +421,13 @@ struct AiUserMessage: View {
 }
 
 private struct AiThumbnail: View {
-  @ObservedObject private var theme = Theme.shared
   let picture: UIImage?
   let side: CGFloat
   let radius: CGFloat
 
   var body: some View {
     ZStack {
-      theme.color("dock-bg")
+      Color(.secondarySystemBackground)
       if let picture {
         Image(uiImage: picture).resizable().scaledToFill()
       }
@@ -408,13 +436,12 @@ private struct AiThumbnail: View {
     .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     .overlay(
       RoundedRectangle(cornerRadius: radius, style: .continuous)
-        .stroke(theme.color("line"), lineWidth: 1))
+        .stroke(Color(.separator), lineWidth: 0.5))
   }
 }
 
-/// The assistant's reply at full width beside its mark: text, folds of steps, notes, errors and its foot.
+/// The assistant's reply at full width: text, folds of steps, notes, errors and its foot.
 struct AiAssistantMessage: View {
-  @ObservedObject private var theme = Theme.shared
   let entry: AiEntry
   let state: AiState
   let bridge: AiBridge
@@ -422,44 +449,34 @@ struct AiAssistantMessage: View {
   let copied: Bool
 
   var body: some View {
-    HStack(alignment: .top, spacing: 10) {
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(theme.color("accent"))
-        .frame(width: 26, height: 26)
-        .overlay(
-          Image(systemName: "sparkles")
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(theme.color("ai-on-mark")))
-      VStack(alignment: .leading, spacing: 8) {
-        VStack(alignment: .leading, spacing: 10) {
-          ForEach(Array(entry.parts.enumerated()), id: \.offset) { _, part in
-            AiPartView(part: part, bridge: bridge)
-          }
-          if entry.waiting {
-            AiDots().accessibilityLabel(state.waiting)
-          }
+    VStack(alignment: .leading, spacing: 8) {
+      VStack(alignment: .leading, spacing: 10) {
+        ForEach(Array(entry.parts.enumerated()), id: \.offset) { _, part in
+          AiPartView(part: part, bridge: bridge)
         }
-        .padding(.top, 2)
-        if let status = entry.status {
-          Text(status)
-            .font(.system(size: 12))
-            .foregroundStyle(theme.color("text-secondary"))
-        }
-        if let failure = entry.failure {
-          AiFailureCard(failure: failure, isLast: isLast, bridge: bridge)
-        }
-        if let foot = entry.foot {
-          AiFootLine(entry: entry, foot: foot, isLast: isLast, copied: copied, bridge: bridge)
+        if entry.waiting {
+          ProgressView().accessibilityLabel(state.waiting)
         }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      if let status = entry.status {
+        Text(status)
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+      }
+      if let failure = entry.failure {
+        AiFailureNote(failure: failure, isLast: isLast, bridge: bridge)
+      }
+      if let foot = entry.foot {
+        AiFootLine(entry: entry, foot: foot, isLast: isLast, copied: copied, bridge: bridge)
+      }
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .contextMenu {
-      if entry.foot?.actions.contains(where: { $0.id == "copy" }) == true {
+      if let copy = entry.foot?.actions.first(where: { $0.id == "copy" }) {
         Button {
           bridge.copy(entry.id)
         } label: {
-          Label(entry.foot?.actions.first(where: { $0.id == "copy" })?.label ?? "", systemImage: "doc.on.doc")
+          Label(copy.label, systemImage: "doc.on.doc")
         }
       }
     }
@@ -483,53 +500,9 @@ private struct AiPartView: View {
   }
 }
 
-/// The waiting dots under a reply that has not begun.
-private struct AiDots: View {
-  @ObservedObject private var theme = Theme.shared
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var lit = false
-
-  var body: some View {
-    HStack(spacing: 4) {
-      ForEach(0..<3, id: \.self) { index in
-        Circle()
-          .fill(theme.color("text-muted"))
-          .frame(width: 6, height: 6)
-          .opacity(reduceMotion ? 0.6 : (lit ? 1 : 0.25))
-          .animation(
-            reduceMotion
-              ? nil
-              : .easeInOut(duration: 0.6).repeatForever(autoreverses: true).delay(Double(index) * 0.15),
-            value: lit)
-      }
-    }
-    .padding(.vertical, 9)
-    .onAppear { lit = true }
-  }
-}
-
-private struct AiSpinner: View {
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  let color: Color
-  var size: CGFloat = 9
-  @State private var turning = false
-
-  var body: some View {
-    Circle()
-      .trim(from: 0, to: 0.75)
-      .stroke(color, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
-      .frame(width: size, height: size)
-      .rotationEffect(.degrees(turning ? 360 : 0))
-      .animation(
-        reduceMotion ? nil : .linear(duration: 0.8).repeatForever(autoreverses: false), value: turning
-      )
-      .onAppear { turning = true }
-  }
-}
-
 // MARK: Steps
 
-/// The steps between two runs of text, folded into one line; the questions and edits they raise sit under it.
+/// The steps between two runs of text, folded into one row; the questions and edits they raise sit under it.
 private struct AiGroupView: View {
   @ObservedObject private var theme = Theme.shared
   let group: AiGroup
@@ -537,74 +510,50 @@ private struct AiGroupView: View {
   @State private var open = false
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      head
-      if open && !group.flat {
-        steps
-      }
-      if !group.cards.isEmpty {
-        VStack(alignment: .leading, spacing: 8) {
-          ForEach(Array(group.cards.enumerated()), id: \.offset) { _, card in
-            switch card {
-            case .approval(let approval): AiApprovalCard(approval: approval, bridge: bridge)
-            case .edit(let edit): AiEditCard(edit: edit, bridge: bridge)
-            default: EmptyView()
-            }
-          }
+    VStack(alignment: .leading, spacing: 8) {
+      if group.flat {
+        head
+      } else {
+        DisclosureGroup(isExpanded: $open) {
+          steps
+        } label: {
+          head
         }
-        .padding(.top, 6)
+      }
+      ForEach(Array(group.cards.enumerated()), id: \.offset) { _, card in
+        switch card {
+        case .approval(let approval): AiApprovalCard(approval: approval, bridge: bridge)
+        case .edit(let edit): AiEditCard(edit: edit, bridge: bridge)
+        default: EmptyView()
+        }
       }
     }
   }
 
   private var head: some View {
-    let line = HStack(spacing: 6) {
-      icon.frame(width: 14, height: 14)
+    Label {
       Text(group.label)
-        .font(.system(size: 12.5))
-        .foregroundStyle(
-          group.state == "live" ? theme.color("text-primary") : theme.color("text-secondary")
-        )
+        .font(.footnote)
+        .foregroundStyle(group.state == "live" ? Color.primary : Color.secondary)
         .lineLimit(1)
         .truncationMode(.tail)
-      if !group.flat {
-        Image(systemName: "chevron.right")
-          .font(.system(size: 10, weight: .semibold))
-          .foregroundStyle(theme.color("text-muted"))
-          .rotationEffect(.degrees(open ? 90 : 0))
-      }
-    }
-    return Group {
-      if group.flat {
-        line.frame(minHeight: 26, alignment: .leading)
-      } else {
-        Button {
-          aiTap()
-          withAnimation(.easeOut(duration: 0.12)) { open.toggle() }
-        } label: {
-          line.frame(minHeight: 44, alignment: .leading).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(group.label)
-      }
+    } icon: {
+      icon
     }
   }
 
   @ViewBuilder private var icon: some View {
     switch group.state {
-    case "live": AiSpinner(color: theme.color("text-muted"))
+    case "live":
+      ProgressView().controlSize(.mini)
     case "error":
-      Image(systemName: "exclamationmark.circle").font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(theme.color("ai-error"))
+      Image(systemName: "exclamationmark.circle").foregroundStyle(.red)
     case "stopped":
-      Image(systemName: "minus").font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(theme.color("text-muted"))
+      Image(systemName: "minus.circle").foregroundStyle(.secondary)
     case "thought":
-      Image(systemName: "sparkles").font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(theme.color("accent"))
+      Image(systemName: "sparkles").foregroundStyle(theme.color("accent"))
     default:
-      Image(systemName: "checkmark").font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(theme.color("ok"))
+      Image(systemName: "checkmark.circle").foregroundStyle(.secondary)
     }
   }
 
@@ -614,14 +563,10 @@ private struct AiGroupView: View {
         AiStepView(part: part, single: group.single, bridge: bridge)
       }
     }
-    .font(.system(size: 12.5))
-    .foregroundStyle(theme.color("text-secondary"))
-    .padding(.leading, 14)
-    .padding(.vertical, 2)
+    .padding(.leading, 12)
     .overlay(alignment: .leading) {
-      Rectangle().fill(theme.color("line")).frame(width: 1.5)
+      Rectangle().fill(Color(.separator)).frame(width: 1.5)
     }
-    .padding(.leading, 6)
     .padding(.vertical, 4)
   }
 }
@@ -638,42 +583,45 @@ private struct AiStepView: View {
       VStack(alignment: .leading, spacing: 4) {
         if !single {
           Text(label)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(theme.color("text-muted"))
+            .font(.caption.weight(.semibold))
         }
         Text(text)
-          .lineSpacing(4)
+          .font(.footnote)
+          .foregroundStyle(.secondary)
           .textSelection(.enabled)
       }
     case .tool(let label, let state):
       if !single {
-        HStack(spacing: 6) {
-          toolIcon(state).frame(width: 14, height: 14)
-          Text(label).lineLimit(1).truncationMode(.tail)
+        Label {
+          Text(label)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+        } icon: {
+          toolIcon(state)
         }
       }
     case .sources(let label, let items):
-      VStack(alignment: .leading, spacing: 2) {
+      VStack(alignment: .leading, spacing: 0) {
         ForEach(items) { source in
           Button {
-            aiTap()
             bridge.link(source.href)
           } label: {
             VStack(alignment: .leading, spacing: 1) {
               Text(source.title)
-                .foregroundStyle(theme.color("text-primary"))
+                .font(.footnote)
+                .foregroundStyle(theme.color("accent"))
                 .lineLimit(1)
               Text(source.host)
-                .font(.system(size: 11))
-                .foregroundStyle(theme.color("text-muted"))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
             }
-            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
           }
-          .buttonStyle(RowStyle())
-          .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+          .buttonStyle(.plain)
         }
       }
       .accessibilityElement(children: .contain)
@@ -688,7 +636,7 @@ private struct AiStepView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
               RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(theme.color("line"), lineWidth: 1))
+                .stroke(Color(.separator), lineWidth: 0.5))
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -700,16 +648,14 @@ private struct AiStepView: View {
 
   @ViewBuilder private func toolIcon(_ state: String) -> some View {
     switch state {
-    case "running": AiSpinner(color: theme.color("text-muted"))
+    case "running":
+      ProgressView().controlSize(.mini)
     case "error", "denied":
-      Image(systemName: "exclamationmark.circle").font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(theme.color("ai-error"))
+      Image(systemName: "exclamationmark.circle").foregroundStyle(.red)
     case "stopped":
-      Image(systemName: "minus").font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(theme.color("text-muted"))
+      Image(systemName: "minus.circle").foregroundStyle(.secondary)
     default:
-      Image(systemName: "checkmark").font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(theme.color("ok"))
+      Image(systemName: "checkmark.circle").foregroundStyle(.secondary)
     }
   }
 }
@@ -744,15 +690,14 @@ private struct AiApprovalCard: View {
   let bridge: AiBridge
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    VStack(alignment: .leading, spacing: 10) {
       VStack(alignment: .leading, spacing: 2) {
         Text(approval.title)
-          .font(.system(size: 13.5, weight: .semibold))
-          .foregroundStyle(theme.color("text-primary"))
+          .font(.subheadline.weight(.semibold))
         if let note = approval.note {
           Text(note)
-            .font(.system(size: 12))
-            .foregroundStyle(theme.color("text-secondary"))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
         if let path = approval.path {
           HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -764,29 +709,21 @@ private struct AiApprovalCard: View {
               .fontWeight(.semibold)
               .foregroundStyle(theme.color("del-ink"))
           }
-          .font(.system(size: 12))
-          .foregroundStyle(theme.color("text-secondary"))
+          .font(.caption)
+          .foregroundStyle(.secondary)
           .padding(.top, 2)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.top, 12)
-      .padding(.horizontal, 14)
-      .padding(.bottom, 10)
       box
-      answers.padding(12)
+      AiAdaptive {
+        HStack(spacing: 8) { buttons(wrapping: false) }
+      } stacked: {
+        VStack(spacing: 8) { buttons(wrapping: true) }
+      }
     }
-    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(theme.color("dock-bg")))
-    .overlay(
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .stroke(theme.color("accent-line"), lineWidth: 1.5)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .stroke(theme.color("accent-soft"), lineWidth: 4)
-        .padding(-2)
-    )
-    .padding(.horizontal, 2)
+    .padding(12)
+    .background(Color(.secondarySystemBackground), in: aiCardShape)
     .accessibilityElement(children: .contain)
     .accessibilityLabel(approval.title)
   }
@@ -795,17 +732,14 @@ private struct AiApprovalCard: View {
     if let text = approval.text {
       AiBoundedScroll(maxHeight: 160) {
         Text(text)
-          .font(.system(size: 11.5, design: .monospaced))
-          .lineSpacing(6)
-          .foregroundStyle(theme.color("text-primary"))
-          .padding(.vertical, 6)
-          .padding(.horizontal, 12)
+          .font(.caption.monospaced())
+          .foregroundStyle(.primary)
+          .padding(10)
           .frame(maxWidth: .infinity, alignment: .leading)
           .textSelection(.enabled)
       }
-      .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(theme.color("fill-soft")))
-      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-      .padding(.horizontal, 12)
+      .background(Color(.tertiarySystemBackground), in: aiCardShape)
+      .clipShape(aiCardShape)
     } else if !approval.rows.isEmpty {
       AiBoundedScroll(maxHeight: 220) {
         VStack(alignment: .leading, spacing: 0) {
@@ -815,9 +749,8 @@ private struct AiApprovalCard: View {
         }
         .padding(.vertical, 6)
       }
-      .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(theme.color("fill-soft")))
-      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-      .padding(.horizontal, 12)
+      .background(Color(.tertiarySystemBackground), in: aiCardShape)
+      .clipShape(aiCardShape)
     }
   }
 
@@ -827,7 +760,7 @@ private struct AiApprovalCard: View {
       ? theme.color("accent-ink")
       : row.kind == "removed"
         ? theme.color("del-ink")
-        : row.kind == "gap" ? theme.color("text-muted") : theme.color("text-primary")
+        : row.kind == "gap" ? Color.secondary : Color.primary
     return HStack(alignment: .top, spacing: 0) {
       if row.kind != "gap" {
         Text(row.mark).frame(width: 16, alignment: .leading)
@@ -836,119 +769,109 @@ private struct AiApprovalCard: View {
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .font(row.kind == "gap" ? .system(size: 11.5) : .system(size: 11.5, design: .monospaced))
-    .lineSpacing(6)
+    .font(row.kind == "gap" ? .caption : .caption.monospaced())
     .foregroundStyle(ink)
-    .padding(.horizontal, 12)
+    .padding(.horizontal, 10)
     .textSelection(.enabled)
-  }
-
-  @ViewBuilder private var answers: some View {
-    if #available(iOS 16.0, *) {
-      ViewThatFits(in: .horizontal) {
-        HStack(spacing: 8) { buttons(wrapping: false) }
-        VStack(spacing: 8) { buttons(wrapping: true) }
-      }
-    } else {
-      VStack(spacing: 8) { buttons(wrapping: true) }
-    }
   }
 
   @ViewBuilder private func buttons(wrapping: Bool) -> some View {
     ForEach(approval.answers) { answer in
       Button {
-        aiTap()
         bridge.approval(approval.id, answer.id)
       } label: {
         Text(answer.label)
-          .font(.system(size: 15, weight: answer.primary ? .semibold : .regular))
+          .font(.subheadline)
           .multilineTextAlignment(.center)
           .lineLimit(wrapping ? nil : 1)
           .fixedSize(horizontal: false, vertical: wrapping)
-          .padding(.horizontal, 12)
-          .frame(maxWidth: .infinity, minHeight: 44)
+          .frame(maxWidth: .infinity)
       }
-      .buttonStyle(AiButtonStyle(kind: answer.primary ? .primary : .plain))
+      .aiAction(prominent: answer.primary)
     }
   }
 }
 
 /// An edit to the document: the file, what is pending or became of it, and buttons for its changes while any are pending.
 private struct AiEditCard: View {
-  @ObservedObject private var theme = Theme.shared
   let edit: AiEdit
   let bridge: AiBridge
 
   var body: some View {
-    HStack(spacing: 6) {
-      if edit.pending {
-        Button {
-          aiTap()
-          bridge.edit("reveal", edit.edit)
-        } label: {
-          summary.contentShape(Rectangle())
+    AiAdaptive {
+      HStack(spacing: 8) {
+        summaryButton
+        if edit.pending {
+          Spacer(minLength: 0)
+          decisions
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(edit.reveal)
-      } else {
-        summary
       }
-      if edit.pending {
-        Button {
-          aiTap()
-          bridge.edit("reject", edit.edit)
-        } label: {
-          Text(edit.reject).font(.system(size: 15)).padding(.horizontal, 10).frame(minHeight: 44)
+    } stacked: {
+      VStack(alignment: .leading, spacing: 8) {
+        summaryButton
+        if edit.pending {
+          HStack(spacing: 8) {
+            Spacer(minLength: 0)
+            decisions
+          }
         }
-        .buttonStyle(AiButtonStyle(kind: .plain))
-        Button {
-          aiTap()
-          bridge.edit("accept", edit.edit)
-        } label: {
-          Text(edit.accept).font(.system(size: 15, weight: .semibold)).padding(.horizontal, 10)
-            .frame(minHeight: 44)
-        }
-        .buttonStyle(AiButtonStyle(kind: .ink))
       }
     }
-    .padding(.leading, 8)
-    .padding(.trailing, 10)
-    .padding(.vertical, 8)
-    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(theme.color("dock-bg")))
-    .overlay(
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .stroke(theme.color("line"), lineWidth: 1))
-    .shadow(color: edit.pending ? .black.opacity(0.04) : .clear, radius: 1, x: 0, y: 1)
+    .padding(12)
+    .background(Color(.secondarySystemBackground), in: aiCardShape)
+  }
+
+  @ViewBuilder private var summaryButton: some View {
+    if edit.pending {
+      Button {
+        bridge.edit("reveal", edit.edit)
+      } label: {
+        summary.contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(edit.reveal)
+    } else {
+      summary
+    }
+  }
+
+  private var decisions: some View {
+    HStack(spacing: 8) {
+      Button {
+        bridge.edit("reject", edit.edit)
+      } label: {
+        Text(edit.reject)
+      }
+      .glassButton()
+      Button {
+        bridge.edit("accept", edit.edit)
+      } label: {
+        Text(edit.accept)
+      }
+      .prominentGlassButton()
+    }
+    .controlSize(.small)
   }
 
   private var summary: some View {
     HStack(spacing: 10) {
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(theme.color("fill-soft"))
-        .frame(width: 28, height: 28)
-        .overlay(
-          Image(systemName: "doc")
-            .font(.system(size: 14))
-            .foregroundStyle(theme.color("text-secondary")))
+      Image(systemName: "doc.text")
+        .foregroundStyle(.secondary)
       VStack(alignment: .leading, spacing: 1) {
         Text(edit.title)
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(theme.color("text-primary"))
+          .font(.subheadline.weight(.semibold))
           .lineLimit(1)
         Text(edit.meta)
-          .font(.system(size: 11.5))
-          .foregroundStyle(theme.color("text-secondary"))
+          .font(.caption)
+          .foregroundStyle(.secondary)
           .lineLimit(1)
       }
-      Spacer(minLength: 0)
     }
-    .padding(2)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
-private struct AiFailureCard: View {
-  @ObservedObject private var theme = Theme.shared
+private struct AiFailureNote: View {
   let failure: AiEntry.Failure
   let isLast: Bool
   let bridge: AiBridge
@@ -956,39 +879,26 @@ private struct AiFailureCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Text(failure.text)
-        .font(.system(size: 15))
-        .lineSpacing(3)
-        .foregroundStyle(theme.color("text-primary"))
+        .font(.footnote)
+        .foregroundStyle(.red)
       if let detail = failure.detail {
         Text(detail)
-          .font(.system(size: 12))
-          .foregroundStyle(theme.color("text-secondary"))
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
       HStack(spacing: 8) {
         ForEach(failure.actions.filter { $0.id != "retry" || isLast }) { action in
           Button {
-            aiTap()
             run(action.id)
           } label: {
             Text(action.label)
-              .font(.system(size: 15, weight: action.primary ? .semibold : .regular))
-              .padding(.horizontal, 12)
-              .frame(minHeight: 44)
           }
-          .buttonStyle(AiButtonStyle(kind: action.primary ? .primary : .plain))
+          .glassButton()
         }
       }
+      .controlSize(.small)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.vertical, 12)
-    .padding(.horizontal, 14)
-    .background(
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .fill(theme.color("ai-error").opacity(0.08))
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .stroke(theme.color("ai-error").opacity(0.4), lineWidth: 1))
     .accessibilityElement(children: .contain)
   }
 
@@ -1003,7 +913,6 @@ private struct AiFailureCard: View {
 
 /// A reply's foot: the model and what it cost, with copy and retry.
 private struct AiFootLine: View {
-  @ObservedObject private var theme = Theme.shared
   let entry: AiEntry
   let foot: AiEntry.Foot
   let isLast: Bool
@@ -1011,82 +920,27 @@ private struct AiFootLine: View {
   let bridge: AiBridge
 
   var body: some View {
-    HStack(spacing: 2) {
+    HStack(spacing: 0) {
       Text(foot.text)
-        .font(.system(size: 11.5))
-        .foregroundStyle(theme.color("text-muted"))
+        .font(.caption)
+        .foregroundStyle(.secondary)
         .lineLimit(1)
         .truncationMode(.tail)
       Spacer(minLength: 0)
       ForEach(foot.actions.filter { $0.id != "retry" || isLast }) { action in
-        AiIconButton(
-          symbol: action.id == "copy" ? (copied ? "checkmark" : "doc.on.doc") : "arrow.clockwise",
-          label: action.label
-        ) {
+        Button {
           if action.id == "copy" { bridge.copy(entry.id) } else { bridge.retry() }
+        } label: {
+          Image(systemName: action.id == "copy" ? (copied ? "checkmark" : "doc.on.doc") : "arrow.clockwise")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(width: 36, height: 32)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(action.label)
       }
     }
-    .padding(.top, -2)
-  }
-}
-
-/// A round 44-point button inside a sheet, with the soft fill of the page's `.ny-ai__icon`.
-private struct AiIconButton: View {
-  @ObservedObject private var theme = Theme.shared
-  let symbol: String
-  let label: String
-  let action: () -> Void
-
-  var body: some View {
-    Button {
-      aiTap()
-      action()
-    } label: {
-      Image(systemName: symbol)
-        .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(theme.color("text-primary"))
-        .frame(width: 44, height: 44)
-        .background(Circle().fill(theme.color("fill-soft")))
-        .overlay(Circle().stroke(theme.color("border-soft"), lineWidth: 1))
-        .contentShape(Circle())
-    }
-    .buttonStyle(.plain)
-    .accessibilityLabel(label)
-  }
-}
-
-/// The page's buttons: bordered, accent, ink, or bare, round at the mobile control radius.
-struct AiButtonStyle: ButtonStyle {
-  enum Kind { case plain, primary, ink, soft, quiet, raised }
-  @ObservedObject private var theme = Theme.shared
-  let kind: Kind
-
-  func makeBody(configuration: Configuration) -> some View {
-    let pressed = configuration.isPressed
-    let fill: Color
-    var ink = theme.color("text-primary")
-    switch kind {
-    case .plain, .raised: fill = theme.color("dock-bg")
-    case .primary:
-      fill = theme.color("accent")
-      ink = theme.color("on-accent")
-    case .ink:
-      fill = theme.color("ink")
-      ink = theme.color("on-ink")
-    case .soft: fill = theme.color("fill-soft")
-    case .quiet: fill = .clear
-    }
-    return configuration.label
-      .foregroundStyle(pressed ? theme.color("accent-ink") : ink)
-      .background(
-        Capsule().fill(pressed ? theme.color("accent-soft") : fill)
-      )
-      .overlay(
-        Capsule().stroke(kind == .plain ? theme.color("line") : .clear, lineWidth: 1)
-      )
-      .shadow(color: kind == .raised ? .black.opacity(0.1) : .clear, radius: 1, x: 0, y: 1)
-      .animation(.easeOut(duration: 0.1), value: pressed)
   }
 }
 
@@ -1098,18 +952,19 @@ struct AiFootView: View {
   @Binding var draft: String
 
   var body: some View {
-    VStack(spacing: 0) {
+    VStack(spacing: 8) {
       if let review = state.review {
-        AiReviewBar(review: review, bridge: bridge).padding(.bottom, 8)
+        AiReviewBar(review: review, bridge: bridge)
       }
       if let plan = state.plan {
-        AiPlanNote(plan: plan, bridge: bridge).padding(.horizontal, 4).padding(.bottom, 6)
+        AiPlanNote(plan: plan, bridge: bridge)
       }
       if let composer = state.composer {
         AiComposerView(state: state, composer: composer, bridge: bridge, draft: $draft)
       }
     }
-    .padding(12)
+    .padding(.horizontal, 12)
+    .padding(.bottom, 8)
   }
 }
 
@@ -1120,122 +975,113 @@ private struct AiReviewBar: View {
   let bridge: AiBridge
 
   var body: some View {
-    Group {
-      if #available(iOS 16.0, *) {
-        ViewThatFits(in: .horizontal) {
-          HStack(spacing: 4) {
-            title
-            steppers
-            actions
-          }
-          VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 4) {
-              title
-              Spacer(minLength: 0)
-              steppers
-            }
-            HStack(spacing: 4) {
-              Spacer(minLength: 0)
-              actions
-            }
-          }
+    AiAdaptive {
+      HStack(spacing: 8) {
+        title
+        Spacer(minLength: 0)
+        steppers
+        actions
+      }
+    } stacked: {
+      VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 8) {
+          title
+          Spacer(minLength: 0)
+          steppers
         }
-      } else {
-        VStack(alignment: .leading, spacing: 0) {
-          HStack(spacing: 4) {
-            title
-            Spacer(minLength: 0)
-            steppers
-          }
-          HStack(spacing: 4) {
-            Spacer(minLength: 0)
-            actions
-          }
+        HStack(spacing: 8) {
+          Spacer(minLength: 0)
+          actions
         }
       }
     }
-    .padding(.vertical, 5)
-    .padding(.trailing, 5)
-    .padding(.leading, 12)
-    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(theme.color("fill-soft")))
+    .controlSize(.small)
+    .padding(.vertical, 8)
+    .padding(.horizontal, 14)
+    .glass(RoundedRectangle(cornerRadius: 22, style: .continuous))
   }
 
   private var title: some View {
-    HStack(spacing: 4) {
-      Circle().fill(theme.color("accent")).frame(width: 6, height: 6).padding(.trailing, 4)
+    HStack(spacing: 8) {
+      Circle().fill(theme.color("accent")).frame(width: 7, height: 7)
       Text(review.text)
-        .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(theme.color("text-primary"))
+        .font(.footnote.weight(.semibold))
         .lineLimit(1)
         .truncationMode(.tail)
     }
   }
 
   private var steppers: some View {
-    HStack(spacing: 4) {
-      AiIconButton(symbol: "chevron.up", label: review.prev) { bridge.review("prev") }
-      AiIconButton(symbol: "chevron.down", label: review.next) { bridge.review("next") }
+    HStack(spacing: 6) {
+      Button {
+        bridge.review("prev")
+      } label: {
+        Image(systemName: "chevron.up")
+      }
+      .glassButton()
+      .aiCircle()
+      .accessibilityLabel(review.prev)
+      Button {
+        bridge.review("next")
+      } label: {
+        Image(systemName: "chevron.down")
+      }
+      .glassButton()
+      .aiCircle()
+      .accessibilityLabel(review.next)
     }
   }
 
   private var actions: some View {
-    HStack(spacing: 4) {
+    HStack(spacing: 6) {
       Button {
-        aiTap()
         bridge.review("rejectAll")
       } label: {
-        Text(review.rejectAll).font(.system(size: 15)).padding(.horizontal, 12).frame(minHeight: 44)
+        Text(review.rejectAll)
       }
-      .buttonStyle(AiButtonStyle(kind: .quiet))
+      .glassButton()
       Button {
-        aiTap()
         bridge.review("acceptAll")
       } label: {
-        Text(review.acceptAll).font(.system(size: 15, weight: .semibold)).padding(.horizontal, 12)
-          .frame(minHeight: 44)
+        Text(review.acceptAll)
       }
-      .buttonStyle(AiButtonStyle(kind: .raised))
+      .prominentGlassButton()
     }
   }
 }
 
 /// Says whose money the replies cost when they come from a ChatGPT plan.
 private struct AiPlanNote: View {
-  @ObservedObject private var theme = Theme.shared
   let plan: AiState.Plan
   let bridge: AiBridge
 
   var body: some View {
-    HStack(spacing: 6) {
-      Image(systemName: "asterisk")
-        .font(.system(size: 12, weight: .bold))
-        .foregroundStyle(theme.color("text-primary"))
+    HStack(spacing: 8) {
+      Image(systemName: "info.circle")
+        .foregroundStyle(.secondary)
       Text(plan.text)
-        .font(.system(size: 12))
-        .foregroundStyle(theme.color("text-secondary"))
-        .lineLimit(1)
-        .truncationMode(.tail)
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
       Spacer(minLength: 0)
       Button {
-        aiTap()
         bridge.plan()
       } label: {
         Text(plan.manage)
-          .font(.system(size: 12))
-          .foregroundStyle(theme.color("accent"))
-          .padding(.horizontal, 6)
-          .frame(minWidth: 44, minHeight: 44)
-          .contentShape(Rectangle())
       }
-      .buttonStyle(.plain)
+      .glassButton()
+      .controlSize(.small)
     }
+    .padding(.vertical, 8)
+    .padding(.horizontal, 14)
+    .glass(RoundedRectangle(cornerRadius: 22, style: .continuous))
   }
 }
 
 // MARK: The composer
 
-private struct AiPill: View {
-  @ObservedObject private var theme = Theme.shared
+/// What a composer menu shows on its button: an icon, and the chosen name unless the bar is narrow.
+private struct AiPillLabel: View {
   var symbol: String? = nil
   let name: String
   var folded = false
@@ -1244,61 +1090,43 @@ private struct AiPill: View {
     HStack(spacing: 4) {
       if let symbol {
         Image(systemName: symbol)
-          .font(.system(size: 13))
-          .foregroundStyle(theme.color("text-secondary"))
       }
       if !folded {
-        Text(name).font(.system(size: 14)).lineLimit(1).truncationMode(.tail)
+        Text(name).lineLimit(1).truncationMode(.tail)
         Image(systemName: "chevron.down")
-          .font(.system(size: 10, weight: .semibold))
-          .foregroundStyle(theme.color("text-secondary"))
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
       }
     }
-    .foregroundStyle(theme.color("text-primary"))
-    .padding(.horizontal, 10)
-    .frame(minWidth: 44, minHeight: 44)
-    .contentShape(Rectangle())
+    .font(.footnote)
+    .foregroundStyle(.primary)
     .accessibilityLabel(name)
   }
 }
 
-/// The message field, the images going with it and the bar of attach, model, effort, mode and send.
+/// The message field, the images going with it and the bar of attach, model, effort, mode and send, on a card of glass.
 private struct AiComposerView: View {
-  @ObservedObject private var theme = Theme.shared
   let state: AiState
   let composer: AiComposerState
   let bridge: AiBridge
   @Binding var draft: String
-  @FocusState private var focused: Bool
-
-  /// The field grows to this tall: 180 points or 28% of the screen.
-  private var maxInputHeight: CGFloat { min(180, UIScreen.main.bounds.height * 0.28) }
 
   private var isEmpty: Bool {
     draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && composer.images.isEmpty
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    VStack(alignment: .leading, spacing: 8) {
       if !composer.images.isEmpty || composer.notice != nil {
-        tray.padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 8)
+        tray
       }
       input
-      bar.padding(.top, 6)
+      bar
     }
-    .padding(6)
-    .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(theme.color("fill-soft")))
-    .overlay(
-      RoundedRectangle(cornerRadius: 28, style: .continuous)
-        .stroke(focused ? theme.color("accent-line") : theme.color("border-strong"), lineWidth: 1)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 30, style: .continuous)
-        .stroke(theme.color("accent-soft"), lineWidth: 4)
-        .padding(-2)
-        .opacity(focused ? 1 : 0)
-    )
-    .animation(.easeOut(duration: 0.12), value: focused)
+    .padding(.horizontal, 14)
+    .padding(.top, 12)
+    .padding(.bottom, 10)
+    .glassCard(radius: 26)
   }
 
   // MARK: Images
@@ -1312,34 +1140,29 @@ private struct AiComposerView: View {
         ) {
           ForEach(composer.images) { image in
             AiThumbnail(picture: image.picture, side: 52, radius: 10)
-              .overlay(alignment: .topLeading) {
+              .overlay(alignment: .topTrailing) {
                 Button {
-                  aiTap()
                   bridge.unattach(image.id)
                 } label: {
-                  Circle()
-                    .fill(theme.color("ink"))
+                  Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white)
                     .frame(width: 18, height: 18)
-                    .overlay(
-                      Image(systemName: "xmark")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(theme.color("on-ink"))
-                    )
-                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Color.black.opacity(0.55)))
+                    .padding(3)
+                    .frame(width: 44, height: 44, alignment: .topTrailing)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(image.remove)
-                .offset(x: 27, y: -19)
               }
           }
         }
       }
       if let notice = composer.notice {
         Text(notice)
-          .font(.system(size: 11.5))
-          .lineSpacing(2)
-          .foregroundStyle(theme.color("text-secondary"))
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
     }
   }
@@ -1350,22 +1173,15 @@ private struct AiComposerView: View {
     if #available(iOS 16.0, *) {
       TextField(
         text: $draft,
-        prompt: Text(composer.placeholder).foregroundColor(theme.color("text-muted")),
+        prompt: Text(composer.placeholder),
         axis: .vertical
       ) {
         Text(composer.placeholder)
       }
-      .lineLimit(1...max(1, Int((maxInputHeight - 24) / 24.8)))
-      .font(.system(size: 16))
-      .lineSpacing(5.8)
-      .foregroundStyle(theme.color("text-primary"))
-      .tint(theme.color("accent"))
-      .focused($focused)
-      .padding(.vertical, 12)
-      .padding(.horizontal, 14)
+      .lineLimit(1...6)
+      .font(.body)
     } else {
-      AiLegacyEditor(
-        draft: $draft, placeholder: composer.placeholder, maxHeight: maxInputHeight, focused: $focused)
+      AiLegacyEditor(draft: $draft, placeholder: composer.placeholder)
     }
   }
 
@@ -1385,20 +1201,14 @@ private struct AiComposerView: View {
 
   /// `fold` names how many of the mode and the effort show only their icon, the mode first.
   private func barRow(fold: Int) -> some View {
-    HStack(spacing: 6) {
+    HStack(spacing: 8) {
       Button {
-        aiTap()
         bridge.attach(room: composer.room)
       } label: {
         Image(systemName: "plus")
-          .font(.system(size: 15, weight: .medium))
-          .foregroundStyle(theme.color("text-primary"))
-          .frame(width: 44, height: 44)
-          .background(Circle().fill(theme.color("fill-soft")))
-          .overlay(Circle().stroke(theme.color("border-soft"), lineWidth: 1))
-          .contentShape(Circle())
       }
-      .buttonStyle(.plain)
+      .glassButton()
+      .aiCircle()
       .accessibilityLabel(composer.attach)
       modelMenu
       if let effort = state.effort {
@@ -1427,8 +1237,10 @@ private struct AiComposerView: View {
         Button(state.model.manage) { bridge.settings() }
       }
     } label: {
-      AiPill(name: state.model.label)
+      AiPillLabel(name: state.model.label)
     }
+    .glassButton()
+    .controlSize(.small)
   }
 
   private func effortMenu(_ effort: AiState.EffortMenu, folded: Bool) -> some View {
@@ -1443,8 +1255,10 @@ private struct AiComposerView: View {
         }
       }
     } label: {
-      AiPill(symbol: "lightbulb", name: effort.label, folded: folded)
+      AiPillLabel(symbol: "lightbulb", name: effort.label, folded: folded)
     }
+    .glassButton()
+    .controlSize(.small)
     .fixedSize()
   }
 
@@ -1463,8 +1277,10 @@ private struct AiComposerView: View {
         }
       }
     } label: {
-      AiPill(symbol: modeSymbol(state.mode.value), name: state.mode.label, folded: folded)
+      AiPillLabel(symbol: modeSymbol(state.mode.value), name: state.mode.label, folded: folded)
     }
+    .glassButton()
+    .controlSize(.small)
     .fixedSize()
   }
 
@@ -1482,9 +1298,7 @@ private struct AiComposerView: View {
 
   private var sendButton: some View {
     let busy = state.busy
-    let off = !busy && isEmpty
     return Button {
-      aiTap()
       if busy {
         bridge.stop()
       } else {
@@ -1494,53 +1308,39 @@ private struct AiComposerView: View {
       }
     } label: {
       Image(systemName: busy ? "stop.fill" : "arrow.up")
-        .font(.system(size: 15, weight: busy ? .regular : .semibold))
-        .foregroundStyle(off ? theme.color("dock-bg") : theme.color("on-ink"))
-        .frame(width: 44, height: 44)
-        .background(
-          Circle().fill(off ? theme.color("text-primary").opacity(0.14) : theme.color("ink"))
-        )
-        .contentShape(Circle())
+        .font(.body.weight(.semibold))
     }
-    .buttonStyle(.plain)
-    .disabled(off)
+    .prominentGlassButton()
+    .aiCircle()
+    .disabled(!busy && isEmpty)
     .accessibilityLabel(busy ? composer.stop : composer.send)
   }
 }
 
 /// The message field before iOS 16, which has no growing `TextField`.
 private struct AiLegacyEditor: View {
-  @ObservedObject private var theme = Theme.shared
   @Binding var draft: String
   let placeholder: String
-  let maxHeight: CGFloat
-  var focused: FocusState<Bool>.Binding
 
   var body: some View {
     ZStack(alignment: .topLeading) {
       Text(draft.isEmpty ? " " : draft + "\n")
-        .font(.system(size: 16))
-        .lineSpacing(5.8)
+        .font(.body)
         .opacity(0)
-        .padding(.vertical, 12)
-        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 5)
         .frame(maxWidth: .infinity, alignment: .leading)
       if draft.isEmpty {
         Text(placeholder)
-          .font(.system(size: 16))
-          .foregroundStyle(theme.color("text-muted"))
-          .padding(.vertical, 12)
-          .padding(.horizontal, 18)
+          .font(.body)
+          .foregroundStyle(.secondary)
+          .padding(.vertical, 8)
+          .padding(.horizontal, 5)
       }
       TextEditor(text: $draft)
-        .font(.system(size: 16))
-        .foregroundStyle(theme.color("text-primary"))
-        .tint(theme.color("accent"))
-        .focused(focused)
-        .padding(.vertical, 4)
-        .padding(.horizontal, 14)
+        .font(.body)
     }
-    .frame(maxHeight: maxHeight)
+    .frame(maxHeight: 140)
     .onAppear { UITextView.appearance().backgroundColor = .clear }
   }
 }
@@ -1548,91 +1348,81 @@ private struct AiLegacyEditor: View {
 // MARK: Kept conversations
 
 /// The document's kept conversations, to open one or delete it.
-struct AiHistoryCard: View {
+struct AiHistoryPage: View {
   @ObservedObject var model: AiModel
   @ObservedObject private var theme = Theme.shared
   let state: AiState
   let bridge: AiBridge
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    List {
       if !model.historyLoaded {
-        note(state.history.loading, error: false)
+        HStack(spacing: 10) {
+          ProgressView()
+          Text(state.history.loading)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
       } else {
         if let failure = model.historyFailure {
-          note(failure, error: true)
+          Text(failure)
+            .font(.footnote)
+            .foregroundStyle(.red)
         }
         if model.historyItems.isEmpty {
-          note(state.history.empty, error: false)
-        } else {
-          AiBoundedScroll(maxHeight: 344) {
-            VStack(alignment: .leading, spacing: 0) {
-              ForEach(model.historyItems) { item in
-                row(item)
-              }
-            }
-          }
+          Text(state.history.empty)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
+        ForEach(model.historyItems) { item in
+          row(item)
         }
       }
     }
-    .padding(8)
-    .frame(width: min(320, UIScreen.main.bounds.width - 28), alignment: .leading)
-    .glassCard(radius: 24)
-    .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 8)
-  }
-
-  private func note(_ text: String, error: Bool) -> some View {
-    Text(text)
-      .font(.system(size: 12))
-      .foregroundStyle(error ? theme.color("ai-error") : theme.color("text-secondary"))
-      .padding(10)
+    .listStyle(.plain)
+    .navigationTitle(state.history.label)
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .navigationBarTrailing) {
+        PanelCloseButton(label: state.close) { bridge.closeSheet() }
+      }
+    }
   }
 
   private func row(_ item: AiHistoryItem) -> some View {
-    HStack(spacing: 0) {
-      Button {
-        aiTap()
-        bridge.conversation("open", item.id)
-      } label: {
-        HStack(spacing: 10) {
-          VStack(alignment: .leading, spacing: 2) {
-            Text(item.title)
-              .font(.system(size: 15))
-              .foregroundStyle(theme.color("text-primary"))
-              .lineLimit(1)
-              .truncationMode(.tail)
-            Text(item.detail)
-              .font(.system(size: 11.5))
-              .foregroundStyle(theme.color("text-secondary"))
-              .lineLimit(1)
-          }
-          Spacer(minLength: 0)
-          if item.current {
-            Image(systemName: "checkmark")
-              .font(.system(size: 13, weight: .bold))
-              .foregroundStyle(theme.color("accent-ink"))
-          }
+    Button {
+      bridge.conversation("open", item.id)
+    } label: {
+      HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(item.title)
+            .font(.body)
+            .foregroundStyle(Color.primary)
+            .lineLimit(1)
+          Text(item.detail)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .contentShape(Rectangle())
+        Spacer(minLength: 0)
+        if item.current {
+          Image(systemName: "checkmark")
+            .font(.body.weight(.semibold))
+            .foregroundStyle(theme.color("accent"))
+        }
       }
-      .buttonStyle(RowStyle())
-      Button {
-        aiTap()
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .contentShape(Rectangle())
+    }
+    .listRowBackground(item.current ? theme.color("accent").opacity(0.12) : Color.clear)
+    .accessibilityAddTraits(item.current ? .isSelected : [])
+    .swipeActions(edge: .trailing) {
+      Button(role: .destructive) {
         bridge.conversation("remove", item.id)
       } label: {
-        Image(systemName: "trash")
-          .font(.system(size: 14))
-          .foregroundStyle(theme.color("text-secondary"))
-          .frame(width: 44, height: 44)
-          .contentShape(Rectangle())
+        Label(state.history.delete, systemImage: "trash")
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel(state.history.delete)
     }
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     .contextMenu {
       Button(role: .destructive) {
         bridge.conversation("remove", item.id)

@@ -106,224 +106,155 @@ struct QuickMenuView: View {
   @FocusState private var focused: Bool
 
   var body: some View {
-    if let state = model.state {
-      ScrollView {
-        VStack(spacing: 8) {
-          bar(state)
-          card(state)
+    PanelPage(title: model.state?.title ?? "") {
+      PanelCloseButton(label: L10n.text("cancel"), action: close)
+    } content: {
+      Group {
+        if let state = model.state {
+          if state.view == "menu" {
+            menu(state)
+          } else {
+            answer(state)
+          }
+        } else {
+          Color.clear
         }
-        .padding(12)
       }
-      .onChange(of: state.session) { _ in typed = "" }
+      .onChange(of: model.state?.session) { _ in typed = "" }
     }
   }
 
-  // MARK: The bar
+  // MARK: The menu
 
-  /// The ringed bar the popover leads with: the mark, then what is asked, run or wrong.
-  private func bar(_ state: QuickState) -> some View {
-    HStack(spacing: 10) {
-      Image(systemName: "sparkles")
-        .font(.system(size: 15, weight: .medium))
-        .foregroundStyle(theme.color("accent"))
-      switch state.view {
-      case "menu":
-        field(state)
-      case "running":
-        HStack(spacing: 8) {
-          label(state.label)
-          QuickSpinner()
-        }
-      case "problem":
-        label(state.label)
-      default:
-        Text(state.note ?? "")
-          .font(.system(size: 13))
-          .lineSpacing(4)
-          .foregroundStyle(theme.color("text-secondary"))
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
-    }
-    .padding(.leading, 14)
-    .padding(.trailing, 12)
-    .frame(minHeight: 44)
-    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(theme.color("dock-bg")))
-    .overlay(
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .stroke(theme.color("accent-line"), lineWidth: 1.5)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .stroke(theme.color("accent-soft"), lineWidth: 4)
-        .padding(-2)
-    )
-    .padding(.horizontal, 2)
-    .accessibilityElement(children: .contain)
-    .accessibilityLabel(state.title)
-  }
-
-  private func label(_ text: String?) -> some View {
-    Text(text ?? "")
-      .font(.system(size: 13, weight: .semibold))
-      .foregroundStyle(theme.color("text-primary"))
-      .lineLimit(1)
-      .truncationMode(.tail)
-      .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  private func field(_ state: QuickState) -> some View {
-    TextField(
-      "", text: $typed,
-      prompt: Text(state.placeholder ?? "").foregroundColor(theme.color("text-muted"))
-    )
-    .font(.system(size: 14))
-    .foregroundStyle(theme.color("text-primary"))
-    .tint(theme.color("accent"))
-    .submitLabel(.go)
-    .focused($focused)
-    .frame(minHeight: 30)
-    .accessibilityLabel(state.placeholder ?? "")
-    .onChange(of: typed) { text in tell("prompt", ["text": text]) }
-    .onSubmit {
-      if let first = state.items.first {
-        quickTap()
-        tell("run", ["id": first.id])
-      }
-    }
-    .onAppear {
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { focused = true }
-    }
-  }
-
-  // MARK: The card
-
-  @ViewBuilder private func card(_ state: QuickState) -> some View {
-    if state.view == "menu" {
-      VStack(spacing: 0) {
+  private func menu(_ state: QuickState) -> some View {
+    VStack(spacing: 0) {
+      field(state)
+      List {
         ForEach(state.items) { item in
           Button {
             quickTap()
             tell("run", ["id": item.id])
           } label: {
             Text(item.label)
-              .font(.system(size: 15))
-              .foregroundStyle(theme.color("text-primary"))
+              .font(.body)
+              .foregroundStyle(Color.primary)
               .lineLimit(1)
               .truncationMode(.tail)
-              .padding(.horizontal, 12)
-              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+              .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
               .contentShape(Rectangle())
           }
-          .buttonStyle(RowStyle())
-          .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
       }
-      .padding(6)
-      .background(cardFill)
-    } else if hasCard(state) {
-      VStack(alignment: .leading, spacing: 6) {
+      .listStyle(.plain)
+    }
+  }
+
+  private func field(_ state: QuickState) -> some View {
+    HStack(spacing: 8) {
+      Image(systemName: "sparkles")
+        .foregroundStyle(theme.color("accent"))
+      TextField("", text: $typed, prompt: Text(state.placeholder ?? ""))
+        .submitLabel(.go)
+        .focused($focused)
+        .accessibilityLabel(state.placeholder ?? "")
+        .onChange(of: typed) { text in tell("prompt", ["text": text]) }
+        .onSubmit {
+          if let first = state.items.first {
+            quickTap()
+            tell("run", ["id": first.id])
+          }
+        }
+        .onAppear {
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { focused = true }
+        }
+    }
+    .padding(.horizontal, 12)
+    .frame(minHeight: 44)
+    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .padding(.horizontal, 16)
+    .padding(.vertical, 8)
+  }
+
+  // MARK: The other states
+
+  /// The states after the menu: no model, a command running, or a problem, each with the reply so far and its buttons.
+  private func answer(_ state: QuickState) -> some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 12) {
+        if state.view == "running" {
+          HStack(spacing: 10) {
+            ProgressView()
+            label(state.label)
+          }
+        } else if state.view == "problem" {
+          label(state.label)
+        }
         if let preview = state.preview {
           AiBoundedScroll(maxHeight: 260) {
             MarkdownBlocksView(preview)
-              .padding(.vertical, 8)
-              .padding(.horizontal, 10)
+              .padding(12)
               .frame(maxWidth: .infinity, alignment: .leading)
           }
-          .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(theme.color("fill-soft"))
-          )
-          .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+          .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+          .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        if state.view == "problem", let note = state.note {
-          problem(note, detail: state.detail)
+        if let note = state.note {
+          noteView(note, detail: state.detail, failed: state.view == "problem")
+        }
+        if let hint = state.hint {
+          Text(hint)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
         actions(state)
       }
-      .padding(6)
-      .background(cardFill)
+      .padding(16)
     }
   }
 
-  private func hasCard(_ state: QuickState) -> Bool {
-    !state.buttons.isEmpty || state.preview != nil
+  private func label(_ text: String?) -> some View {
+    Text(text ?? "")
+      .font(.subheadline.weight(.semibold))
+      .lineLimit(1)
+      .truncationMode(.tail)
+      .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private var cardFill: some View {
-    RoundedRectangle(cornerRadius: 14, style: .continuous)
-      .fill(theme.color("dock-bg"))
-      .overlay(
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-          .stroke(theme.color("line"), lineWidth: 1))
-  }
-
-  private func problem(_ note: String, detail: String?) -> some View {
+  private func noteView(_ text: String, detail: String?, failed: Bool) -> some View {
     VStack(alignment: .leading, spacing: 4) {
-      Text(note)
-        .font(.system(size: 13))
-        .lineSpacing(4)
-        .foregroundStyle(theme.color("text-primary"))
+      Text(text)
+        .font(failed ? .footnote : .subheadline)
+        .foregroundStyle(failed ? Color.red : Color.primary)
       if let detail {
         Text(detail)
-          .font(.system(size: 12))
-          .foregroundStyle(theme.color("text-secondary"))
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.vertical, 8)
-    .padding(.horizontal, 10)
-    .background(
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(theme.color("ai-error").opacity(0.08))
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .stroke(theme.color("ai-error").opacity(0.4), lineWidth: 1))
     .accessibilityElement(children: .combine)
   }
 
-  private func actions(_ state: QuickState) -> some View {
-    HStack(spacing: 6) {
-      if let hint = state.hint {
-        Text(hint)
-          .font(.system(size: 11.5))
-          .foregroundStyle(theme.color("text-muted"))
-          .frame(maxWidth: .infinity, alignment: .leading)
-      } else {
-        Spacer(minLength: 0)
-      }
-      ForEach(state.buttons) { button in
-        Button {
-          quickTap()
-          if button.id == "close" { close() } else { tell(button.id, [:]) }
-        } label: {
-          Text(button.id == "copy" && model.copied ? state.copied : button.label)
-            .font(.system(size: 15, weight: button.primary ? .semibold : .regular))
-            .padding(.horizontal, 10)
-            .frame(minHeight: 44)
-        }
-        .buttonStyle(AiButtonStyle(kind: button.primary ? .primary : .plain))
+  @ViewBuilder private func actions(_ state: QuickState) -> some View {
+    if !state.buttons.isEmpty {
+      AiAdaptive {
+        HStack(spacing: 8) { buttons(state) }
+      } stacked: {
+        VStack(spacing: 8) { buttons(state) }
       }
     }
-    .padding(2)
   }
-}
 
-/// The ring beside the command that runs.
-private struct QuickSpinner: View {
-  @ObservedObject private var theme = Theme.shared
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var turning = false
-
-  var body: some View {
-    Circle()
-      .trim(from: 0, to: 0.75)
-      .stroke(theme.color("accent"), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
-      .background(Circle().stroke(theme.color("border-strong"), lineWidth: 1.5))
-      .frame(width: 12, height: 12)
-      .rotationEffect(.degrees(turning ? 360 : 0))
-      .animation(
-        reduceMotion ? nil : .linear(duration: 0.8).repeatForever(autoreverses: false), value: turning
-      )
-      .onAppear { turning = true }
+  @ViewBuilder private func buttons(_ state: QuickState) -> some View {
+    ForEach(state.buttons) { button in
+      Button {
+        quickTap()
+        if button.id == "close" { close() } else { tell(button.id, [:]) }
+      } label: {
+        Text(button.id == "copy" && model.copied ? state.copied : button.label)
+          .frame(maxWidth: .infinity)
+      }
+      .aiAction(prominent: button.primary)
+    }
   }
 }

@@ -172,7 +172,6 @@ struct AiState {
   let close: String
   let jump: String
   let waiting: String
-  let hideKeyboard: String
   let history: History
   let setup: Setup?
   let intro: Intro?
@@ -193,7 +192,6 @@ struct AiState {
     close = labels.text("close")
     jump = labels.text("jump")
     waiting = labels.text("waiting")
-    hideKeyboard = labels.text("hideKeyboard")
     let kept = json.object("history") ?? AiJSON([:])
     history = History(
       visible: kept.flag("visible"), label: kept.text("label"), loading: kept.text("loading"),

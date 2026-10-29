@@ -103,10 +103,8 @@ private enum MdParser {
   }
 }
 
-/// The reply's sizes and spacing, in points as the CSS gives them in pixels.
+/// The reply's spacing in points; its text is sized from `@ScaledMetric(relativeTo: .body)` so it follows Dynamic Type.
 private enum MdMetrics {
-  static let body: CGFloat = 14
-
   /// The `line-spacing` that makes lines `lineHeight` times `size` tall.
   static func leading(_ size: CGFloat, _ lineHeight: CGFloat, mono: Bool = false) -> CGFloat {
     let font = mono ? UIFont.monospacedSystemFont(ofSize: size, weight: .regular) : .systemFont(ofSize: size)
@@ -148,9 +146,9 @@ struct MarkdownBlocksView: View {
   }
 
   var body: some View {
-    MdStack(blocks: blocks, ink: theme.color("text-primary"), inItem: false, depth: 0)
+    MdStack(blocks: blocks, ink: .primary, inItem: false, depth: 0)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .tint(theme.color("accent-ink"))
+      .tint(theme.color("accent"))
       .textSelection(.enabled)
   }
 }
@@ -186,8 +184,8 @@ private struct MdBlockView: View {
       MdText(runs: runs, ink: ink)
     case .heading(let level, let runs):
       MdText(
-        runs: runs, size: level == 1 ? 16.5 : level == 2 ? 15.5 : 14,
-        weight: .semibold, lineHeight: 1.4, ink: ink
+        runs: runs, scale: level == 1 ? 1.25 : level == 2 ? 1.12 : 1,
+        weight: .semibold, lineHeight: 1.3, ink: ink
       )
       .accessibilityAddTraits(.isHeader)
     case .code(let text):
@@ -195,29 +193,32 @@ private struct MdBlockView: View {
     case .math(let text):
       MdMathBlock(text: text, ink: ink)
     case .quote(let blocks):
-      MdStack(blocks: blocks, ink: theme.color("text-secondary"), inItem: false, depth: depth)
+      MdStack(blocks: blocks, ink: .secondary, inItem: false, depth: depth)
         .padding(.leading, 15)
         .overlay(alignment: .leading) {
-          Rectangle().fill(theme.color("line")).frame(width: 3)
+          Capsule().fill(theme.color("accent")).frame(width: 3)
         }
     case .list(let ordered, let start, let items):
       MdList(ordered: ordered, start: start, items: items, ink: ink, depth: depth)
     case .table(let align, let head, let rows):
       MdTable(align: align, head: head, rows: rows, ink: ink)
     case .rule:
-      Rectangle().fill(theme.color("line")).frame(height: 1)
+      Divider()
     }
   }
 }
 
 /// Runs as one `Text`, the marks as attributes so links stay tappable.
 private struct MdText: View {
-  @ObservedObject private var theme = Theme.shared
+  @ScaledMetric(relativeTo: .body) private var base: CGFloat = 16
   let runs: [MdRun]
-  var size = MdMetrics.body
+  /// The size as a multiple of the body text.
+  var scale: CGFloat = 1
   var weight = Font.Weight.regular
-  var lineHeight: CGFloat = 1.65
+  var lineHeight: CGFloat = 1.4
   let ink: Color
+
+  private var size: CGFloat { base * scale }
 
   var body: some View {
     Text(attributed)
@@ -237,7 +238,7 @@ private struct MdText: View {
       if run.italic { font = font.italic() }
       piece.font = font
       if run.strike { piece.strikethroughStyle = Text.LineStyle.single }
-      if run.code { piece.foregroundColor = theme.color("accent-ink") }
+      if run.code { piece.backgroundColor = Color(.secondarySystemBackground) }
       if let link = run.link {
         piece.link = link
         piece.underlineStyle = Text.LineStyle.single
@@ -248,82 +249,83 @@ private struct MdText: View {
   }
 }
 
-/// A fenced block as `pre` draws it, with the button that copies its text.
+/// A fenced block on a quiet ground, with the button that copies its text in a row above it.
 private struct MdCodeBlock: View {
-  @ObservedObject private var theme = Theme.shared
+  @ScaledMetric(relativeTo: .body) private var base: CGFloat = 16
   let text: String
   let ink: Color
   @State private var copied = false
 
-  private static let size: CGFloat = 12
+  private var size: CGFloat { base * 0.8 }
 
   private var shown: String {
     text.hasSuffix("\n") ? String(text.dropLast()) : text
   }
 
   var body: some View {
-    let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-    ScrollView(.horizontal, showsIndicators: false) {
-      Text(shown)
-        .font(.system(size: Self.size, design: .monospaced))
-        .lineSpacing(MdMetrics.leading(Self.size, 1.55, mono: true))
-        .foregroundColor(ink)
-        .fixedSize()
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+    VStack(spacing: 0) {
+      HStack {
+        Spacer(minLength: 0)
+        copyButton
+      }
+      .padding(.top, 6)
+      .padding(.horizontal, 6)
+      ScrollView(.horizontal, showsIndicators: false) {
+        Text(shown)
+          .font(.system(size: size, design: .monospaced))
+          .lineSpacing(MdMetrics.leading(size, 1.4, mono: true))
+          .foregroundColor(ink)
+          .fixedSize()
+          .padding(.horizontal, 12)
+          .padding(.top, 4)
+          .padding(.bottom, 12)
+      }
     }
-    .background(shape.fill(theme.color("text-primary").opacity(0.03)))
-    .background(shape.fill(theme.color("dock-bg")))
-    .overlay(shape.stroke(theme.color("line"), lineWidth: 1))
-    .overlay(alignment: .topTrailing) { copyButton.offset(x: 1, y: -4) }
+    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 
   private var copyButton: some View {
     Button {
-      UIImpactFeedbackGenerator(style: .light).impactOccurred()
       UIPasteboard.general.string = text
       copied = true
       DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
     } label: {
-      let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
       Image(systemName: copied ? "checkmark" : "doc.on.doc")
-        .font(.system(size: 12, weight: .medium))
-        .foregroundColor(theme.color("text-secondary"))
-        .frame(width: 30, height: 24)
-        .background(shape.fill(theme.color("dock-bg")))
-        .overlay(shape.stroke(theme.color("line"), lineWidth: 1))
-        .frame(width: 44, height: 44)
-        .contentShape(Rectangle())
+        .font(.caption)
     }
-    .buttonStyle(.plain)
+    .glassButton()
+    .aiCircle()
+    .controlSize(.small)
   }
 }
 
-/// Display math as its TeX source in a quiet box.
+/// Display math as its TeX source on a quiet ground.
 private struct MdMathBlock: View {
-  @ObservedObject private var theme = Theme.shared
+  @ScaledMetric(relativeTo: .body) private var base: CGFloat = 16
   let text: String
   let ink: Color
 
-  private static let size: CGFloat = 12
+  private var size: CGFloat { base * 0.8 }
 
   var body: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       Text(text)
-        .font(.system(size: Self.size, design: .monospaced))
-        .lineSpacing(MdMetrics.leading(Self.size, 1.55, mono: true))
+        .font(.system(size: size, design: .monospaced))
+        .lineSpacing(MdMetrics.leading(size, 1.4, mono: true))
         .foregroundColor(ink)
         .fixedSize()
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
     }
-    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(theme.color("fill-soft")))
+    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 }
 
-/// A list with its markers in the 20 pt its items are indented by.
+/// A list with its markers in the column its items are indented by.
 private struct MdList: View {
   @ObservedObject private var theme = Theme.shared
+  @ScaledMetric(relativeTo: .body) private var base: CGFloat = 16
+  @ScaledMetric(relativeTo: .body) private var indent: CGFloat = 22
   let ordered: Bool
   let start: Int
   let items: [MdItem]
@@ -350,25 +352,24 @@ private struct MdList: View {
   }
 
   private func marker(_ item: MdItem, _ index: Int) -> some View {
-    let size = MdMetrics.body
     return Group {
       if let checked = item.checked {
         Image(systemName: checked ? "checkmark.square" : "square")
-          .font(.system(size: size * 0.9))
-          .foregroundColor(checked ? theme.color("accent") : theme.color("text-muted"))
+          .font(.system(size: base * 0.9))
+          .foregroundColor(checked ? theme.color("accent") : Color.secondary)
       } else if ordered {
         Text("\(start + index).")
-          .font(.system(size: size).monospacedDigit())
+          .font(.system(size: base).monospacedDigit())
           .foregroundColor(ink)
       } else {
         Text(Self.bullets[min(depth, Self.bullets.count - 1)])
-          .font(.system(size: size))
+          .font(.system(size: base))
           .foregroundColor(ink)
       }
     }
     .fixedSize()
     .padding(.trailing, 5)
-    .frame(width: 20, alignment: .trailing)
+    .frame(width: indent, alignment: .trailing)
   }
 }
 
@@ -388,9 +389,8 @@ private struct MdRoom: PreferenceKey {
   }
 }
 
-/// A table as `.ny-ai-md table` draws it: scrolling sideways, its columns narrowed to fit before they scroll.
+/// A table with hairline rules: scrolling sideways, its columns narrowed to fit before they scroll.
 private struct MdTable: View {
-  @ObservedObject private var theme = Theme.shared
   let align: [MdAlign?]
   let head: [[MdRun]]
   let rows: [[[MdRun]]]
@@ -398,7 +398,7 @@ private struct MdTable: View {
   @State private var natural: [Int: CGFloat] = [:]
   @State private var room: CGFloat = 0
 
-  private static let size: CGFloat = 12.5
+  private static let scale: CGFloat = 0.85
 
   private var columns: Int {
     max(head.count, rows.map(\.count).max() ?? 0)
@@ -416,11 +416,11 @@ private struct MdTable: View {
       VStack(spacing: 0) {
         row(head, header: true, widths: widths)
         ForEach(rows.indices, id: \.self) { index in
-          Rectangle().fill(theme.color("line")).frame(height: 1)
+          Rectangle().fill(Color(.separator)).frame(height: 1)
           row(rows[index], header: false, widths: widths)
         }
       }
-      .overlay(Rectangle().strokeBorder(theme.color("line"), lineWidth: 1))
+      .overlay(Rectangle().strokeBorder(Color(.separator), lineWidth: 1))
       .onPreferenceChange(MdColumnWidths.self) { natural = $0 }
     }
     .background(
@@ -435,18 +435,18 @@ private struct MdTable: View {
     HStack(alignment: .top, spacing: 0) {
       ForEach(0..<columns, id: \.self) { column in
         if column > 0 {
-          Rectangle().fill(theme.color("line")).frame(width: 1)
+          Rectangle().fill(Color(.separator)).frame(width: 1)
         }
         cell(column < cells.count ? cells[column] : [], column: column, header: header, width: widths?[column])
       }
     }
-    .background(header ? theme.color("fill-soft") : Color.clear)
+    .background(header ? Color(.secondarySystemBackground) : Color.clear)
   }
 
   private func cell(_ runs: [MdRun], column: Int, header: Bool, width: CGFloat?) -> some View {
     let cellAlign = column < align.count ? align[column] : nil
     let weight = header ? Font.Weight.semibold : .regular
-    let content = MdText(runs: runs, size: Self.size, weight: weight, ink: ink)
+    let content = MdText(runs: runs, scale: Self.scale, weight: weight, ink: ink)
     return content
       .multilineTextAlignment(cellAlign?.text ?? (header ? .center : .leading))
       .padding(.horizontal, 9)
