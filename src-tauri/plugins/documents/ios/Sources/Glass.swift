@@ -2,36 +2,23 @@ import Combine
 import SwiftUI
 import UIKit
 
-/// How strongly the bar colour tints the glass; NyaMark's glass is a dense, coloured frost.
-private let glassDensity: CGFloat = 0.5
-
-extension Theme {
-  /// The colour laid into the glass: the page's bar colour, thinned to `glassDensity`.
-  var glassTint: UIColor {
-    let bar = ui("statusbar-bg")
-    var alpha: CGFloat = 0
-    bar.getRed(nil, green: nil, blue: nil, alpha: &alpha)
-    return bar.withAlphaComponent(alpha * glassDensity)
-  }
-}
-
-/// Liquid Glass in `shape`, tinted with NyaMark's bar colour; a thick material with the bar's border before iOS 26.
+/// The system's Liquid Glass in `shape`; a thick material with a hairline before iOS 26.
 struct GlassSurface<S: Shape>: ViewModifier {
   @ObservedObject private var theme = Theme.shared
   let shape: S
   var interactive = false
-  /// Accent-tinted glass, for the one control that is on or pressed.
+  /// Accent-tinted glass, for the control that is on.
   var lit = false
 
   func body(content: Content) -> some View {
-    let tint = lit ? theme.color("accent-soft") : Color(theme.glassTint)
     if #available(iOS 26.0, *) {
-      content.glassEffect(.regular.tint(tint).interactive(interactive), in: shape)
+      let glass = lit ? Glass.regular.tint(theme.color("accent")) : Glass.regular
+      content.glassEffect(glass.interactive(interactive), in: shape)
     } else {
       content
-        .background(tint, in: shape)
+        .background(lit ? theme.color("accent-soft") : Color.clear, in: shape)
         .background(.thickMaterial, in: shape)
-        .overlay(shape.stroke(theme.color("border-soft"), lineWidth: 1))
+        .overlay(shape.stroke(Color(.separator).opacity(0.4), lineWidth: 0.5))
     }
   }
 }
@@ -41,9 +28,29 @@ extension View {
     modifier(GlassSurface(shape: shape, interactive: interactive, lit: lit))
   }
 
-  /// The glass of a floating card: NyaMark's 28-point continuous rounded rectangle.
+  /// A floating card of glass with continuous corners.
   func glassCard(radius: CGFloat = Theme.radius) -> some View {
     glass(RoundedRectangle(cornerRadius: radius, style: .continuous))
+  }
+
+  /// The system's glass button; a bordered button before iOS 26.
+  @ViewBuilder
+  func glassButton() -> some View {
+    if #available(iOS 26.0, *) {
+      buttonStyle(.glass)
+    } else {
+      buttonStyle(.bordered)
+    }
+  }
+
+  /// The system's prominent glass button, filled with the accent; a prominent bordered button before iOS 26.
+  @ViewBuilder
+  func prominentGlassButton() -> some View {
+    if #available(iOS 26.0, *) {
+      buttonStyle(.glassProminent)
+    } else {
+      buttonStyle(.borderedProminent)
+    }
   }
 }
 
@@ -61,29 +68,26 @@ struct GlassGroup<Content: View>: View {
   }
 }
 
-/// The glass behind a UIKit bar; it follows the theme by itself.
+/// The glass behind a UIKit bar.
 final class GlassView: UIVisualEffectView {
   private let radius: CGFloat?
-  private let interactive: Bool
-  private var themeWatch: AnyCancellable?
 
   /// A nil `radius` makes a capsule.
   init(radius: CGFloat?, interactive: Bool = false) {
     self.radius = radius
-    self.interactive = interactive
     super.init(effect: nil)
     if #available(iOS 26.0, *) {
-      cornerConfiguration =
-        radius.map { .corners(radius: .fixed($0)) } ?? .capsule()
+      let glass = UIGlassEffect(style: .regular)
+      glass.isInteractive = interactive
+      effect = glass
+      cornerConfiguration = radius.map { .corners(radius: .fixed($0)) } ?? .capsule()
     } else {
+      effect = UIBlurEffect(style: .systemThickMaterial)
       layer.cornerCurve = .continuous
-      layer.borderWidth = 1
+      layer.borderWidth = 0.5
+      layer.borderColor = UIColor.separator.withAlphaComponent(0.4).cgColor
       clipsToBounds = true
     }
-    themeWatch = Theme.shared.$colors.sink { [weak self] _ in
-      DispatchQueue.main.async { self?.paint() }
-    }
-    paint()
   }
 
   required init?(coder: NSCoder) {
@@ -94,20 +98,6 @@ final class GlassView: UIVisualEffectView {
     super.layoutSubviews()
     if #unavailable(iOS 26.0) {
       layer.cornerRadius = radius ?? bounds.height / 2
-    }
-  }
-
-  private func paint() {
-    let theme = Theme.shared
-    if #available(iOS 26.0, *) {
-      let glass = UIGlassEffect(style: .regular)
-      glass.tintColor = theme.glassTint
-      glass.isInteractive = interactive
-      effect = glass
-    } else {
-      effect = UIBlurEffect(style: .systemThickMaterial)
-      contentView.backgroundColor = theme.glassTint
-      layer.borderColor = theme.ui("border-soft").cgColor
     }
   }
 }

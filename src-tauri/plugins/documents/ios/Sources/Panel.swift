@@ -81,6 +81,62 @@ final class PanelSheet: NSObject, UISheetPresentationControllerDelegate {
   }
 }
 
+/// A panel's page in the system's style: the title in a navigation bar whose buttons are the bar's glass.
+struct PanelPage<Content: View, Actions: View>: View {
+  @ObservedObject private var theme = Theme.shared
+  let title: String
+  @ViewBuilder let actions: () -> Actions
+  @ViewBuilder let content: () -> Content
+
+  var body: some View {
+    NavigationView {
+      content()
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+          ToolbarItemGroup(placement: .navigationBarTrailing) { actions() }
+        }
+    }
+    .navigationViewStyle(.stack)
+    .tint(theme.color("accent"))
+  }
+}
+
+/// The ✕ that closes a panel: the system's close button on iOS 26.
+struct PanelCloseButton: View {
+  let label: String
+  let action: () -> Void
+
+  var body: some View {
+    if #available(iOS 26.0, *) {
+      Button(role: .close, action: action)
+        .accessibilityLabel(label)
+    } else {
+      Button(action: action) { Image(systemName: "xmark") }
+        .accessibilityLabel(label)
+    }
+  }
+}
+
+/// A native panel and the page's side of it, which sends it what to show.
+protocol NativePanel: AnyObject {
+  /// Opens the panel, as the editor page's bottom bar asks.
+  func open(_ body: [String: Any])
+  /// A message from the page's side of the panel.
+  func receive(_ op: String, _ body: [String: Any])
+}
+
+extension NativeShell {
+  /// Sends `op` to the page's side of the panel named `panel`.
+  func tell(_ panel: String, _ op: String, _ data: [String: Any] = [:]) {
+    var message = data
+    message["type"] = "panel"
+    message["panel"] = panel
+    message["op"] = op
+    send(message)
+  }
+}
+
 /// A panel's 60-point header, as `.ny-dock__header` draws it: the title on the left and round buttons on the right.
 struct PanelHeader<Trailing: View>: View {
   @ObservedObject private var theme = Theme.shared
@@ -104,24 +160,5 @@ struct PanelHeader<Trailing: View>: View {
     .overlay(alignment: .bottom) {
       Rectangle().fill(theme.color("border-soft")).frame(height: 1)
     }
-  }
-}
-
-/// A native panel and the page's side of it, which sends it what to show.
-protocol NativePanel: AnyObject {
-  /// Opens the panel, as the editor page's bottom bar asks.
-  func open(_ body: [String: Any])
-  /// A message from the page's side of the panel.
-  func receive(_ op: String, _ body: [String: Any])
-}
-
-extension NativeShell {
-  /// Sends `op` to the page's side of the panel named `panel`.
-  func tell(_ panel: String, _ op: String, _ data: [String: Any] = [:]) {
-    var message = data
-    message["type"] = "panel"
-    message["panel"] = panel
-    message["op"] = op
-    send(message)
   }
 }

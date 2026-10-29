@@ -76,31 +76,24 @@ struct OutlineView: View {
   let close: () -> Void
 
   var body: some View {
-    VStack(spacing: 0) {
-      PanelHeader(title: model.title) {
-        CircleButton(symbol: "xmark", label: model.close, action: close)
-      }
+    PanelPage(title: model.title) {
+      PanelCloseButton(label: model.close, action: close)
+    } content: {
       ScrollViewReader { scroller in
-        ScrollView {
-          LazyVStack(alignment: .leading, spacing: 6) {
-            if model.items.isEmpty {
-              Text(model.empty)
-                .font(.system(size: 14))
-                .foregroundStyle(theme.color("text-muted"))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-            }
-            ForEach(model.items) { item in
-              row(item).id(item.id)
-            }
+        List {
+          if model.items.isEmpty {
+            Text(model.empty)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
           }
-          .padding(.horizontal, 12)
-          .padding(.top, 8)
-          .padding(.bottom, 16)
+          ForEach(model.items) { item in
+            row(item).id(item.id)
+          }
         }
+        .listStyle(.plain)
         .onChange(of: model.active) { id in
           guard let id else { return }
-          withAnimation(.easeOut(duration: 0.2)) { scroller.scrollTo(id, anchor: nil) }
+          withAnimation(.easeOut(duration: 0.2)) { scroller.scrollTo(id) }
         }
         .onAppear {
           if let id = model.active { scroller.scrollTo(id, anchor: .center) }
@@ -111,39 +104,19 @@ struct OutlineView: View {
 
   private func row(_ item: OutlineModel.Item) -> some View {
     let active = item.id == model.active
-    let ink =
-      active
-      ? theme.color("accent-ink")
-      : item.depth <= 1 ? theme.color("text-primary") : theme.color("text-secondary")
     return Button {
       UIImpactFeedbackGenerator(style: .light).impactOccurred()
       go(item.id)
     } label: {
       Text(item.text)
-        .font(.system(size: item.depth >= 2 ? 14 : 15, weight: item.depth == 0 ? .semibold : .regular))
-        .foregroundStyle(ink)
+        .font(item.depth == 0 ? .body.weight(.semibold) : item.depth == 1 ? .body : .subheadline)
+        .foregroundStyle(active ? theme.color("accent") : item.depth <= 1 ? Color.primary : Color.secondary)
         .lineLimit(1)
-        .truncationMode(.tail)
-        .padding(.leading, 10 + CGFloat(item.depth) * 14)
-        .padding(.trailing, 10)
-        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+        .padding(.leading, CGFloat(item.depth) * 16)
+        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
         .contentShape(Rectangle())
     }
-    .buttonStyle(OutlineRowStyle(active: active))
-    .padding(.top, item.depth == 0 && item.id != model.items.first?.id ? 4 : 0)
+    .listRowBackground(active ? theme.color("accent").opacity(0.12) : Color.clear)
     .accessibilityAddTraits(active ? .isSelected : [])
-  }
-}
-
-struct OutlineRowStyle: ButtonStyle {
-  @ObservedObject private var theme = Theme.shared
-  let active: Bool
-
-  func makeBody(configuration: Configuration) -> some View {
-    let fill =
-      active || configuration.isPressed ? theme.color("accent-soft") : Color.clear
-    return configuration.label
-      .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
-      .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
   }
 }
