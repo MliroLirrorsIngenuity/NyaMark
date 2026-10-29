@@ -26,6 +26,7 @@ Object.assign(globalThis, {
   },
   requestAnimationFrame: (run: () => void) => setTimeout(run, 0),
   cancelAnimationFrame: (id: number) => clearTimeout(id),
+  __TAURI_INTERNALS__: { invoke: async () => null, transformCallback: () => 0 },
 });
 
 const saved: SettingsPatch[] = [];
@@ -184,6 +185,15 @@ describe('settings', () => {
     const after = rowsOf(lastView('settings').pages[0]).map((row) => row.id);
     expect(after).toContain('attachments.chooseDirectory');
     expect(after).not.toContain('attachments.clearDirectory');
+  });
+
+  test('a tap on a link row pushes the page it leads to', async () => {
+    openNativeSettings('ai');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await send('settings', { op: 'open', page: 'settings', id: 'ai.add' });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const pages = lastView('settings').pages.map((page) => page.id);
+    expect(pages).toEqual(['settings', 'ai.add']);
   });
 });
 

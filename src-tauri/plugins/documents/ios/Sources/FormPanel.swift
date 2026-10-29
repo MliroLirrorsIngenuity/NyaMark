@@ -193,7 +193,7 @@ final class FormPanelController: NativePanel {
 
   func open(_ body: [String: Any]) {
     guard let name = body["form"] as? String else { return }
-    shell.tell("form", "open", ["form": name])
+    shell.tell("form", "launch", ["form": name])
   }
 
   func receive(_ op: String, _ body: [String: Any]) {

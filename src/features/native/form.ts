@@ -180,7 +180,7 @@ const waiting = new Map<string, (value: string | null) => void>();
 
 onPanel('form', (message: PanelMessage) => {
   const name = String(message.form);
-  if (message.op === 'open') return openers.get(name)?.();
+  if (message.op === 'launch') return openers.get(name)?.();
   if (message.op === 'reply') {
     const id = String(message.reply);
     waiting.get(id)?.(message.value == null ? null : String(message.value));
@@ -190,7 +190,7 @@ onPanel('form', (message: PanelMessage) => {
   return forms.get(name)?.receive(message);
 });
 
-/** Has the native bottom bar's button for the form `name` call `open`. */
+/** Has the native bottom bar's button for the form `name`, sent as `launch`, call `open`. */
 export function registerFormOpener(name: string, open: () => unknown) {
   openers.set(name, open);
 }
