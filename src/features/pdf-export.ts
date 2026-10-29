@@ -1,4 +1,6 @@
+import { type PdfPage, printPage, sharePdf } from '../bridge/ipc/documents';
 import { printCurrentWindow } from '../bridge/ipc/windows';
+import { isMobilePlatform } from '../platform/detect';
 import { store } from '../state/store';
 import { documentFileName } from '../ui/document-name';
 import {
@@ -44,12 +46,46 @@ export class PdfExporter {
       const settings = await this.dialog.open({ fileName: printableTitle() });
       if (settings) {
         await this.steps.prepare();
-        await exportAsPdf(settings, this.steps);
+        await exportAsPdf(settings, this.steps, (title) =>
+          sharePdf(`${title}.pdf`, pdfPage(settings), null)
+        );
       }
     } finally {
       this.busy = false;
     }
   }
+
+  /** Phone only: the system's print sheet, which picks paper and margins itself. */
+  async print() {
+    if (this.busy || isModalOpen()) return;
+    this.busy = true;
+    try {
+      await this.steps.prepare();
+      await exportAsPdf(null, this.steps, (title) => printPage(title));
+    } finally {
+      this.busy = false;
+    }
+  }
+}
+
+const POINTS_PER_MM = 72 / 25.4;
+
+const PAPER_POINTS: Record<
+  ExportPdfSettings['pageSize'],
+  [width: number, height: number]
+> = {
+  Letter: [612, 792],
+  A4: [595.28, 841.89],
+  Legal: [612, 1008],
+};
+
+function pdfPage(settings: ExportPdfSettings): PdfPage {
+  const [short, long] = PAPER_POINTS[settings.pageSize];
+  return {
+    width: settings.landscape ? long : short,
+    height: settings.landscape ? short : long,
+    margin: Number.parseFloat(PAGE_MARGINS[settings.margin]) * POINTS_PER_MM,
+  };
 }
 
 function printableTitle() {
@@ -66,7 +102,12 @@ function nextFrame() {
   });
 }
 
-async function exportAsPdf(settings: ExportPdfSettings, steps: PrintSteps) {
+/** `output` hands the prepared page to iOS, which has no print dialog of the page's own. */
+async function exportAsPdf(
+  settings: ExportPdfSettings | null,
+  steps: PrintSteps,
+  output: (title: string) => Promise<void>
+) {
   // Source mode stays on and print.css hides the source pane: leaving it
   // rebuilt the pane from the serialised preview, which put the text in the
   // serialiser's spelling and dropped its undo history.
@@ -92,11 +133,13 @@ async function exportAsPdf(settings: ExportPdfSettings, steps: PrintSteps) {
   const previousZoom = document.body.style.zoom;
   const printStyle = document.createElement('style');
   printStyle.id = 'ny-print-export-style';
-  printStyle.textContent = `${pageRule(settings)}\n${printStyles}`;
+  printStyle.textContent = settings
+    ? `${pageRule(settings)}\n${printStyles}`
+    : printStyles;
   document.head.appendChild(printStyle);
 
   document.body.style.zoom =
-    settings.downscalePercent !== 100
+    settings && settings.downscalePercent !== 100
       ? String(settings.downscalePercent / 100)
       : '';
 
@@ -124,6 +167,14 @@ async function exportAsPdf(settings: ExportPdfSettings, steps: PrintSteps) {
   window.addEventListener('afterprint', restore, true);
   await steps.printing();
   await nextFrame();
+  if (isMobilePlatform()) {
+    try {
+      await output(document.title);
+    } finally {
+      restore();
+    }
+    return;
+  }
   window.addEventListener('pointerdown', restore, true);
   window.addEventListener('keydown', restore, true);
 

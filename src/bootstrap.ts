@@ -18,11 +18,12 @@ import { type AiAskMode, setAiAskHandler } from './editor/plugins/ai-entry';
 import { SourceModeController } from './editor/source-mode';
 import { type SuggestDriver, setSuggestDriver } from './editor/suggest';
 import { AttachmentController } from './features/attachment-controller';
-import { bindAutoSave } from './features/auto-save';
+import { bindAutoSave, bindMobileAutoSave } from './features/auto-save';
 import { CloseGuard } from './features/close-guard';
 import { FileController } from './features/file-controller';
 import { bindLanguageSetting, syncMacosMenu } from './features/language-sync';
 import { MenuController } from './features/menu-controller';
+import { MobileDocuments } from './features/mobile-documents';
 import { PdfExporter } from './features/pdf-export';
 import {
   ShortcutController,
@@ -124,16 +125,24 @@ export class App {
       return;
     }
 
-    const fileController = new FileController(() => this.editor, {
-      syncEditorAfterSave: (saved) => this.syncEditorAfterSave(saved),
-      flushPendingEdits: () => this.sourceMode?.flush(),
-      fileDiverged: () => {
-        this.savedDoc = null;
+    const mobile = isMobilePlatform();
+    const fileController = new FileController(
+      () => this.editor,
+      {
+        syncEditorAfterSave: (saved) => this.syncEditorAfterSave(saved),
+        flushPendingEdits: () => this.sourceMode?.flush(),
+        fileDiverged: () => {
+          this.savedDoc = null;
+        },
       },
-    });
-    bindAutoSave(() => fileController.autoSaveFile());
+      !mobile
+    );
+    if (mobile) bindMobileAutoSave(() => fileController.autoSaveFile());
+    else bindAutoSave(() => fileController.autoSaveFile());
 
-    const initialDocument = await fileController.resolveInitialDocument();
+    const initialDocument = await fileController.resolveInitialDocument(
+      mobile ? MobileDocuments.restore : undefined
+    );
     store.update({ filePath: initialDocument.filePath, isDirty: false });
 
     // Registered before the editor exists so an early close request is never
@@ -218,16 +227,28 @@ export class App {
       void this.attachments?.openLinkedResource(href);
     });
 
+    const documents = mobile ? new MobileDocuments(fileController) : null;
+    const newFile = () =>
+      documents ? documents.newDocument() : fileController.newFile();
+    const openFile = () =>
+      documents ? documents.openDocument() : fileController.openFile();
+
     const searchPanel = new SearchPanel(() => this.editor);
     const find = () => {
       if (!this.sourceMode?.find()) searchPanel.show();
     };
     new Titlebar(store, {
-      onNewFile: () => fileController.newFile(),
-      onOpenFile: () => fileController.openFile(),
+      onNewFile: newFile,
+      onOpenFile: openFile,
       onSaveFile: () => fileController.saveFile(),
       onSaveFileAs: () => fileController.saveFileAs(),
       onExportPdf: () => this.pdfExporter.open(),
+      ...(documents && {
+        onShowLibrary: () => documents.showLibrary(),
+        onRename: () => documents.renameCurrent(),
+        onShare: (anchor: DOMRect | null) => documents.share(anchor),
+        onPrint: () => this.pdfExporter.print(),
+      }),
       onToggleOutline: () => this.toggleOutline(),
       onToggleAi: () => this.toggleAi(false),
       onOpenSettings: () => this.settingsPanel.open(),
@@ -255,8 +276,8 @@ export class App {
     void menuController.bind();
 
     const shortcutController = new ShortcutController({
-      newFile: () => fileController.newFile(),
-      openFile: () => fileController.openFile(),
+      newFile,
+      openFile,
       saveFile: () => fileController.saveFile(),
       saveFileAs: () => fileController.saveFileAs(),
       print: () => this.pdfExporter.open(),
@@ -276,6 +297,7 @@ export class App {
 
     this.refreshStatsSoon();
     this.scheduleUpdateCheck();
+    await documents?.start();
     // A new window is opened to write in; the caret starts at the top.
     if (!isCompactLayout()) this.editor.focus();
   }

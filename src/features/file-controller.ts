@@ -13,6 +13,7 @@ import {
   resolveCurrentWindowFile,
   saveFileDialog,
   saveMarkdown,
+  unsavedChangesDialog,
   watchMarkdownFile,
 } from '../bridge/ipc/files';
 import type { NyaEditor } from '../editor/editor';
@@ -78,7 +79,9 @@ export class FileController {
 
   constructor(
     private readonly getEditor: () => NyaEditor | null,
-    private readonly hooks: Hooks
+    private readonly hooks: Hooks,
+    /** False on a phone, which checks the file when the app comes back; see `recheckFile`. */
+    private readonly watchFile = true
   ) {
     store.subscribe((state) => {
       void this.updateWatcher(state.filePath);
@@ -94,13 +97,15 @@ export class FileController {
     this.hooks.flushPendingEdits();
   }
 
-  async resolveInitialDocument(): Promise<{
+  async resolveInitialDocument(
+    restore: () => Promise<string | null> = async () => null
+  ): Promise<{
     filePath: string | null;
     markdown: string;
   }> {
     let filePath: string | null = null;
     try {
-      filePath = await resolveCurrentWindowFile();
+      filePath = (await resolveCurrentWindowFile()) ?? (await restore());
     } catch (error) {
       console.error('Failed to resolve initial document:', error);
       return { filePath: null, markdown: '' };
@@ -134,7 +139,7 @@ export class FileController {
     const watchVersion = this.watchVersion;
     this.watchedPath = path;
     this.missing = null;
-    if (!path) return;
+    if (!path || !this.watchFile) return;
 
     try {
       const unwatch = await watchMarkdownFile(path, () => {
@@ -264,6 +269,64 @@ export class FileController {
         cancelLabel: i18next.t('dialog.fileConflict.keep'),
       }
     );
+  }
+
+  /** Takes in what another app or device wrote to the file meanwhile. */
+  async recheckFile() {
+    const path = store.getState().filePath;
+    if (!path || this.conflictPrompting) return;
+    try {
+      await this.enqueue(() => this.reloadChangedFile(path));
+    } catch (error) {
+      console.error('Failed to reload changed file:', error);
+    }
+  }
+
+  /** Saves the document before another takes its place; false when the user stays with an unsaved one. */
+  async leaveDocument(): Promise<boolean> {
+    for (;;) {
+      this.flushPendingEdits();
+      const { filePath, isDirty } = store.getState();
+      if (!isDirty || !filePath || this.missing) return true;
+      try {
+        await this.saveCurrentDocument({
+          forceDialog: false,
+          allowDialogWhenMissingPath: false,
+        });
+        if (!store.getState().isDirty) return true;
+      } catch (error) {
+        console.error('Failed to save before leaving the document:', error);
+      }
+      const choice = await unsavedChangesDialog(
+        i18next.t('dialog.unsavedChanges.body', {
+          fileName: basenamePath(filePath),
+        }),
+        {
+          title: i18next.t('dialog.unsavedChanges.title'),
+          saveLabel: i18next.t('dialog.unsavedChanges.save'),
+          discardLabel: i18next.t('dialog.unsavedChanges.discard'),
+          cancelLabel: i18next.t('dialog.unsavedChanges.cancel'),
+        }
+      );
+      if (choice === 'discard') return true;
+      if (choice === 'cancel') return false;
+    }
+  }
+
+  /** The document's file was renamed to `path`; it is the same file. */
+  async adoptRenamedPath(path: string) {
+    const normalized = await this.registerDocumentPath(path);
+    store.update({ filePath: normalized });
+  }
+
+  /** The document's file is gone for good; the editor holds nothing. */
+  closeDocument() {
+    this.lastKnownContent = '';
+    this.diskVersion = null;
+    this.missing = null;
+    this.documentFormat = { ...DEFAULT_DOCUMENT_FORMAT };
+    this.hooks.syncEditorAfterSave('');
+    store.update({ filePath: null, isDirty: false });
   }
 
   async newFile() {

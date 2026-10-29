@@ -42,3 +42,21 @@ export function bindAutoSave(save: () => Promise<void>) {
     schedule();
   });
 }
+
+/** How often a phone writes unsaved edits; iOS may end a background app at any time. */
+const MOBILE_SAVE_INTERVAL_MS = 2_000;
+
+/** On a phone every edit is saved shortly after it is made, and at once when the app leaves the screen. */
+export function bindMobileAutoSave(save: () => Promise<void>) {
+  let saving: Promise<void> | null = null;
+  const run = () => {
+    saving ??= save().finally(() => {
+      saving = null;
+    });
+    return saving;
+  };
+  window.setInterval(() => void run(), MOBILE_SAVE_INTERVAL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void run();
+  });
+}

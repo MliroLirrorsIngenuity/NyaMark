@@ -24,6 +24,11 @@ type TitlebarActions = {
   onSaveFile: () => unknown;
   onSaveFileAs: () => unknown;
   onExportPdf: () => unknown;
+  /** Phone only: the document library, renaming and sharing the document, printing. */
+  onShowLibrary?: () => unknown;
+  onRename?: () => unknown;
+  onShare?: (anchor: DOMRect | null) => unknown;
+  onPrint?: () => unknown;
   onToggleOutline: () => unknown;
   onToggleAi: () => unknown;
   onOpenSettings: () => void;
@@ -61,7 +66,9 @@ export class Titlebar {
     this.bindAction('tb-outline', this.actions.onToggleOutline);
     this.bindAction('tb-ai', this.actions.onToggleAi);
     this.bindClick('tb-settings', () => this.actions.onOpenSettings());
-    this.bindAction('mb-save', this.actions.onSaveFile);
+    if (this.actions.onShowLibrary) {
+      this.bindAction('mb-library', this.actions.onShowLibrary);
+    }
     this.bindAction('mb-outline', this.actions.onToggleOutline);
     this.bindAction('mb-ai', this.actions.onToggleAi);
     this.bindClick('mb-settings', () => this.actions.onOpenSettings());
@@ -290,6 +297,12 @@ export class Titlebar {
       save: this.actions.onSaveFile,
       'save-as': this.actions.onSaveFileAs,
       'export-pdf': this.actions.onExportPdf,
+      rename: () => this.actions.onRename?.(),
+      share: () =>
+        this.actions.onShare?.(
+          this.elFileMenuButton?.getBoundingClientRect() ?? null
+        ),
+      print: () => this.actions.onPrint?.(),
     };
     menu.addEventListener('click', (event) => {
       const button = (event.target as Element).closest<HTMLElement>(
@@ -327,9 +340,6 @@ export class Titlebar {
     if (status) {
       status.textContent = `${i18next.t(state.isDirty || !state.filePath ? 'mobile.unsaved' : 'mobile.saved')} · ${i18next.t('statusbar.words', { count: state.wordCount })}`;
     }
-    document
-      .getElementById('mb-save')
-      ?.classList.toggle('is-dirty', state.isDirty);
     document
       .getElementById('mb-source')
       ?.setAttribute('aria-pressed', String(state.sourceMode));

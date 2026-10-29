@@ -19,6 +19,7 @@ import { dragDropTarget, listenWindowFileDrop } from '../bridge/ipc/windows';
 import type { EditorAttachment, NyaEditor } from '../editor/editor';
 import type { FrontMatter } from '../editor/plugins/front-matter';
 import { i18next } from '../i18n';
+import { isMobilePlatform } from '../platform/detect';
 import type {
   ImageInsertPolicy,
   PastedImagePolicy,
@@ -426,9 +427,17 @@ export class AttachmentController {
     if (documentRule) return documentRule;
 
     return await this.ruleForPolicy(
-      this.imageSettings.insertPolicy,
+      this.insertPolicy(),
       this.imageSettings.customCopyDirectory
     );
+  }
+
+  /** A photo picked on a phone is a temporary copy; it goes beside the document. */
+  private insertPolicy(): ImageInsertPolicy {
+    const policy = this.imageSettings.insertPolicy;
+    return isMobilePlatform() && policy !== 'copy-same-folder'
+      ? 'copy-assets'
+      : policy;
   }
 
   /**

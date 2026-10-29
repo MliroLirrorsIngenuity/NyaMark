@@ -85,7 +85,7 @@
     display: none;
   }
 
-  .ny-shell .ny-shell__title-leading .ny-shell__title-quick-actions {
+  .ny-shell .ny-shell__title-actions > .ny-shell__title-quick-actions {
     display: flex;
     padding: 0;
   }
@@ -153,17 +153,6 @@
     background: var(--ny-accent-soft);
     color: var(--ny-accent-ink);
     transform: scale(0.95);
-  }
-
-  .ny-shell #ny-titlebar #mb-save.is-dirty {
-    border-color: var(--ny-accent-line);
-  }
-
-  .ny-shell #ny-titlebar #mb-save {
-    width: 64px;
-    border-radius: 22px;
-    font-size: 15px;
-    font-weight: 600;
   }
 
   :root.ny-keyboard-open {

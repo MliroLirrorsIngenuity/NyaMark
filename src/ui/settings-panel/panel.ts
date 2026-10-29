@@ -1,6 +1,6 @@
 import { errorDialog, openDirectoryDialog } from '../../bridge/ipc/files';
 import { translateDOM } from '../../i18n/dom';
-import { isMacOS } from '../../platform/detect';
+import { isMacOS, isMobilePlatform } from '../../platform/detect';
 import {
   type Settings,
   changedSettings,
@@ -837,7 +837,14 @@ export class SettingsPanel {
       panes.set(name, pane);
       body.append(pane);
     }
-    panes.get('general')?.append(general, appearance, save, attachments);
+    panes
+      .get('general')
+      ?.append(
+        general,
+        appearance,
+        ...(isMobilePlatform() ? [] : [save]),
+        attachments
+      );
     dialog.appendChild(body);
 
     // The AI tab loads with its first showing: the services it talks to

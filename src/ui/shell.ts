@@ -116,22 +116,30 @@ export function renderAppShell(host: HTMLElement) {
               <span data-i18n="shell.open">Open</span>
               <span class="ny-shell__shortcut-hint">${openShortcutHint}</span>
             </button>
-            <button class="ny-shell__menu-item" type="button" data-file-action="save" role="menuitem">
+            ${
+              mobile
+                ? `<button class="ny-shell__menu-item" type="button" data-file-action="rename" role="menuitem">
+              <span data-i18n="library.rename">Rename…</span>
+            </button>
+            <button class="ny-shell__menu-item" type="button" data-file-action="share" role="menuitem">
+              <span data-i18n="shell.share">Share…</span>
+            </button>`
+                : `<button class="ny-shell__menu-item" type="button" data-file-action="save" role="menuitem">
               <span data-i18n="shell.save">Save</span>
               <span class="ny-shell__shortcut-hint">${saveShortcutHint}</span>
             </button>
             <button class="ny-shell__menu-item" type="button" data-file-action="save-as" role="menuitem">
               <span data-i18n="shell.saveAs">Save As</span>
               <span class="ny-shell__shortcut-hint">${saveAsShortcutHint}</span>
-            </button>
-            ${
-              mobile
-                ? ''
-                : `<button class="ny-shell__menu-item" type="button" data-file-action="export-pdf" role="menuitem">
-              <span data-i18n="shell.exportPdf">Export as PDF</span>
-              <span class="ny-shell__shortcut-hint">${exportPdfShortcutHint}</span>
             </button>`
             }
+            <button class="ny-shell__menu-item" type="button" data-file-action="export-pdf" role="menuitem">
+              <span data-i18n="shell.exportPdf">Export as PDF</span>
+              <span class="ny-shell__shortcut-hint">${exportPdfShortcutHint}</span>
+            </button>
+            ${onMobile(`<button class="ny-shell__menu-item" type="button" data-file-action="print" role="menuitem">
+              <span data-i18n="shell.print">Print…</span>
+            </button>`)}
           </div>
         </div>
         <button id="tb-settings" class="ny-shell__shortcut-button ny-shell__settings-button ny-shell__icon-button" type="button" title="Settings" aria-label="Settings" data-i18n-title="shell.settings" data-i18n-aria-label="shell.settings" data-shortcut="${settingsShortcutHint}">
@@ -223,7 +231,13 @@ export function renderAppShell(host: HTMLElement) {
 
     <div id="ny-titlebar"${titlebarDragRegion}>
       <div class="ny-shell__title-leading">
-        <div class="ny-shell__title-quick-actions">${fileActionsMarkup}</div>
+        ${
+          mobile
+            ? `<button id="mb-library" class="ny-shell__icon-button" type="button" aria-label="Documents" data-i18n-aria-label="library.title">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg>
+        </button>`
+            : `<div class="ny-shell__title-quick-actions">${fileActionsMarkup}</div>`
+        }
       </div>
       <div class="ny-shell__title-center">
         <div class="ny-shell__document">
@@ -233,9 +247,7 @@ export function renderAppShell(host: HTMLElement) {
         <span id="tb-dirty" class="ny-shell__dirty">●</span>
       </div>
       <div class="ny-shell__title-actions">
-        ${onMobile(`<button id="mb-save" class="ny-mobile-only ny-shell__icon-button" type="button" aria-label="Save" data-i18n-aria-label="shell.save">
-          <span data-i18n="shell.save">Save</span>
-        </button>`)}
+        ${onMobile(`<div class="ny-shell__title-quick-actions">${fileActionsMarkup}</div>`)}
         <div class="ny-shell__title-meta">
           <div class="ny-shell__title-quick-actions">
             <button id="tb-outline" class="ny-shell__shortcut-button ny-shell__icon-button" type="button" title="Toggle outline" aria-label="Toggle outline" data-i18n-title="shell.outline" data-i18n-aria-label="shell.outline" data-shortcut="${outlineShortcutHint}">
