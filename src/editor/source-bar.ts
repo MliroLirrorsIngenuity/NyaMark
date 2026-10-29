@@ -17,6 +17,21 @@ const COMMANDS = [
 /** The Markdown symbols on the keyboard's second and third pages. */
 const SYMBOLS = ['#', '*', '_', '`', '-', '>', '[', ']', '(', ')', '|', '!'];
 
+/** Runs one of the bar's commands by its key; false for a key it does not have. */
+export function runSourceCommand(view: EditorView, key: string) {
+  const command = COMMANDS.find(([name]) => name === key)?.[2];
+  return command ? command(view) : false;
+}
+
+/** Types `text` over the selection, as a key of the bar does. */
+export function typeInSource(view: EditorView, text: string) {
+  view.dispatch({
+    ...view.state.replaceSelection(text),
+    scrollIntoView: true,
+    userEvent: 'input.type',
+  });
+}
+
 type Control = { label: () => string; run: (view: EditorView) => void };
 type Press = { button: HTMLElement; x: number; y: number; moved: boolean };
 
@@ -51,12 +66,7 @@ export function bindSourceBar(getView: () => EditorView | null) {
   for (const text of SYMBOLS) {
     const button = addButton({
       label: () => i18next.t('mobileBar.insert', { text }),
-      run: (view) =>
-        view.dispatch({
-          ...view.state.replaceSelection(text),
-          scrollIntoView: true,
-          userEvent: 'input.type',
-        }),
+      run: (view) => typeInSource(view, text),
     });
     button.textContent = text;
   }

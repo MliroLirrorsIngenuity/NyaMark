@@ -39,9 +39,11 @@ fn build_window<R: Runtime>(app: &AppHandle<R>, config: &WindowConfig) -> Result
         ));
     #[cfg(all(target_os = "ios", debug_assertions))]
     let builder = builder.devtools(true);
-    // Document editing supplies its own tools, rather than WebKit's form navigation.
+    // The native bar above the keyboard replaces WebKit's form navigation.
     #[cfg(target_os = "ios")]
-    let builder = builder.with_input_accessory_view_builder(|_| None);
+    let builder = builder
+        .with_input_accessory_view_builder(|_| tauri_plugin_documents::keyboard_accessory_view())
+        .initialization_script("window.__NYAMARK_NATIVE_SHELL__ = true;");
     // macOS: shown once it has a backdrop, in the theme its page opens in.
     // The window is transparent so that it can be frosted, and till its page
     // was drawn it was its traffic lights alone, floating over what lay

@@ -133,6 +133,18 @@ fn path_str(path: &Path) -> Result<&str, Error> {
     })
 }
 
+#[cfg(target_os = "ios")]
+extern "C" {
+    fn nyamark_keyboard_accessory() -> *mut objc2_ui_kit::UIView;
+}
+
+/// The native bar shown above the keyboard while the document is edited; none elsewhere.
+#[cfg(target_os = "ios")]
+pub fn keyboard_accessory_view() -> Option<objc2::rc::Retained<objc2_ui_kit::UIView>> {
+    // SAFETY: the Swift side returns a live view or null, and the view is retained here.
+    unsafe { objc2::rc::Retained::retain(nyamark_keyboard_accessory()) }
+}
+
 pub trait DocumentsExt<R: Runtime> {
     fn documents(&self) -> &Documents<R>;
 }

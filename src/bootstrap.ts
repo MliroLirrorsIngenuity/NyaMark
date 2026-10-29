@@ -23,7 +23,8 @@ import { CloseGuard } from './features/close-guard';
 import { FileController } from './features/file-controller';
 import { bindLanguageSetting, syncMacosMenu } from './features/language-sync';
 import { MenuController } from './features/menu-controller';
-import { MobileDocuments } from './features/mobile-documents';
+import { MobileDocuments, reportFailure } from './features/mobile-documents';
+import { bindNativeShell } from './features/native-shell';
 import { PdfExporter } from './features/pdf-export';
 import {
   ShortcutController,
@@ -31,7 +32,7 @@ import {
 } from './features/shortcut-controller';
 import { i18next, initI18n } from './i18n';
 import { translateDOM } from './i18n/dom';
-import { isMobilePlatform } from './platform/detect';
+import { isMobilePlatform, isNativeShell } from './platform/detect';
 import {
   getSettings,
   hydrateSettings,
@@ -100,6 +101,10 @@ export class App {
     // before any async IPC calls complete.
     renderAppShell(appRoot);
     if (isMobilePlatform()) bindViewport();
+    document.documentElement.classList.toggle(
+      'ny-native-shell',
+      isNativeShell()
+    );
 
     await hydrateSettings();
     const settings = getSettings();
@@ -304,6 +309,25 @@ export class App {
 
     this.refreshStatsSoon();
     this.scheduleUpdateCheck();
+    if (documents && isNativeShell()) {
+      bindNativeShell({
+        editor: () => this.editor,
+        sourceMode: () => this.sourceMode,
+        documents,
+        reportFailure,
+        actions: {
+          share: () => documents.share(null),
+          exportPdf: () => this.pdfExporter.open(),
+          print: () => this.pdfExporter.print(),
+          outline: () => this.toggleOutline(),
+          find,
+          toggleSource: () =>
+            store.update({ sourceMode: !store.getState().sourceMode }),
+          settings: () => this.settingsPanel.open(),
+          ai: () => this.toggleAi(false),
+        },
+      });
+    }
     await documents?.start();
     // A new window is opened to write in; the caret starts at the top.
     if (!isCompactLayout()) this.editor.focus();

@@ -76,7 +76,7 @@ import { isCompactLayout } from '../ui/viewport';
 import { textChange } from './doc-diff';
 import type { NyaEditor } from './editor';
 import { headingKey, syncedScrollTop } from './scroll-sync';
-import { bindSourceBar } from './source-bar';
+import { bindSourceBar, runSourceCommand, typeInSource } from './source-bar';
 import { docPosition, sourceOffset } from './source-caret';
 import { applyChanges, rewriteBlocks } from './source-follow';
 import { continueMarkup } from './source-list-exit';
@@ -473,6 +473,16 @@ export class SourceModeController {
   }
 
   /** Opens the source pane's own find bar; false outside source mode. */
+  /** Runs a key of the bar above the keyboard on the source pane; false while it is closed. */
+  runKey(key: string) {
+    return this.cmView ? runSourceCommand(this.cmView, key) : false;
+  }
+
+  /** Types `text` into the source pane, as a key of the bar above the keyboard does. */
+  type(text: string) {
+    if (this.cmView) typeInSource(this.cmView, text);
+  }
+
   find() {
     if (!this.cmView) return false;
     openSearchPanel(this.cmView);

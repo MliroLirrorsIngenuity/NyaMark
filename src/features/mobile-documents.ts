@@ -17,13 +17,15 @@ import {
 import { errorDialog, registerWindowDocument } from '../bridge/ipc/files';
 import { afterFirstFrame } from '../editor/open-in-parts';
 import { i18next } from '../i18n';
+import { isNativeShell } from '../platform/detect';
 import { store } from '../state/store';
 import { documentFileName } from '../ui/document-name';
 import { Library, type LibraryHost } from '../ui/library/library';
 import { MARKDOWN_EXTENSIONS } from './attachment-policy';
 import type { FileController } from './file-controller';
+import { announceReady } from './native-shell';
 
-function reportFailure(error: unknown) {
+export function reportFailure(error: unknown) {
   console.error('[documents]', error);
   const reason = error instanceof Error ? error.message : String(error);
   void errorDialog(i18next.t('library.errors.failed', { reason }));
@@ -35,7 +37,8 @@ function reportFailure(error: unknown) {
  * the new file, so every part of the editor starts afresh.
  */
 export class MobileDocuments implements LibraryHost {
-  private readonly library = new Library(this);
+  /** The page's own library; the native shell shows a native one instead. */
+  private readonly library = isNativeShell() ? null : new Library(this);
 
   constructor(private readonly files: FileController) {}
 
@@ -57,8 +60,9 @@ export class MobileDocuments implements LibraryHost {
     if (path) {
       await noteDocumentOpened(path).catch(console.error);
     } else {
-      await this.library.show();
+      await this.library?.show();
     }
+    if (!this.library) announceReady(path);
     void onOpenDocumentRequest((path) => {
       this.open(path).catch(reportFailure);
     });
@@ -79,7 +83,7 @@ export class MobileDocuments implements LibraryHost {
       }
     );
     await this.files.recheckFile();
-    if (inbox && this.library.isOpen()) await this.library.refresh();
+    if (inbox && this.library?.isOpen()) await this.library.refresh();
   }
 
   currentPath() {
@@ -87,28 +91,41 @@ export class MobileDocuments implements LibraryHost {
   }
 
   async showLibrary() {
-    await this.library.show();
+    await this.library?.show();
     await setCurrentDocument(null).catch(console.error);
   }
 
   close() {
     const path = this.currentPath();
     if (!path) return;
-    this.library.hide();
+    this.library?.hide();
     void setCurrentDocument(path).catch(console.error);
   }
 
   async open(path: string) {
+    await this.switchTo(path);
+  }
+
+  /** True once the page reloads with the document; false when it stays as it is. */
+  async switchTo(path: string) {
     if (path === this.currentPath()) {
       this.close();
-      return;
+      return false;
     }
-    if (!(await this.files.leaveDocument())) return;
+    if (!(await this.files.leaveDocument())) return false;
     await downloadDocument(path);
     const bound = await registerWindowDocument(path);
     await noteDocumentOpened(bound);
-    await coverPage().catch(console.error);
+    if (this.library) await coverPage().catch(console.error);
     window.location.reload();
+    return true;
+  }
+
+  /** The native editor page went: the document is saved and closed, and launch opens the library. */
+  async leaveForLibrary() {
+    if (!(await this.files.leaveDocument())) return;
+    this.files.closeDocument();
+    await setCurrentDocument(null);
   }
 
   async createIn(folder: string) {
@@ -166,7 +183,7 @@ export class MobileDocuments implements LibraryHost {
 
   async renameCurrent() {
     const path = this.currentPath();
-    if (path) await this.library.promptRename(path);
+    if (path) await this.library?.promptRename(path);
   }
 
   async share(anchor: DOMRect | null) {

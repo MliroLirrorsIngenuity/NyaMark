@@ -4556,6 +4556,8 @@ name = "tauri-plugin-documents"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "objc2",
+ "objc2-ui-kit",
  "serde",
  "tauri",
  "tauri-plugin",

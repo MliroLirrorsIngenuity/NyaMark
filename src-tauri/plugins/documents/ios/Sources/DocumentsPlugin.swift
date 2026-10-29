@@ -62,7 +62,7 @@ private struct PathResult: Encodable {
 private struct Contents: Encodable { let data: String }
 
 /// Keeps a document picker's delegate alive until the picker is done.
-private final class PickerDelegate: NSObject, UIDocumentPickerDelegate {
+final class PickerDelegate: NSObject, UIDocumentPickerDelegate {
   private let completion: (URL?) -> Void
 
   init(completion: @escaping (URL?) -> Void) {
@@ -93,6 +93,11 @@ class DocumentsPlugin: Plugin {
     webview.scrollView.isScrollEnabled = false
     webview.scrollView.bounces = false
     webview.allowsLinkPreview = false
+    let device = deviceName
+    DispatchQueue.main.async {
+      NativeShell.install(
+        webView: webview, queue: self.queue, library: self.library, deviceName: device)
+    }
   }
 
   // MARK: Covering a reload

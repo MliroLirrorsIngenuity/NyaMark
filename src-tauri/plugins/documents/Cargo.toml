@@ -17,3 +17,5 @@ tauri-plugin = { version = "2", features = ["build"] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 tauri = { version = "2", default-features = false, features = ["wry"] }
+objc2 = "0.6"
+objc2-ui-kit = { version = "0.3", default-features = false, features = ["std", "UIResponder", "UIView"] }

@@ -54,3 +54,12 @@ export function usesCommandKey() {
 export function isMacOS() {
   return getPlatform() === 'macos';
 }
+
+/** iOS with native screens around the page, which then draws only the document. */
+export function isNativeShell() {
+  return (
+    getPlatform() === 'ios' &&
+    (window as Window & { __NYAMARK_NATIVE_SHELL__?: boolean })
+      .__NYAMARK_NATIVE_SHELL__ === true
+  );
+}

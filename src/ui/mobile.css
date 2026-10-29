@@ -372,6 +372,13 @@
     font-size: 16px !important;
   }
 
+  /* Around the native shell the page draws the document alone. */
+  :root.ny-native-shell
+    :is(#ny-titlebar, .ny-mobile-nav, #mb-keyboard, #ny-source-bar),
+  :root.ny-native-shell #ny-app .milkdown .milkdown-top-bar {
+    display: none !important;
+  }
+
   /* In source mode this bar stands where the format bar does. */
   .ny-document-editing.ny-source-mode .ny-source-bar {
     display: flex;

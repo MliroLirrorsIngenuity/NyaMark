@@ -143,6 +143,7 @@ import {
   followTheme,
   showMermaidPictures,
 } from './plugins/mermaid';
+import { mobileBarItems } from './plugins/mobile-top-bar';
 import { pasteIntoCell } from './plugins/paste-cell';
 import { pasteCodeAsCode } from './plugins/paste-code';
 import { pasteCodeEdges } from './plugins/paste-code-edges';
@@ -474,6 +475,22 @@ export class NyaEditor {
 
   followTheme(all = false): Promise<void> {
     return followTheme(this.root, this.getView(), all);
+  }
+
+  /** Runs the phone format bar's item `key`, as a tap on it would. */
+  runBarItem(key: string) {
+    const ctx = this.crepe?.editor.ctx;
+    const item = mobileBarItems.get(key);
+    if (ctx && item?.onRun) item.onRun(ctx);
+  }
+
+  /** The keys of the phone format bar's items that apply at the caret. */
+  activeBarItems(): string[] {
+    const ctx = this.crepe?.editor.ctx;
+    if (!ctx) return [];
+    return [...mobileBarItems].flatMap(([key, item]) =>
+      item.active(ctx) ? [key] : []
+    );
   }
 
   getView(): ProseMirrorEditorView | null {

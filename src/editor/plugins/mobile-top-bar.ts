@@ -144,6 +144,9 @@ const caretItem = (icon: string, dir: -1 | 1): Item => ({
   },
 });
 
+/** The bar's items as last laid out, by key; the native bar above the keyboard runs them. */
+export const mobileBarItems = new Map<string, Item>();
+
 /** Lays the bar out for a phone, keeping the items Crepe and NyaMark built. */
 export function intoMobileBar(builder: Builder) {
   const built = new Map(
@@ -162,11 +165,14 @@ export function intoMobileBar(builder: Builder) {
     'caret-right': caretItem(namedIcon('right'), 1),
   };
   builder.clear();
+  mobileBarItems.clear();
   for (const [key, keys] of LAYOUT) {
     const group = builder.addGroup(key, key);
     for (const itemKey of keys) {
       const item = added[itemKey] ?? built.get(itemKey);
-      if (item) group.addItem(itemKey, item);
+      if (!item) continue;
+      group.addItem(itemKey, item);
+      mobileBarItems.set(itemKey, item);
     }
   }
 }
