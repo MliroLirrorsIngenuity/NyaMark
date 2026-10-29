@@ -183,6 +183,85 @@ export function mcpErrorText(failure: McpStartFailure): string {
   }
 }
 
+/** Where a server stands: the text to show, and whether it is ready. */
+export function mcpStatusLine(
+  server: AiMcpServer,
+  status: McpStatus | undefined
+): { text: string; tone: 'ok' | 'missing' | 'idle' } {
+  let key: string;
+  let tone: 'ok' | 'missing' | 'idle' = 'idle';
+  let count = 0;
+  if (!server.enabled) key = 'settings.ai.mcp.status.off';
+  else if (!isComplete(server)) {
+    key = 'settings.ai.mcp.status.incomplete';
+    tone = 'missing';
+  } else if (!status) key = 'settings.ai.mcp.status.pending';
+  else if (status.state === 'ready') {
+    key = 'settings.ai.mcp.status.ready';
+    tone = 'ok';
+    count = status.tools.length;
+  } else if (status.state === 'failed') {
+    key = 'settings.ai.mcp.status.failed';
+    tone = 'missing';
+  } else key = `settings.ai.mcp.status.${status.state}`;
+  return { text: i18next.t(key, { count }), tone };
+}
+
+/** The command a server runs, or the address it is reached at. */
+export function mcpServerMeta(server: AiMcpServer): string {
+  return server.transport === 'stdio'
+    ? [server.command, ...server.args].join(' ') || '—'
+    : server.url || '—';
+}
+
+/** A server with nothing filled in yet, named for how it is reached. */
+export function newMcpServer(transport: AiMcpServer['transport']): AiMcpServer {
+  return {
+    id: newMcpServerId(),
+    name: i18next.t(
+      transport === 'stdio'
+        ? 'settings.ai.mcp.localName'
+        : 'settings.ai.mcp.remoteName'
+    ),
+    enabled: true,
+    transport,
+    command: '',
+    args: [],
+    env: [],
+    cwd: '',
+    url: '',
+    headers: [],
+    useKey: false,
+    allowed: [],
+  };
+}
+
+/** The tools a server offers and those allowed earlier, with what each does. */
+export function offeredTools(
+  server: AiMcpServer,
+  status: McpStatus | undefined
+): Map<string, string> {
+  const offered = new Map<string, string>();
+  for (const tool of status?.state === 'ready' ? status.tools : []) {
+    offered.set(tool.name, tool.description ?? tool.title ?? '');
+  }
+  for (const name of server.allowed) {
+    if (!offered.has(name)) offered.set(name, '');
+  }
+  return offered;
+}
+
+/** Binds the server's key to its address; see `setAiSecret`. */
+export function bindMcpKey(server: AiMcpServer, key: string | null) {
+  return setAiSecret({
+    profile: mcpKeyProfile(server.id),
+    baseUrl: server.url,
+    auth: 'bearer',
+    key,
+    keepKey: key === null,
+  });
+}
+
 function textarea(rows: number) {
   const node = el('textarea', 'ny-settings__textarea');
   node.rows = rows;
@@ -234,43 +313,14 @@ export function renderMcpSection({
     hub.status(server.id);
 
   const showStatus = (server: AiMcpServer, node: HTMLElement) => {
-    const status = statusOf(server);
-    let key: string;
-    let tone: 'ok' | 'missing' | 'idle' = 'idle';
-    let count = 0;
-    if (!server.enabled) key = 'settings.ai.mcp.status.off';
-    else if (!isComplete(server)) {
-      key = 'settings.ai.mcp.status.incomplete';
-      tone = 'missing';
-    } else if (!status) key = 'settings.ai.mcp.status.pending';
-    else if (status.state === 'ready') {
-      key = 'settings.ai.mcp.status.ready';
-      tone = 'ok';
-      count = status.tools.length;
-    } else if (status.state === 'failed') {
-      key = 'settings.ai.mcp.status.failed';
-      tone = 'missing';
-    } else key = `settings.ai.mcp.status.${status.state}`;
+    const { text, tone } = mcpStatusLine(server, statusOf(server));
     node.className = `ny-ai-provider__status is-${tone}`;
-    node.textContent = i18next.t(key, { count });
+    node.textContent = text;
   };
-
-  const metaOf = (server: AiMcpServer) =>
-    server.transport === 'stdio'
-      ? [server.command, ...server.args].join(' ') || '—'
-      : server.url || '—';
 
   const bindKey = async (server: AiMcpServer, key: string | null) => {
     try {
-      const status = await track(
-        setAiSecret({
-          profile: mcpKeyProfile(server.id),
-          baseUrl: server.url,
-          auth: 'bearer',
-          key,
-          keepKey: key === null,
-        })
-      );
+      const status = await track(bindMcpKey(server, key));
       keys.set(server.id, status);
       keyNeeded.delete(server.id);
       if (key !== null) keyChanged.add(server.id);
@@ -285,24 +335,7 @@ export function renderMcpSection({
   };
 
   const add = (transport: AiMcpServer['transport']) => {
-    const server: AiMcpServer = {
-      id: newMcpServerId(),
-      name: i18next.t(
-        transport === 'stdio'
-          ? 'settings.ai.mcp.localName'
-          : 'settings.ai.mcp.remoteName'
-      ),
-      enabled: true,
-      transport,
-      command: '',
-      args: [],
-      env: [],
-      cwd: '',
-      url: '',
-      headers: [],
-      useKey: false,
-      allowed: [],
-    };
+    const server = newMcpServer(transport);
     state.mcpServers.push(server);
     editing = server.id;
     emit();
@@ -361,14 +394,7 @@ export function renderMcpSection({
     root.append(error, log, restartLine, tools);
 
     const drawTools = (status: McpStatus | undefined) => {
-      // The tools it offers now, and those allowed before that it may not.
-      const offered = new Map<string, string>();
-      for (const tool of status?.state === 'ready' ? status.tools : []) {
-        offered.set(tool.name, tool.description ?? tool.title ?? '');
-      }
-      for (const name of server.allowed) {
-        if (!offered.has(name)) offered.set(name, '');
-      }
+      const offered = offeredTools(server, status);
       const key = JSON.stringify([[...offered], server.allowed]);
       if (key === drawnTools) return;
       drawnTools = key;
@@ -435,7 +461,7 @@ export function renderMcpSection({
     const head = el('div', 'ny-ai-provider__head');
     const title = el('div', 'ny-ai-provider__title');
     const name = el('span', 'ny-ai-provider__name', server.name);
-    const meta = el('span', 'ny-ai-provider__meta', metaOf(server));
+    const meta = el('span', 'ny-ai-provider__meta', mcpServerMeta(server));
     title.append(name, meta);
     const status = el('span');
     const switchField = el(
@@ -473,7 +499,7 @@ export function renderMcpSection({
     const body = el('div', 'ny-ai-provider__body');
     card.append(body);
     const changed = () => {
-      meta.textContent = metaOf(server);
+      meta.textContent = mcpServerMeta(server);
       emit();
       showStatus(server, status);
     };

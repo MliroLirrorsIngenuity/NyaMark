@@ -385,7 +385,96 @@ export function parseTokens(text: string): number | null {
   return value >= 1024 && value <= 10_000_000 ? value : null;
 }
 
-type Row = { id: string; label: string; listed: ListedModel | null };
+export type ModelRow = {
+  id: string;
+  label: string;
+  listed: ListedModel | null;
+};
+
+/** The models not listed come first, then the list in its order. */
+export function modelRows(
+  provider: AiProvider,
+  listing: Listing | undefined,
+  kept: Set<string>
+): ModelRow[] {
+  const listed = listing?.kind === 'models' ? listing.models : [];
+  const ids = new Set(listed.map((entry) => entry.id));
+  for (const model of provider.models) {
+    if (!ids.has(model.id)) kept.add(model.id);
+  }
+  const own = [...kept]
+    .filter((id) => !ids.has(id))
+    .map((id): ModelRow => {
+      const model = provider.models.find((entry) => entry.id === id);
+      return { id, label: model ? modelLabel(model) : id, listed: null };
+    });
+  return [
+    ...own,
+    ...listed.map((entry) => ({
+      id: entry.id,
+      label: provider.auth === 'chatgpt' ? (entry.name ?? entry.id) : entry.id,
+      listed: entry,
+    })),
+  ];
+}
+
+/** Switches the model on, as the service lists it or as its ID guesses. */
+export function enableModel(
+  provider: AiProvider,
+  row: ModelRow,
+  local: boolean
+) {
+  if (provider.models.some((model) => model.id === row.id)) return;
+  provider.models.push(
+    row.listed
+      ? modelFromListing(row.listed, local)
+      : guessCapabilities(row.id, { local })
+  );
+}
+
+/** The rows whose ID or label holds the query. */
+export function matchModelRows(rows: ModelRow[], query: string): ModelRow[] {
+  const needle = query.trim().toLowerCase();
+  return needle
+    ? rows.filter((row) =>
+        `${row.id} ${row.label}`.toLowerCase().includes(needle)
+      )
+    : rows;
+}
+
+/** How many models are on, of those the service lists when it does. */
+export function modelsCount(
+  listing: Listing | undefined,
+  enabled: number,
+  total: number
+): string {
+  if (listing?.kind === 'models') {
+    return i18next.t('settings.ai.modelsEnabledOf', { count: enabled, total });
+  }
+  return enabled
+    ? i18next.t('settings.ai.modelsEnabled', { count: enabled })
+    : '';
+}
+
+/** The line under the list: what the service waits for, or what it answered. */
+export function modelsNote(
+  listing: Listing | undefined,
+  waiting: string | null
+): { text: string | null; failed: boolean } {
+  if (listing?.kind === 'failed') {
+    return {
+      text: i18next.t('settings.ai.failed', { message: listing.message }),
+      failed: true,
+    };
+  }
+  if (listing?.kind === 'answered') {
+    return {
+      text: i18next.t('settings.ai.unlisted', { model: listing.model }),
+      failed: false,
+    };
+  }
+  return { text: listing ? null : waiting, failed: false };
+}
 
 let switches = 0;
 
@@ -431,39 +520,10 @@ export function renderModelList(options: ModelListOptions): ModelList {
   ];
   let drawn = shows();
 
-  /** The models not listed come first, then the list in its order. */
-  const rows = (): Row[] => {
-    const listing = options.listing();
-    const listed = listing?.kind === 'models' ? listing.models : [];
-    const ids = new Set(listed.map((entry) => entry.id));
-    for (const model of provider.models) {
-      if (!ids.has(model.id)) options.kept.add(model.id);
-    }
-    const own = [...options.kept]
-      .filter((id) => !ids.has(id))
-      .map((id): Row => {
-        const model = enabled(id);
-        return { id, label: model ? modelLabel(model) : id, listed: null };
-      });
-    return [
-      ...own,
-      ...listed.map((entry) => ({
-        id: entry.id,
-        label:
-          provider.auth === 'chatgpt' ? (entry.name ?? entry.id) : entry.id,
-        listed: entry,
-      })),
-    ];
-  };
+  const rows = (): ModelRow[] =>
+    modelRows(provider, options.listing(), options.kept);
 
-  const enable = (row: Row) => {
-    if (enabled(row.id)) return;
-    provider.models.push(
-      row.listed
-        ? modelFromListing(row.listed, local)
-        : guessCapabilities(row.id, { local })
-    );
-  };
+  const enable = (row: ModelRow) => enableModel(provider, row, local);
 
   const details = (model: AiModelInfo, label: string): HTMLElement[] => {
     const caps = el('span', 'ny-ai-model__caps');
@@ -508,7 +568,7 @@ export function renderModelList(options: ModelListOptions): ModelList {
     return [caps, context];
   };
 
-  const drawRow = (row: Row): HTMLElement => {
+  const drawRow = (row: ModelRow): HTMLElement => {
     const item = el('div', 'ny-ai-model');
     const name = el('label', 'ny-ai-model__name', row.label);
     name.title = row.label === row.id ? row.id : `${row.label} (${row.id})`;
@@ -573,12 +633,7 @@ export function renderModelList(options: ModelListOptions): ModelList {
   const drawList = () => {
     const all = rows();
     const query = field.value.trim();
-    const needle = query.toLowerCase();
-    const shown = needle
-      ? all.filter((row) =>
-          `${row.id} ${row.label}`.toLowerCase().includes(needle)
-        )
-      : all;
+    const shown = matchModelRows(all, query);
     const items = shown.map(drawRow);
     // A query nothing matches offers to add it instead.
     if (query && !all.some((row) => row.id === query)) {
@@ -596,17 +651,11 @@ export function renderModelList(options: ModelListOptions): ModelList {
   };
 
   const showCount = () => {
-    const listing = options.listing();
-    const enabledCount = provider.models.length;
-    count.textContent =
-      listing?.kind === 'models'
-        ? i18next.t('settings.ai.modelsEnabledOf', {
-            count: enabledCount,
-            total: rows().length,
-          })
-        : enabledCount
-          ? i18next.t('settings.ai.modelsEnabled', { count: enabledCount })
-          : '';
+    count.textContent = modelsCount(
+      options.listing(),
+      provider.models.length,
+      rows().length
+    );
   };
 
   const showNote = () => {
@@ -614,15 +663,10 @@ export function renderModelList(options: ModelListOptions): ModelList {
     const loading = listing?.kind === 'loading';
     reload.disabled = loading || options.waiting() !== null;
     reload.setAttribute('aria-busy', String(loading));
-    let text: string | null = listing ? null : options.waiting();
-    if (listing?.kind === 'failed') {
-      text = i18next.t('settings.ai.failed', { message: listing.message });
-    } else if (listing?.kind === 'answered') {
-      text = i18next.t('settings.ai.unlisted', { model: listing.model });
-    }
+    const { text, failed } = modelsNote(listing, options.waiting());
     note.hidden = text === null;
     note.className = `ny-settings__note${
-      listing?.kind === 'failed' ? ' ny-settings__note--error' : ''
+      failed ? ' ny-settings__note--error' : ''
     }`;
     note.textContent = text ?? '';
   };

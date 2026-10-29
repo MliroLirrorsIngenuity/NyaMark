@@ -194,16 +194,19 @@ export type ChatGptAccount = {
   refresh: () => void;
 };
 
-export function renderChatGptAccount({
+export type ChatGptActionsOptions = Pick<
+  ChatGptAccountOptions,
+  'provider' | 'activity' | 'changed' | 'redraw' | 'proxy'
+>;
+
+/** Signs the service in and out, keeping what it is doing in `activity`. */
+export function chatGptActions({
   provider,
   activity,
-  status,
   changed,
   redraw,
   proxy,
-}: ChatGptAccountOptions): ChatGptAccount {
-  const element = el('div', 'ny-chatgpt');
-
+}: ChatGptActionsOptions) {
   const signIn = async (fresh: boolean) => {
     activity.busy = 'sign-in';
     activity.message = null;
@@ -251,6 +254,26 @@ export function renderChatGptAccount({
       redraw();
     }
   };
+
+  return { signIn, signOut };
+}
+
+export function renderChatGptAccount({
+  provider,
+  activity,
+  status,
+  changed,
+  redraw,
+  proxy,
+}: ChatGptAccountOptions): ChatGptAccount {
+  const element = el('div', 'ny-chatgpt');
+  const { signIn, signOut } = chatGptActions({
+    provider,
+    activity,
+    changed,
+    redraw,
+    proxy,
+  });
 
   const draw = () => {
     const busy = activity.busy !== null;

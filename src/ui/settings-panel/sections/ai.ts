@@ -284,24 +284,33 @@ export type AiSection = {
   addService: (id: string) => void;
 };
 
-/** The models the dropdowns offer, with the reference each value picks. */
-function modelChoices(providers: AiProvider[]) {
-  const refs = new Map<string, AiModelRef>();
-  const options: SelectOption[] = [];
+/** The models the dropdowns offer, with the value that picks each. */
+export function modelEntries(providers: AiProvider[]) {
+  const entries: { value: string; ref: AiModelRef; label: string }[] = [];
   for (const provider of providers) {
     for (const model of provider.models) {
-      const value = `m${refs.size}`;
-      refs.set(value, { provider: provider.id, model: model.id });
-      options.push({
-        value,
-        label: escapeHtml(`${provider.name} · ${modelLabel(model)}`),
+      entries.push({
+        value: `m${entries.length}`,
+        ref: { provider: provider.id, model: model.id },
+        label: `${provider.name} · ${modelLabel(model)}`,
       });
     }
   }
+  return entries;
+}
+
+/** The models the dropdowns offer, with the reference each value picks. */
+function modelChoices(providers: AiProvider[]) {
+  const entries = modelEntries(providers);
+  const refs = new Map(entries.map((entry) => [entry.value, entry.ref]));
+  const options: SelectOption[] = entries.map((entry) => ({
+    value: entry.value,
+    label: escapeHtml(entry.label),
+  }));
   return { refs, options };
 }
 
-function choiceFor(
+export function choiceFor(
   refs: Map<string, AiModelRef>,
   ref: AiModelRef | null
 ): string | null {
@@ -312,6 +321,175 @@ function choiceFor(
     }
   }
   return null;
+}
+
+/** What the tab knows of a service's key or account. */
+export type ProviderKnown = {
+  saved: AiSecretStatus | undefined;
+  account: ChatGptStatus | undefined;
+  /** Moved to another address, so the key must be typed again. */
+  keyNeeded: boolean;
+};
+
+/** How a service stands: the text to show, and whether it is ready. */
+export function providerStatus(
+  provider: AiProvider,
+  { saved, account, keyNeeded }: ProviderKnown
+): { key: string; tone: 'ok' | 'missing' } {
+  const local = presetById(provider.preset)?.local ?? false;
+  if (provider.auth === 'chatgpt') {
+    return account?.signedIn
+      ? { key: 'settings.ai.status.signedIn', tone: 'ok' }
+      : { key: 'settings.ai.status.signedOut', tone: 'missing' };
+  }
+  if (keyNeeded)
+    return { key: 'settings.ai.status.keyNeeded', tone: 'missing' };
+  if (saved?.hasKey) return { key: 'settings.ai.status.saved', tone: 'ok' };
+  if (saved?.saved && local) {
+    return { key: 'settings.ai.status.local', tone: 'ok' };
+  }
+  if (saved?.saved) return { key: 'settings.ai.status.noKey', tone: 'missing' };
+  return { key: 'settings.ai.status.notConnected', tone: 'missing' };
+}
+
+/** What a service needs before its models can be fetched, or null. */
+export function providerWaitingFor(
+  provider: AiProvider,
+  { saved, account, keyNeeded }: ProviderKnown
+): string | null {
+  if (provider.auth === 'chatgpt') {
+    return account?.signedIn ? null : i18next.t('settings.ai.waitSignIn');
+  }
+  if (!isWebUrl(provider.baseUrl)) return i18next.t('settings.ai.waitUrl');
+  if (keyNeeded) return i18next.t('settings.ai.waitKey');
+  if (saved?.hasKey) return null;
+  // A local service answers without a key once its address is saved.
+  if (!(presetById(provider.preset)?.local ?? false)) {
+    return i18next.t('settings.ai.waitKey');
+  }
+  return saved?.saved ? null : i18next.t('settings.ai.waitUrl');
+}
+
+/** The models the service offers to chat with, in the order to show. */
+export function chatModels(provider: AiProvider, models: ListedModel[]) {
+  // ChatGPT lists what the account may use, in its own order.
+  return provider.auth === 'chatgpt'
+    ? models
+    : models
+        .filter((entry) => isChatModel(entry.id))
+        .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Asks the service for its models. */
+export async function fetchListing(
+  provider: AiProvider,
+  proxy: () => ProxySetting,
+  signal: AbortSignal
+): Promise<Listing> {
+  try {
+    const outcome = await checkProvider(
+      provider,
+      providerFetch(provider, proxy),
+      signal
+    );
+    return outcome.kind === 'models'
+      ? { kind: 'models', models: chatModels(provider, outcome.models) }
+      : outcome;
+  } catch (error) {
+    return { kind: 'failed', message: failureText(error) };
+  }
+}
+
+/**
+ * Takes what the service listed into its models: `added` when a new ChatGPT
+ * sign-in started with all of them, `followed` when the levels of thought
+ * of those already on changed.
+ */
+export function adoptListing(
+  provider: AiProvider,
+  listing: Listing
+): 'added' | 'followed' | null {
+  if (listing.kind !== 'models') return null;
+  // ChatGPT lists what the plan includes: a new sign-in starts with all of it.
+  if (provider.auth === 'chatgpt' && !provider.models.length) {
+    provider.models = listing.models.map((entry) =>
+      modelFromListing(entry, false)
+    );
+    return 'added';
+  }
+  let followed = false;
+  for (const model of provider.models) {
+    const listed = listing.models.find((entry) => entry.id === model.id);
+    if (listed && followListing(model, listed)) followed = true;
+  }
+  return followed ? 'followed' : null;
+}
+
+/** Binds the service's key to its address and API; see `setAiSecret`. */
+export function bindSecret(provider: AiProvider, key: string | null) {
+  return setAiSecret({
+    profile: provider.id,
+    baseUrl: provider.baseUrl,
+    auth: authSchemeOf(provider),
+    key,
+    keepKey: key === null,
+  });
+}
+
+/** The service a preset sets up, with no models yet. */
+export function providerFromPreset(preset: AiPreset): AiProvider {
+  return {
+    id: newAiProfileId(),
+    name:
+      preset.id === 'custom' ? i18next.t('settings.ai.custom') : preset.name,
+    preset: preset.id,
+    kind: preset.kind,
+    auth: preset.auth ?? 'key',
+    baseUrl: preset.baseUrl,
+    models: [],
+  };
+}
+
+/** Drops the models no service offers; the assistant starts on the first one. */
+export function keepModelsInUse(state: AiSettings) {
+  // A model taken away can no longer be the one used.
+  const has = (ref: AiModelRef | null) =>
+    ref !== null &&
+    state.providers.some(
+      (provider) =>
+        provider.id === ref.provider &&
+        provider.models.some((model) => model.id === ref.model)
+    );
+  if (!has(state.chatModel)) state.chatModel = null;
+  if (!has(state.quickModel)) state.quickModel = null;
+  if (!has(state.completeModel)) state.completeModel = null;
+  // The first model added is the one the assistant starts with.
+  if (!state.chatModel) {
+    const provider = state.providers.find((entry) => entry.models.length);
+    const model = provider?.models[0];
+    if (provider && model) {
+      state.chatModel = { provider: provider.id, model: model.id };
+    }
+  }
+}
+
+/** The proxy a mode and an address make; manual with no address is the system's. */
+export function proxyOf(mode: ProxySetting['mode'], url: string): ProxySetting {
+  if (mode !== 'manual') return { mode };
+  return url ? { mode: 'manual', url } : { mode: 'system' };
+}
+
+/** The search an engine and an address make; SearXNG with no address is auto. */
+export function searchOf(
+  search: AiSettings['search'],
+  engine: AiSearchEngine,
+  searxngUrl: string
+): AiSettings['search'] {
+  return {
+    ...search,
+    searxngUrl,
+    engine: engine === 'searxng' && !searxngUrl ? 'auto' : engine,
+  };
 }
 
 /**
@@ -540,58 +718,23 @@ export function renderAiSection(
   };
 
   const providersChanged = () => {
-    // A model taken away can no longer be the one used.
-    const has = (ref: AiModelRef | null) =>
-      ref !== null &&
-      state.providers.some(
-        (provider) =>
-          provider.id === ref.provider &&
-          provider.models.some((model) => model.id === ref.model)
-      );
-    if (!has(state.chatModel)) state.chatModel = null;
-    if (!has(state.quickModel)) state.quickModel = null;
-    if (!has(state.completeModel)) state.completeModel = null;
-    // The first model added is the one the assistant starts with.
-    if (!state.chatModel) {
-      const provider = state.providers.find((entry) => entry.models.length);
-      const model = provider?.models[0];
-      if (provider && model) {
-        state.chatModel = { provider: provider.id, model: model.id };
-      }
-    }
+    keepModelsInUse(state);
     emit();
     renderDefaults();
   };
 
+  const known = (provider: AiProvider): ProviderKnown => ({
+    saved: statuses.get(provider.id),
+    account: accounts.get(provider.id),
+    keyNeeded: keyNeeded.has(provider.id),
+  });
+
   const showStatus = (provider: AiProvider, status: HTMLElement) => {
-    const saved = statuses.get(provider.id);
-    const account = accounts.get(provider.id);
-    const local = presetById(provider.preset)?.local ?? false;
-    let key: string;
-    let tone: 'ok' | 'missing';
-    if (provider.auth === 'chatgpt') {
-      key = account?.signedIn
-        ? 'settings.ai.status.signedIn'
-        : 'settings.ai.status.signedOut';
-      tone = account?.signedIn ? 'ok' : 'missing';
-    } else if (keyNeeded.has(provider.id)) {
-      key = 'settings.ai.status.keyNeeded';
-      tone = 'missing';
-    } else if (saved?.hasKey) {
-      key = 'settings.ai.status.saved';
-      tone = 'ok';
-    } else if (saved?.saved && local) {
-      key = 'settings.ai.status.local';
-      tone = 'ok';
-    } else if (saved?.saved) {
-      key = 'settings.ai.status.noKey';
-      tone = 'missing';
-    } else {
-      key = 'settings.ai.status.notConnected';
-      tone = 'missing';
-    }
+    const { key, tone } = providerStatus(provider, known(provider));
     status.className = `ny-ai-provider__status is-${tone}`;
-    status.textContent = i18next.t(key, { hint: saved?.hint ?? '' });
+    status.textContent = i18next.t(key, {
+      hint: statuses.get(provider.id)?.hint ?? '',
+    });
   };
 
   /**
@@ -601,15 +744,7 @@ export function renderAiSection(
   const bind = async (provider: AiProvider, key: string | null) => {
     binding.add(provider.id);
     try {
-      const status = await track(
-        setAiSecret({
-          profile: provider.id,
-          baseUrl: provider.baseUrl,
-          auth: authSchemeOf(provider),
-          key,
-          keepKey: key === null,
-        })
-      );
+      const status = await track(bindSecret(provider, key));
       statuses.set(provider.id, status);
       keyNeeded.delete(provider.id);
       noteStorage(status);
@@ -631,32 +766,8 @@ export function renderAiSection(
     listings.delete(id);
   };
 
-  /** What a service needs before its models can be fetched, or null. */
-  const waitingFor = (provider: AiProvider): string | null => {
-    if (provider.auth === 'chatgpt') {
-      return accounts.get(provider.id)?.signedIn
-        ? null
-        : i18next.t('settings.ai.waitSignIn');
-    }
-    if (!isWebUrl(provider.baseUrl)) return i18next.t('settings.ai.waitUrl');
-    const saved = statuses.get(provider.id);
-    if (keyNeeded.has(provider.id)) return i18next.t('settings.ai.waitKey');
-    if (saved?.hasKey) return null;
-    // A local service answers without a key once its address is saved.
-    if (!(presetById(provider.preset)?.local ?? false)) {
-      return i18next.t('settings.ai.waitKey');
-    }
-    return saved?.saved ? null : i18next.t('settings.ai.waitUrl');
-  };
-
-  /** The models the service offers to chat with, in the order to show. */
-  const chatModels = (provider: AiProvider, models: ListedModel[]) =>
-    // ChatGPT lists what the account may use, in its own order.
-    provider.auth === 'chatgpt'
-      ? models
-      : models
-          .filter((entry) => isChatModel(entry.id))
-          .sort((a, b) => a.id.localeCompare(b.id));
+  const waitingFor = (provider: AiProvider): string | null =>
+    providerWaitingFor(provider, known(provider));
 
   const loadModels = async (provider: AiProvider) => {
     forget(provider.id);
@@ -672,41 +783,17 @@ export function renderAiSection(
     loads.set(provider.id, controller);
     listings.set(provider.id, { kind: 'loading' });
     refresh(provider.id);
-    let listing: Listing;
-    try {
-      const outcome = await checkProvider(
-        provider,
-        providerFetch(provider, options.proxy),
-        controller.signal
-      );
-      listing =
-        outcome.kind === 'models'
-          ? { kind: 'models', models: chatModels(provider, outcome.models) }
-          : outcome;
-    } catch (error) {
-      listing = { kind: 'failed', message: failureText(error) };
-    }
+    const listing = await fetchListing(
+      provider,
+      options.proxy,
+      controller.signal
+    );
     if (controller.signal.aborted) return;
     loads.delete(provider.id);
     listings.set(provider.id, listing);
-    // ChatGPT lists what the plan includes: a new sign-in starts with all of it.
-    if (
-      listing.kind === 'models' &&
-      provider.auth === 'chatgpt' &&
-      !provider.models.length
-    ) {
-      provider.models = listing.models.map((entry) =>
-        modelFromListing(entry, false)
-      );
-      providersChanged();
-    } else if (listing.kind === 'models') {
-      let followed = false;
-      for (const model of provider.models) {
-        const listed = listing.models.find((entry) => entry.id === model.id);
-        if (listed && followListing(model, listed)) followed = true;
-      }
-      if (followed) emit();
-    }
+    const adopted = adoptListing(provider, listing);
+    if (adopted === 'added') providersChanged();
+    else if (adopted === 'followed') emit();
     refresh(provider.id);
   };
 
@@ -746,16 +833,7 @@ export function renderAiSection(
   };
 
   const addProvider = (preset: AiPreset) => {
-    const provider: AiProvider = {
-      id: newAiProfileId(),
-      name:
-        preset.id === 'custom' ? i18next.t('settings.ai.custom') : preset.name,
-      preset: preset.id,
-      kind: preset.kind,
-      auth: preset.auth ?? 'key',
-      baseUrl: preset.baseUrl,
-      models: [],
-    };
+    const provider = providerFromPreset(preset);
     state.providers.push(provider);
     editing = provider.id;
     providersChanged();
@@ -1125,14 +1203,7 @@ export function renderAiSection(
   }
   const setProxy = () => {
     if (proxyRow) proxyRow.hidden = proxyMode !== 'manual';
-    const url = proxyInput?.value.trim() ?? '';
-    // Manual with no address yet keeps to the system's until one is typed.
-    state.proxy =
-      proxyMode === 'manual'
-        ? url
-          ? { mode: 'manual', url }
-          : { mode: 'system' }
-        : { mode: proxyMode };
+    state.proxy = proxyOf(proxyMode, proxyInput?.value.trim() ?? '');
   };
   setProxy();
   if (proxyHost) {
@@ -1171,13 +1242,11 @@ export function renderAiSection(
   if (searxngInput) searxngInput.value = state.search.searxngUrl;
   const setSearch = () => {
     if (searxngRow) searxngRow.hidden = engine !== 'searxng';
-    const searxngUrl = searxngInput?.value.trim() ?? '';
-    // SearXNG with no address yet searches as auto until one is typed.
-    state.search = {
-      ...state.search,
-      searxngUrl,
-      engine: engine === 'searxng' && !searxngUrl ? 'auto' : engine,
-    };
+    state.search = searchOf(
+      state.search,
+      engine,
+      searxngInput?.value.trim() ?? ''
+    );
   };
   setSearch();
   if (engineHost) {

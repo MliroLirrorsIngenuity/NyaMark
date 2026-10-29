@@ -17,6 +17,12 @@ export type HistorySectionOptions = {
   emit: () => void;
 };
 
+/** Deletes every conversation kept. */
+export async function deleteAllConversations() {
+  const { conversationStore } = await import('../../../ai/history/store');
+  await conversationStore().clear();
+}
+
 export function renderHistorySection({
   state,
   emit,
@@ -66,8 +72,7 @@ export function renderHistorySection({
     if (!confirmed) return;
     clear.disabled = true;
     try {
-      const { conversationStore } = await import('../../../ai/history/store');
-      await conversationStore().clear();
+      await deleteAllConversations();
       if (status) status.textContent = i18next.t('settings.ai.history.cleared');
     } catch (error) {
       console.error('Failed to delete the conversations:', error);

@@ -38,7 +38,7 @@ export type QuickSectionOptions = {
 const translate = (key: string) => i18next.t(key);
 
 /** The first line of what the command asks, for its card's second line. */
-function preview(action: AiQuickAction): string {
+export function quickPreview(action: AiQuickAction): string {
   const prompt = quickActionPrompt(action, i18next.language);
   return prompt.split('\n', 1)[0] || '—';
 }
@@ -114,7 +114,7 @@ export function renderQuickSection({
       quickActionName(action, translate, i18next.language) ||
         i18next.t('settings.ai.quick.untitled')
     );
-    const meta = el('span', 'ny-ai-provider__meta', preview(action));
+    const meta = el('span', 'ny-ai-provider__meta', quickPreview(action));
     title.append(name, meta);
 
     const up = el('button', 'ny-settings__button ny-ai-quick-row__move', '↑');
@@ -157,7 +157,7 @@ export function renderQuickSection({
       name.textContent =
         quickActionName(action, translate, i18next.language) ||
         i18next.t('settings.ai.quick.untitled');
-      meta.textContent = preview(action);
+      meta.textContent = quickPreview(action);
       emit();
     };
 
