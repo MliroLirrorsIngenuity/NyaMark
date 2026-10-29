@@ -29,6 +29,8 @@ final class Theme: ObservableObject {
     "line": UIColor(rgb: 0x17212b, alpha: 0.11),
     "accent-line": UIColor(rgb: 0x4d7a8f, alpha: 0.3),
     "warning": UIColor(rgb: 0xd97706),
+    "del-ink": UIColor(rgb: 0xa23b33),
+    "ok": UIColor(rgb: 0x2f7d62),
   ]
 
   private static let night: [String: UIColor] = [
@@ -48,6 +50,8 @@ final class Theme: ObservableObject {
     "line": UIColor(rgb: 0xedf3f8, alpha: 0.11),
     "accent-line": UIColor(rgb: 0x8db4c8, alpha: 0.3),
     "warning": UIColor(rgb: 0xf3ba67),
+    "del-ink": UIColor(rgb: 0xeba29a),
+    "ok": UIColor(rgb: 0x7cc6a6),
   ]
 
   private init() {

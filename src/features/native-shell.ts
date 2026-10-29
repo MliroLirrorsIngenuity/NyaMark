@@ -101,6 +101,8 @@ const THEME_COLORS = [
   'line',
   'accent-line',
   'warning',
+  'del-ink',
+  'ok',
 ];
 
 /**
