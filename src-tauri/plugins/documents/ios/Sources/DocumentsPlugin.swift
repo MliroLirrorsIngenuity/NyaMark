@@ -61,22 +61,6 @@ private struct PathResult: Encodable {
 
 private struct Contents: Encodable { let data: String }
 
-/// Keeps a document picker's delegate alive until the picker is done.
-final class PickerDelegate: NSObject, UIDocumentPickerDelegate {
-  private let completion: (URL?) -> Void
-
-  init(completion: @escaping (URL?) -> Void) {
-    self.completion = completion
-  }
-
-  func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-    completion(urls.first)
-  }
-
-  func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-    completion(nil)
-  }
-}
 
 class DocumentsPlugin: Plugin {
   private let queue = DispatchQueue(label: "best.lolicon.nyamark.documents", qos: .userInitiated)

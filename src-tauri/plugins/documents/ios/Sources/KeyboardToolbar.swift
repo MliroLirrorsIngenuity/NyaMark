@@ -32,7 +32,8 @@ final class KeyboardToolbar: UIView {
   private static let barHeight: CGFloat = 56
   private static let gap: CGFloat = 8
 
-  private let pill = UIView()
+  private let pill = GlassView(radius: Theme.radius)
+  private let hideGlass = GlassView(radius: nil, interactive: true)
   private let scroll = UIScrollView()
   private let stack = UIStackView()
   private let hide = UIButton(type: .custom)
@@ -92,10 +93,6 @@ final class KeyboardToolbar: UIView {
     autoresizingMask = .flexibleWidth
     backgroundColor = .clear
 
-    pill.layer.cornerRadius = Theme.radius
-    pill.layer.cornerCurve = .continuous
-    pill.layer.borderWidth = 1
-    pill.layer.applyBarShadow()
     pill.translatesAutoresizingMaskIntoConstraints = false
 
     scroll.showsHorizontalScrollIndicator = false
@@ -108,7 +105,7 @@ final class KeyboardToolbar: UIView {
     stack.spacing = 2
     stack.translatesAutoresizingMaskIntoConstraints = false
     scroll.addSubview(stack)
-    pill.addSubview(scroll)
+    pill.contentView.addSubview(scroll)
 
     hide.setImage(
       UIImage(
@@ -116,9 +113,6 @@ final class KeyboardToolbar: UIView {
         withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)),
       for: .normal)
     hide.accessibilityLabel = L10n.text("hideKeyboard")
-    hide.layer.cornerRadius = 22
-    hide.layer.borderWidth = 1
-    hide.layer.applyBarShadow()
     hide.addAction(
       UIAction { [weak self] _ in
         self?.haptics.impactOccurred()
@@ -126,17 +120,24 @@ final class KeyboardToolbar: UIView {
       }, for: .touchUpInside)
     hide.translatesAutoresizingMaskIntoConstraints = false
 
+    hideGlass.translatesAutoresizingMaskIntoConstraints = false
+    hideGlass.contentView.addSubview(hide)
     addSubview(pill)
-    addSubview(hide)
+    addSubview(hideGlass)
     NSLayoutConstraint.activate([
       pill.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 16),
       pill.topAnchor.constraint(equalTo: topAnchor),
       pill.heightAnchor.constraint(equalToConstant: Self.barHeight),
-      pill.trailingAnchor.constraint(equalTo: hide.leadingAnchor, constant: -12),
-      hide.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -16),
-      hide.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
-      hide.widthAnchor.constraint(equalToConstant: 44),
-      hide.heightAnchor.constraint(equalToConstant: 44),
+      pill.trailingAnchor.constraint(equalTo: hideGlass.leadingAnchor, constant: -12),
+      hideGlass.trailingAnchor.constraint(
+        equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -16),
+      hideGlass.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+      hideGlass.widthAnchor.constraint(equalToConstant: 44),
+      hideGlass.heightAnchor.constraint(equalToConstant: 44),
+      hide.leadingAnchor.constraint(equalTo: hideGlass.contentView.leadingAnchor),
+      hide.trailingAnchor.constraint(equalTo: hideGlass.contentView.trailingAnchor),
+      hide.topAnchor.constraint(equalTo: hideGlass.contentView.topAnchor),
+      hide.bottomAnchor.constraint(equalTo: hideGlass.contentView.bottomAnchor),
       scroll.leadingAnchor.constraint(equalTo: pill.leadingAnchor),
       scroll.trailingAnchor.constraint(equalTo: pill.trailingAnchor),
       scroll.topAnchor.constraint(equalTo: pill.topAnchor),
@@ -177,10 +178,6 @@ final class KeyboardToolbar: UIView {
 
   private func paint() {
     let theme = Theme.shared
-    pill.backgroundColor = theme.ui("statusbar-bg")
-    pill.layer.borderColor = theme.ui("border-soft").cgColor
-    hide.backgroundColor = theme.ui("statusbar-bg")
-    hide.layer.borderColor = theme.ui("border-soft").cgColor
     hide.tintColor = theme.ui("text-primary")
     dividers.forEach { $0.backgroundColor = theme.ui("border-soft") }
     buttons.values.forEach { $0.setNeedsUpdateConfiguration() }

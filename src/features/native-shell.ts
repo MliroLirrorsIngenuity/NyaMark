@@ -10,6 +10,7 @@ import { i18next } from '../i18n';
 import { store } from '../state/store';
 import { documentFileName } from '../ui/document-name';
 import type { MobileDocuments } from './mobile-documents';
+import { dispatchPanel } from './native/panels';
 
 const DOCUMENT_FOCUS =
   '#ny-editor-container .ProseMirror, #ny-editor-container .cm-content';
@@ -169,6 +170,9 @@ async function receive(host: NativeShellHost, message: NativeMessage) {
       return;
     case 'leave':
       await host.documents.leaveForLibrary();
+      return;
+    case 'panel':
+      await dispatchPanel(message);
       return;
   }
 }

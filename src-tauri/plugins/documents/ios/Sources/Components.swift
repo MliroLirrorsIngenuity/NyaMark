@@ -26,23 +26,17 @@ struct CircleButton: View {
   }
 }
 
-/// The bordered, softly filled look of NyaMark's controls, tinted while pressed.
+/// NyaMark's round controls as glass, tinted with the accent while pressed.
 struct ControlStyle: ButtonStyle {
   enum Shape { case circle }
   @ObservedObject private var theme = Theme.shared
   let shape: Shape
 
   func makeBody(configuration: Configuration) -> some View {
-    let fill = configuration.isPressed ? theme.color("accent-soft") : theme.color("fill-soft")
     let ink = configuration.isPressed ? theme.color("accent-ink") : theme.color("text-primary")
     return configuration.label
       .foregroundStyle(ink)
-      .background(
-        Group {
-          Circle().fill(fill).overlay(Circle().stroke(theme.color("border-button"), lineWidth: 1))
-        }
-      )
-      .shadow(color: .black.opacity(0.04), radius: 1, x: 0, y: 1)
+      .glass(Circle(), interactive: true, lit: configuration.isPressed)
       .scaleEffect(configuration.isPressed ? 0.95 : 1)
       .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
   }
@@ -190,9 +184,7 @@ struct ActionSheet: View {
           }
         }
         .padding(8)
-        .background(
-          RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-            .fill(theme.color("dock-bg")))
+        .glassCard()
         .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 8)
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
@@ -285,9 +277,7 @@ struct RenameDialog: View {
         }
         .foregroundStyle(theme.color("text-primary"))
         .padding(18)
-        .background(
-          RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-            .fill(theme.color("dock-bg")))
+        .glassCard()
         .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 8)
         .padding(.horizontal, 24)
         .transition(.scale(scale: 0.94).combined(with: .opacity))

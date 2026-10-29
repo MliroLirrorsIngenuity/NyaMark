@@ -90,9 +90,40 @@ const RENDER_DELAY_MS = 150;
 /** Room kept above and below the marked heading when the list follows it. */
 const REVEAL_MARGIN_PX = 28;
 /** Deeper headings share the indent of the fifth level. */
-const MAX_DEPTH = 4;
+export const MAX_DEPTH = 4;
 
-type Heading = { id: string; level: number; text: string };
+export type Heading = { id: string; level: number; text: string };
+
+/**
+ * The last heading above the reading line, or, above the first heading, the
+ * first heading on screen. The headings of a short last section never reach
+ * the line, so at the end of the page the last one on screen counts.
+ */
+export function headingBeingRead(
+  editor: NyaEditor,
+  headings: readonly Heading[]
+): string | null {
+  const els = headings
+    .map((heading) => editor.headingElement(heading.id))
+    .filter((el): el is HTMLElement => el != null);
+  const host = els[0] && scrollHostOf(els[0]);
+  if (!host) return null;
+  const box = host.getBoundingClientRect();
+  const atEnd =
+    host.scrollTop > 0 &&
+    host.scrollTop + host.clientHeight >= host.scrollHeight - 1;
+  const line = atEnd ? box.bottom : box.top + READING_LINE_PX;
+  let current: HTMLElement | null = null;
+  for (const el of els) {
+    const { top } = el.getBoundingClientRect();
+    if (top > line) {
+      if (!current && top < box.bottom) current = el;
+      break;
+    }
+    current = el;
+  }
+  return current?.id ?? null;
+}
 
 export class OutlinePanel {
   private readonly elPanel: HTMLElement;
@@ -300,35 +331,9 @@ export class OutlinePanel {
   };
 
   private updateActive() {
-    if (!this.pinnedId) this.setActive(this.headingBeingRead(), true);
-  }
-
-  /**
-   * The last heading above the reading line, or, above the first heading,
-   * the first heading on screen. The headings of a short last section never
-   * reach the line, so at the end of the page the last one on screen counts.
-   */
-  private headingBeingRead(): string | null {
-    const els = this.headings
-      .map((heading) => this.editor.headingElement(heading.id))
-      .filter((el): el is HTMLElement => el != null);
-    const host = els[0] && scrollHostOf(els[0]);
-    if (!host) return null;
-    const box = host.getBoundingClientRect();
-    const atEnd =
-      host.scrollTop > 0 &&
-      host.scrollTop + host.clientHeight >= host.scrollHeight - 1;
-    const line = atEnd ? box.bottom : box.top + READING_LINE_PX;
-    let current: HTMLElement | null = null;
-    for (const el of els) {
-      const { top } = el.getBoundingClientRect();
-      if (top > line) {
-        if (!current && top < box.bottom) current = el;
-        break;
-      }
-      current = el;
+    if (!this.pinnedId) {
+      this.setActive(headingBeingRead(this.editor, this.headings), true);
     }
-    return current?.id ?? null;
   }
 
   private setActive(id: string | null, reveal: boolean) {

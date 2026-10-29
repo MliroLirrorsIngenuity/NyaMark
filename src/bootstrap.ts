@@ -24,6 +24,7 @@ import { FileController } from './features/file-controller';
 import { bindLanguageSetting, syncMacosMenu } from './features/language-sync';
 import { MenuController } from './features/menu-controller';
 import { MobileDocuments, reportFailure } from './features/mobile-documents';
+import { bindNativePanels } from './features/native';
 import { bindNativeShell } from './features/native-shell';
 import { PdfExporter } from './features/pdf-export';
 import {
@@ -319,13 +320,13 @@ export class App {
           share: () => documents.share(null),
           exportPdf: () => this.pdfExporter.open(),
           print: () => this.pdfExporter.print(),
-          outline: () => this.toggleOutline(),
-          find,
           toggleSource: () =>
             store.update({ sourceMode: !store.getState().sourceMode }),
-          settings: () => this.settingsPanel.open(),
-          ai: () => this.toggleAi(false),
         },
+      });
+      bindNativePanels({
+        editor: () => this.editor,
+        sourceMode: () => this.sourceMode,
       });
     }
     await documents?.start();

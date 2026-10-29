@@ -83,12 +83,3 @@ extension View {
     shadow(color: .black.opacity(0.06), radius: 7, x: 0, y: 3)
   }
 }
-
-extension CALayer {
-  func applyBarShadow() {
-    shadowColor = UIColor.black.cgColor
-    shadowOpacity = 0.06
-    shadowRadius = 7
-    shadowOffset = CGSize(width: 0, height: 3)
-  }
-}

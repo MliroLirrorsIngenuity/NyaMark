@@ -31,6 +31,14 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
   private var replies: [String: (String?) -> Void] = [:]
   private var picker: PickerDelegate?
   private var themeWatch: AnyCancellable?
+  /// The native panels by the name the page addresses them with.
+  private lazy var panels: [String: NativePanel] = [
+    "outline": OutlinePanelController(shell: self),
+    "find": FindPanelController(shell: self),
+    "form": FormPanelController(shell: self),
+    "ai": AiPanelController(shell: self),
+    "toast": ToastController(shell: self),
+  ]
 
   static let markdownExtensions: [String] = {
     let types = Bundle.main.object(forInfoDictionaryKey: "CFBundleDocumentTypes") as? [[String: Any]]
@@ -146,6 +154,9 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
       if let id = body["id"] as? String, let done = replies.removeValue(forKey: id) {
         done(body["error"] as? String)
       }
+    case "panel":
+      guard let name = body["panel"] as? String, let op = body["op"] as? String else { return }
+      panels[name]?.receive(op, body)
     default:
       break
     }
@@ -181,6 +192,11 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
 
   func perform(_ action: String) {
     send(["type": "action", "name": action])
+  }
+
+  /// Opens the native panel named `name`, as the bottom bar's buttons do.
+  func openPanel(_ name: String, _ body: [String: Any] = [:]) {
+    panels[name]?.open(body)
   }
 
   /// Asks the page and hands its answer, an error message or nil, to `done`.
@@ -528,22 +544,19 @@ struct EditorBottomBar: View {
   var body: some View {
     ZStack {
       if !chrome.keyboardShown {
-        HStack(spacing: 8) {
-          item("list.bullet.indent", "outline", action: "outline")
-          item(
-            "chevron.left.forwardslash.chevron.right", "source", action: "toggleSource",
-            on: chrome.sourceMode)
-          item("sparkles", "ai", action: "ai")
-          item("magnifyingglass", "find", action: "find")
-          item("gearshape", "settings", action: "settings")
+        GlassGroup(spacing: 8) {
+          HStack(spacing: 8) {
+            item("list.bullet.indent", "outline") { shell?.openPanel("outline") }
+            item("chevron.left.forwardslash.chevron.right", "source", on: chrome.sourceMode) {
+              shell?.perform("toggleSource")
+            }
+            item("sparkles", "ai") { shell?.openPanel("ai") }
+            item("magnifyingglass", "find") { shell?.openPanel("find") }
+            item("gearshape", "settings") { shell?.openPanel("form", ["form": "settings"]) }
+          }
+          .padding(6)
+          .glassCard()
         }
-        .padding(6)
-        .background(
-          RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-            .fill(theme.color("statusbar-bg")))
-        .overlay(
-          RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-            .stroke(theme.color("border-soft"), lineWidth: 1))
         .barShadow()
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -553,12 +566,12 @@ struct EditorBottomBar: View {
     }
   }
 
-  private func item(_ symbol: String, _ label: String, action: String, on: Bool = false)
-    -> some View
-  {
+  private func item(
+    _ symbol: String, _ label: String, on: Bool = false, run: @escaping () -> Void
+  ) -> some View {
     Button {
       UIImpactFeedbackGenerator(style: .light).impactOccurred()
-      shell?.perform(action)
+      run()
     } label: {
       Image(systemName: symbol)
         .font(.system(size: 19))
