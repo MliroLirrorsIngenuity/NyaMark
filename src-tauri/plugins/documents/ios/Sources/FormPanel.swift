@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UIKit
 
@@ -282,22 +283,58 @@ final class FormPanelController: NativePanel {
 
 // MARK: One form's sheet
 
-/// A page of the stack, kept by id so the stack can be matched against what the page sends.
+/// A page of the stack, kept by id so the stack can be matched against what the page sends; its title and buttons sit in the navigation bar.
 final class FormPageHost: UIHostingController<FormPageView> {
   let pageID: String
+  private let first: Bool
+  private let send: FormEmitter
+  private var leading: FormButton?
+  private var trailing: FormButton?
+  private var subscription: AnyCancellable?
 
-  init(pageID: String, rootView: FormPageView) {
-    self.pageID = pageID
-    super.init(rootView: rootView)
-    view.backgroundColor = .clear
+  init(model: FormPageModel, first: Bool, send: FormEmitter) {
+    pageID = model.page.id
+    self.first = first
+    self.send = send
+    super.init(rootView: FormPageView(model: model, send: send))
+    view.backgroundColor = .systemGroupedBackground
+    navigationItem.largeTitleDisplayMode = .never
+    subscription = model.$page.sink { [weak self] in self?.apply($0) }
   }
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is not used")
   }
+
+  private func apply(_ page: FormPage) {
+    if navigationItem.title != page.title { navigationItem.title = page.title }
+    let nextLeading = first ? page.leading : nil
+    if nextLeading != leading {
+      leading = nextLeading
+      navigationItem.leftBarButtonItem = nextLeading.map { barItem($0, prominent: false) }
+    }
+    if page.trailing != trailing {
+      trailing = page.trailing
+      navigationItem.rightBarButtonItem = page.trailing.map { barItem($0, prominent: true) }
+    }
+  }
+
+  private func barItem(_ button: FormButton, prominent: Bool) -> UIBarButtonItem {
+    let item = UIBarButtonItem(
+      primaryAction: UIAction(title: button.label) { [send] _ in send.press(button.id) })
+    item.isEnabled = !(button.disabled ?? false)
+    if prominent { item.style = Self.prominentStyle }
+    if button.role == .destructive { item.tintColor = .systemRed }
+    return item
+  }
+
+  private static var prominentStyle: UIBarButtonItem.Style {
+    if #available(iOS 26.0, *) { return .prominent }
+    return .done
+  }
 }
 
-/// A navigation stack without a bar that still goes back with a swipe from the edge.
+/// A navigation stack that goes back with a swipe from the edge while a page is pushed.
 final class FormNavigationController: UINavigationController, UIGestureRecognizerDelegate {
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -332,6 +369,7 @@ final class FormSheet: NSObject, UINavigationControllerDelegate {
   private var deferred: FormContent?
   private var height: FormContent.Height
   private var dismissible: Bool
+  private var accentWatch: AnyCancellable?
 
   init(name: String, content: FormContent, emit: @escaping (String, [String: Any]) -> Void) {
     self.name = name
@@ -340,8 +378,10 @@ final class FormSheet: NSObject, UINavigationControllerDelegate {
     dismissible = content.dismissible
     super.init()
     navigation.delegate = self
-    navigation.setNavigationBarHidden(true, animated: false)
-    navigation.view.backgroundColor = .clear
+    navigation.view.backgroundColor = .systemGroupedBackground
+    accentWatch = Theme.shared.$colors.sink { [weak navigation] colors in
+      navigation?.view.tintColor = colors["accent"]
+    }
     reconcile(content)
   }
 
@@ -394,11 +434,7 @@ final class FormSheet: NSObject, UINavigationControllerDelegate {
       models[page.id] = model
       stack.append(
         FormPageHost(
-          pageID: page.id,
-          rootView: FormPageView(
-            model: model, first: index == 0,
-            send: FormEmitter(page: page.id, tell: tell),
-            back: { [weak self] in self?.goBack(from: page.id) })))
+          model: model, first: index == 0, send: FormEmitter(page: page.id, tell: tell)))
     }
     models = models.filter { wanted.contains($0.key) }
     known = wanted
@@ -406,35 +442,13 @@ final class FormSheet: NSObject, UINavigationControllerDelegate {
       stack, animated: !current.isEmpty && navigation.viewIfLoaded?.window != nil)
   }
 
-  private func goBack(from id: String) {
-    guard known.count > 1, known.last == id, !transitioning else { return }
-    known.removeLast()
-    navigation.popViewController(animated: true)
-    tell("back", ["page": id])
-  }
-
   // MARK: UINavigationControllerDelegate
 
-  /// Fades the page that leaves out while the next fades in.
   func navigationController(
     _ navigationController: UINavigationController, willShow viewController: UIViewController,
     animated: Bool
   ) {
     transitioning = animated
-    guard animated, let coordinator = navigationController.transitionCoordinator,
-      let from = coordinator.viewController(forKey: .from)?.view,
-      let to = coordinator.viewController(forKey: .to)?.view
-    else { return }
-    to.alpha = 0
-    coordinator.animate(
-      alongsideTransition: { _ in
-        from.alpha = 0
-        to.alpha = 1
-      },
-      completion: { _ in
-        from.alpha = 1
-        to.alpha = 1
-      })
   }
 
   func navigationController(

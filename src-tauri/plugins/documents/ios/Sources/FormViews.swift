@@ -1,19 +1,14 @@
 import SwiftUI
 import UIKit
 
-private func tapFeedback() {
-  UIImpactFeedbackGenerator(style: .light).impactOccurred()
-}
-
-extension Theme {
-  /// The ink of a note or badge in `tone`; none is the plain secondary text.
-  func tone(_ tone: FormTone?) -> Color {
-    switch tone {
-    case .none: return color("text-secondary")
-    case .muted: return color("text-muted")
-    case .warning: return color("warning")
-    case .error: return color("del-ink")
-    case .success: return color("ok")
+extension FormTone {
+  /// The ink of a note or badge in this tone.
+  var ink: Color {
+    switch self {
+    case .muted: return .secondary
+    case .warning: return .orange
+    case .error: return .red
+    case .success: return .green
     }
   }
 }
@@ -30,353 +25,128 @@ extension View {
 
 // MARK: Page
 
-/// A page of a form as `.ny-settings-dialog` draws it on a phone.
+/// A page of a form as a system grouped list; its title and buttons sit in the navigation bar.
 struct FormPageView: View {
   @ObservedObject var model: FormPageModel
   @ObservedObject private var theme = Theme.shared
-  /// Whether the page opens the stack; the pages after it get a back button.
-  let first: Bool
   let send: FormEmitter
-  let back: () -> Void
 
   var body: some View {
     let page = model.page
-    VStack(spacing: 0) {
-      header(page)
+    Form {
       if let tabs = page.tabs {
-        FormTabBar(tabs: tabs, select: send.tab)
+        FormTabs(tabs: tabs, select: send.tab)
       }
-      ScrollView {
-        VStack(spacing: 10) {
-          ForEach(page.sections) { section in
-            FormSectionView(section: section, send: send)
-          }
-        }
-        .padding(.top, page.tabs == nil ? 12 : 0)
-        .padding(.bottom, 16)
+      ForEach(page.sections) { section in
+        FormSectionView(section: section, send: send)
       }
-      .dismissesKeyboardOnScroll()
       if let footer = page.footer {
-        footerButton(footer)
+        Section { footerButton(footer) }
       }
     }
-    .padding(.horizontal, 16)
-    .padding(.top, 12)
-    .foregroundStyle(theme.color("text-primary"))
-  }
-
-  private func header(_ page: FormPage) -> some View {
-    HStack(spacing: 8) {
-      GlassGroup(spacing: 6) {
-        if !first {
-          CircleButton(symbol: "chevron.left", label: L10n.text("back"), action: back)
-        } else if let button = page.leading {
-          FormHeaderButton(button: button) { send.press(button.id) }
-        }
-      }
-      .frame(minWidth: 64, maxWidth: .infinity, alignment: .leading)
-      Text(page.title)
-        .font(.system(size: 17, weight: .semibold))
-        .lineLimit(1)
-        .truncationMode(.tail)
-        .layoutPriority(1)
-      GlassGroup(spacing: 6) {
-        if let button = page.trailing {
-          FormHeaderButton(button: button) { send.press(button.id) }
-        }
-      }
-      .frame(minWidth: 64, maxWidth: .infinity, alignment: .trailing)
-    }
-    .frame(height: 44)
+    .listStyle(.insetGrouped)
+    .dismissesKeyboardOnScroll()
+    .tint(theme.color("accent"))
   }
 
   private func footerButton(_ button: FormButton) -> some View {
-    let destructive = button.role == .destructive
-    return Button {
-      tapFeedback()
+    Button(role: button.role == .destructive ? .destructive : nil) {
       send.press(button.id)
     } label: {
       Text(button.label)
-        .font(.system(size: 15, weight: button.role == .primary ? .semibold : .medium))
-        .foregroundStyle(
-          destructive
-            ? theme.color("del-ink")
-            : button.role == .primary ? theme.color("accent-ink") : theme.color("text-primary")
-        )
-        .lineLimit(1)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .contentShape(Capsule())
+        .font(.body.weight(button.role == .primary ? .semibold : .regular))
+        .frame(maxWidth: .infinity)
     }
-    .buttonStyle(FormFootStyle(plain: destructive, accent: button.role == .primary))
     .disabled(button.disabled ?? false)
-    .opacity(button.disabled ?? false ? 0.55 : 1)
-    .padding(.vertical, 12)
   }
 }
 
-/// A capsule in the header, as `.ny-settings-dialog__button` is on a phone.
-struct FormHeaderButton: View {
-  @ObservedObject private var theme = Theme.shared
-  let button: FormButton
-  let press: () -> Void
-
-  var body: some View {
-    let disabled = button.disabled ?? false
-    Button {
-      tapFeedback()
-      press()
-    } label: {
-      Text(button.label)
-        .font(.system(size: 15, weight: button.role == .primary ? .semibold : .medium))
-        .foregroundStyle(ink)
-        .lineLimit(1)
-        .padding(.horizontal, 12)
-        .frame(minWidth: 44, minHeight: 44)
-        .contentShape(Capsule())
-    }
-    .buttonStyle(DialogButtonStyle(accent: button.role == .primary))
-    .disabled(disabled)
-    .opacity(disabled ? 0.55 : 1)
-  }
-
-  private var ink: Color {
-    switch button.role {
-    case .primary: return theme.color("accent-ink")
-    case .destructive: return theme.color("del-ink")
-    default: return theme.color("text-primary")
-    }
-  }
-}
-
-/// The button across the foot of a page: a capsule, or bare text for a destructive one.
-struct FormFootStyle: ButtonStyle {
-  @ObservedObject private var theme = Theme.shared
-  let plain: Bool
-  let accent: Bool
-
-  func makeBody(configuration: Configuration) -> some View {
-    let fill: Color =
-      configuration.isPressed
-      ? theme.color("accent-soft")
-      : plain ? .clear : accent ? theme.color("accent-soft") : theme.color("fill-soft")
-    return configuration.label
-      .background(Capsule().fill(fill))
-      .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
-  }
-}
-
-/// The segmented control under the header, as `.ny-settings-tabs` draws it on a phone.
-struct FormTabBar: View {
-  @ObservedObject private var theme = Theme.shared
+/// The segmented control that opens the page, on the list's own background.
+struct FormTabs: View {
   let tabs: FormTabSet
   let select: (String) -> Void
 
   var body: some View {
-    HStack(spacing: 2) {
-      ForEach(tabs.options) { option in
-        tab(option)
-      }
-    }
-    .padding(3)
-    .background(
-      RoundedRectangle(cornerRadius: 10, style: .continuous).fill(theme.color("fill-soft"))
-    )
-    .padding(.top, 12)
-    .padding(.bottom, 16)
-  }
-
-  private func tab(_ option: FormOption) -> some View {
-    let selected = option.value == tabs.value
-    let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-    return Button {
-      guard !selected else { return }
-      tapFeedback()
-      select(option.value)
-    } label: {
-      Text(option.label)
-        .font(.system(size: 13, weight: selected ? .semibold : .regular))
-        .foregroundStyle(selected ? theme.color("text-primary") : theme.color("text-secondary"))
-        .lineLimit(1)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .background {
-          if selected {
-            ZStack {
-              shape.fill(theme.color("dock-bg"))
-              if theme.dark { shape.fill(theme.color("text-primary").opacity(0.12)) }
-            }
-            .overlay(shape.stroke(theme.color("line"), lineWidth: 1))
-            .shadow(
-              color: Color(red: 15 / 255, green: 23 / 255, blue: 42 / 255).opacity(0.08),
-              radius: 1.5, y: 1)
-          }
+    Section {
+      Picker(
+        "",
+        selection: Binding(
+          get: { tabs.value },
+          set: { if $0 != tabs.value { select($0) } })
+      ) {
+        ForEach(tabs.options) { option in
+          Text(option.label).tag(option.value)
         }
-        .contentShape(shape)
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      .listRowBackground(Color.clear)
+      .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
     }
-    .buttonStyle(.plain)
-    .accessibilityAddTraits(selected ? .isSelected : [])
   }
 }
 
 // MARK: Section
 
-/// A card of rows as `.ny-settings__section` draws it, with its title above and its footer below.
 struct FormSectionView: View {
-  @ObservedObject private var theme = Theme.shared
   let section: FormSection
   let send: FormEmitter
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      VStack(alignment: .leading, spacing: 0) {
-        if let title = section.title {
-          Text(title)
-            .font(.system(size: 13.5, weight: .semibold))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 5)
-        }
-        ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
-          VStack(spacing: 0) {
-            if index > 0 && row.kind != .note {
-              Rectangle()
-                .fill(theme.color("border-soft"))
-                .frame(height: 1)
-                .padding(.horizontal, 12)
-            }
-            FormRowView(row: row, send: send)
-          }
-        }
+    Section {
+      ForEach(section.rows) { row in
+        FormRowView(row: row, send: send)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.top, section.title == nil ? 9 : 14)
-      .padding(.bottom, 3)
-      .background(theme.color("fill-soft"))
-      .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-      if let footer = section.footer {
-        Text(footer)
-          .font(.system(size: 13))
-          .foregroundStyle(theme.color("text-muted"))
-          .lineSpacing(3)
-          .padding(.horizontal, 12)
-      }
+    } header: {
+      if let title = section.title { Text(title).textCase(nil) }
+    } footer: {
+      if let footer = section.footer { Text(footer) }
     }
   }
 }
 
 // MARK: Rows
 
-/// Draws a row by its kind; rows that highlight when pressed run to the card's edges and pad themselves.
+/// Draws a row by its kind.
 struct FormRowView: View {
   let row: FormRow
   let send: FormEmitter
 
   var body: some View {
     switch row.kind {
-    case .toggle: padded(FormToggleRow(row: row, send: send))
-    case .choice: padded(FormChoiceRow(row: row, send: send))
-    case .cards: padded(FormCardsRow(row: row, send: send))
-    case .number: padded(FormNumberRow(row: row, send: send))
-    case .slider: padded(FormSliderRow(row: row, send: send))
-    case .text: padded(FormTextRow(row: row, send: send))
-    case .button: padded(FormButtonRow(row: row, send: send))
-    case .value: padded(FormValueRow(row: row))
-    case .note: padded(FormNoteRow(row: row))
+    case .toggle: FormToggleRow(row: row, send: send)
+    case .choice: FormChoiceRow(row: row, send: send)
+    case .cards: FormCardsRow(row: row, send: send)
+    case .number: FormNumberRow(row: row, send: send)
+    case .slider: FormSliderRow(row: row, send: send)
+    case .text: FormTextRow(row: row, send: send)
+    case .button: FormButtonRow(row: row, send: send)
+    case .value: FormValueRow(row: row)
+    case .note: FormNoteRow(row: row)
     case .link: FormLinkRow(row: row, send: send)
     case .item: FormItemRow(row: row, send: send)
     }
-  }
-
-  private func padded<Content: View>(_ content: Content) -> some View {
-    content
-      .padding(.horizontal, 12)
-      .padding(.vertical, 5)
   }
 }
 
 /// A row's label with its detail beneath, for rows that carry their control beside it.
 struct FormLabel: View {
-  @ObservedObject private var theme = Theme.shared
   let text: String
   var detail: String? = nil
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 1) {
+    VStack(alignment: .leading, spacing: 2) {
       Text(text)
-        .font(.system(size: 14))
-        .foregroundStyle(theme.color("text-primary"))
       if let detail {
         Text(detail)
-          .font(.system(size: 13))
-          .foregroundStyle(theme.color("text-secondary"))
-          .lineSpacing(2)
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
     }
-  }
-}
-
-/// A field's label above it, as `.ny-settings__field` sets it.
-struct FormFieldLabel: View {
-  @ObservedObject private var theme = Theme.shared
-  let text: String?
-  var detail: String? = nil
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 1) {
-      if let text {
-        Text(text)
-          .font(.system(size: 12.5))
-          .foregroundStyle(theme.color("text-secondary"))
-      }
-      if let detail {
-        Text(detail)
-          .font(.system(size: 13))
-          .foregroundStyle(theme.color("text-muted"))
-          .lineSpacing(2)
-      }
-    }
-  }
-}
-
-/// The box of a field as `.ny-settings__input` draws it on a phone, with a ring while focused.
-struct FormFieldBox: ViewModifier {
-  @ObservedObject private var theme = Theme.shared
-  var focused = false
-  var invalid = false
-  var minHeight: CGFloat = 44
-  var inset: CGFloat = 0
-
-  func body(content: Content) -> some View {
-    let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
-    let edge: Color =
-      focused
-      ? theme.color("accent").opacity(0.6)
-      : invalid ? theme.color("del-ink").opacity(0.6) : theme.color("border-soft")
-    content
-      .padding(.horizontal, 12)
-      .padding(.vertical, inset)
-      .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
-      .background(shape.fill(theme.color("dock-bg")))
-      .overlay(shape.stroke(edge, lineWidth: 1))
-      .overlay(
-        shape.stroke(theme.color("accent-soft"), lineWidth: 3).padding(-1.5).opacity(
-          focused ? 1 : 0))
-  }
-}
-
-extension View {
-  func formField(
-    focused: Bool = false, invalid: Bool = false, minHeight: CGFloat = 44, inset: CGFloat = 0
-  ) -> some View {
-    modifier(FormFieldBox(focused: focused, invalid: invalid, minHeight: minHeight, inset: inset))
-  }
-
-  /// Dims a row the page has disabled and takes its touches.
-  func formDisabled(_ disabled: Bool) -> some View {
-    self.disabled(disabled).opacity(disabled ? 0.55 : 1)
   }
 }
 
 struct FormToggleRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
   let send: FormEmitter
   @State private var on: Bool
@@ -388,15 +158,10 @@ struct FormToggleRow: View {
   }
 
   var body: some View {
-    HStack(spacing: 12) {
+    Toggle(isOn: $on) {
       FormLabel(text: row.label ?? "", detail: row.detail)
-      Spacer(minLength: 8)
-      Toggle(row.label ?? "", isOn: $on)
-        .labelsHidden()
-        .tint(theme.color("accent"))
     }
-    .frame(minHeight: 44)
-    .formDisabled(row.isDisabled)
+    .disabled(row.isDisabled)
     .onChange(of: on) { value in
       if value != row.flag { send.change(row.id, value) }
     }
@@ -405,101 +170,98 @@ struct FormToggleRow: View {
 }
 
 struct FormChoiceRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
   let send: FormEmitter
 
   var body: some View {
     let options = row.options ?? []
     let chosen = options.first { $0.value == row.string }
-    VStack(alignment: .leading, spacing: 6) {
-      FormFieldLabel(text: row.label, detail: row.detail)
-      Menu {
-        ForEach(options) { option in
-          Button {
-            send.change(row.id, option.value)
-          } label: {
-            Text(option.label)
-            if let detail = option.detail { Text(detail) }
-            if option.value == chosen?.value { Image(systemName: "checkmark") }
+    Group {
+      if chosen != nil && options.allSatisfy({ $0.detail == nil }) {
+        Picker(
+          selection: Binding(
+            get: { row.string ?? "" },
+            set: { if $0 != row.string { send.change(row.id, $0) } })
+        ) {
+          ForEach(options) { option in
+            Text(option.label).tag(option.value)
           }
+        } label: {
+          FormLabel(text: row.label ?? "", detail: row.detail)
         }
-      } label: {
-        HStack(spacing: 8) {
-          Text(chosen?.label ?? row.placeholder ?? "")
-            .font(.system(size: 16))
-            .foregroundStyle(
-              chosen == nil ? theme.color("text-muted") : theme.color("text-primary")
-            )
-            .lineLimit(1)
-            .truncationMode(.tail)
-          Spacer(minLength: 0)
-          Image(systemName: "chevron.down")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(theme.color("text-secondary"))
-        }
-        .formField()
-        .contentShape(Rectangle())
+        .pickerStyle(.menu)
+      } else {
+        menu(options, chosen: chosen)
       }
     }
-    .formDisabled(row.isDisabled)
+    .disabled(row.isDisabled)
+  }
+
+  /// The menu with the placeholder or the options' details, which a `Picker` cannot show.
+  private func menu(_ options: [FormOption], chosen: FormOption?) -> some View {
+    Menu {
+      ForEach(options) { option in
+        Button {
+          send.change(row.id, option.value)
+        } label: {
+          Text(option.label)
+          if let detail = option.detail { Text(detail) }
+          if option.value == chosen?.value { Image(systemName: "checkmark") }
+        }
+      }
+    } label: {
+      HStack(spacing: 8) {
+        FormLabel(text: row.label ?? "", detail: row.detail)
+          .foregroundStyle(.primary)
+        Spacer(minLength: 8)
+        Text(chosen?.label ?? row.placeholder ?? "")
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+        Image(systemName: "chevron.up.chevron.down")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+      .contentShape(Rectangle())
+    }
   }
 }
 
-/// Option cards as `.ny-image-policy-dialog__option` draws them, the chosen one tinted.
+/// Option rows, one chosen: each its title and detail, the chosen one checked.
 struct FormCardsRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
   let send: FormEmitter
 
   var body: some View {
-    VStack(spacing: 10) {
-      ForEach(row.options ?? []) { option in
-        card(option)
-      }
+    ForEach(row.options ?? []) { option in
+      card(option)
     }
   }
 
   private func card(_ option: FormOption) -> some View {
     let chosen = option.value == row.string
-    let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
     return Button {
       guard !chosen else { return }
-      tapFeedback()
       send.change(row.id, option.value)
     } label: {
-      HStack(alignment: .top, spacing: 12) {
-        Image(systemName: chosen ? "largecircle.fill.circle" : "circle")
-          .font(.system(size: 18))
-          .foregroundStyle(chosen ? theme.color("accent") : theme.color("text-muted"))
-        VStack(alignment: .leading, spacing: 3) {
+      HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 2) {
           Text(option.label)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(theme.color("text-primary"))
-            .multilineTextAlignment(.leading)
+            .foregroundStyle(.primary)
           if let detail = option.detail {
             Text(detail)
-              .font(.system(size: 12.5))
-              .foregroundStyle(theme.color("text-secondary"))
-              .lineSpacing(3)
-              .multilineTextAlignment(.leading)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
           }
         }
-        Spacer(minLength: 0)
+        Spacer(minLength: 8)
+        if chosen {
+          Image(systemName: "checkmark")
+            .font(.body.weight(.semibold))
+            .foregroundStyle(.tint)
+        }
       }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 12)
-      .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-      .background(
-        shape.fill(chosen ? theme.color("accent").opacity(0.1) : theme.color("fill-soft"))
-      )
-      .overlay(
-        shape.stroke(
-          chosen ? theme.color("accent").opacity(0.55) : theme.color("border-soft"), lineWidth: 1)
-      )
-      .contentShape(shape)
+      .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
     .accessibilityAddTraits(chosen ? .isSelected : [])
   }
 }
@@ -540,7 +302,6 @@ enum FormNumber {
 }
 
 struct FormNumberRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
   let send: FormEmitter
   @State private var text: String
@@ -553,21 +314,20 @@ struct FormNumberRow: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      FormFieldLabel(text: row.label, detail: row.detail)
-      HStack(spacing: 10) {
-        FormTextField(
-          text: $text, focused: $focused, typing: FormTyping(keyboard: .decimalPad), doneBar: true
-        )
-        .formField(focused: focused)
-        if let unit = row.unit {
-          Text(unit)
-            .font(.system(size: 15))
-            .foregroundStyle(theme.color("text-muted"))
-        }
+    HStack(spacing: 8) {
+      FormLabel(text: row.label ?? "", detail: row.detail)
+        .layoutPriority(1)
+      FormTextField(
+        text: $text, focused: $focused, typing: FormTyping(keyboard: .decimalPad), doneBar: true,
+        alignment: .right
+      )
+      .frame(minWidth: 56, maxWidth: .infinity)
+      if let unit = row.unit {
+        Text(unit)
+          .foregroundStyle(.secondary)
       }
     }
-    .formDisabled(row.isDisabled)
+    .disabled(row.isDisabled)
     .onChange(of: focused) { editing in
       if !editing { commit() }
     }
@@ -607,7 +367,6 @@ final class FrameLimiter {
 }
 
 struct FormSliderRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
   let send: FormEmitter
   @State private var value: Double
@@ -623,22 +382,17 @@ struct FormSliderRow: View {
   var body: some View {
     let low = row.min ?? 0
     let high = Swift.max(low, row.max ?? 1)
-    VStack(spacing: 2) {
+    VStack(spacing: 4) {
       HStack(spacing: 12) {
         Text(row.label ?? "")
-          .font(.system(size: 14))
-          .foregroundStyle(theme.color("text-primary"))
         Spacer(minLength: 8)
         Text(row.valueText ?? "")
-          .font(.system(size: 13))
           .monospacedDigit()
-          .foregroundStyle(row.isDisabled ? theme.color("text-muted") : theme.color("text-primary"))
+          .foregroundStyle(.secondary)
       }
       slider(low: low, high: high)
-        .tint(theme.color("accent"))
-        .frame(minHeight: 34)
     }
-    .formDisabled(row.isDisabled)
+    .disabled(row.isDisabled)
     .onChange(of: value) { next in
       guard next != row.number else { return }
       let id = row.id
@@ -659,7 +413,6 @@ struct FormSliderRow: View {
 }
 
 struct FormTextRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
   let send: FormEmitter
   @State private var text: String
@@ -673,16 +426,24 @@ struct FormTextRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      FormFieldLabel(text: row.label, detail: row.detail)
+      if let label = row.label {
+        Text(label)
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+      }
+      if let detail = row.detail {
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
       field
       if let error = row.error {
         Text(error)
-          .font(.system(size: 13))
-          .foregroundStyle(theme.color("del-ink"))
-          .lineSpacing(2)
+          .font(.footnote)
+          .foregroundStyle(.red)
       }
     }
-    .formDisabled(row.isDisabled)
+    .disabled(row.isDisabled)
     .onChange(of: text) { next in
       if next != (row.string ?? "") { send.change(row.id, next) }
     }
@@ -709,150 +470,111 @@ struct FormTextRow: View {
         FormTextArea(text: $text, focused: $focused, typing: typing)
         if text.isEmpty, let placeholder = row.placeholder {
           Text(placeholder)
-            .font(.system(size: 16))
-            .foregroundStyle(theme.color("text-muted"))
+            .foregroundStyle(Color(.placeholderText))
             .allowsHitTesting(false)
         }
       }
-      .formField(focused: focused, invalid: row.error != nil, minHeight: 88, inset: 10)
     } else {
       FormTextField(
-        text: $text, focused: $focused, placeholder: row.placeholder ?? "", typing: typing
-      )
-      .formField(focused: focused, invalid: row.error != nil)
+        text: $text, focused: $focused, placeholder: row.placeholder ?? "", typing: typing)
     }
   }
 }
 
-/// A capsule button across the row, as `.ny-settings__button` is on a phone.
-struct FormRowButtonStyle: ButtonStyle {
-  @ObservedObject private var theme = Theme.shared
-  let role: FormRole?
-
-  func makeBody(configuration: Configuration) -> some View {
-    let shape = RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-    let fill: Color =
-      configuration.isPressed || role == .primary
-      ? theme.color("accent-soft") : theme.color("dock-bg")
-    return configuration.label
-      .background(shape.fill(fill))
-      .overlay(shape.stroke(theme.color("border-soft"), lineWidth: role == .primary ? 0 : 1))
-      .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
-  }
-}
-
 struct FormButtonRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
   let send: FormEmitter
 
   var body: some View {
     let busy = row.busy ?? false
-    VStack(spacing: 6) {
-      Button {
-        guard !busy else { return }
-        tapFeedback()
-        send.press(row.id)
-      } label: {
-        Text(row.label ?? "")
-          .font(.system(size: 15, weight: row.role == .primary ? .semibold : .medium))
-          .foregroundStyle(ink)
-          .lineLimit(1)
-          .opacity(busy ? 0 : 1)
-          .overlay { if busy { ProgressView() } }
-          .padding(.horizontal, 16)
-          .frame(maxWidth: .infinity, minHeight: 44)
-          .contentShape(Rectangle())
+    Button(role: row.role == .destructive ? .destructive : nil) {
+      send.press(row.id)
+    } label: {
+      HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(row.label ?? "")
+            .font(.body.weight(row.role == .primary ? .semibold : .regular))
+          if let detail = row.detail {
+            Text(detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        Spacer(minLength: 8)
+        if busy { ProgressView() }
       }
-      .buttonStyle(FormRowButtonStyle(role: row.role))
-      if let detail = row.detail {
-        Text(detail)
-          .font(.system(size: 13))
-          .foregroundStyle(theme.color("text-secondary"))
-          .lineSpacing(2)
-          .multilineTextAlignment(.center)
-          .frame(maxWidth: .infinity)
-      }
+      .contentShape(Rectangle())
     }
-    .formDisabled(row.isDisabled)
-  }
-
-  private var ink: Color {
-    switch row.role {
-    case .primary: return theme.color("accent-ink")
-    case .destructive: return theme.color("del-ink")
-    default: return theme.color("text-primary")
-    }
+    .disabled(row.isDisabled || busy)
   }
 }
 
 struct FormValueRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
 
   var body: some View {
-    HStack(alignment: .firstTextBaseline, spacing: 12) {
-      FormLabel(text: row.label ?? "", detail: row.detail)
-      Spacer(minLength: 8)
-      Text(row.string ?? "")
-        .font(.system(size: 14))
-        .foregroundStyle(theme.color("text-secondary"))
-        .multilineTextAlignment(.trailing)
-        .textSelection(.enabled)
+    if #available(iOS 16.0, *) {
+      LabeledContent {
+        value
+      } label: {
+        FormLabel(text: row.label ?? "", detail: row.detail)
+      }
+    } else {
+      HStack(alignment: .firstTextBaseline, spacing: 12) {
+        FormLabel(text: row.label ?? "", detail: row.detail)
+        Spacer(minLength: 8)
+        value
+      }
     }
-    .frame(minHeight: 44)
+  }
+
+  private var value: some View {
+    Text(row.string ?? "")
+      .foregroundStyle(.secondary)
+      .multilineTextAlignment(.trailing)
+      .textSelection(.enabled)
   }
 }
 
 struct FormNoteRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
 
   var body: some View {
     Text(row.text ?? "")
-      .font(.system(size: 13))
-      .foregroundStyle(theme.tone(row.tone))
-      .lineSpacing(3)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .font(.footnote)
+      .foregroundStyle(row.tone?.ink ?? .secondary)
   }
 }
 
 struct FormLinkRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
   let send: FormEmitter
 
   var body: some View {
     Button {
-      tapFeedback()
       send.open(row.id)
     } label: {
       HStack(spacing: 8) {
         FormLabel(text: row.label ?? "", detail: row.detail)
+          .foregroundStyle(.primary)
         Spacer(minLength: 8)
         if let value = row.string {
           Text(value)
-            .font(.system(size: 14))
-            .foregroundStyle(theme.color("text-secondary"))
+            .foregroundStyle(.secondary)
             .lineLimit(1)
         }
         Image(systemName: row.external == true ? "arrow.up.right" : "chevron.right")
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(theme.color("text-muted"))
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(.tertiary)
       }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 5)
-      .frame(maxWidth: .infinity, minHeight: 54)
       .contentShape(Rectangle())
     }
-    .buttonStyle(RowStyle())
-    .formDisabled(row.isDisabled)
+    .disabled(row.isDisabled)
   }
 }
 
-/// An entry of a list: tapped to open, with a switch and a menu of actions when it has them.
+/// An entry of a list: tapped to open, with a switch when it has one and its actions on a swipe and a long press.
 struct FormItemRow: View {
-  @ObservedObject private var theme = Theme.shared
   let row: FormRow
   let send: FormEmitter
   @State private var on: Bool
@@ -865,53 +587,14 @@ struct FormItemRow: View {
 
   var body: some View {
     let actions = row.actions ?? []
-    HStack(spacing: 0) {
-      Button {
-        tapFeedback()
-        send.open(row.id)
-      } label: {
-        HStack(spacing: 8) {
-          VStack(alignment: .leading, spacing: 1) {
-            Text(row.title ?? "")
-              .font(.system(size: 16, weight: .medium))
-              .foregroundStyle(theme.color("text-primary"))
-              .lineLimit(1)
-            if let detail = row.detail {
-              Text(detail)
-                .font(.system(size: 13))
-                .foregroundStyle(theme.color("text-secondary"))
-                .lineLimit(2)
-            }
-          }
-          Spacer(minLength: 0)
-          if let badge = row.badge { badgeView(badge) }
-        }
-        .padding(.leading, 12)
-        .padding(.trailing, row.toggle == nil && actions.isEmpty ? 12 : 4)
-        .padding(.vertical, 5)
-        .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
-        .contentShape(Rectangle())
-      }
-      .buttonStyle(RowStyle())
+    HStack(spacing: 12) {
+      opener
       if row.toggle != nil {
         Toggle(row.title ?? "", isOn: $on)
           .labelsHidden()
-          .tint(theme.color("accent"))
-          .padding(.horizontal, 8)
-      }
-      if !actions.isEmpty {
-        Menu {
-          actionButtons(actions)
-        } label: {
-          Image(systemName: "ellipsis")
-            .font(.system(size: 16, weight: .medium))
-            .foregroundStyle(theme.color("text-secondary"))
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-        }
-        .padding(.trailing, 4)
       }
     }
+    .swipeActions(edge: .trailing) { actionButtons(actions) }
     .contextMenu { actionButtons(actions) }
     .onChange(of: on) { value in
       if value != row.toggle { send.change(row.id, value) }
@@ -919,10 +602,41 @@ struct FormItemRow: View {
     .onChange(of: row.toggle) { on = $0 ?? false }
   }
 
+  /// Beside a switch the button takes only its own content, so the switch keeps its touches.
+  @ViewBuilder private var opener: some View {
+    if row.toggle == nil {
+      openButton
+    } else {
+      openButton.buttonStyle(.plain)
+    }
+  }
+
+  private var openButton: some View {
+    Button {
+      send.open(row.id)
+    } label: {
+      HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(row.title ?? "")
+            .foregroundStyle(.primary)
+          if let detail = row.detail {
+            Text(detail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+          }
+        }
+        Spacer(minLength: 0)
+        if let badge = row.badge { badgeView(badge) }
+      }
+      .contentShape(Rectangle())
+    }
+  }
+
   private func badgeView(_ text: String) -> some View {
-    let ink = theme.tone(row.tone)
+    let ink = row.tone?.ink ?? .secondary
     return Text(text)
-      .font(.system(size: 12, weight: .medium))
+      .font(.caption.weight(.medium))
       .foregroundStyle(ink)
       .lineLimit(1)
       .padding(.horizontal, 8)
@@ -940,6 +654,7 @@ struct FormItemRow: View {
     }
   }
 }
+
 
 // MARK: Text input on UIKit
 
@@ -980,6 +695,7 @@ struct FormTextField: UIViewRepresentable {
   var typing = FormTyping()
   /// Adds a Done key above the keyboard, for the keypad that has no Return.
   var doneBar = false
+  var alignment: NSTextAlignment = .natural
 
   func makeCoordinator() -> Coordinator {
     Coordinator(self)
@@ -990,7 +706,9 @@ struct FormTextField: UIViewRepresentable {
     field.delegate = context.coordinator
     field.addTarget(
       context.coordinator, action: #selector(Coordinator.edited(_:)), for: .editingChanged)
-    field.font = .systemFont(ofSize: 16)
+    field.font = .preferredFont(forTextStyle: .body)
+    field.adjustsFontForContentSizeCategory = true
+    field.textAlignment = alignment
     field.returnKeyType = .done
     field.clearButtonMode = .never
     field.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -1012,13 +730,10 @@ struct FormTextField: UIViewRepresentable {
 
   func updateUIView(_ field: UITextField, context: Context) {
     context.coordinator.parent = self
-    let theme = Theme.shared
     if !field.isFirstResponder, field.text != text { field.text = text }
-    field.textColor = theme.ui("text-primary")
-    field.tintColor = theme.ui("accent")
-    field.attributedPlaceholder = NSAttributedString(
-      string: placeholder, attributes: [.foregroundColor: theme.ui("text-muted")])
+    if field.placeholder != placeholder { field.placeholder = placeholder }
     field.isEnabled = context.environment.isEnabled
+    field.alpha = field.isEnabled ? 1 : 0.4
   }
 
   final class Coordinator: NSObject, UITextFieldDelegate {
@@ -1087,7 +802,8 @@ struct FormTextArea: UIViewRepresentable {
     let view = GrowingTextView()
     view.delegate = context.coordinator
     view.backgroundColor = .clear
-    view.font = .systemFont(ofSize: 16)
+    view.font = .preferredFont(forTextStyle: .body)
+    view.adjustsFontForContentSizeCategory = true
     view.textContainerInset = .zero
     view.textContainer.lineFragmentPadding = 0
     typing.apply(to: view)
@@ -1096,11 +812,9 @@ struct FormTextArea: UIViewRepresentable {
 
   func updateUIView(_ view: GrowingTextView, context: Context) {
     context.coordinator.parent = self
-    let theme = Theme.shared
     if !view.isFirstResponder, view.text != text { view.text = text }
-    view.textColor = theme.ui("text-primary")
-    view.tintColor = theme.ui("accent")
     view.isEditable = context.environment.isEnabled
+    view.alpha = view.isEditable ? 1 : 0.4
     view.invalidateIntrinsicContentSize()
   }
 
