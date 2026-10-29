@@ -24,6 +24,8 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
   let chrome = EditorChrome()
   private let navigation: UINavigationController
   fileprivate let editor: EditorViewController
+  /// The editor page, for panels that float over the document rather than in a sheet.
+  var editorPage: UIViewController { editor }
   private var editingDocument = false
   /// Messages wait here while the page loads; it takes them once it reports ready.
   private var pending: [[String: Any]] = []
