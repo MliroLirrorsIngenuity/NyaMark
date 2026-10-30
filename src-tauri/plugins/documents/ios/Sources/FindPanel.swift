@@ -53,6 +53,10 @@ final class FindPanelController: NativePanel {
   private var removal: DispatchWorkItem?
   /// The page answers an open with the query to show; later states leave the field to the user.
   private var awaitingQuery = false
+  /// A long document takes a while to search: one query is out at a time, and of what is typed meanwhile only the last goes next.
+  private var searching: String?
+  private var typed: String?
+  private var sentQuery: String?
 
   init(shell: NativeShell) {
     self.shell = shell
@@ -61,6 +65,8 @@ final class FindPanelController: NativePanel {
   func open(_ body: [String: Any]) {
     show()
     awaitingQuery = true
+    searching = nil
+    typed = nil
     model.focusFind += 1
     shell.tell("find", "open")
   }
@@ -70,10 +76,48 @@ final class FindPanelController: NativePanel {
     model.labels = FindLabels(body["labels"] as? [String: Any] ?? [:])
     model.count = body["count"] as? String ?? ""
     model.source = body["source"] as? Bool ?? false
+    let query = body["query"] as? String ?? ""
     if awaitingQuery {
       awaitingQuery = false
-      model.query = body["query"] as? String ?? ""
+      model.query = query
+      sentQuery = query
       model.focusFind += 1
+    }
+    if searching == query {
+      searching = nil
+      if let next = typed {
+        typed = nil
+        search(next)
+      }
+    }
+  }
+
+  private func search(_ text: String) {
+    guard searching == nil else {
+      typed = text
+      return
+    }
+    guard text != sentQuery else { return }
+    searching = text
+    sentQuery = text
+    shell.tell("find", "query", ["text": text])
+  }
+
+  /// What is typed but not yet searched is searched before a step, which goes on from it.
+  private func send(_ op: String, _ data: [String: Any]) {
+    switch op {
+    case "query":
+      search(data["text"] as? String ?? "")
+    case "next", "prev":
+      if let text = typed {
+        typed = nil
+        searching = text
+        sentQuery = text
+        shell.tell("find", "query", ["text": text])
+      }
+      shell.tell("find", op, data)
+    default:
+      shell.tell("find", op, data)
     }
   }
 
@@ -85,6 +129,8 @@ final class FindPanelController: NativePanel {
     let item = DispatchWorkItem { [weak self] in self?.remove() }
     removal = item
     DispatchQueue.main.asyncAfter(deadline: .now() + Self.goingOut, execute: item)
+    searching = nil
+    typed = nil
     shell.tell("find", "close")
   }
 
@@ -98,7 +144,7 @@ final class FindPanelController: NativePanel {
     let controller = UIHostingController(
       rootView: FindBar(
         model: model,
-        send: { [weak self] op, data in self?.shell.tell("find", op, data) },
+        send: { [weak self] op, data in self?.send(op, data) },
         close: { [weak self] in self?.close() }))
     controller.view.backgroundColor = .clear
     controller.view.translatesAutoresizingMaskIntoConstraints = false
