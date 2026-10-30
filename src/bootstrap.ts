@@ -25,7 +25,7 @@ import { bindLanguageSetting, syncMacosMenu } from './features/language-sync';
 import { MenuController } from './features/menu-controller';
 import { MobileDocuments, reportFailure } from './features/mobile-documents';
 import { bindNativePanels } from './features/native';
-import { bindNativeShell } from './features/native-shell';
+import { bindNativeShell, showOpening } from './features/native-shell';
 import { askNativeAi, openNativeAi } from './features/native/ai';
 import { NativeExportPdfDialog } from './features/native/export-pdf';
 import { openNativeFind } from './features/native/find';
@@ -191,6 +191,7 @@ export class App {
       onUploadFile: (file) =>
         this.attachments?.upload(file) ?? Promise.resolve(''),
       proxyDomURL: (src) => this.attachments?.resolvePreviewUrl(src) ?? src,
+      onOpeningShown: isNativeShell() ? showOpening : undefined,
     });
 
     await this.editor.init(initialDocument.markdown);

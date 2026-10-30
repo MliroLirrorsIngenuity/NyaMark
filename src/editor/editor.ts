@@ -202,6 +202,8 @@ export type EditorAttachment = {
 export type NyaEditorOptions = {
   onUploadFile?: (file: File) => Promise<string>;
   proxyDomURL?: (src: string) => Promise<string> | string;
+  /** Called once the opening of a long document is on screen, before the rest is drawn. */
+  onOpeningShown?: () => void;
 };
 
 export class NyaEditor {
@@ -413,6 +415,7 @@ export class NyaEditor {
 
     if (view && !opened) {
       await afterFirstFrame();
+      this.options.onOpeningShown?.();
       // The text in full, drawn past the opening, which it leaves as drawn.
       if (!view.isDestroyed) {
         this.setMarkdown(initialMarkdown, { addToHistory: false });

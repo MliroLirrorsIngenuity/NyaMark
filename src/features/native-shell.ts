@@ -29,6 +29,11 @@ export function announceReady(path: string | null) {
   postToNative({ type: 'ready', path, language: i18next.language });
 }
 
+/** Lets the native editor page show the document's opening while the rest is drawn. */
+export function showOpening() {
+  postToNative({ type: 'shown' });
+}
+
 /**
  * Connects the page to the native library, editor page and keyboard bar
  * around it: their commands run here, and the title, the source mode and the

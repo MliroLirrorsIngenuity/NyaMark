@@ -157,6 +157,8 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
       } else if navigation.viewControllers.contains(editor) {
         navigation.popToRootViewController(animated: true)
       }
+    case "shown":
+      editor.reveal()
     case "state":
       chrome.title = body["title"] as? String ?? ""
       chrome.status = body["status"] as? String ?? ""
