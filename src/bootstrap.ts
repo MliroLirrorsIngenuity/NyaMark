@@ -57,7 +57,7 @@ import { ThemeManager } from './ui/theme';
 import { Titlebar } from './ui/titlebar';
 import { showToast } from './ui/toast';
 import { UpdateDialog } from './ui/update-dialog';
-import { bindViewport, isCompactLayout } from './ui/viewport';
+import { bindViewport, holdPageScale, isCompactLayout } from './ui/viewport';
 
 const STATS_DELAY_MS = 300;
 
@@ -113,6 +113,7 @@ export class App {
       'ny-native-shell',
       isNativeShell()
     );
+    if (isNativeShell()) holdPageScale();
 
     await hydrateSettings();
     const settings = getSettings();

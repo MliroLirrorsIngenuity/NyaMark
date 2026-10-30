@@ -1,4 +1,4 @@
-import { isMobilePlatform } from '../platform/detect';
+import { isMobilePlatform, isNativeShell } from '../platform/detect';
 
 export const COMPACT_QUERY =
   '(max-width: 760px), (pointer: coarse) and (max-width: 1200px)';
@@ -7,9 +7,10 @@ export function isCompactLayout() {
   return isMobilePlatform() && window.matchMedia(COMPACT_QUERY).matches;
 }
 
-/** Follow the visible area, not the part covered by the software keyboard. */
+/** Follow the visible area, not the part covered by the software keyboard; around the native shell only the app's frame follows it. */
 export function bindViewport() {
   const root = document.documentElement;
+  const app = isNativeShell() ? document.getElementById('ny-app') : null;
   const viewport = window.visualViewport;
   let expandedHeight = window.innerHeight;
   let width = window.innerWidth;
@@ -40,8 +41,16 @@ export function bindViewport() {
       expandedHeight = window.innerHeight;
       width = window.innerWidth;
     }
-    setProperty('--ny-viewport-height', `${height}px`);
-    setProperty('--ny-viewport-top', `${viewport?.offsetTop ?? 0}px`);
+    const top = `${viewport?.offsetTop ?? 0}px`;
+    if (app) {
+      app.style.top = top;
+      app.style.height = `${height}px`;
+    } else {
+      setProperty('--ny-viewport-height', `${height}px`);
+      setProperty('--ny-viewport-top', top);
+    }
+    // The native shell draws what follows the keyboard itself; the class restyles the whole document.
+    if (app) return;
     root.classList.toggle(
       'ny-keyboard-open',
       isCompactLayout() &&
@@ -61,4 +70,12 @@ export function bindViewport() {
   window.addEventListener('resize', schedule);
   document.addEventListener('focusin', update);
   document.addEventListener('focusout', () => queueMicrotask(update));
+}
+
+/** WebKit zooms the page in on focusing text under 16px, as a code block's is; the app's page keeps its scale. */
+export function holdPageScale() {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  if (meta && !meta.content.includes('maximum-scale')) {
+    meta.content = `${meta.content}, maximum-scale=1`;
+  }
 }

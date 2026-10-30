@@ -171,14 +171,14 @@ async function receive(host: NativeShellHost, message: NativeMessage) {
       postToNative({ type: 'reply', id: message.reply, error });
       return;
     }
-    case 'insets':
-      keepEndInView(() =>
-        document.documentElement.style.setProperty(
-          '--ny-native-bottom',
-          `${Number(message.bottom) || 0}px`
-        )
-      );
+    case 'insets': {
+      const container = document.getElementById('ny-editor-container');
+      keepEndInView(() => {
+        if (!container) return;
+        container.style.paddingBottom = `calc(${END_ROOM_PX}px + ${Number(message.bottom) || 0}px)`;
+      });
       return;
+    }
     case 'leave':
       await host.documents.leaveForLibrary();
       return;
@@ -190,6 +190,9 @@ async function receive(host: NativeShellHost, message: NativeMessage) {
       return;
   }
 }
+
+/** The room under the document's last line, as the stylesheet keeps it on a phone. */
+const END_ROOM_PX = 48;
 
 /** The panes the document scrolls in: the page, and the source pane's own. */
 const SCROLLERS = '.ny-shell__body, .ny-source-pane .cm-scroller';
