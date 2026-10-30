@@ -32,6 +32,8 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
   /// Messages wait here while the page loads; it takes them once it reports ready.
   private var pending: [[String: Any]] = []
   private var pageReady = false
+  /// The editor page was left while the page loaded its document, which it then closes instead of showing.
+  private var leftWhileLoading = false
   private var replies: [String: (String?) -> Void] = [:]
   private var picker: PickerDelegate?
   private var themeWatch: AnyCancellable?
@@ -146,10 +148,13 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
         model.objectWillChange.send()
         retitle()
       }
-      if body["path"] is String {
+      let left = leftWhileLoading
+      leftWhileLoading = false
+      let hasDocument = body["path"] is String
+      if hasDocument && !left {
         showEditor(animated: navigation.viewControllers.count == 1)
         editor.reveal()
-      } else if navigation.viewControllers.contains(editor) {
+      } else if !hasDocument && navigation.viewControllers.contains(editor) {
         navigation.popToRootViewController(animated: true)
       }
     case "shown":
@@ -193,8 +198,15 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
 
   // MARK: Telling the page
 
+  /// The messages that take the page into a document or out of it.
+  private static let navigations: Set<String> = ["open", "leave"]
+
   func send(_ message: [String: Any]) {
     guard pageReady else {
+      // Only the last of the ways in and out asked for while the page loads is taken.
+      if let type = message["type"] as? String, Self.navigations.contains(type) {
+        pending.removeAll { Self.navigations.contains($0["type"] as? String ?? "") }
+      }
       pending.append(message)
       return
     }
@@ -246,6 +258,7 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
 
   /// Names the editor page after the document at `path` and hides the page until it shows it.
   private func expect(_ path: String) {
+    leftWhileLoading = false
     chrome.title = (path as NSString).lastPathComponent
     chrome.status = ""
     editor.conceal()
@@ -266,6 +279,7 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
 
   /// The editor page went; the page saves the document and closes it.
   func editorClosed() {
+    if !pageReady { leftWhileLoading = true }
     (panels["find"] as? FindPanelController)?.close()
     park()
     send(["type": "leave"])
