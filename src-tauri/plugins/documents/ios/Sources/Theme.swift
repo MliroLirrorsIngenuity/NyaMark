@@ -8,6 +8,8 @@ final class Theme: ObservableObject {
   /// Colour names as the page reports them: its CSS custom properties without `--ny-`.
   @Published private(set) var colors: [String: UIColor] = [:]
   @Published private(set) var dark = false
+  /// Whether the page's theme follows the system's, as against one chosen in its settings.
+  private(set) var followsSystem = true
 
   static let radius: CGFloat = 28
   static let controlRadius: CGFloat = 22
@@ -73,13 +75,14 @@ final class Theme: ObservableObject {
   }
 
   /// Takes the colours the page reports: `[r, g, b, a]` bytes by name.
-  func update(dark: Bool, reported: [String: [Double]]) {
+  func update(dark: Bool, followsSystem: Bool, reported: [String: [Double]]) {
     var next = dark ? Self.night : Self.light
     for (name, rgba) in reported where rgba.count == 4 {
       next[name] = UIColor(
         red: rgba[0] / 255, green: rgba[1] / 255, blue: rgba[2] / 255, alpha: rgba[3] / 255)
     }
     self.dark = dark
+    self.followsSystem = followsSystem
     colors = next
   }
 

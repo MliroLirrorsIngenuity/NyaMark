@@ -103,7 +103,9 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
     shell.toolbar.onHideKeyboard = { [weak shell] in shell?.webView.endEditing(true) }
     shell.themeWatch = Theme.shared.$colors.sink { [weak window] _ in
       DispatchQueue.main.async {
-        window?.overrideUserInterfaceStyle = Theme.shared.dark ? .dark : .light
+        let theme = Theme.shared
+        window?.overrideUserInterfaceStyle =
+          theme.followsSystem ? .unspecified : theme.dark ? .dark : .light
         window?.tintColor = Theme.shared.ui("accent")
       }
     }
@@ -167,7 +169,8 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
       toolbar.setActive(Set(body["active"] as? [String] ?? []))
     case "theme":
       Theme.shared.update(
-        dark: body["dark"] as? Bool ?? false, reported: body["colors"] as? [String: [Double]] ?? [:])
+        dark: body["dark"] as? Bool ?? false, followsSystem: body["followsSystem"] as? Bool ?? true,
+        reported: body["colors"] as? [String: [Double]] ?? [:])
     case "focus":
       let editing = body["document"] as? Bool ?? false
       if editing != editingDocument {

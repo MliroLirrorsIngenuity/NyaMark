@@ -9,6 +9,7 @@ import type { SourceModeController } from '../editor/source-mode';
 import { i18next } from '../i18n';
 import { store } from '../state/store';
 import { documentFileName } from '../ui/document-name';
+import type { ThemeManager } from '../ui/theme';
 import type { MobileDocuments } from './mobile-documents';
 import { dispatchPanel } from './native/panels';
 
@@ -19,6 +20,7 @@ export interface NativeShellHost {
   editor: () => NyaEditor | null;
   sourceMode: () => SourceModeController | null;
   documents: MobileDocuments;
+  theme: ThemeManager;
   /** What the editor page's menu and buttons ask for, by name. */
   actions: Record<string, () => unknown>;
   reportFailure: (error: unknown) => void;
@@ -73,8 +75,7 @@ export function bindNativeShell(host: NativeShellHost) {
   host.editor()?.onDocChanged(schedule);
   schedule();
 
-  postTheme();
-  window.addEventListener('nyamark:themechange', postTheme);
+  host.theme.onChange(() => postTheme(host.theme.followsSystem()));
   i18next.on('languageChanged', schedule);
 
   let editing = false;
@@ -118,7 +119,7 @@ const THEME_COLORS = [
  * Sends the colours as the stylesheet resolves them, as RGBA bytes: a canvas
  * paints each, so `color-mix()` and every other notation arrive the same way.
  */
-function postTheme() {
+function postTheme(followsSystem: boolean) {
   const probe = document.createElement('span');
   probe.hidden = true;
   document.body.append(probe);
@@ -138,6 +139,7 @@ function postTheme() {
   postToNative({
     type: 'theme',
     dark: document.documentElement.dataset.theme === 'dark',
+    followsSystem,
     colors,
   });
 }

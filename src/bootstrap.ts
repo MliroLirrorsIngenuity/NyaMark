@@ -334,6 +334,7 @@ export class App {
         editor: () => this.editor,
         sourceMode: () => this.sourceMode,
         documents,
+        theme,
         reportFailure,
         actions: {
           share: () => documents.share(null),

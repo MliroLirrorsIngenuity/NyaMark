@@ -3,6 +3,7 @@ import {
   listenWindowThemeChange,
   setWindowTheme,
 } from '../bridge/ipc/windows';
+import { isMobilePlatform } from '../platform/detect';
 import {
   type ThemePreference,
   getSettings,
@@ -104,6 +105,8 @@ export class ThemeManager {
   }
 
   private async bindNativeTheme() {
+    // On iOS and Android the window reports light whatever the system shows; the page's colour scheme follows it there.
+    if (isMobilePlatform()) return;
     try {
       const theme = await getWindowTheme();
       if (theme) this.setSystemMode(theme);
@@ -149,6 +152,7 @@ export class ThemeManager {
    * the system looked like at the first apply.
    */
   private async syncWindowTheme(mode: ThemeMode) {
+    if (isMobilePlatform()) return;
     try {
       if (this.preference !== 'auto') {
         await setWindowTheme(mode);
