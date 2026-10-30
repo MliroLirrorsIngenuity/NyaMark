@@ -324,7 +324,9 @@ export class App {
     void afterFirstFrame().then(() => this.syncSuggestions());
     subscribeSettings(() => this.syncSuggestions());
 
-    this.refreshStatsSoon();
+    // The native page's subtitle gives the words from its first state, and words alone are counted there.
+    if (isNativeShell()) this.updateStats();
+    else this.refreshStatsSoon();
     this.scheduleUpdateCheck();
     if (documents && isNativeShell()) {
       bindNativeShell({
@@ -537,6 +539,11 @@ export class App {
 
   private updateStats() {
     if (!this.editor) return;
+    // The native shell shows the words alone; the page's status bar, hidden there, shows the lines.
+    if (isNativeShell()) {
+      store.update({ wordCount: this.editor.getWordCount() });
+      return;
+    }
     const stats = this.editor.getStats();
     store.update({ wordCount: stats.words, lineCount: stats.lines });
   }

@@ -605,6 +605,12 @@ export class NyaEditor {
     return doc ? this.stats.count(doc) : { words: 0, lines: 1 };
   }
 
+  /** The words of `getStats` alone, without writing the document out for its lines. */
+  getWordCount(): number {
+    const doc = this.getView()?.state.doc;
+    return doc ? this.stats.words(doc) : 0;
+  }
+
   /** Where the text of heading `id` ends, or -1 when none has that id. */
   headingEnd(id: string) {
     let end = -1;

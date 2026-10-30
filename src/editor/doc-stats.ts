@@ -20,7 +20,7 @@ export class DocStats {
     return { words: this.words(doc), lines: this.lines(doc) };
   }
 
-  private words(doc: Node): number {
+  words(doc: Node): number {
     let words = 0;
     for (let index = 0; index < doc.childCount; index += 1) {
       const block = doc.child(index);
