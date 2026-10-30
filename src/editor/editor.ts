@@ -46,6 +46,7 @@ import {
 import { $prose } from '@milkdown/kit/utils';
 import type { Root } from 'mdast';
 import type { EditorView as ProseMirrorEditorView } from 'prosemirror-view';
+import { isNativeShell } from '../platform/detect';
 import { isCompactLayout } from '../ui/viewport';
 
 import { buildCrepeConfig } from './config';
@@ -404,7 +405,8 @@ export class NyaEditor {
     view?.dom.style.setProperty('outline-style', 'none');
     this.imageMetaPanel.attach();
     restHiddenBlockHandle(this.root);
-    fitTopBar(this.root);
+    // The native shell hides this bar for its own above the keyboard.
+    if (!isNativeShell()) fitTopBar(this.root);
     keepFocusOffBar(this.root);
     closeHeadingListOnKeys(this.root);
     languagePickerKeys(this.root);
