@@ -11,6 +11,7 @@ import {
   resolveAttachmentPath,
   resolveStorageDir,
   sanitizeFileName,
+  sharingLookups,
 } from '../src/features/attachment-paths';
 
 describe('formatAttachmentReference', () => {
@@ -198,12 +199,20 @@ describe('resolveAttachmentPath', () => {
 });
 
 describe('site-root references', () => {
-  /** The file `reference` in `documentPath` finds among `files`. */
-  const find = (documentPath: string, reference: string, files: string[]) => {
+  /** The file `reference` in `documentPath` finds among `files`, each path it checks put in `checked`. */
+  const find = (
+    documentPath: string,
+    reference: string,
+    files: string[],
+    checked: string[] = []
+  ) => {
     const path = resolveAttachmentPath(documentPath, reference) ?? '';
-    return findSiteRootFile(documentPath, path, async (candidate) =>
-      files.includes(candidate)
-    );
+    return findSiteRootFile(documentPath, path, async (candidate) => {
+      checked.push(candidate);
+      return files.some(
+        (file) => file === candidate || file.startsWith(`${candidate}/`)
+      );
+    });
   };
 
   test.each([
@@ -258,6 +267,48 @@ describe('site-root references', () => {
     ['none, with no such file', '/blog/posts/a.md', [], null],
   ])('finds the file %s', async (_label, documentPath, files, expected) => {
     expect(await find(documentPath, '/images/x.png', files)).toBe(expected);
+  });
+
+  test('looks in a folder only when it holds the first folder of the reference', async () => {
+    const checked: string[] = [];
+    const found = await find(
+      '/blog/posts/a.md',
+      '/images/x.png',
+      ['/blog/public/images/x.png'],
+      checked
+    );
+    expect(found).toBe('/blog/public/images/x.png');
+    expect(checked).toContain('/blog/posts/public/images');
+    expect(checked).not.toContain('/blog/posts/public/images/x.png');
+  });
+
+  test('finds a file at the top of a site folder', async () => {
+    expect(
+      await find('/blog/posts/a.md', '/favicon.png', [
+        '/blog/public/favicon.png',
+      ])
+    ).toBe('/blog/public/favicon.png');
+  });
+
+  test('lookups of one path under way at once share one check', async () => {
+    const asked: string[] = [];
+    const answers: Array<(found: boolean) => void> = [];
+    const onDisk = sharingLookups(
+      (path) =>
+        new Promise<boolean>((resolve) => {
+          asked.push(path);
+          answers.push(resolve);
+        })
+    );
+    const first = onDisk('/blog/public/images');
+    const second = onDisk('/blog/public/images');
+    expect(asked).toEqual(['/blog/public/images']);
+    answers[0](true);
+    expect(await Promise.all([first, second])).toEqual([true, true]);
+    const later = onDisk('/blog/public/images');
+    expect(asked).toEqual(['/blog/public/images', '/blog/public/images']);
+    answers[1](false);
+    expect(await later).toBe(false);
   });
 
   test('decodes the reference before looking', async () => {

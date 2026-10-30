@@ -278,40 +278,60 @@ export function isSiteRootReference(reference: string) {
 }
 
 /**
- * The files a site-root reference may mean, nearest first. A blog post
- * writes its pictures as `/images/a.png`, served from the site's root; the
- * post is in a folder of the site, and the picture in `public/images/a.png`
- * or the like beside that folder, or higher up.
+ * The folders a site-root reference may be served from, nearest first. A
+ * blog post writes its pictures as `/images/a.png`, served from the site's
+ * root; the post is in a folder of the site, and the picture in
+ * `public/images/a.png` or the like beside that folder, or higher up.
  */
-export function siteRootCandidates(documentPath: string, absolutePath: string) {
-  const fromRoot = `.${normalizePath(absolutePath)}`;
-  const candidates: string[] = [];
+function siteRootFolders(documentPath: string) {
+  const folders: string[] = [];
   let dir = dirnamePath(documentPath);
   for (;;) {
-    for (const folder of SITE_ROOT_FOLDERS) {
-      const candidate = joinPaths(joinPaths(dir, folder), fromRoot);
-      if (candidate !== absolutePath) candidates.push(candidate);
-    }
+    for (const folder of SITE_ROOT_FOLDERS)
+      folders.push(joinPaths(dir, folder));
     const parent = dirnamePath(dir);
-    if (parent === dir) return candidates;
+    if (parent === dir) return folders;
     dir = parent;
   }
 }
 
 /**
  * The file a site-root reference resolved to `absolutePath` means: that
- * path when it is on disk, else the nearest of `siteRootCandidates` that is.
+ * path when it is on disk, else the one in the nearest of `siteRootFolders`
+ * that has it. A folder is looked in only when it holds the reference's first
+ * folder, which the pictures of a post share.
  */
 export async function findSiteRootFile(
   documentPath: string,
   absolutePath: string,
   exists: (path: string) => Promise<boolean>
 ): Promise<string | null> {
-  if (await exists(absolutePath)) return absolutePath;
-  for (const candidate of siteRootCandidates(documentPath, absolutePath)) {
-    if (await exists(candidate)) return candidate;
+  const fromRoot = `.${normalizePath(absolutePath)}`;
+  const [top = ''] = pathParts(normalizePath(absolutePath));
+  const holds = async (folder: string, path: string) => {
+    const first = joinPaths(folder, top);
+    return (first === path || (await exists(first))) && (await exists(path));
+  };
+  if (await holds('/', absolutePath)) return absolutePath;
+  for (const folder of siteRootFolders(documentPath)) {
+    const candidate = joinPaths(folder, fromRoot);
+    if (candidate !== absolutePath && (await holds(folder, candidate))) {
+      return candidate;
+    }
   }
   return null;
+}
+
+/** `exists`, with the lookups of one path under way at once sharing one check. */
+export function sharingLookups(exists: (path: string) => Promise<boolean>) {
+  const running = new Map<string, Promise<boolean>>();
+  return (path: string) => {
+    const known = running.get(path);
+    if (known) return known;
+    const lookup = exists(path).finally(() => running.delete(path));
+    running.set(path, lookup);
+    return lookup;
+  };
 }
 
 export function formatAttachmentReference(

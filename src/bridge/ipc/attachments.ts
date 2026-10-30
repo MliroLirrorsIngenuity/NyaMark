@@ -11,6 +11,7 @@ import {
   resolveAttachmentPath,
   resolveStorageDir,
   sanitizeFileName,
+  sharingLookups,
 } from '../../features/attachment-paths';
 
 export type { AttachmentReferenceOptions };
@@ -73,10 +74,11 @@ export async function resolveDocumentAssetPath(
 ): Promise<string | null> {
   const path = resolveAttachmentPath(documentPath, assetPath);
   if (!path || !documentPath || !isSiteRootReference(assetPath)) return path;
-  // A path outside what the app may read is refused, and not there for it.
-  const onDisk = (candidate: string) => exists(candidate).catch(() => false);
   return (await findSiteRootFile(documentPath, path, onDisk)) ?? path;
 }
+
+/** Whether `path` is on disk; one outside what the app may read is refused, and not there for it. */
+const onDisk = sharingLookups((path) => exists(path).catch(() => false));
 
 export async function formatMarkdownReference(
   documentPath: string | null,
