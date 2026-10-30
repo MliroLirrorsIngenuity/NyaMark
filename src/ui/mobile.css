@@ -217,6 +217,27 @@
     caret-color: var(--ny-accent);
   }
 
+  /* On a phone a table keeps its words whole and scrolls sideways. */
+  #ny-app .milkdown .milkdown-table-block .table-wrapper {
+    overflow-x: auto;
+  }
+
+  #ny-app .milkdown .ProseMirror table {
+    width: max-content !important;
+    min-width: 100%;
+    overflow: visible;
+  }
+
+  #ny-app .milkdown .ProseMirror :is(th, td),
+  #ny-app .milkdown .ProseMirror :is(th, td) code {
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+  }
+
+  #ny-app .milkdown .ProseMirror :is(th, td) > p {
+    max-width: 18em;
+  }
+
   #ny-editor-container:not(.is-source-mode),
   #ny-editor-container:not(.is-source-mode) > .milkdown {
     display: flex;
@@ -375,10 +396,6 @@
   :root.ny-native-shell .ny-document-editing #ny-app .ny-shell__body,
   :root.ny-native-shell.ny-document-editing #ny-app .ny-shell__body {
     margin-bottom: 0;
-  }
-
-  :root.ny-native-shell #ny-editor-container {
-    padding-bottom: calc(48px + var(--ny-native-bottom, 0px));
   }
 
   /* Around the native shell the page draws the document alone. */
