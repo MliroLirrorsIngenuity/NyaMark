@@ -527,6 +527,28 @@ final class EditorViewController: UIViewController {
       })
   }
 
+  /// The edit menu on a selection: the system's Format writes HTML into the editor behind its back, so the editor's own formatting stands in its place.
+  override func buildMenu(with builder: UIMenuBuilder) {
+    super.buildMenu(with: builder)
+    guard #available(iOS 16.0, *), builder.system == .context, let shell else { return }
+    builder.remove(menu: .format)
+    builder.remove(menu: .textStyle)
+    guard !shell.chrome.sourceMode else { return }
+    let commands: [(String, String, String)] = [
+      ("bold", "bold", "bold"), ("italic", "italic", "italic"),
+      ("strikethrough", "strikethrough", "strikethrough"),
+      ("code", "chevron.left.forwardslash.chevron.right", "code"), ("link", "link", "link"),
+    ]
+    let format = UIMenu(
+      title: L10n.text("format"), image: UIImage(systemName: "bold.italic.underline"),
+      children: commands.map { id, symbol, label in
+        UIAction(title: L10n.text(label), image: UIImage(systemName: symbol)) { [weak shell] _ in
+          shell?.send(["type": "command", "name": id])
+        }
+      })
+    builder.insertSibling(format, afterMenu: .standardEdit)
+  }
+
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = Theme.shared.ui("app-bg-start")

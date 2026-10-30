@@ -82,6 +82,7 @@ enum L10n {
     "ai": ["en": "AI assistant", "zh-CN": "AI 助手", "zh-TW": "AI 助理"],
     "settings": ["en": "Settings", "zh-CN": "设置", "zh-TW": "設定"],
     "more": ["en": "More", "zh-CN": "更多", "zh-TW": "更多"],
+    "format": ["en": "Format", "zh-CN": "格式", "zh-TW": "格式"],
     "undo": ["en": "Undo", "zh-CN": "撤销", "zh-TW": "復原"],
     "redo": ["en": "Redo", "zh-CN": "重做", "zh-TW": "重做"],
     "heading": ["en": "Heading", "zh-CN": "标题", "zh-TW": "標題"],
