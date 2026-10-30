@@ -107,16 +107,11 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
     }
     window.rootViewController = shell.navigation
     shell.park()
-    queue.async {
-      let reopening = library.current() != nil
-      DispatchQueue.main.async {
-        if reopening {
-          shell.editor.conceal()
-          shell.showEditor(animated: false)
-        }
-        shell.model.reload()
-      }
+    if let name = library.reopeningName {
+      shell.expect(name)
+      shell.showEditor(animated: false)
     }
+    shell.model.reload()
   }
 
   /// Keeps the page in the window, behind the library, so it goes on loading and drawing.
@@ -244,9 +239,16 @@ final class NativeShell: NSObject, WKScriptMessageHandler, UIGestureRecognizerDe
   // MARK: Navigation
 
   func open(_ path: String) {
-    editor.conceal()
+    expect(path)
     showEditor(animated: true)
     send(["type": "open", "path": path])
+  }
+
+  /// Names the editor page after the document at `path` and hides the page until it shows it.
+  private func expect(_ path: String) {
+    chrome.title = (path as NSString).lastPathComponent
+    chrome.status = ""
+    editor.conceal()
   }
 
   private func showEditor(animated: Bool) {
@@ -519,7 +521,7 @@ final class EditorViewController: UIViewController {
       })
     watches.append(
       shell.chrome.$status.sink { [weak self] status in
-        if #available(iOS 26.0, *) { self?.navigationItem.subtitle = status }
+        if #available(iOS 26.0, *) { self?.navigationItem.subtitle = status.isEmpty ? nil : status }
       })
     watches.append(
       shell.chrome.$sourceMode.sink { [weak self] on in self?.sourceItem.isSelected = on })

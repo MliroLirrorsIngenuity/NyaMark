@@ -65,6 +65,8 @@ final class Library {
   /// Security-scoped URLs started this run, by canonical path; kept open while the app runs.
   private var scoped: [String: URL] = [:]
   private var ubiquityDocuments: URL??
+  /// The file name of the document open when the app last went, read as the library loads.
+  let reopeningName: String?
 
   init() {
     if let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
@@ -74,6 +76,8 @@ final class Library {
     } else {
       saved = SavedLibrary()
     }
+    let current = saved.current
+    reopeningName = saved.recents.first { $0.id == current }?.name
   }
 
   private func persist() {
