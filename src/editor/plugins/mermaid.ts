@@ -5,6 +5,7 @@ import type { MermaidConfig } from 'mermaid';
 import type { EditorView } from 'prosemirror-view';
 import type { MermaidFrame } from './mermaid-frame';
 import frameScript from './mermaid-frame?worker&url';
+import { drawnSize, keepDrawnSize } from './mermaid-sizes';
 
 const FONT_FAMILY =
   'SF Pro Text, PingFang SC, Hiragino Sans GB, Noto Sans CJK SC, Microsoft YaHei, -apple-system, BlinkMacSystemFont, sans-serif';
@@ -160,6 +161,7 @@ async function renderDiagram(
     pictureCount += 1;
     const picture = `picture-${pictureCount}`;
     const sized = Boolean(drawn.width && drawn.height);
+    if (sized) keepDrawnSize(key, drawn.width, drawn.height);
     pictures.set(picture, {
       svg: DOMPurify.sanitize(drawn.svg, {
         USE_PROFILES: { svg: true, svgFilters: true },
@@ -247,9 +249,14 @@ const observers = new Map<Element | null, IntersectionObserver>();
 let draining = false;
 let attachQueued = false;
 
-function placeholder(id: string) {
+function placeholder(id: string, content: string) {
   const label = escapeHtml(i18next.t('editor.blocks.loading'));
-  return `<div class="nyamark-mermaid-pending" data-mermaid-job="${id}">${label}</div>`;
+  const size = drawnSize(drawingKey(content));
+  if (!size) {
+    return `<div class="nyamark-mermaid-pending" data-mermaid-job="${id}">${label}</div>`;
+  }
+  const [width, height] = size;
+  return `<div class="nyamark-mermaid-preview"><span class="nyamark-mermaid-picture nyamark-mermaid-pending" data-mermaid-job="${id}" style="width: ${width}px; aspect-ratio: ${width} / ${height}">${label}</span></div>`;
 }
 
 /**
@@ -487,7 +494,7 @@ export function renderMermaidPreview(
     const id = genId();
     unplaced.set(id, { content, place: applyPreview });
     queueAttach();
-    return placeholder(id);
+    return placeholder(id, content);
   }
 
   const previous = pendingRenders.get(editor);
