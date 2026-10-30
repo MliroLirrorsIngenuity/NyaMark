@@ -72,7 +72,8 @@ function codeBlockExtensions(
     }),
     codeArrowsByRow,
     autocompletion({ activateOnTyping: false }),
-    tooltips({ parent: document.body }),
+    // Each editor's container in the body is a layer of its own on iOS, where no shortcut opens the popup.
+    isMobilePlatform() ? [] : tooltips({ parent: document.body }),
     codeBlockHistory(getView),
     codeBlockSelectAll(getView),
     codeBlockDocEdges(getView),
