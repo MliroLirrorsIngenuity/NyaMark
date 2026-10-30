@@ -48,6 +48,7 @@ import {
   takeUnreadableSettingsBackup,
 } from './state/settings';
 import { store } from './state/store';
+import { bindNearScrollers } from './ui/near-scrollers';
 import { OutlinePanel } from './ui/outline';
 import { SearchPanel } from './ui/search';
 import { SettingsPanel } from './ui/settings-panel/panel';
@@ -229,6 +230,7 @@ export class App {
       store
     );
     this.sourceMode.init();
+    if (isMobilePlatform()) bindNearScrollers(editorContainer);
 
     this.attachments.bindPaste(editorContainer);
     this.attachments.bindImagePicker(editorContainer, this.editor);

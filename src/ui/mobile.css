@@ -217,8 +217,63 @@
     caret-color: var(--ny-accent);
   }
 
-  /* On a phone a table keeps its words whole and scrolls sideways. */
-  #ny-app .milkdown .milkdown-table-block .table-wrapper {
+  /* WebKit composites every positioned element painted after a scroller or a blur in the document; these keep that to the few on screen. */
+  #ny-app .ny-shell__body {
+    isolation: isolate;
+  }
+
+  #ny-app .milkdown .milkdown-code-block .tools,
+  #ny-app
+    .milkdown
+    .milkdown-table-block
+    :is(.cell-handle, .cell-handle .button-group, .line-handle .add-button) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  #ny-app .milkdown .milkdown-code-block .tools {
+    visibility: hidden;
+    transition: opacity 0.16s ease, transform 0.18s
+      cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 0.18s !important;
+  }
+
+  #ny-app
+    .milkdown
+    .milkdown-code-block:is(
+      :focus-within,
+      :has(.language-button[data-expanded="true"])
+    )
+    .tools {
+    visibility: visible;
+    transition: opacity 0.16s ease, transform 0.18s
+      cubic-bezier(0.32, 0.72, 0, 1), visibility 0s !important;
+  }
+
+  #ny-app .cm-announced {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* On a phone a wide table or formula keeps its words whole and scrolls sideways once it nears the screen. */
+  #ny-app
+    .milkdown
+    :is(.milkdown-table-block .table-wrapper, .milkdown-code-block .preview) {
+    position: relative;
+    z-index: 1;
+    overflow-x: hidden;
+  }
+
+  #ny-app
+    .milkdown
+    :is(
+      .milkdown-table-block .table-wrapper,
+      .milkdown-code-block .preview
+    ).ny-scroll-near {
     overflow-x: auto;
   }
 
