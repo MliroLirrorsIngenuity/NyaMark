@@ -832,6 +832,11 @@
     border-right: 0;
   }
 
+  /* The source pane reaches under the keyboard and keeps the room under its text itself. */
+  :root.ny-native-shell #ny-editor-container.is-source-mode {
+    padding-bottom: 0 !important;
+  }
+
   :root .ny-source-pane .cm-editor {
     font-size: 16px;
     line-height: 1.6;

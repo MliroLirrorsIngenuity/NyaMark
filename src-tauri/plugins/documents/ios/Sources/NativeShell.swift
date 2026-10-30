@@ -570,6 +570,9 @@ final class EditorViewController: UIViewController {
     builder.insertSibling(format, afterMenu: .standardEdit)
   }
 
+  /// How far up from the foot of the page the keyboard reaches, with the bar over it.
+  private var keyboardCover: CGFloat = 0
+
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = Theme.shared.ui("app-bg-start")
@@ -577,6 +580,9 @@ final class EditorViewController: UIViewController {
       NotificationCenter.default.addObserver(
         self, selector: #selector(keyboardMoves(_:)), name: name, object: nil)
     }
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(keyboardResizes(_:)),
+      name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
   }
 
   override func viewWillAppear(_ animated: Bool) {
@@ -614,15 +620,34 @@ final class EditorViewController: UIViewController {
     tellInsets()
   }
 
-  /// The page keeps the end of the document clear of the toolbar, which the safe area takes in once it has come.
+  /// The page keeps the caret and the end of the document clear of the keyboard, or of the toolbar, which the safe area takes in once it has come.
   private func tellInsets() {
     guard let shell else { return }
-    let toolbar = navigationController?.isToolbarHidden == false && !shell.chrome.keyboardShown
+    if shell.chrome.keyboardShown {
+      shell.tellInsets(bottom: keyboardCover)
+      return
+    }
+    let toolbar = navigationController?.isToolbarHidden == false
     shell.tellInsets(bottom: toolbar ? view.safeAreaInsets.bottom : 0)
+  }
+
+  /// Takes how far up the page the keyboard, with the bar over it, will reach.
+  private func measureKeyboard(_ note: Notification) {
+    guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+      let screen = view.window?.screen
+    else { return }
+    let covered = view.bounds.intersection(view.convert(frame, from: screen.coordinateSpace))
+    keyboardCover = covered.isNull ? 0 : view.bounds.maxY - covered.minY
+  }
+
+  @objc private func keyboardResizes(_ note: Notification) {
+    measureKeyboard(note)
+    if shell?.chrome.keyboardShown == true { tellInsets() }
   }
 
   @objc private func keyboardMoves(_ note: Notification) {
     let shown = note.name == UIResponder.keyboardWillShowNotification
+    measureKeyboard(note)
     shell?.chrome.keyboardShown = shown
     if !shown { shell?.send(["type": "keyboard", "shown": false]) }
     guard navigationController?.topViewController === self else { return }

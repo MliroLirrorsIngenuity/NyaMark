@@ -7,7 +7,7 @@ export function isCompactLayout() {
   return isMobilePlatform() && window.matchMedia(COMPACT_QUERY).matches;
 }
 
-/** Follow the visible area, not the part covered by the software keyboard; around the native shell only the app's frame follows it. */
+/** Follow the visible area above the software keyboard; around the native shell the page reaches under it, and only moves with WebKit's scroll of the view. */
 export function bindViewport() {
   const root = document.documentElement;
   const app = isNativeShell() ? document.getElementById('ny-app') : null;
@@ -44,7 +44,6 @@ export function bindViewport() {
     const top = `${viewport?.offsetTop ?? 0}px`;
     if (app) {
       app.style.top = top;
-      app.style.height = `${height}px`;
     } else {
       setProperty('--ny-viewport-height', `${height}px`);
       setProperty('--ny-viewport-top', top);

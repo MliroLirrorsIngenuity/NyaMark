@@ -73,6 +73,7 @@ import { i18next } from '../i18n';
 import { isMobilePlatform } from '../platform/detect';
 import type { Store } from '../state/store';
 import { ensureStyle } from '../style/register';
+import { bottomCover, onBottomCover } from '../ui/bottom-cover';
 import { isCompactLayout } from '../ui/viewport';
 import { textChange } from './doc-diff';
 import type { NyaEditor } from './editor';
@@ -398,6 +399,7 @@ export class SourceModeController {
   /** Aborts the scroll-sync listeners of the current source-mode session. */
   private scrollSyncAbort: AbortController | null = null;
   private paneResize: ResizeObserver | null = null;
+  private offCover: (() => void) | null = null;
   private resizeFrame = 0;
   private anchorsDirty = true;
   private sourceAnchors: SourceAnchor[] = [];
@@ -720,6 +722,7 @@ export class SourceModeController {
           sourceMarkdown(initialDoc),
           sourceSearch(),
           syntaxHighlighting(markdownHighlight),
+          EditorView.scrollMargins.of(() => ({ bottom: bottomCover() })),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             autocorrect: 'off',
@@ -755,6 +758,16 @@ export class SourceModeController {
       });
     });
     this.paneResize.observe(this.host);
+    // The native shell's page reaches under the keyboard and the toolbar; the text ends clear of them.
+    const fitCover = (cover: number) => {
+      cm.scrollDOM.style.paddingBottom = `${cover}px`;
+      if (!cm.hasFocus) return;
+      cm.dispatch({
+        effects: EditorView.scrollIntoView(cm.state.selection.main.head),
+      });
+    };
+    cm.scrollDOM.style.paddingBottom = `${bottomCover()}px`;
+    this.offCover = onBottomCover(fitCover);
   }
 
   private bindScrollSync() {
@@ -861,6 +874,8 @@ export class SourceModeController {
     this.scrollSyncAbort = null;
     this.paneResize?.disconnect();
     this.paneResize = null;
+    this.offCover?.();
+    this.offCover = null;
     cancelAnimationFrame(this.resizeFrame);
     if (this.cmView) {
       this.cmView.destroy();

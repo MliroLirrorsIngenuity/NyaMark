@@ -8,6 +8,7 @@ import type { NyaEditor } from '../editor/editor';
 import type { SourceModeController } from '../editor/source-mode';
 import { i18next } from '../i18n';
 import { store } from '../state/store';
+import { setBottomCover } from '../ui/bottom-cover';
 import { documentFileName } from '../ui/document-name';
 import type { ThemeManager } from '../ui/theme';
 import type { MobileDocuments } from './mobile-documents';
@@ -179,11 +180,14 @@ async function receive(host: NativeShellHost, message: NativeMessage) {
       return;
     }
     case 'insets': {
+      const bottom = Number(message.bottom) || 0;
       const container = document.getElementById('ny-editor-container');
       keepEndInView(() => {
         if (!container) return;
-        container.style.paddingBottom = `calc(${END_ROOM_PX}px + ${Number(message.bottom) || 0}px)`;
+        container.style.paddingBottom = `calc(${END_ROOM_PX}px + ${bottom}px)`;
       });
+      setBottomCover(bottom);
+      revealField(bottom);
       return;
     }
     case 'leave':
@@ -204,10 +208,7 @@ const END_ROOM_PX = 48;
 /** The panes the document scrolls in: the page, and the source pane's own. */
 const SCROLLERS = '.ny-shell__body, .ny-source-pane .cm-scroller';
 
-/**
- * The room under the document grows once the toolbar is back after the
- * keyboard; a pane scrolled to its end stays at its end.
- */
+/** The room under the document follows the keyboard and the toolbar; a pane scrolled to its end stays at its end. */
 function keepEndInView(change: () => void) {
   const atEnd = Array.from(
     document.querySelectorAll<HTMLElement>(SCROLLERS)
@@ -216,6 +217,21 @@ function keepEndInView(change: () => void) {
   );
   change();
   for (const pane of atEnd) pane.scrollTop = pane.scrollHeight;
+}
+
+/** A field of the page's own, as a link's address, comes out from under the keyboard, which WebKit leaves to the page. */
+function revealField(bottom: number) {
+  const page = document.querySelector<HTMLElement>('.ny-shell__body');
+  if (!page) return;
+  page.style.scrollPaddingBottom = `${bottom}px`;
+  const field = document.activeElement;
+  if (
+    field instanceof HTMLElement &&
+    field.matches('input, textarea') &&
+    page.contains(field)
+  ) {
+    field.scrollIntoView({ block: 'nearest' });
+  }
 }
 
 /**

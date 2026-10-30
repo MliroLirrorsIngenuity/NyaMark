@@ -18,7 +18,7 @@ import { formulaBox, selectionToolbar, slashMenu } from './floating';
 import { intoAiSlash, intoAiToolbar } from './plugins/ai-entry';
 import { codeArrowsByRow } from './plugins/block-arrows';
 import { intoKeys } from './plugins/block-keys';
-import { codeClearOfBar } from './plugins/caret-scroll';
+import { codeClearOfCovers } from './plugins/caret-scroll';
 import { caretThroughColour } from './plugins/code-colour-caret';
 import { type Markdown, closeFenceOnEnter } from './plugins/code-fence-exit';
 import { codeIndentUnit, codeLanguages } from './plugins/code-language';
@@ -80,7 +80,7 @@ function codeBlockExtensions(
     closeFenceOnEnter(getView, markdown),
     codeSearchMatches,
     rememberCodeCopy(getView),
-    codeClearOfBar,
+    codeClearOfCovers,
     caretThroughColour,
     codeIndentUnit,
   ];

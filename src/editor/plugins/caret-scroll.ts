@@ -48,6 +48,7 @@ import {
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { bottomCover, onBottomCover } from '../../ui/bottom-cover';
 import { isCompactLayout } from '../../ui/viewport';
 import { caretBox as drawnBox } from './mark-cursor';
 
@@ -76,9 +77,10 @@ function barCover(el: Element): number {
   return Math.max(0, reach);
 }
 
-/** A code block's CodeMirror leaves room for the format bar too. */
-export const codeClearOfBar = CodeMirror.scrollMargins.of((cm) => ({
+/** A code block's CodeMirror leaves room for the format bar and the keyboard too. */
+export const codeClearOfCovers = CodeMirror.scrollMargins.of((cm) => ({
   top: barCover(cm.dom),
+  bottom: bottomCover(),
 }));
 
 /** ProseMirror's room around the caret, the top set as each scroll begins. */
@@ -175,7 +177,7 @@ function follow(view: EditorView, page: HTMLElement, before: number) {
   if (!caret) return;
   const box = page.getBoundingClientRect();
   const top = box.top + barCover(view.dom) + MARGIN_PX;
-  const bottom = box.bottom - MARGIN_PX;
+  const bottom = box.bottom - bottomCover() - MARGIN_PX;
   // Where the caret stands with the page put back.
   const back = page.scrollTop - before;
   let by = 0;
@@ -234,6 +236,13 @@ export const caretScroll = $prose(() => {
         });
       });
       if (page) resized.observe(page);
+      // The native shell's page reaches under the keyboard, which covers the caret as it comes.
+      const offCover = onBottomCover(() => {
+        if (!view.dom.contains(document.activeElement)) return;
+        view.dispatch(
+          view.state.tr.scrollIntoView().setMeta('addToHistory', false)
+        );
+      });
       return {
         update(view, prev) {
           if (!keyed || frame || prev.doc.eq(view.state.doc)) return;
@@ -248,6 +257,7 @@ export const caretScroll = $prose(() => {
           cancelAnimationFrame(frame);
           cancelAnimationFrame(resizeFrame);
           resized.disconnect();
+          offCover();
           view.dom.removeEventListener('keydown', onKey, true);
         },
       };
@@ -265,6 +275,8 @@ export const caretScroll = $prose(() => {
         const top = barCover(view.dom) + MARGIN_PX;
         threshold.top = top;
         margin.top = top;
+        threshold.bottom = bottomCover();
+        margin.bottom = bottomCover() + MARGIN_PX;
         if (scrollToCode(view)) return true;
         const page = view.dom.closest<HTMLElement>('.ny-shell__body');
         const { selection } = view.state;
@@ -283,7 +295,7 @@ export const caretScroll = $prose(() => {
         if (!caret || Math.abs(caret.top - coords.top) < 1) return false;
         const box = page.getBoundingClientRect();
         const over = box.top + top - caret.top;
-        const under = caret.bottom - (box.bottom - MARGIN_PX);
+        const under = caret.bottom - (box.bottom - bottomCover() - MARGIN_PX);
         if (over > 0) page.scrollTop -= over;
         else if (under > 0) page.scrollTop += under;
         return true;

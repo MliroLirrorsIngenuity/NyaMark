@@ -69,6 +69,7 @@ class DocumentsPlugin: Plugin {
   private var picker: PickerDelegate?
   private var deviceName = "iPhone"
   private var coverView: UIView?
+  private var viewPinned: NSKeyValueObservation?
 
   @objc public override func load(webview: WKWebView) {
     webView = webview
@@ -77,6 +78,11 @@ class DocumentsPlugin: Plugin {
     webview.scrollView.isScrollEnabled = false
     webview.scrollView.bounces = false
     webview.allowsLinkPreview = false
+    // WebKit scrolls the whole view to bring the caret above the keyboard; the page's pane does that itself.
+    viewPinned = webview.scrollView.observe(\.contentOffset) { scrollView, _ in
+      let rest = CGPoint(x: -scrollView.adjustedContentInset.left, y: -scrollView.adjustedContentInset.top)
+      if scrollView.contentOffset != rest { scrollView.contentOffset = rest }
+    }
     let device = deviceName
     DispatchQueue.main.async {
       NativeShell.install(
