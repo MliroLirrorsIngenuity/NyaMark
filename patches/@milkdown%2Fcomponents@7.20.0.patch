@@ -18,12 +18,16 @@ index dce68feb518272e03da1b1c7c2ea615e1b1d8ce4..1de2f7473054c26624f0d7de691b38d8
  export declare const defaultConfig: CodeBlockConfig;
  export declare const codeBlockConfig: import("@milkdown/utils").$Ctx<CodeBlockConfig, "codeBlockConfigCtx">;
 diff --git a/lib/code-block/index.js b/lib/code-block/index.js
-index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..44cb7f1229921e343d7c5a34b18617eac78264a3 100644
+index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..2dc024e9c0b869a8e34c8294d8d7c25ac0279a92 100644
 --- a/lib/code-block/index.js
 +++ b/lib/code-block/index.js
-@@ -232,14 +232,18 @@ const LanguagePicker = defineComponent({
+@@ -230,16 +230,21 @@ const LanguagePicker = defineComponent({
+       filter.value = "";
+       const picker = triggerRef.value;
        const languageList = pickerRef.value;
-       if (!picker || !languageList) return;
+-      if (!picker || !languageList) return;
++      // NyaMark: only an open list is placed, as placing one lays the whole page out.
++      if (!showPicker.value || !picker || !languageList) return;
        computePosition(picker, languageList, {
 -        placement: "bottom-start"
 +        placement: "bottom-start",
@@ -42,7 +46,7 @@ index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..44cb7f1229921e343d7c5a34b18617ea
      const onTogglePicker = (e) => {
        e.preventDefault();
        e.stopPropagation();
-@@ -260,22 +264,33 @@ const LanguagePicker = defineComponent({
+@@ -260,22 +265,33 @@ const LanguagePicker = defineComponent({
      const onSearchKeydown = (e) => {
        if (e.key === "Escape") filter.value = "";
      };
@@ -88,7 +92,7 @@ index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..44cb7f1229921e343d7c5a34b18617ea
      });
      const clickHandler = (e) => {
        const target = e.target;
-@@ -346,7 +361,7 @@ const LanguagePicker = defineComponent({
+@@ -346,7 +362,7 @@ const LanguagePicker = defineComponent({
              role: "listitem",
              tabindex: "0",
              class: "language-list-item",
@@ -97,7 +101,7 @@ index 072fc994d4487e1d977a4eb30f288fe859c5e4e3..44cb7f1229921e343d7c5a34b18617ea
              "data-language": languageInfo.name,
              onClick: () => {
                setLanguage(languageInfo.name);
-@@ -355,7 +370,7 @@ const LanguagePicker = defineComponent({
+@@ -355,7 +371,7 @@ const LanguagePicker = defineComponent({
            },
            config.renderLanguage(
              languageInfo.name,
